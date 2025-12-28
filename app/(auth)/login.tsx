@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, Alert } from 'react-native';
-import tw from 'twrnc';
 import axios from 'axios';
-import { useAuth } from '../../context/AuthContext';
-import { Config } from '../../constants/Config';
 import { StatusBar } from 'expo-status-bar';
-import { Mail, Lock, CheckCircle2 } from 'lucide-react-native';
+import { Lock, Mail } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import tw from 'twrnc';
+import { Config } from '../../constants/Config';
+import { useAuth } from '../../context/AuthContext';
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
@@ -48,12 +48,14 @@ export default function LoginScreen() {
         <View style={tw`flex-1 bg-white items-center justify-center p-6`}>
             <StatusBar style="dark" />
 
-            {/* Logo Placeholder */}
+            {/* Logo */}
             <View style={tw`mb-10 items-center`}>
-                <View style={tw`h-24 w-24 bg-blue-600 rounded-2xl items-center justify-center mb-4 shadow-lg`}>
-                    <Text style={tw`text-white text-4xl font-bold`}>NM</Text>
-                </View>
-                <Text style={tw`text-2xl font-bold text-gray-900`}>NetManager</Text>
+                <Image 
+                    source={require('../../assets/images/icon.png')} 
+                    style={tw`h-24 w-24 rounded-2xl mb-4`}
+                    resizeMode="contain"
+                />
+                <Text style={tw`text-2xl font-bold text-gray-900`}>SBL KARYAWAN</Text>
                 <Text style={tw`text-gray-500 mt-1`}>Employee Portal App</Text>
             </View>
 
@@ -96,12 +98,6 @@ export default function LoginScreen() {
                         {loading ? 'Memproses...' : 'Sign In'}
                     </Text>
                 </TouchableOpacity>
-
-                <View style={tw`mt-8 flex-row justify-center`}>
-                    <Text style={tw`text-gray-400 text-xs`}>
-                        Powered by Antigravity & Expo
-                    </Text>
-                </View>
             </View>
         </View>
     );

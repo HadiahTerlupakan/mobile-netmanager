@@ -1,27 +1,40 @@
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput, Image, Dimensions, Modal, FlatList } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { useAuth } from '../../../context/AuthContext';
-import { useSocketRoom, useSocketEvent } from '../../../context/SocketContext';
-import { SOCKET_EVENTS, WorkOrderActivityPayload } from '../../../context/socketTypes';
+import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import { useOfflineQuery } from '@/hooks/useOfflineQuery';
+import { SyncService } from '@/services/SyncService';
 import axios from 'axios';
-import { Config } from '../../../constants/Config';
-import tw from 'twrnc';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import {
-    ArrowLeft, MapPin, Calendar, Clock, User, Phone,
-    CheckCircle, Play, Pause, Camera, X, FileText,
-    History, Users, Package, Plus, CheckSquare, Square, ListChecks
-} from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
-import { useOfflineMutation } from '@/hooks/useOfflineMutation';
-import { SyncService } from '@/services/SyncService';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+    ArrowLeft,
+    Calendar,
+    Camera,
+    CheckCircle,
+    CheckSquare,
+    Clock,
+    FileText,
+    History,
+    ListChecks,
+    MapPin,
+    Package,
+    Pause,
+    Phone,
+    Play,
+    Plus,
+    Square,
+    User,
+    X
+} from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Dimensions, FlatList, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import tw from 'twrnc';
+import { Config } from '../../../constants/Config';
+import { useAuth } from '../../../context/AuthContext';
+import { useSocketEvent, useSocketRoom } from '../../../context/SocketContext';
+import { SOCKET_EVENTS, WorkOrderActivityPayload } from '../../../context/socketTypes';
 
 const { width } = Dimensions.get('window');
 
@@ -298,8 +311,10 @@ export default function WorkOrderDetailScreen() {
     };
 
 
+    const [partnerResponseLoading, setPartnerResponseLoading] = useState(false);
+    
     const handlePartnerResponse = async (response: 'APPROVED' | 'REJECTED') => {
-        setActionLoading(true);
+        setPartnerResponseLoading(true);
         try {
             const res = await axios.post(`${Config.API_URL}/api/mobile/work-orders/${id}/partner-response`, {
                 response
@@ -321,7 +336,7 @@ export default function WorkOrderDetailScreen() {
             console.error('Partner Response Error:', error);
             Alert.alert('Error', 'Gagal merespon permintaan partner');
         } finally {
-            setActionLoading(false);
+            setPartnerResponseLoading(false);
         }
     };
 

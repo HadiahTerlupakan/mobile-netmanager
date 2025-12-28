@@ -1,19 +1,19 @@
-import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert, ActivityIndicator, Image, useColorScheme } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useState, useEffect, useRef, useCallback } from 'react';
-import tw from 'twrnc';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/context/AuthContext';
-import axios from 'axios';
 import { Config } from '@/constants/Config';
+import { useAuth } from '@/context/AuthContext';
+import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import { useOfflineQuery } from '@/hooks/useOfflineQuery';
+import { SyncService } from '@/services/SyncService';
+import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
-import * as ImagePicker from 'expo-image-picker';
-import { captureRef } from 'react-native-view-shot';
+import axios from 'axios';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
-import { useOfflineMutation } from '@/hooks/useOfflineMutation';
-import { SyncService } from '@/services/SyncService';
+import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
+import tw from 'twrnc';
 
 interface Gudang {
     id: string;
@@ -50,6 +50,7 @@ export default function BarangMasukScreen() {
     // Ensure the collapsed picker text is always dark because our container is bg-white
     const pickerStyle = { color: '#1F2937' };
 
+
     const [gudangs, setGudangs] = useState<Gudang[]>([]);
     const [barangs, setBarangs] = useState<Barang[]>([]);
     const [loading, setLoading] = useState(false);
@@ -69,7 +70,7 @@ export default function BarangMasukScreen() {
     const { mutate, isLoading: isMutating } = useOfflineMutation();
 
     // Offline Query: Gudangs
-    const { data: gudangData, isLoading: loadingGudangs } = useOfflineQuery<Gudang[]>({
+    const { data: gudangData } = useOfflineQuery<Gudang[]>({
         key: 'gudang_list',
         fetcher: async () => {
             const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/gudang`, {
@@ -85,7 +86,7 @@ export default function BarangMasukScreen() {
     }, [gudangData]);
 
     // Offline Query: Barangs
-    const { data: barangData, isLoading: loadingBarangs } = useOfflineQuery<Barang[]>({
+    const { data: barangData } = useOfflineQuery<Barang[]>({
         key: `barang_list_${selectedGudang}`,
         fetcher: async () => {
              const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/barang?gudangId=${selectedGudang}`, {

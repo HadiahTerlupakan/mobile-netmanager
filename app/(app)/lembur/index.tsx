@@ -4,7 +4,7 @@ import { useOfflineMutation } from '@/hooks/useOfflineMutation';
 import { useOfflineQuery } from '@/hooks/useOfflineQuery';
 import axios from 'axios';
 import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
+import { id as idLocale } from 'date-fns/locale';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -69,7 +69,7 @@ export default function LemburScreen() {
     }, []);
 
     // Offline Query
-    const { data: overtimeData, isLoading: loadingData, refetch: fetchData } = useOfflineQuery({
+    const { data: overtimeData, refetch: fetchData } = useOfflineQuery({
         key: 'overtime_data',
         fetcher: async () => {
              const res = await axios.get(`${Config.API_URL}/api/mobile/overtime`, {
@@ -81,7 +81,7 @@ export default function LemburScreen() {
     });
     
     // Offline Mutation
-    const { mutate, isLoading: isMutating } = useOfflineMutation();
+    const { mutate } = useOfflineMutation();
 
     useEffect(() => {
         if (overtimeData) {
@@ -301,7 +301,7 @@ export default function LemburScreen() {
                         <View style={tw`bg-black/50 px-4 py-2 rounded-full`}>
                             <Text style={tw`text-white font-bold text-lg`}>{format(currentTime, 'HH:mm:ss')}</Text>
                         </View>
-                        <Text style={tw`text-white/70 text-xs mt-1`}>{format(currentTime, 'EEEE, d MMMM yyyy', { locale: id })}</Text>
+                        <Text style={tw`text-white/70 text-xs mt-1`}>{format(currentTime, 'EEEE, d MMMM yyyy', { locale: idLocale })}</Text>
                         <View style={tw`bg-indigo-600 px-3 py-1 rounded-full mt-2`}>
                             <Text style={tw`text-white text-xs font-bold`}>
                                 {activeAction === 'start' ? '🟢 MULAI LEMBUR' : '🔴 SELESAI LEMBUR'}
@@ -355,7 +355,7 @@ export default function LemburScreen() {
                     </TouchableOpacity>
                     <View style={tw`items-center`}>
                         <Text style={tw`text-indigo-100 font-medium text-sm mb-1`}>
-                            {format(currentTime, 'EEEE, d MMMM yyyy', { locale: id })}
+                            {format(currentTime, 'EEEE, d MMMM yyyy', { locale: idLocale })}
                         </Text>
                         <Text style={tw`text-white font-bold text-5xl`}>
                             {format(currentTime, 'HH:mm')}
@@ -415,7 +415,7 @@ export default function LemburScreen() {
                                                 {capturedTime ? format(capturedTime, 'HH:mm:ss') : '--:--:--'}
                                             </Text>
                                             <Text style={tw`text-white/80 text-xs ml-2`}>
-                                                {capturedTime ? format(capturedTime, 'EEEE, d MMMM yyyy', { locale: id }) : ''}
+                                                {capturedTime ? format(capturedTime, 'EEEE, d MMMM yyyy', { locale: idLocale }) : ''}
                                             </Text>
                                         </View>
                                         <View style={tw`flex-row items-center mb-1`}>
@@ -458,7 +458,7 @@ export default function LemburScreen() {
                                         <Timer size={32} color="#ca8a04" />
                                         <Text style={tw`text-yellow-700 font-bold text-lg mt-2`}>Menunggu Approval</Text>
                                         <Text style={tw`text-yellow-600 text-xs text-center mt-1`}>
-                                            Pengajuan: "{todayRequest.reason}"
+                                            Pengajuan: &quot;{todayRequest.reason}&quot;
                                         </Text>
                                     </View>
                                 )}

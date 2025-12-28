@@ -1,9 +1,8 @@
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
-import axios from 'axios';
 import { Config } from '@/constants/Config';
+import axios from 'axios';
+import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -11,6 +10,8 @@ Notifications.setNotificationHandler({
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
     }),
 });
 
@@ -82,7 +83,7 @@ export async function registerForPushNotificationsAsync(token?: string): Promise
 }
 
 // Send local notification (for testing)
-export async function sendLocalNotification(title: string, body: string, data?: object) {
+export async function sendLocalNotification(title: string, body: string, data?: Record<string, unknown>) {
     await Notifications.scheduleNotificationAsync({
         content: {
             title,

@@ -1,18 +1,18 @@
-import { View, Text, TouchableOpacity, FlatList, ActivityIndicator, RefreshControl, Alert, Linking } from 'react-native';
-import { useState, useCallback, useEffect } from 'react';
-import tw from 'twrnc';
+import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import { useOfflineQuery } from '@/hooks/useOfflineQuery';
+import { SyncService } from '@/services/SyncService';
+import axios from 'axios';
+import { useRouter } from 'expo-router';
+import { CheckCircle, FileText, Inbox, MapPin, Phone, User } from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Linking, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import tw from 'twrnc';
+import WorkOrderListItem from '../../components/dashboard/WorkOrderListItem';
+import { Config } from '../../constants/Config';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket, useSocketEvent } from '../../context/SocketContext';
 import { SOCKET_EVENTS } from '../../context/socketTypes';
-import axios from 'axios';
-import { Config } from '../../constants/Config';
-import WorkOrderListItem from '../../components/dashboard/WorkOrderListItem';
-import { useRouter } from 'expo-router';
-import { FileText, Inbox, CheckCircle, MapPin, Phone, User, Wifi, WifiOff } from 'lucide-react-native';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
-import { useOfflineMutation } from '@/hooks/useOfflineMutation';
-import { SyncService } from '@/services/SyncService';
 
 type TabType = 'tersedia' | 'aktif' | 'riwayat';
 
@@ -22,6 +22,8 @@ export default function WorkOrderScreen() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<TabType>('tersedia');
     const [workOrders, setWorkOrders] = useState<any[]>([]);
+    const [refreshing, setRefreshing] = useState(false);
+    const [claiming, setClaiming] = useState<string | null>(null);
     
     // Offline Query
     const { data: woData, isLoading: loadingWO, refetch: refetchWO } = useOfflineQuery<any[]>({

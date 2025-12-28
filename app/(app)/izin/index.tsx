@@ -1,18 +1,17 @@
-import { View, Text, TouchableOpacity, ScrollView, Modal, TextInput, Alert, ActivityIndicator, Image, RefreshControl } from 'react-native';
-import { useState, useEffect, useCallback, useRef } from 'react';
-import tw from 'twrnc';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
-import { ArrowLeft, Plus, Clock, CheckCircle, XCircle, Camera, X, ChevronDown } from 'lucide-react-native';
-import axios from 'axios';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useOfflineQuery } from '@/hooks/useOfflineQuery';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import axios from 'axios';
+import { format } from 'date-fns';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowLeft, Camera, CheckCircle, ChevronDown, Clock, Plus, X, XCircle } from 'lucide-react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import tw from 'twrnc';
 
 interface LeaveRequest {
     id: string;
@@ -35,7 +34,7 @@ const LEAVE_TYPES = [
 ];
 
 export default function IzinScreen() {
-    const { token, user } = useAuth();
+    const { token } = useAuth();
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -58,7 +57,7 @@ export default function IzinScreen() {
     const cameraRef = useRef<CameraView>(null);
 
     // Offline Query
-    const { data: historyData, isLoading: loadingHistory, refetch: fetchHistory } = useOfflineQuery({
+    const { data: historyData, refetch: fetchHistory } = useOfflineQuery({
         key: 'leaves_history',
         fetcher: async () => {
              const res = await axios.get(`${Config.API_URL}/api/mobile/leaves`, {
@@ -70,7 +69,7 @@ export default function IzinScreen() {
     });
 
     // Offline Mutation
-    const { mutate, isLoading: isMutating } = useOfflineMutation();
+    const { mutate } = useOfflineMutation();
 
     useEffect(() => {
         if (historyData) setHistory(historyData);
@@ -258,7 +257,7 @@ export default function IzinScreen() {
                                             </View>
                                         </View>
                                         <View style={tw`bg-white p-2 rounded-lg`}>
-                                            <Text style={tw`text-sm text-slate-600 italic`}>"{item.reason}"</Text>
+                                            <Text style={tw`text-sm text-slate-600 italic`}>&quot;{item.reason}&quot;</Text>
                                         </View>
                                         {item.rejectionReason && (
                                             <Text style={tw`text-xs text-red-500 mt-2`}>

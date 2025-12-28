@@ -1,9 +1,8 @@
 import NetInfo from '@react-native-community/netinfo';
-import { DatabaseService } from './DatabaseService';
 import axios from 'axios';
-import { API_URL } from '../constants/Config'; // Adjust if using Config object
-import { Config } from '../constants/Config'; // Imports might be messy, let's stick to Config.API_URL
 import * as SecureStore from 'expo-secure-store';
+import { Config } from '../constants/Config';
+import { DatabaseService } from './DatabaseService';
 
 // Helper for upload (outside component)
 const uploadFile = async (uri: string, token: string, type: string, watermarkLines?: string[]): Promise<string | null> => {
