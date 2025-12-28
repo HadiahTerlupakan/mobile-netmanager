@@ -1,19 +1,19 @@
-import { View, Text, TouchableOpacity, ScrollView, Alert, Image, TextInput, Modal, ActivityIndicator, RefreshControl } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import * as Location from 'expo-location';
-import { useState, useEffect, useRef, useCallback } from 'react';
-import tw from 'twrnc';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
-import { MapPin, Clock, X, RotateCcw, Camera, ArrowLeft, Timer, Plus, CheckCircle } from 'lucide-react-native';
-import axios from 'axios';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { captureRef } from 'react-native-view-shot';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import { useOfflineQuery } from '@/hooks/useOfflineQuery';
+import axios from 'axios';
+import { format } from 'date-fns';
+import { id } from 'date-fns/locale';
+import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
+import * as Location from 'expo-location';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowLeft, Camera, CheckCircle, Clock, MapPin, Plus, RotateCcw, Timer, X } from 'lucide-react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { captureRef } from 'react-native-view-shot';
+import tw from 'twrnc';
 
 interface Overtime {
     id: string;
@@ -147,6 +147,7 @@ export default function LemburScreen() {
         }
     };
 
+    const handleSubmitRequest = async () => {
         if (!reason.trim()) {
             Alert.alert('Error', 'Alasan wajib diisi');
             return;

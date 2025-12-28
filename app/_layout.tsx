@@ -1,16 +1,15 @@
 import { Slot, useRouter, useSegments } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import tw from 'twrnc';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { SocketProvider } from '../context/SocketContext';
-import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator } from 'react-native';
-import tw from 'twrnc';
 import { DatabaseService } from '../services/DatabaseService';
 import { SyncService } from '../services/SyncService';
 
 function RootLayoutNav() {
   const { user, isLoading } = useAuth();
-  const segments = useSegments();
   const segments = useSegments();
   const router = useRouter();
 
