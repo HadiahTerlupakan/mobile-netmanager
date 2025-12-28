@@ -148,7 +148,7 @@ export default function Profile() {
                             </View>
                             <View>
                                 <Text style={tw`text-xs text-gray-400 font-medium`}>Department</Text>
-                                <Text style={tw`text-gray-800 font-semibold`}>{profileData?.department?.name || 'Belum diatur'}</Text>
+                                <Text style={tw`text-gray-800 font-semibold`}>{profileData?.departments?.name || 'Belum diatur'}</Text>
                             </View>
                         </View>
 
@@ -159,7 +159,7 @@ export default function Profile() {
                             </View>
                             <View>
                                 <Text style={tw`text-xs text-gray-400 font-medium`}>Site / Lokasi</Text>
-                                <Text style={tw`text-gray-800 font-semibold`}>{profileData?.site?.name || 'Belum diatur'}</Text>
+                                <Text style={tw`text-gray-800 font-semibold`}>{profileData?.sites?.name || 'Belum diatur'}</Text>
                             </View>
                         </View>
 
