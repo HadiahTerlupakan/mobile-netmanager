@@ -1,0 +1,62 @@
+# ===========================================
+# LOGIN FLOW
+# Tests employee login
+# Handles all Expo dev menu screens
+# ===========================================
+
+appId: com.netmanager.mobile
+
+---
+- launchApp:
+    clearState: true
+
+- waitForAnimationToEnd
+
+# Handle Expo dev menu if present (first run)
+- runFlow:
+    when:
+      visible: "Development Build"
+    commands:
+      - tapOn: "http://10.0.2.2:8081"
+      - waitForAnimationToEnd
+
+# Handle Expo developer menu onboarding dialog
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+      - waitForAnimationToEnd
+
+# Handle Expo dev menu settings (tap Go home to enter app)
+- runFlow:
+    when:
+      visible: "Go home"
+    commands:
+      - tapOn: "Go home"
+      - waitForAnimationToEnd
+
+# Wait for login screen
+- extendedWaitUntil:
+    visible: "Sign In"
+    timeout: 25000
+
+# Tap on first input area (email)
+- tapOn:
+    point: "50%,45%"
+- inputText: "qa.fieldtech@test.com"
+- hideKeyboard
+
+# Tap on second input (password)
+- tapOn:
+    point: "50%,55%"
+- inputText: "qatest123"
+- hideKeyboard
+
+# Submit
+- tapOn: "Sign In"
+
+# Verify login
+- extendedWaitUntil:
+    visible: "Beranda"
+    timeout: 25000

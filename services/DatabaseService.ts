@@ -1,7 +1,11 @@
 import * as SQLite from 'expo-sqlite';
-import * as FileSystem from 'expo-file-system';
 
 const DB_NAME = 'netmanager_offline.db';
+
+// Singleton instance dan flag untuk track status database
+let dbInstance: SQLite.SQLiteDatabase | null = null;
+let isDbReady = false;
+let initPromise: Promise<void> | null = null;
 
 export interface SyncQueueItem {
     id: number;
@@ -14,49 +18,90 @@ export interface SyncQueueItem {
 }
 
 export const DatabaseService = {
+    // Check if database is ready
+    isReady: () => isDbReady,
+
+    // Wait for database to be ready
+    waitForReady: async () => {
+        if (isDbReady && dbInstance) return;
+        if (initPromise) {
+            await initPromise;
+            return;
+        }
+        // If no init in progress, start one
+        await DatabaseService.initDatabase();
+    },
+
     getDB: async () => {
-        return await SQLite.openDatabaseAsync(DB_NAME);
+        // If database is not ready, wait for initialization
+        if (!isDbReady || !dbInstance) {
+            await DatabaseService.waitForReady();
+        }
+        if (!dbInstance) {
+            throw new Error('Database not initialized');
+        }
+        return dbInstance;
     },
 
     initDatabase: async () => {
-        try {
-            const db = await DatabaseService.getDB();
-
-            // Create Settings / Metadata table (for last sync time, etc.)
-            await db.execAsync(`
-                CREATE TABLE IF NOT EXISTS settings (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                );
-            `);
-
-            // Create Sync Queue Table
-            await db.execAsync(`
-                CREATE TABLE IF NOT EXISTS sync_queue (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    url TEXT NOT NULL,
-                    method TEXT NOT NULL,
-                    body TEXT,
-                    status TEXT DEFAULT 'PENDING',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    meta TEXT
-                );
-            `);
-
-            // Create Offline Data Cache Table (Key-Value Store for large JSONs)
-            // keys: 'work_orders', 'inventory', 'attendance_history', etc.
-            await db.execAsync(`
-                CREATE TABLE IF NOT EXISTS offline_cache (
-                    key TEXT PRIMARY KEY,
-                    data TEXT, -- JSON blob
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            `);
-
-            console.log('Database initialized successfully');
-        } catch (error) {
-            console.error('Database initialization failed:', error);
+        // Prevent multiple parallel initializations
+        if (initPromise) {
+            return initPromise;
         }
+
+        if (isDbReady && dbInstance) {
+            return;
+        }
+
+        initPromise = (async () => {
+            try {
+                // Open database directly (don't use getDB to avoid circular call)
+                dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
+
+                // Create Settings / Metadata table (for last sync time, etc.)
+                await dbInstance.execAsync(`
+                    CREATE TABLE IF NOT EXISTS settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT
+                    );
+                `);
+
+                // Create Sync Queue Table
+                await dbInstance.execAsync(`
+                    CREATE TABLE IF NOT EXISTS sync_queue (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        url TEXT NOT NULL,
+                        method TEXT NOT NULL,
+                        body TEXT,
+                        status TEXT DEFAULT 'PENDING',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        meta TEXT
+                    );
+                `);
+
+                // Create Offline Data Cache Table (Key-Value Store for large JSONs)
+                await dbInstance.execAsync(`
+                    CREATE TABLE IF NOT EXISTS offline_cache (
+                        key TEXT PRIMARY KEY,
+                        data TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                `);
+
+                isDbReady = true;
+                console.log('Database initialized successfully');
+            } catch (error) {
+                console.error('Database initialization failed:', error);
+                // Reset state on failure
+                dbInstance = null;
+                isDbReady = false;
+                throw error;
+            } finally {
+                initPromise = null;
+            }
+        })();
+
+        return initPromise;
     },
 
     // --- Sync Queue Operations ---

@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppState, AppStateStatus } from 'react-native';
 import { useAuth } from './AuthContext';
 import { Config } from '../constants/Config';
+import logger from '../utils/logger';
 
 interface SocketContextType {
     socket: Socket | null;
@@ -31,7 +32,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
     const connect = useCallback(() => {
         // Only connect if authenticated
         if (!token || !user?.id) {
-            console.log('[WS Mobile] No token or user, skipping connection');
+            logger.socket('No token or user, skipping connection');
             return null;
         }
 
@@ -41,7 +42,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
             baseUrl = baseUrl.slice(0, -1);
         }
 
-        console.log('[WS Mobile] Connecting to:', baseUrl);
+        logger.socket('Connecting to:', baseUrl);
 
         const socketInstance = io(baseUrl, {
             path: '/api/socket',
@@ -66,7 +67,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
         });
 
         socketInstance.on('connect', () => {
-            console.log('[WS Mobile] Connected:', socketInstance.id);
+            logger.socket('Connected:', socketInstance.id);
             setIsConnected(true);
             setLastError(null);
 
@@ -75,18 +76,18 @@ export function SocketProvider({ children }: SocketProviderProps) {
         });
 
         socketInstance.on('disconnect', (reason) => {
-            console.log('[WS Mobile] Disconnected:', reason);
+            logger.socket('Disconnected:', reason);
             setIsConnected(false);
         });
 
         socketInstance.on('connect_error', (error) => {
-            console.error('[WS Mobile] Connection error:', error.message);
+            logger.error('[WS] Connection error:', error.message);
             setLastError(error.message);
             setIsConnected(false);
         });
 
         socketInstance.on('reconnect', (attemptNumber) => {
-            console.log('[WS Mobile] Reconnected after', attemptNumber, 'attempts');
+            logger.socket('Reconnected after', attemptNumber, 'attempts');
             setIsConnected(true);
             setLastError(null);
 
@@ -95,11 +96,11 @@ export function SocketProvider({ children }: SocketProviderProps) {
         });
 
         socketInstance.on('reconnect_error', (error) => {
-            console.warn('[WS Mobile] Reconnection error:', error.message);
+            logger.warn('[WS] Reconnection error:', error.message);
         });
 
         socketInstance.on('reconnect_failed', () => {
-            console.error('[WS Mobile] Reconnection failed after all attempts');
+            logger.error('[WS] Reconnection failed after all attempts');
             setLastError('Koneksi terputus');
         });
 
@@ -136,7 +137,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
     useEffect(() => {
         const handleAppStateChange = (nextAppState: AppStateStatus) => {
             if (nextAppState === 'active' && socket && !socket.connected) {
-                console.log('[WS Mobile] App active, attempting reconnect...');
+                logger.socket('App active, attempting reconnect...');
                 socket.connect();
             }
         };
@@ -191,11 +192,11 @@ export function useSocketRoom(room: string) {
     useEffect(() => {
         if (!socket || !isConnected || !room) return;
 
-        console.log(`[WS Mobile] Joining room: ${room}`);
+        logger.socket(`Joining room: ${room}`);
         socket.emit('join:room', { room });
 
         return () => {
-            console.log(`[WS Mobile] Leaving room: ${room}`);
+            logger.socket(`Leaving room: ${room}`);
             socket.emit('leave:room', { room });
         };
     }, [socket, isConnected, room]);

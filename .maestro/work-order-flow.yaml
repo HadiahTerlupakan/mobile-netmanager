@@ -1,0 +1,47 @@
+# ===========================================
+# WORK ORDER FLOW
+# Tests complete WO lifecycle on mobile
+# ===========================================
+
+appId: com.netmanager.mobile
+
+---
+- launchApp
+
+# === LOGIN ===
+- assertVisible: "SBL KARYAWAN"
+- tapOn:
+    id: "email-input"
+- inputText: "qa.fieldtech@test.com"
+- tapOn:
+    id: "password-input"  
+- inputText: "qatest123"
+- tapOn: "Sign In"
+
+# Wait for dashboard
+- extendedWaitUntil:
+    visible: "Beranda"
+    timeout: 15000
+
+# === NAVIGATE TO WORK ORDERS ===
+- tapOn: "Work Order"
+
+# Wait for WO screen
+- extendedWaitUntil:
+    visible: "Tersedia"
+    timeout: 10000
+
+# === VIEW AVAILABLE TAB ===
+- tapOn: "Tersedia"
+- waitForAnimationToEnd
+
+# === VIEW ACTIVE TAB ===
+- tapOn: "Aktif"
+- waitForAnimationToEnd
+
+# === VIEW HISTORY TAB ===
+- tapOn: "Riwayat"
+- waitForAnimationToEnd
+
+# Return to available
+- tapOn: "Tersedia"

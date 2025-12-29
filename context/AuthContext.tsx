@@ -4,6 +4,7 @@ import { Alert } from 'react-native';
 import { registerForPushNotificationsAsync, addNotificationListeners } from '@/services/PushNotificationService';
 import axios from 'axios';
 import { Config } from '@/constants/Config';
+import logger from '@/utils/logger';
 
 type User = {
     id: string;
@@ -37,10 +38,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (token) {
             const cleanup = addNotificationListeners(
                 (notification) => {
-                    console.log('[Push] Received:', notification.request.content.title);
+                    logger.info('[Push] Received:', notification.request.content.title);
                 },
                 (response) => {
-                    console.log('[Push] Tapped:', response.notification.request.content.title);
+                    logger.info('[Push] Tapped:', response.notification.request.content.title);
                     // TODO: Navigate to notification target
                 }
             );
@@ -56,12 +57,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (storedToken && storedUser) {
                 setToken(storedToken);
                 setUser(JSON.parse(storedUser));
-                
+
                 // Re-register push token on app start
-                registerForPushNotificationsAsync(storedToken).catch(console.error);
+                registerForPushNotificationsAsync(storedToken).catch(logger.error);
             }
         } catch (e) {
-            console.error('Failed to load auth storage', e);
+            logger.error('Failed to load auth storage', e);
         } finally {
             setIsLoading(false);
         }
@@ -69,28 +70,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function signIn(newToken: string, userData: User) {
         setIsLoading(true);
-        console.log('[AuthContext] signIn started for:', userData.email);
+        logger.auth('signIn started for:', userData.email);
         try {
-            console.log('[AuthContext] Saving token...');
+            logger.auth('Saving token...');
             await SecureStore.setItemAsync('session_token', newToken);
-            console.log('[AuthContext] Saving user data...');
+            logger.auth('Saving user data...');
             await SecureStore.setItemAsync('user_data', JSON.stringify(userData));
 
-            console.log('[AuthContext] Updating state...');
+            logger.auth('Updating state...');
             setToken(newToken);
             setUser(userData);
-            
+
             // Register for push notifications
-            console.log('[AuthContext] Registering push notifications...');
-            registerForPushNotificationsAsync(newToken).catch(console.error);
-            
-            console.log('[AuthContext] signIn complete');
+            logger.auth('Registering push notifications...');
+            registerForPushNotificationsAsync(newToken).catch(logger.error);
+
+            logger.auth('signIn complete');
         } catch (error) {
-            console.error('[AuthContext] Sign in error', error);
+            logger.error('[AuthContext] Sign in error', error);
             Alert.alert('Login Error', 'Gagal menyimpan sesi login');
         } finally {
             setIsLoading(false);
-            console.log('[AuthContext] Loading state set to false');
+            logger.auth('Loading state set to false');
         }
     }
 
@@ -103,16 +104,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                 } catch (e) {
-                    console.error('Failed to remove push token:', e);
+                    logger.error('Failed to remove push token:', e);
                 }
             }
-            
+
             await SecureStore.deleteItemAsync('session_token');
             await SecureStore.deleteItemAsync('user_data');
             setToken(null);
             setUser(null);
         } catch (error) {
-            console.error('Sign out error', error);
+            logger.error('Sign out error', error);
         }
     }
 

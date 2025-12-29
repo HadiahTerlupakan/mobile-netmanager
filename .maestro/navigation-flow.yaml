@@ -1,0 +1,33 @@
+# ===========================================
+# APP NAVIGATION FLOW
+# Tests basic app navigation (no login required if already logged in)
+# ===========================================
+
+appId: com.netmanager.mobile
+
+---
+# Launch app (keep existing state if logged in)
+- launchApp
+
+# Wait for app to load
+- waitForAnimationToEnd
+
+# Check if we're on dashboard (already logged in) or login screen
+- runFlow:
+    when:
+      visible: "Beranda"
+    commands:
+      - tapOn: "Work Order"
+      - extendedWaitUntil:
+          visible: "Tersedia"
+          timeout: 10000
+      - tapOn: "Tersedia"
+      - waitForAnimationToEnd
+      - tapOn: "Aktif"
+      - waitForAnimationToEnd
+      - tapOn: "Beranda"
+      - waitForAnimationToEnd
+      - tapOn: "Absensi"
+      - waitForAnimationToEnd
+      - tapOn: "Profil"
+      - waitForAnimationToEnd

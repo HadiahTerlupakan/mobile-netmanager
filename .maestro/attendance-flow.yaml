@@ -1,0 +1,32 @@
+# ===========================================
+# ATTENDANCE FLOW
+# Tests check-in and check-out functionality
+# ===========================================
+
+appId: com.netmanager.mobile
+
+---
+- launchApp
+
+# === LOGIN ===
+- assertVisible: "SBL KARYAWAN"
+- tapOn:
+    id: "email-input"
+- inputText: "qa.fieldtech@test.com"
+- tapOn:
+    id: "password-input"
+- inputText: "qatest123"
+- tapOn: "Sign In"
+
+# Wait for dashboard
+- extendedWaitUntil:
+    visible: "Beranda"
+    timeout: 15000
+
+# === NAVIGATE TO ATTENDANCE ===
+- tapOn: "Absensi"
+
+# Wait for attendance screen
+- extendedWaitUntil:
+    visible: "Absensi"
+    timeout: 10000

@@ -59,6 +59,18 @@ export const SyncService = {
 
   processQueue: async () => {
     console.log('[SyncService] Checking sync queue...');
+    
+    // Wait for database to be ready before proceeding
+    if (!DatabaseService.isReady()) {
+      console.log('[SyncService] Database not ready, waiting...');
+      try {
+        await DatabaseService.waitForReady();
+      } catch (error) {
+        console.error('[SyncService] Database initialization failed, skipping queue processing');
+        return;
+      }
+    }
+
     const queue = await DatabaseService.getPendingQueue();
 
     if (queue.length === 0) {

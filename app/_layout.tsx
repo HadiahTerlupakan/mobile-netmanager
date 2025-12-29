@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '../context/AuthContext';
 import { SocketProvider } from '../context/SocketContext';
 import { DatabaseService } from '../services/DatabaseService';
 import { SyncService } from '../services/SyncService';
+import logger from '../utils/logger';
 
 function RootLayoutNav() {
   const { user, isLoading } = useAuth();
@@ -31,12 +32,12 @@ function RootLayoutNav() {
       const cleanup = addNotificationListeners(
         (notification) => {
           // Handle foreground notification received
-          console.log('Foreground notification:', notification);
+          logger.info('Foreground notification:', notification);
         },
         (response) => {
           // Handle notification tap
           const data = response.notification.request.content.data;
-          console.log('Notification tapped, data:', data);
+          logger.info('Notification tapped, data:', data);
 
           if (data?.url) {
             try {
@@ -44,7 +45,7 @@ function RootLayoutNav() {
               // Example url: /work-orders/cmjlgercn0000n9hdnhvhhs9d
               router.push(data.url as any);
             } catch (e) {
-              console.error('Navigation failed:', e);
+              logger.error('Navigation failed:', e);
             }
           }
         }
@@ -62,24 +63,24 @@ function RootLayoutNav() {
   }, []);
 
   useEffect(() => {
-    console.log('[RootLayout] Effect triggered. User:', !!user, 'Segments:', segments, 'Loading:', isLoading);
+    logger.auth('Effect triggered. User:', !!user, 'Segments:', segments, 'Loading:', isLoading);
 
     if (isLoading) {
-      console.log('[RootLayout] Still loading, skipping redirect check');
+      logger.auth('Still loading, skipping redirect check');
       return;
     }
 
     const inAuthGroup = segments[0] === '(auth)';
     const inAppGroup = segments[0] === '(app)';
 
-    console.log('[RootLayout] Status:', { user: !!user, inAuthGroup, inAppGroup, segments });
+    logger.auth('Status:', { user: !!user, inAuthGroup, inAppGroup, segments });
 
     if (!user && !inAuthGroup) {
-      console.log('[RootLayout] Redirecting to Login');
+      logger.auth('Redirecting to Login');
       router.replace('/(auth)/login');
     } else if (user && !inAppGroup) {
       // Redirect to dashboard if logged in but not in (app) group (e.g. at root or login page)
-      console.log('[RootLayout] Redirecting to Dashboard');
+      logger.auth('Redirecting to Dashboard');
       router.replace('/(app)/dashboard');
     }
   }, [user, segments, isLoading]);

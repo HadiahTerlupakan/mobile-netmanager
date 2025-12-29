@@ -36,9 +36,23 @@ export default function LoginScreen() {
                 Alert.alert('Login Gagal', res.data.error || 'Terjadi kesalahan');
             }
         } catch (error: any) {
-            console.error(error);
-            const msg = error.response?.data?.error || 'Gagal terhubung ke server. Cek koneksi internet/IP Server.';
-            Alert.alert('Error', msg);
+            console.error('[LoginScreen] Login error:', error.response?.status, error.response?.data);
+            
+            // Handle different error scenarios
+            if (error.response) {
+                // Server responded with error
+                const errorMessage = error.response.data?.error || 'Login gagal';
+                Alert.alert('Login Gagal', errorMessage);
+            } else if (error.request) {
+                // No response received (network error)
+                Alert.alert(
+                    'Koneksi Gagal', 
+                    'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.'
+                );
+            } else {
+                // Other errors
+                Alert.alert('Error', 'Terjadi kesalahan. Silakan coba lagi.');
+            }
         } finally {
             setLoading(false);
         }
@@ -65,6 +79,8 @@ export default function LoginScreen() {
                     <View style={tw`flex-row items-center border border-gray-300 rounded-xl px-4 h-12 bg-gray-50 focus:border-blue-500`}>
                         <Mail color="#9ca3af" size={20} />
                         <TextInput
+                            testID="email-input"
+                            accessibilityLabel="Email Input"
                             style={tw`flex-1 ml-3 text-gray-900`}
                             placeholder="nama@perusahaan.com"
                             autoCapitalize="none"
@@ -80,6 +96,8 @@ export default function LoginScreen() {
                     <View style={tw`flex-row items-center border border-gray-300 rounded-xl px-4 h-12 bg-gray-50 focus:border-blue-500`}>
                         <Lock color="#9ca3af" size={20} />
                         <TextInput
+                            testID="password-input"
+                            accessibilityLabel="Password Input"
                             style={tw`flex-1 ml-3 text-gray-900`}
                             placeholder="••••••••"
                             secureTextEntry
