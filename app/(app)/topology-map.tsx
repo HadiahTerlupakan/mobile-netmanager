@@ -1,5 +1,4 @@
 import MapLibreGL from '@maplibre/maplibre-react-native';
-import axios from 'axios';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Layers, RefreshCw } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -13,16 +12,10 @@ import {
     View,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
-
-// Disable MapLibre verbose logging
-MapLibreGL.setConnected(true);
-if (MapLibreGL.Logger) {
-  MapLibreGL.Logger.setLogLevel('error');
-}
+import api from '../../services/api';
 
 import { DeviceData, DeviceDetailModal, DeviceType } from '../../components/topology/DeviceDetailModal';
 import { FilterPanel } from '../../components/topology/FilterPanel';
-import { Config } from '../../constants/Config';
 
 // Types
 interface TopologyData {
@@ -124,6 +117,9 @@ const MARKER_COLORS: Record<DeviceType, string> = {
   pelanggan: '#ec4899',
 };
 
+// MapLibre Config
+MapLibreGL.setAccessToken(null); // Not needed for open tiles
+
 export default function TopologyMapScreen() {
   const router = useRouter();
   const [data, setData] = useState<TopologyData | null>(null);
@@ -157,10 +153,7 @@ export default function TopologyMapScreen() {
 
     try {
         setLoading(true);
-        const response = await axios.get(`${Config.API_URL}/api/mobile/topology`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-
+        const response = await api.get('/api/mobile/topology');
         setData(response.data); 
     } catch (err: any) {
         console.error('Error fetching topology:', err);
@@ -177,72 +170,26 @@ export default function TopologyMapScreen() {
     }
   }, [fetchData, token]);
 
-  // Calculate initial region based on data
-  const initialRegion = useMemo(() => {
-    if (!data) {
-      return {
-        latitude: -6.2,
-        longitude: 106.816666,
-        latitudeDelta: 0.5,
-        longitudeDelta: 0.5,
-      };
-    }
-
-    const allCoords: Array<{ latitude: number; longitude: number }> = [
-      ...data.otbs,
-      ...data.odcs,
-      ...data.odps,
-      ...data.joinboxes,
-      ...data.poles,
-      ...data.pelanggans,
-    ].filter((item) => item.latitude && item.longitude);
-
-    if (allCoords.length === 0) {
-      return {
-        latitude: -6.2,
-        longitude: 106.816666,
-        latitudeDelta: 0.5,
-        longitudeDelta: 0.5,
-      };
-    }
-
-    const avgLat = allCoords.reduce((sum, c) => sum + c.latitude, 0) / allCoords.length;
-    const avgLon = allCoords.reduce((sum, c) => sum + c.longitude, 0) / allCoords.length;
-
-    const latitudes = allCoords.map((c) => c.latitude);
-    const longitudes = allCoords.map((c) => c.longitude);
-    const latDelta = Math.max(0.01, (Math.max(...latitudes) - Math.min(...latitudes)) * 1.5);
-    const lonDelta = Math.max(0.01, (Math.max(...longitudes) - Math.min(...longitudes)) * 1.5);
-
-    return {
-      latitude: avgLat,
-      longitude: avgLon,
-      latitudeDelta: latDelta,
-      longitudeDelta: lonDelta,
-    };
-  }, [data]);
-
-  // Connection lines
+  // Connection lines GeoJSON
   const connectionLines = useMemo(() => {
-    if (!data) return [];
+    if (!data) return { type: 'FeatureCollection', features: [] };
 
-    const lines: Array<{
-      id: string;
-      coordinates: Array<{ latitude: number; longitude: number }>;
-      color: string;
-    }> = [];
+    const features: any[] = [];
 
     // ODC to OTB connections
     if (visibility.odc && visibility.otb) {
       data.odcs.forEach((odc) => {
         if (odc.otbCore?.otb) {
-          lines.push({
-            id: `odc-otb-${odc.id}`,
-            coordinates: [
-              { latitude: odc.latitude, longitude: odc.longitude },
-              { latitude: odc.otbCore.otb.latitude, longitude: odc.otbCore.otb.longitude },
-            ],
-            color: '#10b981',
+          features.push({
+            type: 'Feature',
+            properties: { color: '#10b981' },
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [odc.longitude, odc.latitude],
+                [odc.otbCore.otb.longitude, odc.otbCore.otb.latitude],
+              ],
+            },
           });
         }
       });
@@ -252,13 +199,16 @@ export default function TopologyMapScreen() {
     if (visibility.odp && visibility.odc) {
       data.odps.forEach((odp) => {
         if (odp.odcOutput?.odc) {
-          lines.push({
-            id: `odp-odc-${odp.id}`,
-            coordinates: [
-              { latitude: odp.latitude, longitude: odp.longitude },
-              { latitude: odp.odcOutput.odc.latitude, longitude: odp.odcOutput.odc.longitude },
-            ],
-            color: '#f97316',
+          features.push({
+            type: 'Feature',
+            properties: { color: '#f97316' },
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [odp.longitude, odp.latitude],
+                [odp.odcOutput.odc.longitude, odp.odcOutput.odc.latitude],
+              ],
+            },
           });
         }
       });
@@ -268,19 +218,22 @@ export default function TopologyMapScreen() {
     if (visibility.pelanggan && visibility.odp) {
       data.pelanggans.forEach((pelanggan) => {
         if (pelanggan.odp) {
-          lines.push({
-            id: `pelanggan-odp-${pelanggan.id}`,
-            coordinates: [
-              { latitude: pelanggan.latitude, longitude: pelanggan.longitude },
-              { latitude: pelanggan.odp.latitude, longitude: pelanggan.odp.longitude },
-            ],
-            color: '#ec4899',
+          features.push({
+            type: 'Feature',
+            properties: { color: '#ec4899' },
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [pelanggan.longitude, pelanggan.latitude],
+                [pelanggan.odp.longitude, pelanggan.odp.latitude],
+              ],
+            },
           });
         }
       });
     }
 
-    return lines;
+    return { type: 'FeatureCollection', features };
   }, [data, visibility]);
 
   // Markers
@@ -293,43 +246,44 @@ export default function TopologyMapScreen() {
         longitude: number;
         color: string;
         title: string;
-        type: string;
+        type: DeviceType;
+        data: any; // Original device object
     }> = [];
 
     if (visibility.otb) {
         data.otbs.forEach(d => markers.push({
             id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.otb, title: d.name, type: 'otb'
+            color: MARKER_COLORS.otb, title: d.name, type: 'otb', data: d
         }));
     }
     if (visibility.odc) {
         data.odcs.forEach(d => markers.push({
             id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.odc, title: d.name, type: 'odc'
+            color: MARKER_COLORS.odc, title: d.name, type: 'odc', data: d
         }));
     }
     if (visibility.odp) {
         data.odps.forEach(d => markers.push({
             id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.odp, title: d.name, type: 'odp'
+            color: MARKER_COLORS.odp, title: d.name, type: 'odp', data: d
         }));
     }
     if (visibility.joinbox) {
         data.joinboxes.forEach(d => markers.push({
             id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.joinbox, title: d.name, type: 'joinbox'
+            color: MARKER_COLORS.joinbox, title: d.name, type: 'joinbox', data: d
         }));
     }
     if (visibility.pole) {
         data.poles.forEach(d => markers.push({
             id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.pole, title: d.name, type: 'pole'
+            color: MARKER_COLORS.pole, title: d.name, type: 'pole', data: d
         }));
     }
     if (visibility.pelanggan) {
         data.pelanggans.forEach(d => markers.push({
             id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.pelanggan, title: d.nama || d.idPelanggan, type: 'pelanggan'
+            color: MARKER_COLORS.pelanggan, title: d.nama || d.idPelanggan, type: 'pelanggan', data: d
         }));
     }
 
@@ -359,20 +313,9 @@ export default function TopologyMapScreen() {
     setVisibility((prev) => ({ ...prev, [type]: !prev[type] }));
   };
 
-  const handleMarkerPress = (id: string, type: string) => {
-    if (!data) return;
-    let device: any; // Using any temporarily or matching DeviceData
-
-    // Helper to find device by ID in the correct array
-    if (type === 'otb') device = data.otbs.find(d => d.id === id);
-    else if (type === 'odc') device = data.odcs.find(d => d.id === id);
-    else if (type === 'odp') device = data.odps.find(d => d.id === id);
-    else if (type === 'joinbox') device = data.joinboxes.find(d => d.id === id);
-    else if (type === 'pole') device = data.poles.find(d => d.id === id);
-    else if (type === 'pelanggan') device = data.pelanggans.find(d => d.id === id);
-
+  const handleMarkerPress = (device: any, type: DeviceType) => {
     if (device) {
-        setSelectedDevice({ data: device, type: type as DeviceType });
+        setSelectedDevice({ data: device, type: type });
     }
   };
 
@@ -395,6 +338,17 @@ export default function TopologyMapScreen() {
         </TouchableOpacity>
       </View>
     );
+  }
+
+  // Calculate center coordinate
+  let centerCoordinate = [106.816666, -6.2]; // Default Jakarta
+  if (data && (data.otbs.length > 0 || data.odcs.length > 0)) {
+     // Naive center finding, just take the first OTB or ODC
+     if (data.otbs.length > 0) {
+         centerCoordinate = [data.otbs[0].longitude, data.otbs[0].latitude];
+     } else if (data.odcs.length > 0) {
+         centerCoordinate = [data.odcs[0].longitude, data.odcs[0].latitude];
+     }
   }
 
   return (
@@ -425,103 +379,41 @@ export default function TopologyMapScreen() {
       {/* Map Content */}
       <MapLibreGL.MapView
         style={styles.map}
+        styleURL="https://demotiles.maplibre.org/style.json"
         logoEnabled={false}
-        attributionEnabled={false}
-        mapStyle={{
-          version: 8,
-          sources: {
-            osm: {
-              type: 'raster',
-              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-              tileSize: 256,
-              attribution: '© OpenStreetMap contributors',
-            },
-          },
-          layers: [
-            {
-              id: 'osm-tiles',
-              type: 'raster',
-              source: 'osm',
-              minzoom: 0,
-              maxzoom: 19,
-            },
-          ],
-        }}
-        onPress={(e: any) => {
-          // Handle marker clicks via features
-          if (e.features && e.features.length > 0) {
-            const feature = e.features[0];
-            if (feature.properties) {
-              handleMarkerPress(feature.properties.id, feature.properties.deviceType);
-            }
-          }
-        }}
       >
         <MapLibreGL.Camera
-          centerCoordinate={[initialRegion.longitude, initialRegion.latitude]}
-          zoomLevel={13}
+          zoomLevel={12}
+          centerCoordinate={centerCoordinate}
+          animationMode={'flyTo'}
+          animationDuration={2000}
         />
 
-        {/* Connection Lines */}
-        {connectionLines.length > 0 && (
-          <MapLibreGL.ShapeSource
-            id="connection-lines"
-            shape={{
-              type: 'FeatureCollection',
-              features: connectionLines.map(line => ({
-                type: 'Feature',
-                geometry: {
-                  type: 'LineString',
-                  coordinates: line.coordinates.map(c => [c.longitude, c.latitude]),
-                },
-                properties: { id: line.id, color: line.color },
-              })),
+        {/* Connection Lines (GeoJSON) */}
+        <MapLibreGL.ShapeSource id="linesSource" shape={connectionLines as any}>
+          <MapLibreGL.LineLayer
+            id="linesLayer"
+            style={{
+              lineColor: ['get', 'color'],
+              lineWidth: 2,
+              lineDasharray: [2, 2],
             }}
-          >
-            <MapLibreGL.LineLayer
-              id="lines-layer"
-              style={{
-                lineColor: ['get', 'color'],
-                lineWidth: 2,
-                lineDasharray: [2, 2],
-              }}
-            />
-          </MapLibreGL.ShapeSource>
-        )}
+          />
+        </MapLibreGL.ShapeSource>
 
-        {/* Device Markers */}
-        {allMarkers.length > 0 && (
-          <MapLibreGL.ShapeSource
-            id="device-markers"
-            shape={{
-              type: 'FeatureCollection',
-              features: allMarkers.map(m => ({
-                type: 'Feature',
-                geometry: {
-                  type: 'Point',
-                  coordinates: [m.longitude, m.latitude],
-                },
-                properties: { id: m.id, deviceType: m.type, title: m.title, color: m.color },
-              })),
-            }}
-            onPress={(e: any) => {
-              if (e.features && e.features.length > 0) {
-                const feature = e.features[0];
-                handleMarkerPress(feature.properties.id, feature.properties.deviceType);
-              }
-            }}
+        {/* Device Markers (PointAnnotation) */}
+        {allMarkers.map(marker => (
+          <MapLibreGL.PointAnnotation
+            key={`${marker.type}-${marker.id}`}
+            id={`${marker.type}-${marker.id}`}
+            coordinate={[marker.longitude, marker.latitude]} // MapLibre uses [lon, lat]
+            onSelected={() => handleMarkerPress(marker.data, marker.type)}
           >
-            <MapLibreGL.CircleLayer
-              id="markers-layer"
-              style={{
-                circleRadius: 8,
-                circleColor: ['get', 'color'],
-                circleStrokeWidth: 2,
-                circleStrokeColor: '#ffffff',
-              }}
-            />
-          </MapLibreGL.ShapeSource>
-        )}
+             <View style={[styles.marker, { backgroundColor: marker.color }]}>
+                 <View style={styles.markerInner} />
+             </View>
+          </MapLibreGL.PointAnnotation>
+        ))}
       </MapLibreGL.MapView>
 
       {/* Refresh Button */}
@@ -625,4 +517,19 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  marker: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      borderWidth: 2,
+      borderColor: 'white',
+      justifyContent: 'center',
+      alignItems: 'center',
+  },
+  markerInner: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: 'white',
+  }
 });

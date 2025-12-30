@@ -1,5 +1,4 @@
-import { Config } from '@/constants/Config';
-import axios from 'axios';
+import api from '@/services/api';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
@@ -53,13 +52,9 @@ export async function registerForPushNotificationsAsync(token?: string): Promise
         console.log('Push token:', pushToken);
 
         // Register token with backend
-        if (token && pushToken) {
+        if (pushToken) {
             try {
-                await axios.post(
-                    `${Config.API_URL}/api/mobile/push-token`,
-                    { pushToken },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
+                await api.post('/api/mobile/push-token', { pushToken });
                 console.log('Push token registered with backend');
             } catch (error) {
                 console.error('Failed to register push token:', error);

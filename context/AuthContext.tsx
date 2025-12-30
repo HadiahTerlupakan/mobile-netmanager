@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import * as SecureStore from 'expo-secure-store';
-import { Alert } from 'react-native';
-import { registerForPushNotificationsAsync, addNotificationListeners } from '@/services/PushNotificationService';
-import axios from 'axios';
-import { Config } from '@/constants/Config';
+import { Events } from '@/constants/Events';
+import { addNotificationListeners, registerForPushNotificationsAsync } from '@/services/PushNotificationService';
+import api from '@/services/api';
 import logger from '@/utils/logger';
+import * as SecureStore from 'expo-secure-store';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Alert, DeviceEventEmitter } from 'react-native';
 
 type User = {
     id: string;
@@ -31,6 +31,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         loadStorageData();
+
+        // Listen for unauthorized events
+        const subscription = DeviceEventEmitter.addListener(Events.AUTH_UNAUTHORIZED, () => {
+            logger.warn('[Auth] Received unauthorized event, logging out...');
+            signOut();
+        });
+
+        return () => {
+            subscription.remove();
+        };
     }, []);
 
     // Setup notification listeners when user is logged in
@@ -100,9 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Remove push token from backend
             if (token) {
                 try {
-                    await axios.delete(`${Config.API_URL}/api/mobile/push-token`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    await api.delete('/api/mobile/push-token');
                 } catch (e) {
                     logger.error('Failed to remove push token:', e);
                 }

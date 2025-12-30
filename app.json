@@ -2,7 +2,7 @@
   "expo": {
     "name": "SBL KARYAWAN",
     "slug": "netmanager",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "netmanager",
@@ -36,9 +36,6 @@
       ],
       "googleServicesFile": "./google-services.json",
       "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyDummyKeyForOSM"
-        }
       }
     },
     "web": {
