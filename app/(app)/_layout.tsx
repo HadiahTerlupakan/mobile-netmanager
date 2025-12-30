@@ -136,6 +136,12 @@ export default function AppLayout() {
                     tabBarStyle: { display: 'none' },
                 }}
             />
+            <Tabs.Screen
+                name="holidays"
+                options={{
+                    href: null,
+                }}
+            />
 
         </Tabs>
     );

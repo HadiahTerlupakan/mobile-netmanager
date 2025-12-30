@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Briefcase, Calendar, ClipboardCheck, Clock, Map, MessageCircle, PackageMinus, PackagePlus } from 'lucide-react-native';
+import { Briefcase, Calendar, CalendarDays, ClipboardCheck, Clock, Map, MessageCircle, PackageMinus, PackagePlus } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
@@ -71,6 +71,14 @@ export const QuickMenu = () => {
             color: 'bg-purple-50',
             iconColor: '#9333ea',
             route: '/(app)/chat'
+        },
+        {
+            title: 'Kalender Libur',
+            subtitle: 'Hari Libur',
+            icon: CalendarDays,
+            color: 'bg-red-50',
+            iconColor: '#dc2626',
+            route: '/(app)/holidays'
         },
     ];
 
