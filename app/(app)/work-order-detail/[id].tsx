@@ -57,6 +57,7 @@ export default function WorkOrderDetailScreen() {
     const [availablePartners, setAvailablePartners] = useState<any[]>([]);
     const [searchPartnerQuery, setSearchPartnerQuery] = useState('');
     const [partnerLoading, setPartnerLoading] = useState(false);
+    const [partnerResponseLoading, setPartnerResponseLoading] = useState(false);
     
     // Offline Query
     const { data: woData, isLoading: loading, refetch: fetchDetail } = useOfflineQuery({
@@ -311,8 +312,6 @@ export default function WorkOrderDetailScreen() {
     };
 
 
-    const [partnerResponseLoading, setPartnerResponseLoading] = useState(false);
-    
     const handlePartnerResponse = async (response: 'APPROVED' | 'REJECTED') => {
         setPartnerResponseLoading(true);
         try {

@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Briefcase, Calendar, ClipboardCheck, Clock, MessageCircle, PackageMinus, PackagePlus } from 'lucide-react-native';
+import { Briefcase, Calendar, ClipboardCheck, Clock, Map, MessageCircle, PackageMinus, PackagePlus } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
@@ -15,6 +15,14 @@ export const QuickMenu = () => {
             color: 'bg-blue-50',
             iconColor: '#2563eb',
             route: '/(app)/work-order'
+        },
+        {
+            title: 'Topology Map',
+            subtitle: 'Peta Jaringan',
+            icon: Map,
+            color: 'bg-cyan-50',
+            iconColor: '#0891b2',
+            route: '/(app)/topology-map'
         },
         {
             title: 'Barang Masuk',
@@ -73,14 +81,14 @@ export const QuickMenu = () => {
                 {menuItems.map((item, index) => (
                     <TouchableOpacity
                         key={index}
-                        onPress={() => router.push(item.route as any)} // Cast to match generic Router type
-                        style={tw`w-[48%] mb-3 bg-white p-4 rounded-xl border border-gray-100 shadow-sm`}
+                        onPress={() => router.push(item.route as any)}
+                        style={tw`w-[31%] mb-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm items-center`}
                     >
-                        <View style={tw`h-10 w-10 rounded-lg ${item.color} items-center justify-center mb-3`}>
+                        <View style={tw`h-10 w-10 rounded-lg ${item.color} items-center justify-center mb-2`}>
                             <item.icon size={20} color={item.iconColor} />
                         </View>
-                        <Text style={tw`font-bold text-gray-900 text-sm`}>{item.title}</Text>
-                        <Text style={tw`text-xs text-gray-500 mt-1`}>{item.subtitle}</Text>
+                        <Text style={tw`font-bold text-gray-900 text-xs text-center`} numberOfLines={1}>{item.title}</Text>
+                        <Text style={tw`text-[10px] text-gray-500 text-center`} numberOfLines={1}>{item.subtitle}</Text>
                     </TouchableOpacity>
                 ))}
             </View>

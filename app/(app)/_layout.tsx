@@ -100,6 +100,12 @@ export default function AppLayout() {
                     tabBarStyle: { display: 'none' },
                 }}
             />
+            <Tabs.Screen
+                name="topology-map"
+                options={{
+                    href: null,
+                }}
+            />
 
             <Tabs.Screen
                 name="complete-work-order/[id]"
@@ -114,7 +120,6 @@ export default function AppLayout() {
                 name="chat/index"
                 options={{
                     href: null,
-                    tabBarStyle: { display: 'none' },
                 }}
             />
             <Tabs.Screen

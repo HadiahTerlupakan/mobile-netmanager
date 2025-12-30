@@ -19,7 +19,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 export default function ConversationScreen() {
@@ -36,6 +36,7 @@ export default function ConversationScreen() {
     const [uploading, setUploading] = useState(false);
     
     const flatListRef = useRef<FlatList>(null);
+    const insets = useSafeAreaInsets();
 
     const loadMessages = useCallback(async (cursor?: string) => {
         if (!conversationId) return;
@@ -246,7 +247,7 @@ export default function ConversationScreen() {
                 )}
 
                 {/* Input */}
-                <View style={tw`bg-white px-4 py-3 border-t border-gray-200`}>
+                <View style={[tw`bg-white px-4 py-3 border-t border-gray-200`, { paddingBottom: 12 + insets.bottom }]}>
                     <View style={tw`flex-row items-end`}>
                         {/* Attachment Button */}
                         <TouchableOpacity
