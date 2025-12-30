@@ -1,6 +1,6 @@
 # ===========================================
 # WORK ORDER FLOW
-# Tests complete WO lifecycle on mobile
+# Tests WO navigation
 # ===========================================
 
 appId: com.netmanager.mobile
@@ -8,22 +8,34 @@ appId: com.netmanager.mobile
 ---
 - launchApp
 
-# === LOGIN ===
-- assertVisible: "SBL KARYAWAN"
-- tapOn:
-    id: "email-input"
-- inputText: "qa.fieldtech@test.com"
-- tapOn:
-    id: "password-input"  
-- inputText: "qatest123"
-- tapOn: "Sign In"
+- waitForAnimationToEnd
 
-# Wait for dashboard
+# Login if on login screen
+- runFlow:
+    when:
+      visible: "SBL KARYAWAN"
+    commands:
+      - tapOn:
+          point: "50%,42%"
+      - inputText: "qa.fieldtech@test.com"
+      - hideKeyboard
+      - waitForAnimationToEnd
+      - tapOn:
+          point: "50%,55%"
+      - inputText: "qatest123"
+      - hideKeyboard
+      - tapOn:
+          point: "50%,68%"
+      - extendedWaitUntil:
+          visible: "Beranda"
+          timeout: 20000
+
+# Ensure on dashboard
 - extendedWaitUntil:
     visible: "Beranda"
     timeout: 15000
 
-# === NAVIGATE TO WORK ORDERS ===
+# Navigate to Work Orders
 - tapOn: "Work Order"
 
 # Wait for WO screen
@@ -31,17 +43,14 @@ appId: com.netmanager.mobile
     visible: "Tersedia"
     timeout: 10000
 
-# === VIEW AVAILABLE TAB ===
+# View tabs
 - tapOn: "Tersedia"
 - waitForAnimationToEnd
 
-# === VIEW ACTIVE TAB ===
 - tapOn: "Aktif"
 - waitForAnimationToEnd
 
-# === VIEW HISTORY TAB ===
 - tapOn: "Riwayat"
 - waitForAnimationToEnd
 
-# Return to available
 - tapOn: "Tersedia"

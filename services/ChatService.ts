@@ -1,0 +1,274 @@
+import { Config } from '@/constants/Config';
+import logger from '@/utils/logger';
+import axios from 'axios';
+import * as SecureStore from 'expo-secure-store';
+import { io, Socket } from 'socket.io-client';
+
+// Types
+export interface ChatUser {
+    id: string;
+    name: string;
+    email?: string;
+    image?: string;
+    department?: string;
+    site?: string;
+}
+
+export interface ChatMessage {
+    id: string;
+    content: string | null;
+    imageUrl?: string | null;
+    senderId: string;
+    senderName: string;
+    senderImage?: string;
+    createdAt: string;
+    isOwn: boolean;
+}
+
+export interface ChatConversation {
+    id: string;
+    name: string;
+    isGlobal: boolean;
+    participants: ChatUser[];
+    lastMessage?: {
+        content: string;
+        senderName: string;
+        createdAt: string;
+    };
+    hasUnread: boolean;
+    updatedAt: string;
+}
+
+// API Service
+class ChatService {
+    private socket: Socket | null = null;
+    private token: string | null = null;
+
+    private async getToken(): Promise<string | null> {
+        if (!this.token) {
+            this.token = await SecureStore.getItemAsync('session_token');
+        }
+        return this.token;
+    }
+
+    private async getHeaders() {
+        const token = await this.getToken();
+        return {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+    }
+
+    // Connect to Socket.IO for real-time updates
+    async connectSocket(userId: string): Promise<Socket> {
+        if (this.socket?.connected) {
+            return this.socket;
+        }
+
+        const token = await this.getToken();
+        
+        this.socket = io(Config.API_URL, {
+            path: '/api/socket',
+            auth: {
+                userId,
+                token
+            },
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000
+        });
+
+        this.socket.on('connect', () => {
+            logger.info('[Chat] Socket connected');
+        });
+
+        this.socket.on('disconnect', (reason) => {
+            logger.info('[Chat] Socket disconnected:', reason);
+        });
+
+        this.socket.on('connect_error', (error) => {
+            logger.error('[Chat] Socket connection error:', error);
+        });
+
+        return this.socket;
+    }
+
+    // Join a conversation room for real-time updates
+    joinConversation(conversationId: string) {
+        if (this.socket) {
+            this.socket.emit('join_room', `chat:${conversationId}`);
+            logger.info('[Chat] Joined room:', `chat:${conversationId}`);
+        }
+    }
+
+    // Leave a conversation room
+    leaveConversation(conversationId: string) {
+        if (this.socket) {
+            this.socket.emit('leave_room', `chat:${conversationId}`);
+        }
+    }
+
+    // Listen for new messages
+    onNewMessage(callback: (message: ChatMessage) => void) {
+        if (this.socket) {
+            this.socket.on('chat:message', callback);
+        }
+    }
+
+    // Remove message listener
+    offNewMessage() {
+        if (this.socket) {
+            this.socket.off('chat:message');
+        }
+    }
+
+    // Disconnect socket
+    disconnect() {
+        if (this.socket) {
+            this.socket.disconnect();
+            this.socket = null;
+        }
+    }
+
+    // Get all conversations
+    async getConversations(): Promise<ChatConversation[]> {
+        try {
+            const headers = await this.getHeaders();
+            const response = await axios.get(
+                `${Config.API_URL}/api/mobile/chat/conversations`,
+                { headers }
+            );
+            return response.data.data || [];
+        } catch (error) {
+            logger.error('[Chat] Error fetching conversations:', error);
+            throw error;
+        }
+    }
+
+    // Get or create global chat
+    async getGlobalChat(): Promise<{ id: string; name: string; participantCount: number }> {
+        try {
+            const headers = await this.getHeaders();
+            const response = await axios.get(
+                `${Config.API_URL}/api/mobile/chat/global`,
+                { headers }
+            );
+            return response.data.data;
+        } catch (error) {
+            logger.error('[Chat] Error getting global chat:', error);
+            throw error;
+        }
+    }
+
+    // Get messages for a conversation
+    async getMessages(conversationId: string, cursor?: string): Promise<{
+        conversation: any;
+        messages: ChatMessage[];
+        hasMore: boolean;
+        nextCursor: string | null;
+    }> {
+        try {
+            const headers = await this.getHeaders();
+            const params = new URLSearchParams();
+            if (cursor) params.append('cursor', cursor);
+            params.append('limit', '50');
+            
+            const response = await axios.get(
+                `${Config.API_URL}/api/mobile/chat/conversations/${conversationId}?${params.toString()}`,
+                { headers }
+            );
+            return response.data.data;
+        } catch (error) {
+            logger.error('[Chat] Error fetching messages:', error);
+            throw error;
+        }
+    }
+
+    // Send a message (text and/or image)
+    async sendMessage(conversationId: string, content?: string, imageUrl?: string): Promise<ChatMessage> {
+        try {
+            const headers = await this.getHeaders();
+            const response = await axios.post(
+                `${Config.API_URL}/api/mobile/chat/conversations/${conversationId}`,
+                { content, imageUrl },
+                { headers }
+            );
+            return response.data.data;
+        } catch (error) {
+            logger.error('[Chat] Error sending message:', error);
+            throw error;
+        }
+    }
+
+    // Upload image and return URL
+    async uploadImage(imageUri: string): Promise<string> {
+        try {
+            const token = await this.getToken();
+            
+            // Create form data
+            const formData = new FormData();
+            const filename = imageUri.split('/').pop() || 'image.jpg';
+            const match = /\.([\w]+)$/.exec(filename);
+            const type = match ? `image/${match[1]}` : 'image/jpeg';
+            
+            formData.append('image', {
+                uri: imageUri,
+                name: filename,
+                type
+            } as any);
+
+            const response = await axios.post(
+                `${Config.API_URL}/api/mobile/chat/upload`,
+                formData,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'multipart/form-data'
+                    }
+                }
+            );
+            
+            return response.data.data.imageUrl;
+        } catch (error) {
+            logger.error('[Chat] Error uploading image:', error);
+            throw error;
+        }
+    }
+
+    // Get users for new chat
+    async getUsers(search?: string): Promise<ChatUser[]> {
+        try {
+            const headers = await this.getHeaders();
+            const params = search ? `?search=${encodeURIComponent(search)}` : '';
+            const response = await axios.get(
+                `${Config.API_URL}/api/mobile/chat/users${params}`,
+                { headers }
+            );
+            return response.data.data || [];
+        } catch (error) {
+            logger.error('[Chat] Error fetching users:', error);
+            throw error;
+        }
+    }
+
+    // Create new conversation
+    async createConversation(participantIds: string[], name?: string): Promise<{ id: string; isExisting: boolean }> {
+        try {
+            const headers = await this.getHeaders();
+            const response = await axios.post(
+                `${Config.API_URL}/api/mobile/chat/conversations`,
+                { participantIds, name },
+                { headers }
+            );
+            return response.data.data;
+        } catch (error) {
+            logger.error('[Chat] Error creating conversation:', error);
+            throw error;
+        }
+    }
+}
+
+// Export singleton instance
+export const chatService = new ChatService();
+export default chatService;

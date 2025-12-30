@@ -85,11 +85,11 @@ export default function BarangMasukScreen() {
         if (gudangData) setGudangs(gudangData);
     }, [gudangData]);
 
-    // Offline Query: Barangs
+    // Offline Query: Barangs - mode=masuk to get ALL master barang (not just barang with stock)
     const { data: barangData } = useOfflineQuery<Barang[]>({
-        key: `barang_list_${selectedGudang}`,
+        key: `barang_list_masuk_${selectedGudang}`,
         fetcher: async () => {
-             const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/barang?gudangId=${selectedGudang}`, {
+             const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/barang?gudangId=${selectedGudang}&mode=masuk`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             return res.data?.barangList || [];

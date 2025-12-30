@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import tw from 'twrnc';
-import { Briefcase, PackagePlus, PackageMinus, Calendar, ClipboardCheck, Clock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { Briefcase, Calendar, ClipboardCheck, Clock, MessageCircle, PackageMinus, PackagePlus } from 'lucide-react-native';
+import React from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
+import tw from 'twrnc';
 
 export const QuickMenu = () => {
     const router = useRouter();
@@ -55,6 +55,14 @@ export const QuickMenu = () => {
             color: 'bg-indigo-50',
             iconColor: '#4f46e5',
             route: '/(app)/lembur'
+        },
+        {
+            title: 'Chat',
+            subtitle: 'Pesan & Diskusi',
+            icon: MessageCircle,
+            color: 'bg-purple-50',
+            iconColor: '#9333ea',
+            route: '/(app)/chat'
         },
     ];
 

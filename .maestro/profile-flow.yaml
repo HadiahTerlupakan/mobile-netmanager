@@ -1,6 +1,6 @@
 # ===========================================
-# APP NAVIGATION FLOW
-# Tests basic app navigation
+# PROFILE FLOW
+# Tests profile screen and logout
 # ===========================================
 
 appId: com.netmanager.mobile
@@ -35,28 +35,20 @@ appId: com.netmanager.mobile
     visible: "Beranda"
     timeout: 15000
 
-# Navigate through app
-- tapOn: "Work Order"
-- extendedWaitUntil:
-    visible: "Tersedia"
-    timeout: 10000
-- tapOn: "Tersedia"
-- waitForAnimationToEnd
-- tapOn: "Aktif"
-- waitForAnimationToEnd
-
-# Back to dashboard
-- tapOn: "Beranda"
-- waitForAnimationToEnd
-
-# Navigate to Absensi
-- tapOn: "Absensi"
-- waitForAnimationToEnd
-
 # Navigate to Profile
 - tapOn: "Profil"
+
 - waitForAnimationToEnd
 
-# Back to dashboard
-- tapOn: "Beranda"
-- waitForAnimationToEnd
+# Scroll to logout and tap
+- scrollUntilVisible:
+    element: "Keluar"
+    direction: DOWN
+    timeout: 10000
+
+- tapOn: "Keluar"
+
+# Verify logout
+- extendedWaitUntil:
+    visible: "SBL KARYAWAN"
+    timeout: 10000

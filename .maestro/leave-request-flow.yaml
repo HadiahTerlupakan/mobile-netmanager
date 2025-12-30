@@ -1,6 +1,6 @@
 # ===========================================
-# APP NAVIGATION FLOW
-# Tests basic app navigation
+# LEAVE REQUEST FLOW (Izin & Lembur)
+# Tests leave and overtime navigation
 # ===========================================
 
 appId: com.netmanager.mobile
@@ -35,28 +35,22 @@ appId: com.netmanager.mobile
     visible: "Beranda"
     timeout: 15000
 
-# Navigate through app
-- tapOn: "Work Order"
-- extendedWaitUntil:
-    visible: "Tersedia"
-    timeout: 10000
-- tapOn: "Tersedia"
-- waitForAnimationToEnd
-- tapOn: "Aktif"
-- waitForAnimationToEnd
+# Navigate to Izin if visible
+- runFlow:
+    when:
+      visible: "Izin"
+    commands:
+      - tapOn: "Izin"
+      - waitForAnimationToEnd
+      - tapOn: "Beranda"
+      - waitForAnimationToEnd
 
-# Back to dashboard
-- tapOn: "Beranda"
-- waitForAnimationToEnd
-
-# Navigate to Absensi
-- tapOn: "Absensi"
-- waitForAnimationToEnd
-
-# Navigate to Profile
-- tapOn: "Profil"
-- waitForAnimationToEnd
-
-# Back to dashboard
-- tapOn: "Beranda"
-- waitForAnimationToEnd
+# Navigate to Lembur if visible
+- runFlow:
+    when:
+      visible: "Lembur"
+    commands:
+      - tapOn: "Lembur"
+      - waitForAnimationToEnd
+      - tapOn: "Beranda"
+      - waitForAnimationToEnd

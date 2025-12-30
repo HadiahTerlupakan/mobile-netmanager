@@ -36,21 +36,38 @@ export default function LoginScreen() {
                 Alert.alert('Login Gagal', res.data.error || 'Terjadi kesalahan');
             }
         } catch (error: any) {
-            console.error('[LoginScreen] Login error:', error.response?.status, error.response?.data);
+            const status = error.response?.status;
+            const data = error.response?.data;
+            console.error('[LoginScreen] Login error:', status, data);
             
             // Handle different error scenarios
             if (error.response) {
-                // Server responded with error
-                const errorMessage = error.response.data?.error || 'Login gagal';
+                // Server responded with error - show the error message
+                let errorMessage = 'Login gagal. Silakan coba lagi.';
+                
+                if (status === 401) {
+                    // Invalid credentials - show friendly message
+                    errorMessage = data?.error || 'Email atau password salah';
+                } else if (status === 400) {
+                    errorMessage = data?.error || 'Data tidak lengkap';
+                } else if (status >= 500) {
+                    errorMessage = 'Server sedang bermasalah. Coba lagi nanti.';
+                } else if (data?.error) {
+                    errorMessage = data.error;
+                }
+                
+                console.log('[LoginScreen] Showing alert:', errorMessage);
                 Alert.alert('Login Gagal', errorMessage);
             } else if (error.request) {
                 // No response received (network error)
+                console.log('[LoginScreen] Network error, showing alert');
                 Alert.alert(
                     'Koneksi Gagal', 
                     'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.'
                 );
             } else {
                 // Other errors
+                console.log('[LoginScreen] Unknown error, showing alert');
                 Alert.alert('Error', 'Terjadi kesalahan. Silakan coba lagi.');
             }
         } finally {

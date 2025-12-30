@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, ClipboardList, Package, QrCode, User, ScanLine } from 'lucide-react-native';
+import { ClipboardList, Home, Package, ScanLine, User } from 'lucide-react-native';
 import tw from 'twrnc';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -103,6 +103,29 @@ export default function AppLayout() {
 
             <Tabs.Screen
                 name="complete-work-order/[id]"
+                options={{
+                    href: null,
+                    tabBarStyle: { display: 'none' },
+                }}
+            />
+
+            {/* Chat Screens - Hidden from tab bar, accessed via QuickMenu */}
+            <Tabs.Screen
+                name="chat/index"
+                options={{
+                    href: null,
+                    tabBarStyle: { display: 'none' },
+                }}
+            />
+            <Tabs.Screen
+                name="chat/[conversationId]"
+                options={{
+                    href: null,
+                    tabBarStyle: { display: 'none' },
+                }}
+            />
+            <Tabs.Screen
+                name="chat/new"
                 options={{
                     href: null,
                     tabBarStyle: { display: 'none' },

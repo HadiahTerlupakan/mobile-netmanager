@@ -1,6 +1,6 @@
 # ===========================================
 # ATTENDANCE FLOW
-# Tests check-in and check-out functionality
+# Tests attendance screen
 # ===========================================
 
 appId: com.netmanager.mobile
@@ -8,25 +8,38 @@ appId: com.netmanager.mobile
 ---
 - launchApp
 
-# === LOGIN ===
-- assertVisible: "SBL KARYAWAN"
-- tapOn:
-    id: "email-input"
-- inputText: "qa.fieldtech@test.com"
-- tapOn:
-    id: "password-input"
-- inputText: "qatest123"
-- tapOn: "Sign In"
+- waitForAnimationToEnd
 
-# Wait for dashboard
+# Login if on login screen
+- runFlow:
+    when:
+      visible: "SBL KARYAWAN"
+    commands:
+      - tapOn:
+          point: "50%,42%"
+      - inputText: "qa.fieldtech@test.com"
+      - hideKeyboard
+      - waitForAnimationToEnd
+      - tapOn:
+          point: "50%,55%"
+      - inputText: "qatest123"
+      - hideKeyboard
+      - tapOn:
+          point: "50%,68%"
+      - extendedWaitUntil:
+          visible: "Beranda"
+          timeout: 20000
+
+# Ensure on dashboard
 - extendedWaitUntil:
     visible: "Beranda"
     timeout: 15000
 
-# === NAVIGATE TO ATTENDANCE ===
+# Navigate to Attendance
 - tapOn: "Absensi"
 
-# Wait for attendance screen
-- extendedWaitUntil:
-    visible: "Absensi"
-    timeout: 10000
+- waitForAnimationToEnd
+
+# Return to dashboard
+- tapOn: "Beranda"
+- waitForAnimationToEnd

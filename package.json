@@ -12,10 +12,18 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "test:e2e": "maestro test .maestro/",
     "test:e2e:login": "maestro test .maestro/login.yaml",
     "test:e2e:wo": "maestro test .maestro/work-order-flow.yaml",
-    "test:e2e:attendance": "maestro test .maestro/attendance-flow.yaml"
+    "test:e2e:attendance": "maestro test .maestro/attendance-flow.yaml",
+    "test:e2e:profile": "maestro test .maestro/profile-flow.yaml",
+    "test:e2e:navigation": "maestro test .maestro/navigation-flow.yaml",
+    "test:e2e:leave": "maestro test .maestro/leave-request-flow.yaml",
+    "test:e2e:inventory": "maestro test .maestro/inventory-flow.yaml",
+    "test:e2e:notifications": "maestro test .maestro/notifications-flow.yaml"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -67,10 +75,15 @@
     "twrnc": "^4.15.0"
   },
   "devDependencies": {
+    "@testing-library/jest-native": "^5.4.3",
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.1.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
     "eslint-import-resolver-typescript": "^4.4.4",
+    "jest": "^30.2.0",
+    "jest-expo": "^54.0.16",
     "typescript": "~5.9.2"
   },
   "private": true

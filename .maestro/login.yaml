@@ -1,7 +1,7 @@
 # ===========================================
 # LOGIN FLOW
-# Tests employee login
-# Handles all Expo dev menu screens
+# Tests employee login from fresh state  
+# Uses percentage-based coordinates for RN compatibility
 # ===========================================
 
 appId: com.netmanager.mobile
@@ -12,7 +12,7 @@ appId: com.netmanager.mobile
 
 - waitForAnimationToEnd
 
-# Handle Expo dev menu if present (first run)
+# Handle Expo dev menu if present
 - runFlow:
     when:
       visible: "Development Build"
@@ -20,7 +20,7 @@ appId: com.netmanager.mobile
       - tapOn: "http://10.0.2.2:8081"
       - waitForAnimationToEnd
 
-# Handle Expo developer menu onboarding dialog
+# Handle Expo onboarding dialog
 - runFlow:
     when:
       visible: "Continue"
@@ -28,7 +28,7 @@ appId: com.netmanager.mobile
       - tapOn: "Continue"
       - waitForAnimationToEnd
 
-# Handle Expo dev menu settings (tap Go home to enter app)
+# Handle Expo dev menu settings
 - runFlow:
     when:
       visible: "Go home"
@@ -36,27 +36,37 @@ appId: com.netmanager.mobile
       - tapOn: "Go home"
       - waitForAnimationToEnd
 
-# Wait for login screen
+# Wait for login screen to appear
 - extendedWaitUntil:
-    visible: "Sign In"
-    timeout: 25000
+    visible: "SBL KARYAWAN"
+    timeout: 30000
 
-# Tap on first input area (email)
+# Wait for full page render
+- waitForAnimationToEnd
+
+# Tap on email input field (below logo and labels, roughly at 42%)
 - tapOn:
-    point: "50%,45%"
+    point: "50%,42%"
 - inputText: "qa.fieldtech@test.com"
 - hideKeyboard
 
-# Tap on second input (password)
+# Small delay between fields
+- waitForAnimationToEnd
+
+# Tap on password input field (below email field, roughly at 55%)
 - tapOn:
     point: "50%,55%"
 - inputText: "qatest123"
 - hideKeyboard
 
-# Submit
-- tapOn: "Sign In"
+# Tap Sign In button (bottom area of form, roughly at 68%)
+- tapOn:
+    point: "50%,68%"
 
-# Verify login
+# Wait for login to complete
 - extendedWaitUntil:
     visible: "Beranda"
-    timeout: 25000
+    timeout: 30000
+
+# Final verification
+- assertVisible: "Beranda"

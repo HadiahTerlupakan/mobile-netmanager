@@ -1,18 +1,25 @@
-import { useState } from 'react';
-import * as Location from 'expo-location';
-import { Alert } from 'react-native';
-import { DatabaseService } from '../services/DatabaseService';
-import { SyncService } from '../services/SyncService';
 import axios from 'axios';
+import * as Location from 'expo-location';
+import { useState } from 'react';
+import { Alert } from 'react-native';
 import { Config } from '../constants/Config';
 import { useAuth } from '../context/AuthContext';
+import { DatabaseService } from '../services/DatabaseService';
+import { SyncService } from '../services/SyncService';
 
 interface MutationOptions {
   url: string;
   method: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   onSuccess?: (data: any, isOffline: boolean) => void;
   onError?: (error: any) => void;
+  /** Optional: for testing, skip Alert */
+  silent?: boolean;
 }
+
+// Helper function for showing alerts - can be mocked in tests
+export const showMutationAlert = (title: string, message: string) => {
+  Alert.alert(title, message);
+};
 
 export const useOfflineMutation = () => {
   const { token } = useAuth();
@@ -83,10 +90,12 @@ export const useOfflineMutation = () => {
             meta
         );
 
-        Alert.alert(
-            'Disimpan Offline',
-            'Tidak ada koneksi internet. Data (termasuk Lokasi) disimpan di HP dan akan diupload otomatis saat online.'
-        );
+        if (!options.silent) {
+          showMutationAlert(
+              'Disimpan Offline',
+              'Tidak ada koneksi internet. Data (termasuk Lokasi) disimpan di HP dan akan diupload otomatis saat online.'
+          );
+        }
 
         // Simulate success response structure
         options.onSuccess?.({ success: true, offline: true, message: 'Saved to queue' }, true);
@@ -105,7 +114,9 @@ export const useOfflineMutation = () => {
       }
       
       options.onError?.(error);
-      Alert.alert('Error', error.response?.data?.error || 'Gagal menyimpan data.');
+      if (!options.silent) {
+        showMutationAlert('Error', error.response?.data?.error || 'Gagal menyimpan data.');
+      }
     } finally {
       setIsLoading(false);
     }
