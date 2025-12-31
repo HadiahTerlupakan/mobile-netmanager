@@ -41,11 +41,39 @@ function RootLayoutNav() {
 
           if (data?.url) {
             try {
-              // Navigate to the URL provided in payload
-              // Example url: /work-orders/cmjlgercn0000n9hdnhvhhs9d
-              router.push(data.url as any);
+              // Map known routes - skip invalid ones
+              const validRoutes = [
+                '/dashboard',
+                '/work-order',
+                '/barang',
+                '/absensi',
+                '/profile',
+                '/notifications',
+                '/lembur',
+                '/izin',
+                '/chat',
+                '/holidays'
+              ];
+              
+              const url = data.url as string;
+              
+              // Check if it's a valid route or starts with a valid route prefix
+              const isValidRoute = validRoutes.some(r => 
+                url === r || 
+                url.startsWith(r + '/') ||
+                url.startsWith('/(app)' + r)
+              ) || url.startsWith('/work-order-detail/') || url.startsWith('/chat/');
+              
+              if (isValidRoute) {
+                router.push(url as any);
+              } else {
+                // Invalid route like /announcement - just go to dashboard
+                logger.warn('Invalid notification route, redirecting to dashboard:', url);
+                router.replace('/(app)/dashboard');
+              }
             } catch (e) {
               logger.error('Navigation failed:', e);
+              router.replace('/(app)/dashboard');
             }
           }
         }

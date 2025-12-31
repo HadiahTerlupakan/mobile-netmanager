@@ -1,14 +1,14 @@
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
-import { useState, useCallback } from 'react';
-import tw from 'twrnc';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Bell, Briefcase, Calendar, Package, Clock, CheckCircle, AlertCircle, Megaphone } from 'lucide-react-native';
-import axios from 'axios';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter, useFocusEffect } from 'expo-router';
+import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowLeft, Bell, Briefcase, Calendar, Clock, Megaphone, Package } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import tw from 'twrnc';
 
 interface Notification {
     id: string;
@@ -87,10 +87,29 @@ export default function NotificationsScreen() {
         }
     };
 
+    const markAnnouncementAsRead = async (sourceId: string) => {
+        // Track announcement read to AnnouncementRead table (use mobile endpoint)
+        try {
+            await axios.post(
+                `${Config.API_URL}/api/mobile/announcements/${sourceId}/read`,
+                { portal: 'employee' },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            console.log('[Notifications] Marked announcement as read:', sourceId);
+        } catch (error) {
+            console.error('[Notifications] Failed to mark announcement as read:', error);
+            // Non-critical, ignore errors
+        }
+    };
+
     const handleNotificationPress = (notification: Notification) => {
         const proceed = () => {
             if (!notification.isRead) {
                 markAsRead(notification.id);
+            }
+            // If it's an announcement, also track to AnnouncementRead
+            if (notification.sourceType === 'ANNOUNCEMENT' && notification.sourceId) {
+                markAnnouncementAsRead(notification.sourceId);
             }
             if (notification.link) {
                 router.push(notification.link as any);
@@ -108,26 +127,7 @@ export default function NotificationsScreen() {
                         text: 'Belum',
                         style: 'cancel',
                         onPress: () => {
-                            // Do nothing, or maybe navigate without marking read?
-                            // User request: "agar bisa track ... brapa banyak yang sudah buka"
-                            // So if not read, maybe just open to see but don't mark?
-                            // Or "buka" means "read". Let's assume navigating is fine, but tracking happens on "Yes".
-                            // Actually, usually "Yes" marks it read. "No" keeps it unread.
-                            // But usually clicking opens it anyway. 
-                            // Let's assume if they click "No", they just close the alert or maybe still navigate?
-                            // "ketika di klik mustinya masuk ke modal ... yes no"
-                            // If they say No, maybe they just want to peek? 
-                            // Let's strictly follow: Yes -> Mark Read & Navigate. No -> Cancel (don't navigate or navigate without read?).
-                            // Safest: Yes -> Mark & Navigate. No -> Navigate w/o Mark (or just Cancel).
-                            // Let's do: Yes -> Mark & Navigate. No -> Just Navigate (so they can read it). 
-                            // Wait, if they haven't read it, they click to READ it.
-                            // So asking "Have you read it?" BEFORE opening seems backwards?
-                            // Maybe the question is "Mark as read?" AFTER opening? 
-                            // But user said: "ketika di klik mustinya masuk ke modal" (When clicked, enter modal).
-                            // So: Click -> Modal "Mark as read?" -> Yes (Mark+Open) / No (Open).
-                            // Let's TRY: Yes -> Mark Read + Open. No -> Open only.
-                            // Update: User said "agar bisa track", implies tracking count of "Yes".
-
+                            // Just navigate without marking as read
                             if (notification.link) router.push(notification.link as any);
                         }
                     },

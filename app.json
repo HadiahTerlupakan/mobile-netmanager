@@ -2,7 +2,7 @@
   "expo": {
     "name": "SBL KARYAWAN",
     "slug": "netmanager",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "netmanager",
@@ -35,8 +35,7 @@
         "android.permission.ACCESS_FINE_LOCATION"
       ],
       "googleServicesFile": "./google-services.json",
-      "config": {
-      }
+      "config": {}
     },
     "web": {
       "output": "static",
