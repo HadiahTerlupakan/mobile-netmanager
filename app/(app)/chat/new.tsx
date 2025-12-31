@@ -166,6 +166,7 @@ export default function NewChatScreen() {
                     data={users}
                     keyExtractor={item => item.id}
                     renderItem={renderUserItem}
+                    contentContainerStyle={tw`pb-24`}
                     ListEmptyComponent={
                         <View style={tw`flex-1 items-center justify-center py-20`}>
                             <User size={48} color="#d1d5db" />
