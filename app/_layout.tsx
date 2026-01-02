@@ -6,6 +6,7 @@ import tw from 'twrnc';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { SocketProvider } from '../context/SocketContext';
 import { DatabaseService } from '../services/DatabaseService';
+import '../services/LocationTrackingService'; // Register background task
 import { SyncService } from '../services/SyncService';
 import logger from '../utils/logger';
 

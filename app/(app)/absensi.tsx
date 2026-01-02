@@ -1,19 +1,47 @@
-import { View, Text, TouchableOpacity, ScrollView, Alert, Dimensions, Image, ImageBackground } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import * as Location from 'expo-location';
-import { useState, useEffect, useRef } from 'react';
-import tw from 'twrnc';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import { useOfflineQuery } from '@/hooks/useOfflineQuery';
+import { LocationTrackingService } from '@/services/LocationTrackingService';
+import { SyncService } from '@/services/SyncService';
+import axios from 'axios';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { MapPin, Clock, LogIn, LogOut, RefreshCw, X, RotateCcw, Camera } from 'lucide-react-native';
-import axios from 'axios';
+import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
+import * as Location from 'expo-location';
+import { AlertTriangle, Camera, Clock, MapPin, RefreshCw, RotateCcw, X } from 'lucide-react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { captureRef } from 'react-native-view-shot';
+import tw from 'twrnc';
 import { Config } from '../../constants/Config';
 import { useAuth } from '../../context/AuthContext';
-import { captureRef } from 'react-native-view-shot';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
-import { useOfflineMutation } from '@/hooks/useOfflineMutation';
-import { SyncService } from '@/services/SyncService';
+
+// Geofence Types
+interface GeofenceZone {
+    siteId: string;
+    siteName: string;
+    latitude: number;
+    longitude: number;
+    radius: number;
+}
+
+// Haversine formula to calculate distance between two coordinates
+const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const EARTH_RADIUS_METERS = 6371000;
+    const toRad = (deg: number) => deg * (Math.PI / 180);
+    
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    
+    return EARTH_RADIUS_METERS * c;
+};
 
 export default function AbsensiScreen() {
     const { user, token } = useAuth();
@@ -43,11 +71,65 @@ export default function AbsensiScreen() {
         return () => clearInterval(timer);
     }, []);
 
-    // Fetch Initial Data (Location & Status)
+    // Geofence State
+    const [geofenceZones, setGeofenceZones] = useState<GeofenceZone[]>([]);
+    const [geofenceStatus, setGeofenceStatus] = useState<{
+        isInside: boolean;
+        distance: number | null;
+        siteName: string | null;
+    } | null>(null);
+    const [showOutsideWarning, setShowOutsideWarning] = useState(false);
+    const [pendingSubmit, setPendingSubmit] = useState(false);
+
+    // Fetch Geofence Zones
+    const fetchGeofenceZones = async () => {
+        try {
+            const res = await axios.get(`${Config.API_URL}/api/mobile/geofence`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.data?.success && res.data?.data?.zones) {
+                setGeofenceZones(res.data.data.zones);
+            }
+        } catch (error) {
+            console.log('Failed to fetch geofence zones:', error);
+        }
+    };
+
+    // Check geofence when location changes
+    const checkGeofence = (userLat: number, userLng: number) => {
+        if (geofenceZones.length === 0) {
+            setGeofenceStatus({ isInside: true, distance: null, siteName: null });
+            return;
+        }
+
+        let nearestDistance = Infinity;
+        let nearestSiteName: string | null = null;
+        let isInside = false;
+
+        for (const zone of geofenceZones) {
+            const distance = calculateDistance(userLat, userLng, zone.latitude, zone.longitude);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestSiteName = zone.siteName;
+            }
+            if (distance <= zone.radius) {
+                isInside = true;
+            }
+        }
+
+        setGeofenceStatus({
+            isInside,
+            distance: Math.round(nearestDistance),
+            siteName: nearestSiteName
+        });
+    };
+
+    // Fetch Initial Data (Location, Status, Geofence)
     useEffect(() => {
         fetchStatus();
         getLocation();
-    }, []);
+        if (token) fetchGeofenceZones();
+    }, [token]);
 
     const { mutate, isLoading: isMutating } = useOfflineMutation();
 
@@ -73,8 +155,12 @@ export default function AbsensiScreen() {
                 if (lastAttendance.checkOut) {
                     setStatus('checked-out');
                     setCheckOutTime(format(new Date(lastAttendance.checkOut), 'HH:mm'));
+                    // Ensure tracking stopped
+                    LocationTrackingService.stopTracking().catch(console.error);
                 } else {
                     setStatus('checked-in');
+                    // Resume tracking if needed
+                    LocationTrackingService.startTracking().catch(console.error);
                 }
             } else {
                 // New day, reset if needed or just idle
@@ -101,6 +187,9 @@ export default function AbsensiScreen() {
             }
 
             setLocation(location);
+
+            // Check geofence with new location
+            checkGeofence(location.coords.latitude, location.coords.longitude);
 
             // Reverse Geocode
             try {
@@ -165,6 +254,30 @@ export default function AbsensiScreen() {
         return uploadedUrls;
     };
 
+    // Handler that checks geofence before submitting
+    const handleSubmit = async () => {
+        if (!photo || !location) {
+            Alert.alert("Data Belum Lengkap", "Pastikan foto dan lokasi sudah tersedia.");
+            return;
+        }
+
+        // Check geofence status
+        if (geofenceStatus && !geofenceStatus.isInside) {
+            // Show warning modal instead of blocking
+            setShowOutsideWarning(true);
+            return;
+        }
+
+        // Proceed with submit
+        await submitAttendance();
+    };
+
+    // Called when user confirms continue despite being outside zone
+    const handleConfirmOutsideSubmit = async () => {
+        setShowOutsideWarning(false);
+        await submitAttendance();
+    };
+
     const submitAttendance = async () => {
         if (!photo || !location) {
             Alert.alert("Data Belum Lengkap", "Pastikan foto dan lokasi sudah tersedia.");
@@ -204,8 +317,17 @@ export default function AbsensiScreen() {
                 }, {
                     url: endpoint,
                     method: 'POST',
-                    onSuccess: () => {
-                         Alert.alert("Berhasil", status === 'idle' ? "Check-in Berhasil!" : "Check-out Berhasil!");
+                    onSuccess: async () => {
+                         // Start/Stop location tracking based on action
+                         if (status === 'idle') {
+                             // Check-in: Start tracking
+                             await LocationTrackingService.startTracking();
+                             Alert.alert("Berhasil", "Check-in Berhasil!");
+                         } else {
+                             // Check-out: Stop tracking
+                             await LocationTrackingService.stopTracking();
+                             Alert.alert("Berhasil", "Check-out Berhasil!");
+                         }
                          fetchStatus();
                          setPhoto(null);
                     },
@@ -428,7 +550,7 @@ export default function AbsensiScreen() {
                                     <TouchableOpacity onPress={() => { setPhoto(null); setCapturedTime(null); }} style={tw`flex-1 bg-gray-100 py-3 rounded-xl items-center`}>
                                         <Text style={tw`font-bold text-gray-600`}>Ulang Foto</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={submitAttendance} disabled={loading || isMutating} style={tw`flex-1 bg-blue-600 py-3 rounded-xl items-center`}>
+                                    <TouchableOpacity onPress={handleSubmit} disabled={loading || isMutating} style={tw`flex-1 bg-blue-600 py-3 rounded-xl items-center`}>
                                         <Text style={tw`font-bold text-white`}>{(loading || isMutating) ? 'Menyimpan...' : 'Kirim Absensi'}</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -449,6 +571,59 @@ export default function AbsensiScreen() {
                 </View>
 
             </ScrollView>
+
+            {/* Geofence Warning Modal */}
+            <Modal
+                visible={showOutsideWarning}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowOutsideWarning(false)}
+            >
+                <View style={tw`flex-1 bg-black/50 justify-center items-center px-6`}>
+                    <View style={tw`bg-white rounded-2xl p-6 w-full max-w-sm`}>
+                        <View style={tw`items-center mb-4`}>
+                            <View style={tw`bg-orange-100 p-3 rounded-full mb-3`}>
+                                <AlertTriangle size={32} color="#f97316" />
+                            </View>
+                            <Text style={tw`text-lg font-bold text-gray-800 text-center`}>Di Luar Area Kantor</Text>
+                        </View>
+                        
+                        <Text style={tw`text-gray-600 text-center mb-2`}>
+                            Anda berada di luar area kantor yang ditentukan.
+                        </Text>
+                        
+                        {geofenceStatus && geofenceStatus.distance && (
+                            <View style={tw`bg-orange-50 p-3 rounded-xl mb-4`}>
+                                <Text style={tw`text-orange-700 text-center text-sm`}>
+                                    📍 Jarak: {geofenceStatus.distance > 1000 
+                                        ? `${(geofenceStatus.distance / 1000).toFixed(1)} km` 
+                                        : `${geofenceStatus.distance} m`} dari {geofenceStatus.siteName || 'kantor'}
+                                </Text>
+                            </View>
+                        )}
+                        
+                        <Text style={tw`text-gray-500 text-center text-sm mb-4`}>
+                            Apakah Anda ingin tetap melanjutkan absensi?
+                        </Text>
+                        
+                        <View style={tw`flex-row gap-3`}>
+                            <TouchableOpacity 
+                                onPress={() => setShowOutsideWarning(false)} 
+                                style={tw`flex-1 bg-gray-100 py-3 rounded-xl items-center`}
+                            >
+                                <Text style={tw`font-bold text-gray-600`}>Batal</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                onPress={handleConfirmOutsideSubmit} 
+                                disabled={loading || isMutating}
+                                style={tw`flex-1 bg-orange-500 py-3 rounded-xl items-center`}
+                            >
+                                <Text style={tw`font-bold text-white`}>{(loading || isMutating) ? 'Menyimpan...' : 'Lanjutkan'}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
