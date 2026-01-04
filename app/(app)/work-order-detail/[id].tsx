@@ -195,7 +195,8 @@ export default function WorkOrderDetailScreen() {
              latitude: finalLocation?.coords.latitude.toString(),
              longitude: finalLocation?.coords.longitude.toString(),
              locationName,
-             notes: resolutionNotes
+             notes: resolutionNotes,
+             timestamp: new Date().toISOString()
         };
         
         // Validation for NOTE

@@ -3,6 +3,7 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Config } from '../constants/Config';
 import { DatabaseService } from './DatabaseService';
+import { NotificationService } from './NotificationService';
 
 // Helper for upload (outside component)
 const uploadFile = async (uri: string, token: string, type: string, watermarkLines?: string[]): Promise<string | null> => {
@@ -139,12 +140,45 @@ export const SyncService = {
           console.log(`[SyncService] Item ${item.id} synced successfully.`);
           await DatabaseService.removeFromQueue(item.id);
         } else {
+             // Should not happen as axios throws on non-2xx usually, but just in case validateStatus is changed
             console.warn(`[SyncService] Item ${item.id} failed with status ${response.status}`);
             await DatabaseService.markAsRetry(item.id);
         }
 
       } catch (error: any) {
         console.error(`[SyncService] Failed to sync item ${item.id}:`, error.message);
+        
+        // Smart Error Handling
+        if (axios.isAxiosError(error) && error.response) {
+            const status = error.response.status;
+            
+            // 4xx Errors (Client Error) -> STOP RETRY
+            // e.g. 400 (Bad Request), 401 (Unauthorized), 404 (Not Found), 422 (Validation), 409 (Conflict)
+            if (status >= 400 && status < 500) {
+                 console.log(`[SyncService] Client Error (${status}). Removing item ${item.id} from queue.`);
+                 
+                 // 1. Remove from Queue (Stop Infinite Loop)
+                 await DatabaseService.removeFromQueue(item.id);
+
+                 // 2. Notify User
+                 const method = item.method.toUpperCase();
+                 const urlPart = item.url.split('/').pop() || 'Unknown';
+                 const errorMsg = error.response.data?.message || error.message || 'Data tidak valid';
+                 
+                 let title = 'Gagal Sinkronisasi Data';
+                 if (urlPart.includes('masuk')) title = 'Gagal Sync Barang Masuk';
+                 else if (urlPart.includes('keluar')) title = 'Gagal Sync Barang Keluar';
+                 else if (urlPart.includes('check-in')) title = 'Gagal Sync Absensi';
+
+                 await NotificationService.showLocalNotification(
+                     title,
+                     `Data dibatalkan: ${errorMsg}`
+                 );
+                 continue; // Move to next item
+            }
+        }
+        
+        // 5xx or Network Error -> Keep as RETRY
         await DatabaseService.markAsRetry(item.id);
       }
     }

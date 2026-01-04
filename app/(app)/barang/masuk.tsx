@@ -85,16 +85,16 @@ export default function BarangMasukScreen() {
         if (gudangData) setGudangs(gudangData);
     }, [gudangData]);
 
-    // Offline Query: Barangs - mode=masuk to get ALL master barang (not just barang with stock)
+    // Offline Query: Barangs - mode=masuk to get ALL master barang (GLOBAL CACHE)
     const { data: barangData } = useOfflineQuery<Barang[]>({
-        key: `barang_list_masuk_${selectedGudang}`,
+        key: `barang_list_master`,
         fetcher: async () => {
-             const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/barang?gudangId=${selectedGudang}&mode=masuk`, {
+             const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/barang?mode=masuk`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             return res.data?.barangList || [];
         },
-        enabled: !!token && !!selectedGudang
+        enabled: !!token
     });
 
     useEffect(() => {

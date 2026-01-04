@@ -1,11 +1,13 @@
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
+import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import { useOfflineQuery } from '@/hooks/useOfflineQuery';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft, Bell, Briefcase, Calendar, Clock, Megaphone, Package } from 'lucide-react-native';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
@@ -27,79 +29,70 @@ export default function NotificationsScreen() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-
-    const fetchNotifications = useCallback(async () => {
-        if (!token) return;
-        try {
+    
+    // Offline Query for Notifications
+    const { data: notifData, refetch } = useOfflineQuery<{ success: boolean; data: { notifications: Notification[]; unreadCount: number } }>({
+        key: 'notifications_list',
+        fetcher: async () => {
             const res = await axios.get(`${Config.API_URL}/api/mobile/notifications`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            if (res.data.success) {
-                setNotifications(res.data.data.notifications);
-                setUnreadCount(res.data.data.unreadCount);
-            }
-        } catch (error) {
-            console.error('Failed to fetch notifications', error);
-        } finally {
+            return res.data;
+        },
+        enabled: !!token
+    });
+
+    // Offline Mutation for Actions
+    const { mutate } = useOfflineMutation();
+
+    const notifications = notifData?.data?.notifications || [];
+    const unreadCount = notifData?.data?.unreadCount || 0;
+
+    useEffect(() => {
+        if (notifData) {
             setLoading(false);
         }
-    }, [token]);
+    }, [notifData]);
 
     useFocusEffect(
         useCallback(() => {
-            fetchNotifications();
-        }, [fetchNotifications])
+            refetch();
+        }, [refetch])
     );
 
     const onRefresh = async () => {
         setRefreshing(true);
-        await fetchNotifications();
+        await refetch();
         setRefreshing(false);
     };
 
     const markAsRead = async (notificationId: string) => {
-        try {
-            await axios.post(`${Config.API_URL}/api/mobile/notifications`,
-                { action: 'markRead', notificationId },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            setNotifications(prev =>
-                prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
-            );
-            setUnreadCount(prev => Math.max(0, prev - 1));
-        } catch (error) {
-            console.error('Failed to mark as read', error);
-        }
+        await mutate({ action: 'markRead', notificationId }, {
+            url: `/api/mobile/notifications`,
+            method: 'POST',
+            onSuccess: () => {
+                // Optimistically handled by refetch or could update cache manually
+                // For simplicity, we just refetch
+                refetch();
+            }
+        });
     };
 
     const markAllAsRead = async () => {
-        try {
-            await axios.post(`${Config.API_URL}/api/mobile/notifications`,
-                { action: 'markAllRead' },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-            setUnreadCount(0);
-        } catch (error) {
-            console.error('Failed to mark all as read', error);
-        }
+        await mutate({ action: 'markAllRead' }, {
+             url: `/api/mobile/notifications`,
+             method: 'POST',
+             onSuccess: () => refetch()
+        });
     };
 
     const markAnnouncementAsRead = async (sourceId: string) => {
         // Track announcement read to AnnouncementRead table (use mobile endpoint)
-        try {
-            await axios.post(
-                `${Config.API_URL}/api/mobile/announcements/${sourceId}/read`,
-                { portal: 'employee' },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-            console.log('[Notifications] Marked announcement as read:', sourceId);
-        } catch (error) {
-            console.error('[Notifications] Failed to mark announcement as read:', error);
-            // Non-critical, ignore errors
-        }
+        await mutate({ portal: 'employee' }, {
+            url: `/api/mobile/announcements/${sourceId}/read`,
+            method: 'POST',
+        });
+        console.log('[Notifications] Marked announcement as read (queued if offline):', sourceId);
     };
 
     const handleNotificationPress = (notification: Notification) => {

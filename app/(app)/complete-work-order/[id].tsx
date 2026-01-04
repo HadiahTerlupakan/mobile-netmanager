@@ -1,18 +1,16 @@
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput, Image, Dimensions, FlatList } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
-import { useAuth } from '../../../context/AuthContext';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery'; // Using query to get ticket number if needed? or params
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
-import { SyncService } from '@/services/SyncService';
-import { format } from 'date-fns';
 import axios from 'axios'; // Still used for non-sync stuff if any?
-import { Config } from '../../../constants/Config';
-import tw from 'twrnc';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Camera, X, CheckCircle, Plus } from 'lucide-react-native';
+import { format } from 'date-fns';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, Camera, CheckCircle, X } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import tw from 'twrnc';
+import { Config } from '../../../constants/Config';
+import { useAuth } from '../../../context/AuthContext';
 
 export default function CompleteWorkOrderScreen() {
     const { id } = useLocalSearchParams();
@@ -129,7 +127,8 @@ export default function CompleteWorkOrderScreen() {
             latitude: finalLocation?.coords.latitude.toString(),
             longitude: finalLocation?.coords.longitude.toString(),
             locationName,
-            notes: resolutionNotes
+            notes: resolutionNotes,
+            timestamp: new Date().toISOString()
         };
         
         await mutate({

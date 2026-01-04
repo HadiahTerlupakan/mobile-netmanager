@@ -1,15 +1,16 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, RefreshControl, ActivityIndicator, Alert } from 'react-native';
-import tw from 'twrnc';
-import { useAuth } from '../../context/AuthContext';
-import { Config } from '../../constants/Config';
+import { useOfflineQuery } from '@/hooks/useOfflineQuery';
 import axios from 'axios';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import tw from 'twrnc';
 import { DashboardHeader } from '../../components/dashboard/Header';
-import { WorkOrderCard } from '../../components/dashboard/WorkOrderCard';
 import { PerformanceStats } from '../../components/dashboard/PerformanceStats';
 import { QuickMenu } from '../../components/dashboard/QuickMenu';
-import { useRouter } from 'expo-router';
+import { WorkOrderCard } from '../../components/dashboard/WorkOrderCard';
+import { Config } from '../../constants/Config';
+import { useAuth } from '../../context/AuthContext';
 
 // Define stats interface
 interface DashboardStats {
@@ -26,32 +27,26 @@ export default function Dashboard() {
     const { user, token } = useAuth();
     const router = useRouter();
     const [refreshing, setRefreshing] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState<DashboardStats | null>(null);
-
-    const fetchStats = async () => {
-        try {
+    
+    // Offline Query
+    const { data: statsData, isLoading: loading, refetch } = useOfflineQuery({
+        key: 'dashboard_stats',
+        fetcher: async () => {
             const res = await axios.get(`${Config.API_URL}/api/mobile/dashboard`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setStats(res.data);
-        } catch (error) {
-            console.error('Fetch stats error:', error);
-            // Silent error or toast
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
+            return res.data;
+        },
+        enabled: !!token
+    });
 
-    useEffect(() => {
-        if (token) fetchStats();
-    }, [token]);
+    const stats = statsData || null;
 
-    const onRefresh = useCallback(() => {
+    const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        fetchStats();
-    }, []);
+        await refetch();
+        setRefreshing(false);
+    }, [refetch]);
 
     if (loading && !stats) {
         return (

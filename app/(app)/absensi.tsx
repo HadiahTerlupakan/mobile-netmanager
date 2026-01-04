@@ -298,6 +298,7 @@ export default function AbsensiScreen() {
             location: locationName,
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
+            capturedAt: (capturedTime || new Date()).toISOString(),
             // notes: ... (if we add notes field later)
         };
 

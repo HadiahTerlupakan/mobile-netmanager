@@ -221,6 +221,7 @@ export default function LemburScreen() {
                 overtimeId: todayRequest.id,
                 photo: null, // Placeholder
                 location: `${location.coords.latitude},${location.coords.longitude}`,
+                timestamp: (capturedTime || new Date()).toISOString(),
                 meta: {
                     photos: [watermarkedUri],
                     targetField: 'photo',

@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, Alert, ActivityIndicator, FlatList, Modal } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import tw from 'twrnc';
-import { useAuth } from '../../../context/AuthContext';
-import { ArrowLeft, Search, Package, Plus, Minus, Check, Trash2, Filter, AlertCircle, ChevronDown, X, CheckCircle } from 'lucide-react-native';
+import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import { useOfflineQuery } from '@/hooks/useOfflineQuery';
 import axios from 'axios';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { AlertCircle, ArrowLeft, Check, CheckCircle, ChevronDown, Filter, Minus, Package, Plus, Search, X } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import tw from 'twrnc';
 import { Config } from '../../../constants/Config';
+import { useAuth } from '../../../context/AuthContext';
 
 interface Barang {
     id: string;
@@ -54,46 +56,63 @@ export default function AmbilBarangScreen() {
     const [loadingBarang, setLoadingBarang] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
-    useEffect(() => {
-        fetchGudangs();
-    }, []);
-
-    useEffect(() => {
-        if (selectedGudang) {
-            fetchBarangs();
-        }
-    }, [selectedGudang]);
-
-    const fetchGudangs = async () => {
-        try {
+    // Offline Queries
+    const { data: gudangData, refetch: refetchGudang } = useOfflineQuery({
+        key: `gudang_list_wo_${workOrderId}`,
+        fetcher: async () => {
             const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/gudang?workOrderId=${workOrderId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            const list = res.data.gudangList || [];
-            setGudangs(list);
-            if (list.length > 0) setSelectedGudang(list[0].id);
-        } catch (error) {
-            console.error(error);
-            Alert.alert('Error', 'Gagal memuat daftar gudang');
-        } finally {
-            setLoadingGudang(false);
-        }
-    };
+            return res.data;
+        },
+        enabled: !!token && !!workOrderId
+    });
 
-    const fetchBarangs = async () => {
-        setLoadingBarang(true);
-        try {
+    const { data: barangData, isLoading: loadingBarangNet, refetch: refetchBarang } = useOfflineQuery({
+        key: `barang_list_${selectedGudang}`,
+        fetcher: async () => {
             const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/barang?gudangId=${selectedGudang}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            setBarangs(res.data.barangList || []);
-        } catch (error) {
-            console.error(error);
-            Alert.alert('Error', 'Gagal memuat barang');
-        } finally {
-            setLoadingBarang(false);
+            return res.data;
+        },
+        enabled: !!token && !!selectedGudang
+    });
+
+    const { mutate } = useOfflineMutation();
+
+    useEffect(() => {
+        if (gudangData?.gudangList) {
+            setGudangs(gudangData.gudangList);
+            if (!selectedGudang && gudangData.gudangList.length > 0) {
+                setSelectedGudang(gudangData.gudangList[0].id);
+            }
+            setLoadingGudang(false);
         }
-    };
+    }, [gudangData]);
+
+    useEffect(() => {
+        if (barangData?.barangList) {
+            setBarangs(barangData.barangList);
+            setLoadingBarang(false);
+        } else if (loadingBarangNet) {
+            setLoadingBarang(true);
+        }
+    }, [barangData, loadingBarangNet]);
+
+    // Force refresh helpers
+    const refreshGudang = async () => {
+        setLoadingGudang(true);
+        await refetchGudang();
+    }
+    
+    // Update loading state when selectedGudang changes (triggering new key)
+    useEffect(() => {
+        if (selectedGudang) {
+            // Optimistically show loading, useOfflineQuery will update data
+             setLoadingBarang(true);
+        }
+    }, [selectedGudang]);
 
     const addItem = (barang: Barang, kondisi: 'BARU' | 'BEKAS' | 'RUSAK') => {
         const stok = kondisi === 'BARU' ? barang.stokBaru : kondisi === 'BEKAS' ? barang.stokBekas : barang.stokRusak;
@@ -144,30 +163,26 @@ export default function AmbilBarangScreen() {
 
     const handleSubmit = async () => {
         if (selectedItems.length === 0) return;
-        setSubmitting(true);
 
-        try {
-            await axios.post(`${Config.API_URL}/api/mobile/work-orders/${workOrderId}/materials`, {
-                items: selectedItems.map(i => ({
-                    barangId: i.barangId,
-                    gudangId: i.gudangId,
-                    jumlah: i.jumlah,
-                    kondisi: i.kondisi
-                }))
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            Alert.alert('Berhasil', 'Barang berhasil ditambahkan', [
-                { text: 'OK', onPress: () => router.replace(`/(app)/work-order-detail/${workOrderId}`) }
-            ]);
-        } catch (error: any) {
-            console.error(error);
-            const msg = error.response?.data?.error || 'Gagal menyimpan data';
-            Alert.alert('Gagal', msg);
-        } finally {
-            setSubmitting(false);
-        }
+        await mutate({
+             items: selectedItems.map(i => ({
+                barangId: i.barangId,
+                gudangId: i.gudangId,
+                jumlah: i.jumlah,
+                kondisi: i.kondisi
+            }))
+        }, {
+             url: `/api/mobile/work-orders/${workOrderId}/materials`,
+             method: 'POST',
+             onSuccess: (data: any, isOffline: boolean) => {
+                  Alert.alert(
+                      isOffline ? 'Offline' : 'Berhasil', 
+                      isOffline ? 'Data disimpan di antrian' : 'Barang berhasil ditambahkan', 
+                      [{ text: 'OK', onPress: () => router.replace(`/(app)/work-order-detail/${workOrderId}`) }]
+                  );
+             },
+             onError: (err: any) => Alert.alert('Gagal', err.message || 'Gagal menyimpan data')
+        });
     };
 
     const filteredBarangs = barangs.filter(b => {
