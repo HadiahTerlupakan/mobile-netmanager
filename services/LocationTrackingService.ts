@@ -10,14 +10,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import * as Location from 'expo-location';
+import * as SecureStore from 'expo-secure-store';
 import * as TaskManager from 'expo-task-manager';
 import { Alert, Linking } from 'react-native';
 import { Config } from '../constants/Config';
 
 const TASK_NAME = 'BACKGROUND_LOCATION_TASK';
-const INTERVAL_MINUTES = 15;
 const STORAGE_KEY_TRACKING = '@location_tracking_enabled';
-const STORAGE_KEY_TOKEN = '@auth_token';
+const STORAGE_KEY_TOKEN = 'session_token'; // Must match AuthContext key
 const STORAGE_KEY_PENDING = '@pending_locations';
 
 interface LocationData {
@@ -32,13 +32,18 @@ interface LocationData {
 
 // Define background task
 TaskManager.defineTask(TASK_NAME, async ({ data, error }: { data: any; error: any }) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[LocationTracking][${timestamp}] Background task triggered`);
+    
     if (error) {
-        console.error('[LocationTracking] Background task error:', error);
+        console.error(`[LocationTracking][${timestamp}] Background task error:`, error);
         return;
     }
 
     if (data) {
         const { locations } = data as { locations: Location.LocationObject[] };
+        console.log(`[LocationTracking][${timestamp}] Received ${locations?.length || 0} locations from OS`);
+        
         if (locations && locations.length > 0) {
             const location = locations[0];
             const locationData: LocationData = {
@@ -51,8 +56,11 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: { data: any; error: an
                 recordedAt: new Date(location.timestamp).toISOString()
             };
 
+            console.log(`[LocationTracking][${timestamp}] Sending location to server:`, JSON.stringify(locationData));
             await LocationTrackingService.sendLocation(locationData);
         }
+    } else {
+        console.log(`[LocationTracking][${timestamp}] No location data in callback`);
     }
 });
 
@@ -116,13 +124,13 @@ export class LocationTrackingService {
             try {
                 await Location.startLocationUpdatesAsync(TASK_NAME, {
                     accuracy: Location.Accuracy.Balanced,
-                    timeInterval: __DEV__ ? 5000 : 60 * 1000, 
-                    distanceInterval: __DEV__ ? 0 : 10,
+                    timeInterval: __DEV__ ? 5000 : 60 * 1000, // DEV: 5 detik, PROD: 60 detik
+                    distanceInterval: 0, // Always update regardless of distance moved
                     deferredUpdatesInterval: __DEV__ ? 5000 : 60 * 1000,
                     foregroundService: {
-                        notificationTitle: 'Live Tracking Aktif',
-                        notificationBody: 'Lokasi Anda sedang dipantau oleh server',
-                        notificationColor: '#2563eb'
+                        notificationTitle: 'Mode Absensi Aktif',
+                        notificationBody: 'Jam kerja Anda sedang berjalan',
+                        notificationColor: '#ffffff'
                     },
                     pausesUpdatesAutomatically: false,
                     showsBackgroundLocationIndicator: false
@@ -198,15 +206,20 @@ export class LocationTrackingService {
      * Called by background task
      */
     static async sendLocation(locationData: LocationData): Promise<void> {
+        const timestamp = new Date().toISOString();
         try {
-            const token = await AsyncStorage.getItem(STORAGE_KEY_TOKEN);
+            // Use SecureStore to match AuthContext storage
+            const token = await SecureStore.getItemAsync(STORAGE_KEY_TOKEN);
             if (!token) {
-                // Save to pending queue
+                console.warn(`[LocationTracking][${timestamp}] No token found, saving to pending queue`);
                 await this.savePendingLocation(locationData);
                 return;
             }
 
-            await axios.post(
+            console.log(`[LocationTracking][${timestamp}] Sending to: ${Config.API_URL}/api/mobile/location`);
+            console.log(`[LocationTracking][${timestamp}] Data:`, JSON.stringify(locationData));
+            
+            const response = await axios.post(
                 `${Config.API_URL}/api/mobile/location`,
                 locationData,
                 {
@@ -217,13 +230,17 @@ export class LocationTrackingService {
                     timeout: 10000
                 }
             );
-            console.log('[LocationTracking] Location sent successfully');
+            
+            console.log(`[LocationTracking][${timestamp}] Server response:`, JSON.stringify(response.data));
+            console.log(`[LocationTracking][${timestamp}] ✅ Location sent successfully!`);
 
         } catch (error: any) {
-            console.error('[LocationTracking] Failed to send location:', error?.message);
+            console.error(`[LocationTracking][${timestamp}] ❌ Failed to send:`, error?.message);
+            console.error(`[LocationTracking][${timestamp}] Response:`, error?.response?.data);
             
             // If server says stop tracking
             if (error?.response?.data?.shouldStopTracking) {
+                console.log(`[LocationTracking][${timestamp}] Server requested stop tracking`);
                 await this.stopTracking();
                 return;
             }
@@ -273,7 +290,7 @@ export class LocationTrackingService {
             const pending = await this.getPendingLocations();
             if (pending.length === 0) return 0;
 
-            const token = await AsyncStorage.getItem(STORAGE_KEY_TOKEN);
+            const token = await SecureStore.getItemAsync(STORAGE_KEY_TOKEN);
             if (!token) return 0;
 
             await axios.post(

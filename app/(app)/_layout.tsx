@@ -1,13 +1,74 @@
 import { Tabs } from 'expo-router';
 import { ClipboardList, Home, Package, ScanLine, User } from 'lucide-react-native';
-import { Fragment } from 'react';
+import { Fragment, useEffect } from 'react';
 import tw from 'twrnc';
 
 import AnnouncementPopup from '@/components/AnnouncementPopup';
+import { Config } from '@/constants/Config';
+import { useAuth } from '@/context/AuthContext';
+import { LocationTrackingService } from '@/services/LocationTrackingService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AppLayout() {
     const insets = useSafeAreaInsets();
+    const { token } = useAuth();
+
+    // Auto-resume location tracking on app startup if user is checked in
+    useEffect(() => {
+        const resumeTrackingIfNeeded = async () => {
+            if (!token) {
+                console.log('[AppLayout] No token, skipping tracking resume');
+                return;
+            }
+            
+            const timestamp = new Date().toISOString();
+            console.log(`[AppLayout][${timestamp}] Checking for active check-in...`);
+            
+            try {
+                // Use history endpoint with limit=1 to get latest attendance
+                const response = await fetch(`${Config.API_URL}/api/mobile/attendance/history?limit=1`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                console.log(`[AppLayout][${timestamp}] Response status: ${response.status}`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log(`[AppLayout][${timestamp}] Response data:`, JSON.stringify(data));
+                    
+                    // Check if there's an active check-in today
+                    if (data.success && data.data && data.data.length > 0) {
+                        const lastAttendance = data.data[0];
+                        const today = new Date().toDateString();
+                        const attendanceDate = new Date(lastAttendance.checkIn).toDateString();
+                        
+                        console.log(`[AppLayout][${timestamp}] Last attendance date: ${attendanceDate}, Today: ${today}`);
+                        console.log(`[AppLayout][${timestamp}] Has checkOut: ${!!lastAttendance.checkOut}`);
+                        
+                        // If checked in today and not checked out, resume tracking
+                        if (today === attendanceDate && !lastAttendance.checkOut) {
+                            console.log(`[AppLayout][${timestamp}] ✅ Active check-in found! Resuming location tracking...`);
+                            const started = await LocationTrackingService.startTracking();
+                            console.log(`[AppLayout][${timestamp}] Tracking started: ${started}`);
+                        } else {
+                            console.log(`[AppLayout][${timestamp}] No active check-in for today`);
+                        }
+                    } else {
+                        console.log(`[AppLayout][${timestamp}] No attendance history found`);
+                    }
+                } else {
+                    console.warn(`[AppLayout][${timestamp}] Failed to fetch attendance status: ${response.status}`);
+                }
+            } catch (error) {
+                console.warn(`[AppLayout][${timestamp}] Error checking attendance:`, error);
+            }
+        };
+        
+        resumeTrackingIfNeeded();
+    }, [token]);
 
     return (
         <Fragment>
