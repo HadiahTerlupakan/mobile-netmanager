@@ -23,12 +23,17 @@ interface DashboardStats {
     barangMasukToday: number;
 }
 
+interface UserProfile {
+    name: string | null;
+    image: string | null;
+}
+
 export default function Dashboard() {
     const { user, token } = useAuth();
     const router = useRouter();
     const [refreshing, setRefreshing] = useState(false);
     
-    // Offline Query
+    // Fetch dashboard stats
     const { data: statsData, isLoading: loading, refetch } = useOfflineQuery({
         key: 'dashboard_stats',
         fetcher: async () => {
@@ -40,13 +45,25 @@ export default function Dashboard() {
         enabled: !!token
     });
 
+    // Fetch user profile for image
+    const { data: profileData, refetch: refetchProfile } = useOfflineQuery({
+        key: 'user_profile',
+        fetcher: async () => {
+            const res = await axios.get(`${Config.API_URL}/api/mobile/profile`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return res.data?.data as UserProfile;
+        },
+        enabled: !!token
+    });
+
     const stats = statsData || null;
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        await refetch();
+        await Promise.all([refetch(), refetchProfile()]);
         setRefreshing(false);
-    }, [refetch]);
+    }, [refetch, refetchProfile]);
 
     if (loading && !stats) {
         return (
@@ -59,7 +76,10 @@ export default function Dashboard() {
     return (
         <SafeAreaView style={tw`flex-1 bg-gray-50`}>
             {/* Header */}
-            <DashboardHeader userName={user?.name || 'Karyawan'} />
+            <DashboardHeader 
+                userName={profileData?.name || user?.name || 'Karyawan'} 
+                userImage={profileData?.image}
+            />
 
             <ScrollView
                 contentContainerStyle={tw`pb-10 pt-4`}
@@ -70,7 +90,7 @@ export default function Dashboard() {
                 {/* Greeting */}
                 <View style={tw`px-4 pb-4`}>
                     <Text style={tw`text-sm font-medium text-gray-500`}>Selamat datang,</Text>
-                    <Text style={tw`text-2xl font-bold text-gray-900`}>{user?.name || 'User'}</Text>
+                    <Text style={tw`text-2xl font-bold text-gray-900`}>{profileData?.name || user?.name || 'User'}</Text>
                 </View>
 
                 {/* Work Order Card */}

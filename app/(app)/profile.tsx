@@ -1,18 +1,20 @@
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl, Alert } from 'react-native';
-import { useState, useEffect, useCallback } from 'react';
-import tw from 'twrnc';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Building2, MapPin, Clock, LogOut, User, Calendar, Briefcase } from 'lucide-react-native';
-import axios from 'axios';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import { useFocusEffect } from 'expo-router';
+import axios from 'axios';
+import { router, useFocusEffect } from 'expo-router';
+import { Briefcase, Building2, Calendar, Clock, Edit3, LogOut, Mail, MapPin } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Image, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import tw from 'twrnc';
 
 interface ProfileData {
     name: string;
     email: string;
-    department?: { name: string } | null;
-    site?: { name: string } | null;
+    phone?: string | null;
+    image?: string | null;
+    departments?: { name: string } | null;
+    sites?: { name: string } | null;
     role?: { name: string } | null;
     workingHourMode?: 'FIXED' | 'FLEXIBLE' | 'SHIFT';
     startWorkTime?: string | null;
@@ -114,9 +116,16 @@ export default function Profile() {
                 {/* Header */}
                 <View style={tw`bg-blue-600 px-6 pt-6 pb-16 rounded-b-[40px]`}>
                     <View style={tw`items-center`}>
-                        <View style={tw`w-24 h-24 bg-white rounded-full items-center justify-center mb-4 shadow-lg`}>
-                            <Text style={tw`text-blue-600 text-4xl font-bold`}>{getInitials(displayName)}</Text>
-                        </View>
+                        {profileData?.image ? (
+                            <Image
+                                source={{ uri: profileData.image }}
+                                style={tw`w-24 h-24 rounded-full mb-4 border-4 border-white`}
+                            />
+                        ) : (
+                            <View style={tw`w-24 h-24 bg-white rounded-full items-center justify-center mb-4 shadow-lg`}>
+                                <Text style={tw`text-blue-600 text-4xl font-bold`}>{getInitials(displayName)}</Text>
+                            </View>
+                        )}
                         <Text style={tw`text-white font-bold text-2xl`}>{displayName}</Text>
                         <Text style={tw`text-blue-100 text-sm mt-1`}>{displayEmail}</Text>
                         {profileData?.role?.name && (
@@ -203,11 +212,20 @@ export default function Profile() {
                         </View>
                     </View>
 
+                    {/* Edit Profile Button */}
+                    <TouchableOpacity
+                        onPress={() => router.push('/(app)/edit-profile' as any)}
+                        style={tw`mt-6 bg-blue-50 border border-blue-100 rounded-2xl p-4 flex-row items-center justify-center`}
+                    >
+                        <Edit3 size={20} color="#2563eb" />
+                        <Text style={tw`text-blue-600 font-bold ml-2`}>Edit Profil & Password</Text>
+                    </TouchableOpacity>
+
                     {/* Logout Button */}
                     <TouchableOpacity
                         onPress={handleLogout}
                         disabled={isLoggingOut}
-                        style={tw`mt-6 bg-red-50 border border-red-100 rounded-2xl p-4 flex-row items-center justify-center`}
+                        style={tw`mt-3 bg-red-50 border border-red-100 rounded-2xl p-4 flex-row items-center justify-center`}
                     >
                         {isLoggingOut ? (
                             <ActivityIndicator color="#dc2626" />
