@@ -21,6 +21,36 @@ export const showMutationAlert = (title: string, message: string) => {
   Alert.alert(title, message);
 };
 
+// Helper for uploading files (same as SyncService)
+const uploadFile = async (uri: string, token: string, type: string, watermarkLines?: string[]): Promise<string | null> => {
+    try {
+        const formData = new FormData();
+        const filename = uri.split('/').pop() || 'photo.jpg';
+
+        // @ts-ignore - React Native specific FormData append
+        formData.append('file', {
+            uri,
+            type: 'image/jpeg',
+            name: filename,
+        });
+        formData.append('type', type);
+        if (watermarkLines) {
+            formData.append('watermarkLines', JSON.stringify(watermarkLines));
+        }
+
+        const res = await axios.post(`${Config.API_URL}/api/mobile/upload`, formData, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+            }
+        });
+        return res.data?.url || null;
+    } catch (error) {
+        console.error('[useOfflineMutation] File upload failed:', error);
+        return null;
+    }
+};
+
 export const useOfflineMutation = () => {
   const { token } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +86,7 @@ export const useOfflineMutation = () => {
 
       // Prepare payload - merge location if expected by backend?
       // User asked for "tikor". We send it in body if possible, AND keep in meta.
-      const payload = {
+      let payload = {
           ...variables,
           latitude: meta.latitude,
           longitude: meta.longitude,
@@ -66,6 +96,37 @@ export const useOfflineMutation = () => {
       if (isOnline) {
         // --- ONLINE MODE ---
         console.log('[useOfflineMutation] Online. Submitting directly:', options.url);
+        
+        // Upload photos first if they exist in meta
+        if (meta.photos && Array.isArray(meta.photos) && meta.photos.length > 0) {
+            console.log(`[useOfflineMutation] Uploading ${meta.photos.length} photos...`);
+            const uploadedUrls: string[] = [];
+            
+            for (const photoUri of meta.photos) {
+                if (photoUri.startsWith('file://') || photoUri.startsWith('/')) {
+                    const url = await uploadFile(
+                        photoUri, 
+                        token || '', 
+                        meta.photoType || 'general',
+                        meta.watermarkLines
+                    );
+                    if (url) uploadedUrls.push(url);
+                } else if (photoUri.startsWith('http')) {
+                    uploadedUrls.push(photoUri); // Already remote URL
+                }
+            }
+
+            // Update payload with uploaded URLs
+            if (meta.targetField) {
+                if (meta.singleFile) {
+                    payload[meta.targetField as keyof typeof payload] = uploadedUrls[0] || null;
+                } else {
+                    payload[meta.targetField as keyof typeof payload] = uploadedUrls as any;
+                }
+            }
+            
+            console.log(`[useOfflineMutation] Photos uploaded:`, uploadedUrls);
+        }
         
         const response = await axios({
             method: options.method,
