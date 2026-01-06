@@ -209,6 +209,14 @@ export default function BarangMasukScreen() {
         return uploadedUrls;
     };
 
+    const resetForm = () => {
+        setSelectedBarang('');
+        setJumlah('');
+        setKondisi('BARU');
+        setKeterangan('');
+        setPhotos([]);
+    };
+
     const handleSubmit = async () => {
         if (!selectedGudang || !selectedBarang || !jumlah) {
             Alert.alert('Error', 'Gudang, Barang, dan Jumlah wajib diisi');
@@ -250,6 +258,7 @@ export default function BarangMasukScreen() {
                     url: '/api/mobile/inventory/masuk',
                     method: 'POST',
                     onSuccess: () => {
+                        resetForm();
                         Alert.alert('Sukses', 'Barang masuk berhasil dicatat', [
                             { text: 'OK', onPress: () => router.back() }
                         ]);
@@ -275,6 +284,7 @@ export default function BarangMasukScreen() {
                 method: 'POST',
                 onSuccess: (data, isOffline) => {
                     if (isOffline) {
+                        resetForm();
                         router.back();
                     }
                 }

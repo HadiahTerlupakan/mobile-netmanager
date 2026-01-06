@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { ClipboardList, Home, Package, ScanLine, User } from 'lucide-react-native';
 import { Fragment, useEffect } from 'react';
 import tw from 'twrnc';
@@ -10,6 +10,7 @@ import { LocationTrackingService } from '@/services/LocationTrackingService';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AppLayout() {
+    const router = useRouter();
     const insets = useSafeAreaInsets();
     const { token } = useAuth();
 
@@ -105,6 +106,12 @@ export default function AppLayout() {
                     options={{
                         title: 'Barang',
                         tabBarIcon: ({ color }) => <Package size={24} color={color} />,
+                    }}
+                    listeners={{
+                        tabPress: (e) => {
+                            e.preventDefault();
+                            router.navigate('/(app)/barang');
+                        },
                     }}
                 />
                 <Tabs.Screen
