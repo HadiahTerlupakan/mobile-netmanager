@@ -1,15 +1,12 @@
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import { useOfflineMutation } from '@/hooks/useOfflineMutation';
 import { useOfflineQuery } from '@/hooks/useOfflineQuery';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
 import { format } from 'date-fns';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ArrowLeft, Camera, CheckCircle, ChevronDown, Clock, Plus, X, XCircle } from 'lucide-react-native';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ArrowLeft, CheckCircle, Clock, Plus, XCircle } from 'lucide-react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -26,35 +23,11 @@ interface LeaveRequest {
     createdAt: string;
 }
 
-const LEAVE_TYPES = [
-    { value: 'SAKIT', label: 'Sakit' },
-    { value: 'CUTI', label: 'Cuti' },
-    { value: 'IZIN', label: 'Izin' },
-    { value: 'LAINNYA', label: 'Lainnya' },
-];
-
 export default function IzinScreen() {
     const { token } = useAuth();
     const router = useRouter();
-    const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [history, setHistory] = useState<LeaveRequest[]>([]);
-
-    // Form Modal
-    const [showModal, setShowModal] = useState(false);
-    const [type, setType] = useState('SAKIT');
-    const [startDate, setStartDate] = useState(new Date());
-    const [endDate, setEndDate] = useState(new Date());
-    const [reason, setReason] = useState('');
-    const [photos, setPhotos] = useState<string[]>([]);
-    const [showTypePicker, setShowTypePicker] = useState(false);
-    const [showStartPicker, setShowStartPicker] = useState(false);
-    const [showEndPicker, setShowEndPicker] = useState(false);
-
-    // Camera
-    const [showCamera, setShowCamera] = useState(false);
-    const [permission, requestPermission] = useCameraPermissions();
-    const cameraRef = useRef<CameraView>(null);
 
     // Offline Query
     const { data: historyData, refetch: fetchHistory } = useOfflineQuery({
@@ -67,9 +40,6 @@ export default function IzinScreen() {
         },
         enabled: !!token
     });
-
-    // Offline Mutation
-    const { mutate } = useOfflineMutation();
 
     useEffect(() => {
         if (historyData) setHistory(historyData);
@@ -85,68 +55,6 @@ export default function IzinScreen() {
         setRefreshing(true);
         await fetchHistory();
         setRefreshing(false);
-    };
-
-    // Take photo
-    const handleCapture = async () => {
-        if (cameraRef.current) {
-            const result = await cameraRef.current.takePictureAsync({
-                quality: 0.7,
-                base64: false // We use URI now for offline sync
-            });
-            if (result?.uri) {
-                setPhotos(prev => [...prev, result.uri]);
-            }
-            setShowCamera(false);
-        }
-    };
-
-    const removePhoto = (index: number) => {
-        setPhotos(prev => prev.filter((_, i) => i !== index));
-    };
-
-    // Submit
-    const handleSubmit = async () => {
-        if (!reason.trim()) {
-            Alert.alert('Error', 'Alasan wajib diisi');
-            return;
-        }
-        if (type !== 'CUTI' && photos.length === 0) {
-            Alert.alert('Error', 'Foto bukti wajib diupload');
-            return;
-        }
-
-        await mutate({
-             type,
-             startDate: startDate.toISOString(),
-             endDate: endDate.toISOString(),
-             reason: reason.trim(),
-             photos: [], // Placeholder, SyncService will fill
-             meta: {
-                 photos: photos, // URIs
-                 targetField: 'photos',
-                 singleFile: false,
-                 photoType: 'employee-leave'
-             }
-        }, {
-             url: `/api/mobile/leaves`,
-             method: 'POST',
-             onSuccess: (data, isOffline) => {
-                  Alert.alert(isOffline ? 'Offline' : 'Sukses', isOffline ? 'Pengajuan diantrikan' : 'Pengajuan berhasil dikirim');
-                  setShowModal(false);
-                  resetForm();
-                  fetchHistory();
-             },
-             onError: (err) => Alert.alert('Error', err.message || 'Gagal mengirim pengajuan')
-        });
-    };
-
-    const resetForm = () => {
-        setType('SAKIT');
-        setStartDate(new Date());
-        setEndDate(new Date());
-        setReason('');
-        setPhotos([]);
     };
 
     // Status helpers
@@ -165,42 +73,6 @@ export default function IzinScreen() {
             default: return <Clock size={16} color="#ca8a04" />;
         }
     };
-
-    // Camera view
-    if (showCamera) {
-        if (!permission?.granted) {
-            return (
-                <View style={tw`flex-1 justify-center items-center`}>
-                    <Text>Aplikasi butuh izin kamera</Text>
-                    <TouchableOpacity onPress={requestPermission} style={tw`bg-teal-600 p-2 rounded mt-2`}>
-                        <Text style={tw`text-white`}>Izinkan</Text>
-                    </TouchableOpacity>
-                </View>
-            );
-        }
-
-        return (
-            <View style={tw`flex-1 bg-black`}>
-                <CameraView style={tw`flex-1`} facing="back" ref={cameraRef}>
-                    <View style={tw`absolute top-12 left-0 right-0 px-4 flex-row justify-between items-center`}>
-                        <Text style={tw`text-white font-bold`}>Ambil Foto Bukti</Text>
-                        <TouchableOpacity onPress={() => setShowCamera(false)} style={tw`bg-white/20 p-2 rounded-full`}>
-                            <X size={24} color="white" />
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={tw`absolute bottom-12 left-0 right-0 items-center`}>
-                        <TouchableOpacity
-                            onPress={handleCapture}
-                            style={tw`h-20 w-20 bg-white rounded-full border-4 border-gray-300 items-center justify-center`}
-                        >
-                            <View style={tw`h-16 w-16 bg-white rounded-full border-2 border-gray-200`} />
-                        </TouchableOpacity>
-                    </View>
-                </CameraView>
-            </View>
-        );
-    }
 
     return (
         <SafeAreaView style={tw`flex-1 bg-gray-50`}>
@@ -224,7 +96,7 @@ export default function IzinScreen() {
                     <View style={tw`bg-white rounded-2xl shadow-sm p-4 border border-gray-100`}>
                         {/* Action Button */}
                         <TouchableOpacity
-                            onPress={() => setShowModal(true)}
+                            onPress={() => router.push('/izin/form')}
                             style={tw`bg-teal-600 py-4 rounded-xl flex-row items-center justify-center mb-4`}
                         >
                             <Plus size={20} color="white" />
@@ -271,148 +143,6 @@ export default function IzinScreen() {
                     </View>
                 </View>
             </ScrollView>
-
-            {/* Form Modal */}
-            <Modal visible={showModal} transparent animationType="slide">
-                <View style={tw`flex-1 bg-black/50 justify-end`}>
-                    <View style={tw`bg-white rounded-t-3xl p-6 max-h-[90%]`}>
-                        <View style={tw`flex-row justify-between items-center mb-4`}>
-                            <Text style={tw`text-lg font-bold`}>Form Pengajuan</Text>
-                            <TouchableOpacity onPress={() => { setShowModal(false); resetForm(); }}>
-                                <X size={24} color="#64748b" />
-                            </TouchableOpacity>
-                        </View>
-
-                        <ScrollView showsVerticalScrollIndicator={false}>
-                            {/* Type Picker */}
-                            <View style={tw`mb-4`}>
-                                <Text style={tw`text-xs font-bold text-slate-500 uppercase mb-2`}>Tipe Izin</Text>
-                                <TouchableOpacity
-                                    onPress={() => setShowTypePicker(!showTypePicker)}
-                                    style={tw`bg-gray-50 p-3 rounded-xl border border-gray-200 flex-row justify-between items-center`}
-                                >
-                                    <Text style={tw`text-slate-800`}>{LEAVE_TYPES.find(t => t.value === type)?.label}</Text>
-                                    <ChevronDown size={20} color="#64748b" />
-                                </TouchableOpacity>
-                                {showTypePicker && (
-                                    <View style={tw`bg-white border border-gray-200 rounded-xl mt-1 overflow-hidden`}>
-                                        {LEAVE_TYPES.map((t) => (
-                                            <TouchableOpacity
-                                                key={t.value}
-                                                onPress={() => { setType(t.value); setShowTypePicker(false); }}
-                                                style={tw`p-3 border-b border-gray-100 ${type === t.value ? 'bg-teal-50' : ''}`}
-                                            >
-                                                <Text style={tw`${type === t.value ? 'text-teal-600 font-bold' : 'text-slate-700'}`}>{t.label}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                )}
-                            </View>
-
-                            {/* Date Pickers */}
-                            <View style={tw`flex-row gap-3 mb-4`}>
-                                <View style={tw`flex-1`}>
-                                    <Text style={tw`text-xs font-bold text-slate-500 uppercase mb-2`}>Dari</Text>
-                                    <TouchableOpacity
-                                        onPress={() => setShowStartPicker(true)}
-                                        style={tw`bg-gray-50 p-3 rounded-xl border border-gray-200`}
-                                    >
-                                        <Text style={tw`text-slate-800`}>{format(startDate, 'dd/MM/yyyy')}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                                <View style={tw`flex-1`}>
-                                    <Text style={tw`text-xs font-bold text-slate-500 uppercase mb-2`}>Sampai</Text>
-                                    <TouchableOpacity
-                                        onPress={() => setShowEndPicker(true)}
-                                        style={tw`bg-gray-50 p-3 rounded-xl border border-gray-200`}
-                                    >
-                                        <Text style={tw`text-slate-800`}>{format(endDate, 'dd/MM/yyyy')}</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            {showStartPicker && (
-                                <DateTimePicker
-                                    value={startDate}
-                                    mode="date"
-                                    onChange={(_, date) => { setShowStartPicker(false); if (date) setStartDate(date); }}
-                                />
-                            )}
-                            {showEndPicker && (
-                                <DateTimePicker
-                                    value={endDate}
-                                    mode="date"
-                                    onChange={(_, date) => { setShowEndPicker(false); if (date) setEndDate(date); }}
-                                />
-                            )}
-
-                            {/* Reason */}
-                            <View style={tw`mb-4`}>
-                                <Text style={tw`text-xs font-bold text-slate-500 uppercase mb-2`}>Alasan</Text>
-                                <TextInput
-                                    style={[tw`bg-gray-50 p-3 rounded-xl border border-gray-200`, { minHeight: 80, textAlignVertical: 'top' }]}
-                                    placeholder="Jelaskan alasan pengajuan..."
-                                    multiline
-                                    value={reason}
-                                    onChangeText={setReason}
-                                    placeholderTextColor="#94a3b8"
-                                />
-                            </View>
-
-                            {/* Photo Upload (required for non-CUTI) */}
-                            {type !== 'CUTI' && (
-                                <View style={tw`mb-4`}>
-                                    <Text style={tw`text-xs font-bold text-slate-500 uppercase mb-2`}>Foto Bukti (Wajib)</Text>
-                                    
-                                    {/* Photo Grid */}
-                                    {photos.length > 0 && (
-                                        <View style={tw`flex-row flex-wrap gap-2 mb-3`}>
-                                            {photos.map((photo, idx) => (
-                                                <View key={idx} style={tw`relative`}>
-                                                    <Image source={{ uri: photo }} style={tw`w-20 h-20 rounded-lg`} />
-                                                    <TouchableOpacity
-                                                        onPress={() => removePhoto(idx)}
-                                                        style={tw`absolute -top-2 -right-2 bg-red-500 rounded-full p-1`}
-                                                    >
-                                                        <X size={12} color="white" />
-                                                    </TouchableOpacity>
-                                                </View>
-                                            ))}
-                                        </View>
-                                    )}
-
-                                    {/* Add Photo Button */}
-                                    <TouchableOpacity
-                                        onPress={() => setShowCamera(true)}
-                                        style={tw`bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl h-24 items-center justify-center`}
-                                    >
-                                        <Camera size={28} color="#64748b" />
-                                        <Text style={tw`text-slate-500 text-sm mt-1`}>
-                                            {photos.length > 0 ? 'Tambah Foto Lain' : 'Ambil Foto'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-
-                            {/* Submit Button */}
-                            <TouchableOpacity
-                                onPress={handleSubmit}
-                                disabled={loading || (type !== 'CUTI' && photos.length === 0)}
-                                style={[
-                                    tw`py-4 rounded-xl items-center mt-2`,
-                                    (loading || (type !== 'CUTI' && photos.length === 0)) ? tw`bg-gray-300` : tw`bg-teal-600`
-                                ]}
-                            >
-                                {loading ? (
-                                    <ActivityIndicator color="white" />
-                                ) : (
-                                    <Text style={tw`text-white font-bold`}>Kirim Pengajuan</Text>
-                                )}
-                            </TouchableOpacity>
-                        </ScrollView>
-                    </View>
-                </View>
-            </Modal>
         </SafeAreaView>
     );
 }

@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
-import { AlertTriangle, Camera, Clock, MapPin, RefreshCw, RotateCcw, X } from 'lucide-react-native';
+import { AlertTriangle, CalendarOff, Camera, Clock, MapPin, RefreshCw, RotateCcw, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -64,6 +64,7 @@ export default function AbsensiScreen() {
     const [facing, setFacing] = useState<CameraType>('front');
     const watermarkRef = useRef<View>(null);
     const [capturedTime, setCapturedTime] = useState<Date | null>(null);
+    const [todayHoliday, setTodayHoliday] = useState<{ isHoliday: boolean; name: string | null }>({ isHoliday: false, name: null });
 
     // Clock
     useEffect(() => {
@@ -145,8 +146,16 @@ export default function AbsensiScreen() {
     });
 
     useEffect(() => {
-        if (statusData && statusData.success && statusData.data.length > 0) {
-            const lastAttendance = statusData.data[0];
+        if (statusData && statusData.success) {
+            // Update Holiday Status
+            if (statusData.today && statusData.today.isHoliday) {
+                setTodayHoliday({ isHoliday: true, name: statusData.today.holidayName });
+            } else {
+                setTodayHoliday({ isHoliday: false, name: null });
+            }
+
+            if (statusData.data.length > 0) {
+                const lastAttendance = statusData.data[0];
             const today = new Date().toDateString();
             const attendanceDate = new Date(lastAttendance.checkIn).toDateString();
 
@@ -163,11 +172,14 @@ export default function AbsensiScreen() {
                     LocationTrackingService.startTracking().catch(console.error);
                 }
             } else {
-                // New day, reset if needed or just idle
+                 // New day...
+                 // Only reset if NOT checked in today?
+                 // Original logic resets if date mismatch. Correct.
                  setStatus('idle');
                  setCheckInTime(null);
                  setCheckOutTime(null);
             }
+        }
         }
     }, [statusData]);
 
@@ -468,14 +480,23 @@ export default function AbsensiScreen() {
         <SafeAreaView style={tw`flex-1 bg-gray-50`}>
             <ScrollView contentContainerStyle={tw`pb-20`}>
                 {/* Header */}
-                <View style={tw`bg-blue-600 px-6 pt-6 pb-12 rounded-b-[40px]`}>
+                <View style={tw`${todayHoliday.isHoliday ? 'bg-red-600' : 'bg-blue-600'} px-6 pt-6 pb-12 rounded-b-[40px]`}>
                     <View style={tw`items-center`}>
-                        <Text style={tw`text-blue-100 font-medium text-sm mb-1`}>
+                        <Text style={tw`${todayHoliday.isHoliday ? 'text-red-100' : 'text-blue-100'} font-medium text-sm mb-1`}>
                             {format(currentTime, 'EEEE, d MMMM yyyy', { locale: id })}
                         </Text>
                         <Text style={tw`text-white font-bold text-5xl`}>
                             {format(currentTime, 'HH:mm')}
                         </Text>
+                        {todayHoliday.isHoliday && (
+                            <View style={tw`bg-white/20 px-3 py-1 rounded-full mt-2 flex-row items-center`}>
+                                <CalendarOff size={14} color="white" />
+                                <Text style={tw`text-white font-bold text-xs ml-1`}>LIBUR NASIONAL</Text>
+                            </View>
+                        )}
+                        {todayHoliday.name && (
+                            <Text style={tw`text-white/80 text-xs mt-1 text-center max-w-[80%]`}>{todayHoliday.name}</Text>
+                        )}
                     </View>
                 </View>
 
@@ -559,13 +580,23 @@ export default function AbsensiScreen() {
                         ) : (
                             <TouchableOpacity
                                 onPress={() => setShowCamera(true)}
-                                disabled={status === 'checked-out'}
-                                style={tw`bg-blue-50 border-2 border-dashed border-blue-200 rounded-2xl h-32 items-center justify-center mb-2`}
+                                disabled={status === 'checked-out' || todayHoliday.isHoliday}
+                                style={tw`${todayHoliday.isHoliday ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'} border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
                             >
-                                <Camera size={32} color="#2563eb" />
-                                <Text style={tw`text-blue-600 font-bold mt-2`}>
-                                    {status === 'idle' ? 'Ambil Foto Masuk' : status === 'checked-in' ? 'Ambil Foto Keluar' : 'Absensi Selesai'}
-                                </Text>
+                                {todayHoliday.isHoliday ? (
+                                    <>
+                                        <CalendarOff size={32} color="#dc2626" />
+                                        <Text style={tw`text-red-600 font-bold mt-2`}>Libur Nasional</Text>
+                                        <Text style={tw`text-red-400 text-xs`}>Absensi dinonaktifkan</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Camera size={32} color="#2563eb" />
+                                        <Text style={tw`text-blue-600 font-bold mt-2`}>
+                                            {status === 'idle' ? 'Ambil Foto Masuk' : status === 'checked-in' ? 'Ambil Foto Keluar' : 'Absensi Selesai'}
+                                        </Text>
+                                    </>
+                                )}
                             </TouchableOpacity>
                         )}
                     </View>

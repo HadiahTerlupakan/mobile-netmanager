@@ -111,6 +111,12 @@ export const SyncService = {
                 }
             }
 
+            // SAFETY CHECK: If photos existed but upload failed entirely, reject this sync attempt
+            // so it stays in queue for retry later (instead of sending invalid data)
+            if (meta.photos.length > 0 && uploadedUrls.length === 0) {
+                 throw new Error('Gagal mengupload semua foto bukti saat background sync.');
+            }
+
             // Update body with uploaded/remote URLs
             if (meta.targetField) {
                  if (meta.singleFile) {

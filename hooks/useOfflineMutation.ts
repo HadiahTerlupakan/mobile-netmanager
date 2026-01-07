@@ -126,6 +126,12 @@ export const useOfflineMutation = () => {
             }
             
             console.log(`[useOfflineMutation] Photos uploaded:`, uploadedUrls);
+
+            // SAFETY CHECK: If we had photos to upload but none succeeded, DO NOT PROCEED.
+            // This prevents sending empty photos[] to backend which causes "Foto wajib diupload" error.
+            if (meta.photos.length > 0 && uploadedUrls.length === 0) {
+                 throw new Error('Gagal mengupload foto bukti. Mohon periksa koneksi internet Anda dan coba lagi.');
+            }
         }
         
         const response = await axios({
