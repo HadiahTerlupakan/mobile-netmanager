@@ -22,6 +22,7 @@ export default function CompleteWorkOrderScreen() {
     const [photos, setPhotos] = useState<string[]>([]); // Changed to Array
     const [location, setLocation] = useState<Location.LocationObject | null>(null);
     const [ticketNumber, setTicketNumber] = useState<string>(''); // To store ticket number
+    const [isProcessingComplete, setIsProcessingComplete] = useState(false);
 
     // Offline Mutation
     const { mutate, isLoading: isMutating } = useOfflineMutation();
@@ -60,16 +61,44 @@ export default function CompleteWorkOrderScreen() {
 
     }, []);
 
-    const pickImage = async () => {
-        const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ['images'],
-            allowsEditing: false,
-            quality: 0.5,
-        });
-
-        if (!result.canceled) {
-            setPhotos(prev => [...prev, result.assets[0].uri]);
-        }
+    const handleImageSelection = () => {
+        Alert.alert(
+            'Pilih Sumber Foto',
+            'Ambil foto dari kamera atau pilih dari galeri?',
+            [
+                { text: 'Batal', style: 'cancel' },
+                {
+                    text: 'Kamera',
+                    onPress: async () => {
+                        try {
+                            const result = await ImagePicker.launchCameraAsync({
+                                mediaTypes: ['images'],
+                                allowsEditing: false,
+                                quality: 0.5,
+                            });
+                            if (!result.canceled) setPhotos(prev => [...prev, result.assets[0].uri]);
+                        } catch (error) {
+                             Alert.alert('Error', 'Gagal membuka kamera');
+                        }
+                    }
+                },
+                {
+                    text: 'Galeri',
+                    onPress: async () => {
+                        try {
+                            const result = await ImagePicker.launchImageLibraryAsync({
+                                mediaTypes: ['images'],
+                                allowsEditing: false,
+                                quality: 0.5,
+                            });
+                            if (!result.canceled) setPhotos(prev => [...prev, result.assets[0].uri]);
+                        } catch (error) {
+                             Alert.alert('Error', 'Gagal membuka galeri');
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const removePhoto = (index: number) => {
@@ -89,74 +118,83 @@ export default function CompleteWorkOrderScreen() {
         }
 
         // Get fresh location
-        let finalLocation = location;
-        let locationName = '';
+        setIsProcessingComplete(true);
+        
+        // Use setTimeout to allow UI to render the loading overlay first
+        setTimeout(async () => {
+            let finalLocation = location;
+            let locationName = '';
 
-        try {
-            finalLocation = await Location.getCurrentPositionAsync({});
-            if (finalLocation) {
-                const reverseGeocode = await Location.reverseGeocodeAsync({
-                    latitude: finalLocation.coords.latitude,
-                    longitude: finalLocation.coords.longitude
-                });
-                if (reverseGeocode.length > 0) {
-                    const addr = reverseGeocode[0];
-                    locationName = `${addr.street || ''} ${addr.district || ''} ${addr.city || ''}`.trim();
-                    if (!locationName) locationName = addr.name || addr.region || '';
+            try {
+                finalLocation = await Location.getCurrentPositionAsync({});
+                if (finalLocation) {
+                    const reverseGeocode = await Location.reverseGeocodeAsync({
+                        latitude: finalLocation.coords.latitude,
+                        longitude: finalLocation.coords.longitude
+                    });
+                    if (reverseGeocode.length > 0) {
+                        const addr = reverseGeocode[0];
+                        locationName = `${addr.street || ''} ${addr.district || ''} ${addr.city || ''}`.trim();
+                        if (!locationName) locationName = addr.name || addr.region || '';
+                    }
                 }
+            } catch (e) {
+                console.log("Loc error", e);
             }
-        } catch (e) {
-            console.log("Loc error", e);
-        }
-        
-        // Watermark Lines
-        // Construct Location String similar to backend logic
-        const coords = (finalLocation) ? `(${finalLocation.coords.latitude.toFixed(6)}, ${finalLocation.coords.longitude.toFixed(6)})` : '';
-        let locStr = locationName || `Loc: ${coords}` || 'Loc: Unknown';
-        
-        // Note: Indexing 1/N is not supported in bulk generic sync yet, simplified watermark
-        const watermarkLines = [
-             format(new Date(), 'dd MMM yyyy HH:mm'),
-             `#${ticketNumber}`,
-             `Tech: ${'Teknisi'}`, // Specific user name might not be available if not in context, 'Teknisi' is generic safe
-             locStr
-        ];
+            
+            // Watermark Lines
+            // Construct Location String similar to backend logic
+            const coords = (finalLocation) ? `(${finalLocation.coords.latitude.toFixed(6)}, ${finalLocation.coords.longitude.toFixed(6)})` : '';
+            let locStr = locationName || `Loc: ${coords}` || 'Loc: Unknown';
+            
+            // Note: Indexing 1/N is not supported in bulk generic sync yet, simplified watermark
+            const watermarkLines = [
+                 format(new Date(), 'dd MMM yyyy HH:mm'),
+                 `#${ticketNumber}`,
+                 `Tech: ${'Teknisi'}`, // Specific user name might not be available if not in context, 'Teknisi' is generic safe
+                 locStr
+            ];
 
-        const payload = {
-            action: 'COMPLETE',
-            latitude: finalLocation?.coords.latitude.toString(),
-            longitude: finalLocation?.coords.longitude.toString(),
-            locationName,
-            notes: resolutionNotes,
-            timestamp: new Date().toISOString()
-        };
-        
-        await mutate({
-            ...payload,
-            photoUrls: [], // Placeholder
-            meta: {
-                photos: photos,
-                targetField: 'photoUrls', // Backend expects photoUrls array for COMPLETE
-                singleFile: false,
-                photoType: 'workorder-completion',
-                watermarkLines
-            }
-        }, {
-            url: `/api/mobile/work-orders/${id}/update`,
-            method: 'POST',
-            onSuccess: (data, isOffline) => {
-                if (isOffline) {
-                    Alert.alert('Offline', 'Laporan disimpan di antrian.', [
-                        { text: 'OK', onPress: () => router.replace('/(app)/dashboard') }
-                    ]);
-                } else {
-                    Alert.alert('Berhasil', 'Pekerjaan telah diselesaikan dan laporan terkirim!', [
-                        { text: 'OK', onPress: () => router.replace('/(app)/dashboard') }
-                    ]);
+            const payload = {
+                action: 'COMPLETE',
+                latitude: finalLocation?.coords.latitude.toString(),
+                longitude: finalLocation?.coords.longitude.toString(),
+                locationName,
+                notes: resolutionNotes,
+                timestamp: new Date().toISOString()
+            };
+            
+            await mutate({
+                ...payload,
+                photoUrls: [], // Placeholder
+                meta: {
+                    photos: photos,
+                    targetField: 'photoUrls', // Backend expects photoUrls array for COMPLETE
+                    singleFile: false,
+                    photoType: 'workorder-completion',
+                    watermarkLines
                 }
-            },
-            onError: (err) => Alert.alert('Gagal', err.message || 'Gagal menyelesaikan pekerjaan')
-        });
+            }, {
+                url: `/api/mobile/work-orders/${id}/update`,
+                method: 'POST',
+                onSuccess: (data, isOffline) => {
+                    setIsProcessingComplete(false);
+                    if (isOffline) {
+                        Alert.alert('Offline', 'Laporan disimpan di antrian.', [
+                            { text: 'OK', onPress: () => router.replace('/(app)/dashboard') }
+                        ]);
+                    } else {
+                        Alert.alert('Berhasil', 'Pekerjaan telah diselesaikan dan laporan terkirim!', [
+                            { text: 'OK', onPress: () => router.replace('/(app)/dashboard') }
+                        ]);
+                    }
+                },
+                onError: (err) => {
+                    setIsProcessingComplete(false);
+                    Alert.alert('Gagal', err.message || 'Gagal menyelesaikan pekerjaan');
+                }
+            });
+        }, 100);
     };
 
     return (
@@ -218,7 +256,7 @@ export default function CompleteWorkOrderScreen() {
 
                     {/* Add Button */}
                     <TouchableOpacity
-                        onPress={pickImage}
+                        onPress={handleImageSelection}
                         style={tw`w-[31%] aspect-square rounded-xl border-2 border-dashed border-gray-300 items-center justify-center bg-gray-50 active:bg-blue-50 active:border-blue-300`}
                     >
                         <Camera size={24} color="#9ca3af" />
@@ -242,6 +280,21 @@ export default function CompleteWorkOrderScreen() {
                     )}
                 </TouchableOpacity>
             </View>
+
+            {/* Full Screen Loading Overlay */}
+            {(isProcessingComplete || isMutating) && (
+                <View style={tw`absolute inset-0 bg-black/70 flex items-center justify-center z-50`}>
+                    <View style={tw`bg-white p-6 rounded-2xl items-center w-[70%]`}>
+                        <ActivityIndicator size="large" color="#2563eb" style={tw`mb-4`} />
+                        <Text style={tw`text-lg font-bold text-gray-800 mb-1`}>
+                           {isMutating ? 'Mengirim Laporan...' : 'Mencari Lokasi...'}
+                        </Text>
+                        <Text style={tw`text-xs text-gray-500 text-center`}>
+                           {isMutating ? 'Mohon tunggu, sedang mengupload data...' : 'Sedang mendapatkan titik koordinat terkini...'}
+                        </Text>
+                    </View>
+                </View>
+            )}
         </SafeAreaView>
     );
 }

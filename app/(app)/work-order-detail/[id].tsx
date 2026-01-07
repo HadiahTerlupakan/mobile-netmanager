@@ -1,32 +1,12 @@
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
 import { useOfflineQuery } from '@/hooks/useOfflineQuery';
-import { SyncService } from '@/services/SyncService';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-    ArrowLeft,
-    Calendar,
-    Camera,
-    CheckCircle,
-    CheckSquare,
-    Clock,
-    FileText,
-    History,
-    ListChecks,
-    MapPin,
-    Package,
-    Pause,
-    Phone,
-    Play,
-    Plus,
-    Square,
-    User,
-    X
-} from 'lucide-react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, Calendar, Camera, CheckCircle, CheckSquare, Clock, FileText, History, Image as ImageIcon, ListChecks, MapPin, Package, Pause, Phone, Play, Square, User, X } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Dimensions, FlatList, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -57,7 +37,9 @@ export default function WorkOrderDetailScreen() {
     const [availablePartners, setAvailablePartners] = useState<any[]>([]);
     const [searchPartnerQuery, setSearchPartnerQuery] = useState('');
     const [partnerLoading, setPartnerLoading] = useState(false);
+
     const [partnerResponseLoading, setPartnerResponseLoading] = useState(false);
+    const [isProcessingStatus, setIsProcessingStatus] = useState(false);
     
     // Offline Query
     const { data: woData, isLoading: loading, refetch: fetchDetail } = useOfflineQuery({
@@ -73,6 +55,17 @@ export default function WorkOrderDetailScreen() {
     
     // Offline Mutation
     const { mutate: updateStatus, isLoading: actionLoading } = useOfflineMutation();
+    const { mutate: updateActivity, isLoading: updateConfigLoading } = useOfflineMutation();
+
+    // Refresh data when screen is focused
+    useFocusEffect(
+        useCallback(() => {
+            if (id && token) {
+                console.log('[WO Detail] Screen focused, refreshing data...');
+                fetchDetail();
+            }
+        }, [id, token])
+    );
 
     useEffect(() => {
         if (woData) setWo(woData);
@@ -145,38 +138,162 @@ export default function WorkOrderDetailScreen() {
         }
     }, [isPartnerModalVisible, searchPartnerQuery, token]);
 
-    const handleUpdateStatus = async (action: 'START' | 'PAUSE' | 'COMPLETE' | 'NOTE') => {
+    const [loadingMessage, setLoadingMessage] = useState('Memproses...');
+
+    // ... existing code ...
+
+    const handleUpdateStatus = async (action: 'START' | 'PAUSE' | 'COMPLETE') => {
         if (action === 'COMPLETE') {
             router.push(`/(app)/complete-work-order/${id}`);
             return;
         }
         
+        setIsProcessingStatus(true);
+        setLoadingMessage('Mencari Lokasi...');
+        
+        try {
+            // Refresh location before sending
+            let finalLocation = location;
+            let locationName = '';
+
+            try {
+                // Add timeout to prevent hanging
+                const locPromise = Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced, 
+                });
+                
+                // Race between location fetch and 5s timeout
+                const timeoutPromise = new Promise<null>((resolve) => 
+                    setTimeout(() => resolve(null), 5000)
+                );
+
+                const result = await Promise.race([locPromise, timeoutPromise]);
+                
+                if (result) {
+                    finalLocation = result as Location.LocationObject;
+                    
+                    // Only verify reverse geocode if we got a new location
+                    try {
+                        const reverseGeocode = await Location.reverseGeocodeAsync({
+                            latitude: finalLocation.coords.latitude,
+                            longitude: finalLocation.coords.longitude
+                        });
+
+                        if (reverseGeocode.length > 0) {
+                            const addr = reverseGeocode[0];
+                            locationName = `${addr.street || ''} ${addr.district || ''} ${addr.city || ''}`.trim();
+                            if (!locationName) locationName = addr.name || addr.region || '';
+                        }
+                    } catch (geoError) {
+                        console.log("Geocoding failed:", geoError);
+                    }
+                } else {
+                    console.log("Location fetch timed out, using cached/last known");
+                }
+            } catch (e) {
+                console.log("Could not update location/geocode:", e);
+            }
+            
+            setLoadingMessage('Mengirim Data...');
+            
+            const payload: any = {
+                 action,
+                 latitude: finalLocation?.coords.latitude.toString(),
+                 longitude: finalLocation?.coords.longitude.toString(),
+                 locationName,
+                 timestamp: new Date().toISOString()
+            };
+            
+            await updateStatus({
+                ...payload,
+                photoUrl: null, // Placeholder, filled by SyncService
+                meta: {
+                    photos: [],
+                    targetField: 'photoUrl',
+                    singleFile: true,
+                    photoType: 'work-order-updates',
+                    watermarkLines: []
+                }
+            }, {
+                url: `/api/mobile/work-orders/${id}/update`,
+                method: 'POST',
+                onSuccess: (data, isOffline) => {
+                     setLoadingMessage('Berhasil!');
+                     if (isOffline) {
+                          Alert.alert('Offline', 'Update disimpan di antrian.');
+                     } else {
+                          // Optional: Alert can be skipped if UI update is obvious, but keeping for safety
+                          // Alert.alert('Berhasil', 'Status Diperbarui');
+                          fetchDetail();
+                     }
+                     setIsProcessingStatus(false);
+                },
+                onError: (err) => {
+                    Alert.alert('Error', err.message || 'Gagal update status');
+                    setIsProcessingStatus(false);
+                }
+            });
+        } catch (error) {
+            setIsProcessingStatus(false);
+            Alert.alert('Error', 'Terjadi kesalahan sistem');
+        }
+    };
+
+    const handleUpdateActivity = async () => {
+        // Validation for NOTE
+        if (!resolutionNotes && !photo) {
+             Alert.alert('Perhatian', 'Mohon isi catatan atau upload foto.');
+             return;
+        }
+
+        setIsProcessingStatus(true);
+        setLoadingMessage('Mencari Lokasi...');
+
         // Refresh location before sending
         let finalLocation = location;
         let locationName = '';
 
         try {
-            finalLocation = await Location.getCurrentPositionAsync({});
-            if (finalLocation) {
-                const reverseGeocode = await Location.reverseGeocodeAsync({
-                    latitude: finalLocation.coords.latitude,
-                    longitude: finalLocation.coords.longitude
-                });
+             // Add timeout to prevent hanging
+             const locPromise = Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced, 
+            });
+            
+            // Race between location fetch and 5s timeout
+            const timeoutPromise = new Promise<null>((resolve) => 
+                setTimeout(() => resolve(null), 5000)
+            );
 
-                if (reverseGeocode.length > 0) {
-                    const addr = reverseGeocode[0];
-                    locationName = `${addr.street || ''} ${addr.district || ''} ${addr.city || ''}`.trim();
-                    if (!locationName) locationName = addr.name || addr.region || '';
+            const result = await Promise.race([locPromise, timeoutPromise]);
+            
+            if (result) {
+                finalLocation = result as Location.LocationObject;
+                
+                 try {
+                    const reverseGeocode = await Location.reverseGeocodeAsync({
+                        latitude: finalLocation.coords.latitude,
+                        longitude: finalLocation.coords.longitude
+                    });
+
+                    if (reverseGeocode.length > 0) {
+                        const addr = reverseGeocode[0];
+                        locationName = `${addr.street || ''} ${addr.district || ''} ${addr.city || ''}`.trim();
+                        if (!locationName) locationName = addr.name || addr.region || '';
+                    }
+                } catch (geoError) {
+                    console.log("Geocoding failed:", geoError);
                 }
+            } else {
+                console.log("Location fetch timed out, using cached/last known");
             }
         } catch (e) {
             console.log("Could not update location/geocode, using cached");
         }
         
-        const isOnline = await SyncService.isOnline();
-        
+        setLoadingMessage('Mengirim Update...');
+
         let watermarkLines: string[] = [];
-        if (action === 'NOTE' && photo) {
+        if (photo) {
              const ticketNumber = wo?.ticket?.ticketNumber || wo?.workOrderNumber || id;
              // Construct Location String similar to backend logic
              const coords = (finalLocation) ? `(${finalLocation.coords.latitude.toFixed(6)}, ${finalLocation.coords.longitude.toFixed(6)})` : '';
@@ -191,21 +308,15 @@ export default function WorkOrderDetailScreen() {
         }
 
         const payload: any = {
-             action,
+             action: 'NOTE',
              latitude: finalLocation?.coords.latitude.toString(),
              longitude: finalLocation?.coords.longitude.toString(),
              locationName,
              notes: resolutionNotes,
              timestamp: new Date().toISOString()
         };
-        
-        // Validation for NOTE
-        if (action === 'NOTE' && !resolutionNotes && !photo) {
-             Alert.alert('Perhatian', 'Mohon isi catatan atau upload foto.');
-             return;
-        }
 
-        await updateStatus({
+        await updateActivity({
             ...payload,
             photoUrl: null, // Placeholder, filled by SyncService
             meta: {
@@ -219,37 +330,82 @@ export default function WorkOrderDetailScreen() {
             url: `/api/mobile/work-orders/${id}/update`,
             method: 'POST',
             onSuccess: (data, isOffline) => {
+                 setLoadingMessage('Berhasil!');
                  if (isOffline) {
                       Alert.alert('Offline', 'Update disimpan di antrian.');
-                      // If NOTE with Photo, reset form
-                      if (action === 'NOTE') {
-                           setResolutionNotes('');
-                           setPhoto(null);
-                      }
                  } else {
-                      Alert.alert('Berhasil', 'Status/Catatan Diperbarui');
+                      Alert.alert('Berhasil', 'Catatan Diperbarui');
                       fetchDetail();
-                      if (action === 'NOTE') {
-                           setResolutionNotes('');
-                           setPhoto(null);
-                      }
                  }
+                 setResolutionNotes('');
+                 setPhoto(null);
+                 setIsProcessingStatus(false);
             },
-            onError: (err) => Alert.alert('Error', err.message || 'Gagal update status')
+            onError: (err) => {
+                Alert.alert('Error', err.message || 'Gagal update catatan');
+                setIsProcessingStatus(false);
+            }
         });
     };
 
-    const pickImage = async () => {
-        const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ['images'], // Fixed deprecation
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 0.5,
-        });
+    // ... (rest of the file)
 
-        if (!result.canceled) {
-            setPhoto(result.assets[0].uri);
-        }
+    // In render:
+            {/* Loading Overlay - Full Screen with Dark Dim */}
+            {(isProcessingStatus || updateConfigLoading || partnerResponseLoading) && (
+                <View style={tw`absolute inset-0 bg-black/60 items-center justify-center z-50`}>
+                    <View style={tw`bg-white p-6 rounded-2xl items-center w-3/4 max-w-sm shadow-xl`}>
+                        <ActivityIndicator size={48} color="#2563eb" />
+                        <Text style={tw`text-slate-800 font-bold mt-4 text-lg text-center`}>
+                            {isProcessingStatus ? loadingMessage : 
+                             partnerResponseLoading ? 'Memproses Partner...' : 'Memproses...'}
+                        </Text>
+                        <Text style={tw`text-slate-500 text-sm mt-2 text-center`}>
+                            Mohon tunggu sebentar...
+                        </Text>
+                    </View>
+                </View>
+            )}
+
+
+    const handleImageSelection = () => {
+        Alert.alert(
+            'Pilih Sumber Foto',
+            'Ambil foto dari kamera atau pilih dari galeri?',
+            [
+                { text: 'Batal', style: 'cancel' },
+                {
+                    text: 'Kamera',
+                    onPress: async () => {
+                        try {
+                            const result = await ImagePicker.launchCameraAsync({
+                                mediaTypes: ['images'],
+                                allowsEditing: false,
+                                quality: 0.5,
+                            });
+                            if (!result.canceled) setPhoto(result.assets[0].uri);
+                        } catch (error) {
+                            Alert.alert('Error', 'Gagal membuka kamera');
+                        }
+                    }
+                },
+                {
+                    text: 'Galeri',
+                    onPress: async () => {
+                        try {
+                            const result = await ImagePicker.launchImageLibraryAsync({
+                                mediaTypes: ['images'],
+                                allowsEditing: false,
+                                quality: 0.5,
+                            });
+                            if (!result.canceled) setPhoto(result.assets[0].uri);
+                        } catch (error) {
+                            Alert.alert('Error', 'Gagal membuka galeri');
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     if (loading) {
@@ -566,7 +722,7 @@ export default function WorkOrderDetailScreen() {
                     onPress={() => router.push(`/(app)/ambil-barang/${id}`)}
                     style={tw`flex-row items-center justify-center p-3 bg-blue-50 rounded-xl border border-blue-200 active:bg-blue-100`}
                 >
-                    <Plus size={20} color="#2563eb" style={tw`mr-2`} />
+                    <ImageIcon size={20} color="#2563eb" style={tw`mr-2`} />
                     <Text style={tw`font-bold text-blue-600`}>Ambil Barang / Material</Text>
                 </TouchableOpacity>
             </View>
@@ -597,22 +753,24 @@ export default function WorkOrderDetailScreen() {
                     </View>
                 )}
 
-                <View style={tw`flex-row justify-between items-center`}>
-                    <TouchableOpacity onPress={pickImage} style={tw`p-2 bg-gray-100 rounded-lg`}>
+                <View style={tw`flex-row justify-between items-center mt-2`}>
+                    <TouchableOpacity
+                        onPress={handleImageSelection}
+                        style={tw`p-3 bg-gray-100 rounded-xl items-center justify-center`}
+                    >
                         <Camera size={20} color="#4b5563" />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        onPress={() => {
-                            // Assuming handleUpdateStatus handles NOTE logic, or we need a new handler?
-                            // handleUpdateStatus logic needs to support NOTE
-                            handleUpdateStatus('NOTE');
-                        }}
-                        disabled={actionLoading || (!resolutionNotes && !photo)}
-                        style={tw`bg-blue-600 px-4 py-2 rounded-lg ${(actionLoading || (!resolutionNotes && !photo)) ? 'opacity-50' : ''
-                            }`}
+                        onPress={handleUpdateActivity}
+                        disabled={updateConfigLoading}
+                        style={tw`bg-blue-600 px-6 py-3 rounded-xl items-center justify-center shadow-sm`}
                     >
-                        {actionLoading ? <ActivityIndicator color="white" size="small" /> : <Text style={tw`text-white font-bold text-xs`}>Kirim Update</Text>}
+                        {updateConfigLoading ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                            <Text style={tw`text-white font-bold text-sm`}>Kirim Update</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
             </View>
@@ -903,10 +1061,10 @@ export default function WorkOrderDetailScreen() {
                         <View style={[tw`absolute bottom-0 left-0 right-0 bg-white p-4 border-t border-gray-200 shadow-lg z-20`, { paddingBottom: Math.max(insets.bottom, 16) }]}>
                             <TouchableOpacity
                                 onPress={() => handleUpdateStatus('START')}
-                                disabled={actionLoading}
+                                disabled={actionLoading || isProcessingStatus}
                                 style={tw`bg-blue-600 py-3.5 rounded-xl items-center flex-row justify-center shadow-sm`}
                             >
-                                {actionLoading ? (
+                                {actionLoading || isProcessingStatus ? (
                                     <ActivityIndicator color="white" />
                                 ) : (
                                     <>
@@ -936,10 +1094,10 @@ export default function WorkOrderDetailScreen() {
                         <View style={[tw`absolute bottom-0 left-0 right-0 bg-white p-4 border-t border-gray-200 shadow-lg z-20`, { paddingBottom: Math.max(insets.bottom, 16) }]}>
                             <TouchableOpacity
                                 onPress={() => handleUpdateStatus('START')}
-                                disabled={actionLoading}
+                                disabled={actionLoading || isProcessingStatus}
                                 style={tw`bg-blue-600 py-3.5 rounded-xl items-center flex-row justify-center shadow-sm`}
                             >
-                                {actionLoading ? (
+                                {actionLoading || isProcessingStatus ? (
                                     <ActivityIndicator color="white" />
                                 ) : (
                                     <>
@@ -954,6 +1112,21 @@ export default function WorkOrderDetailScreen() {
 
                 return null;
             })()}
+            {/* Loading Overlay - Full Screen with Dark Dim */}
+            {(isProcessingStatus || updateConfigLoading || partnerResponseLoading) && (
+                <View style={tw`absolute inset-0 bg-black/60 items-center justify-center z-50`}>
+                    <View style={tw`bg-white p-6 rounded-2xl items-center w-3/4 max-w-sm shadow-xl`}>
+                        <ActivityIndicator size={48} color="#2563eb" />
+                        <Text style={tw`text-slate-800 font-bold mt-4 text-lg text-center`}>
+                            {isProcessingStatus ? 'Memproses Status...' : 
+                             partnerResponseLoading ? 'Memproses Partner...' : 'Mengirim Update...'}
+                        </Text>
+                        <Text style={tw`text-slate-500 text-sm mt-2 text-center`}>
+                            Mohon tunggu sebentar...
+                        </Text>
+                    </View>
+                </View>
+            )}
         </SafeAreaView>
     );
 }

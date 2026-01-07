@@ -1,10 +1,11 @@
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { format } from 'date-fns';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Camera, ChevronDown, X } from 'lucide-react-native';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
@@ -37,28 +38,15 @@ export default function LeaveFormScreen() {
     // Camera
     const [showCamera, setShowCamera] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
-    const cameraRef = useRef<CameraView>(null);
 
     // Offline Mutation
     const { mutate, isLoading: isSubmitting } = useOfflineMutation();
 
-    // Take photo
-    const handleCapture = async () => {
-        if (cameraRef.current) {
-            const result = await cameraRef.current.takePictureAsync({
-                quality: 0.7,
-                base64: false 
-            });
-            if (result?.uri) {
-                setPhotos(prev => [...prev, result.uri]);
-            }
-            setShowCamera(false);
-        }
-    };
-
     const removePhoto = (index: number) => {
         setPhotos(prev => prev.filter((_, i) => i !== index));
     };
+
+    // Removed pickImageFromGallery as CameraModal handles it.
 
     // Submit
     const handleSubmit = async () => {
@@ -98,44 +86,47 @@ export default function LeaveFormScreen() {
         });
     };
 
-    // Camera View
-    if (showCamera) {
-        if (!permission?.granted) {
-            return (
-                <View style={tw`flex-1 justify-center items-center bg-black`}>
-                    <Text style={tw`text-white mb-4`}>Aplikasi butuh izin kamera</Text>
-                    <TouchableOpacity onPress={requestPermission} style={tw`bg-teal-600 p-2 rounded px-4`}>
-                        <Text style={tw`text-white`}>Izinkan</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setShowCamera(false)} style={tw`mt-4`}>
-                        <Text style={tw`text-gray-400`}>Kembali</Text>
-                    </TouchableOpacity>
-                </View>
-            );
-        }
+    // Camera Modal Callback - REMOVED
 
-        return (
-            <View style={tw`flex-1 bg-black`}>
-                <CameraView style={tw`flex-1`} facing="back" ref={cameraRef}>
-                    <View style={tw`absolute top-12 left-0 right-0 px-4 flex-row justify-between items-center`}>
-                        <Text style={tw`text-white font-bold text-lg`}>Ambil Foto Bukti</Text>
-                        <TouchableOpacity onPress={() => setShowCamera(false)} style={tw`bg-black/50 p-2 rounded-full`}>
-                            <X size={24} color="white" />
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={tw`absolute bottom-12 left-0 right-0 items-center`}>
-                        <TouchableOpacity
-                            onPress={handleCapture}
-                            style={tw`h-20 w-20 bg-white rounded-full border-4 border-gray-300 items-center justify-center`}
-                        >
-                            <View style={tw`h-16 w-16 bg-white rounded-full border-2 border-gray-200`} />
-                        </TouchableOpacity>
-                    </View>
-                </CameraView>
-            </View>
+    const handleImageSelection = () => {
+        Alert.alert(
+            'Pilih Sumber Foto',
+            'Ambil foto dari kamera atau pilih dari galeri?',
+            [
+                { text: 'Batal', style: 'cancel' },
+                {
+                    text: 'Kamera',
+                    onPress: async () => {
+                        try {
+                            const result = await ImagePicker.launchCameraAsync({
+                                mediaTypes: ['images'],
+                                allowsEditing: false,
+                                quality: 0.5,
+                            });
+                            if (!result.canceled) setPhotos(prev => [...prev, result.assets[0].uri]);
+                        } catch (error) {
+                             Alert.alert('Error', 'Gagal membuka kamera');
+                        }
+                    }
+                },
+                {
+                    text: 'Galeri',
+                    onPress: async () => {
+                        try {
+                            const result = await ImagePicker.launchImageLibraryAsync({
+                                mediaTypes: ['images'],
+                                allowsEditing: false,
+                                quality: 0.5,
+                            });
+                            if (!result.canceled) setPhotos(prev => [...prev, result.assets[0].uri]);
+                        } catch (error) {
+                             Alert.alert('Error', 'Gagal membuka galeri');
+                        }
+                    }
+                }
+            ]
         );
-    }
+    };
 
     return (
         <SafeAreaView style={tw`flex-1 bg-white`}>
@@ -288,15 +279,15 @@ export default function LeaveFormScreen() {
                             </View>
                         )}
 
-                        {/* Add Photo Button */}
+                        {/* Add Photo Buttons */}
                         <TouchableOpacity
-                            onPress={() => setShowCamera(true)}
+                            onPress={handleImageSelection}
                             style={tw`bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl h-24 items-center justify-center active:bg-gray-100`}
                             disabled={isSubmitting}
                         >
                             <Camera size={28} color="#64748b" />
                             <Text style={tw`text-slate-500 text-sm mt-1 font-medium`}>
-                                {photos.length > 0 ? 'Tambah Foto Lain' : 'Ambil Foto Bukti'}
+                                {photos.length > 0 ? 'Tambah Foto Lain' : 'Ambil Foto'}
                             </Text>
                         </TouchableOpacity>
                     </View>

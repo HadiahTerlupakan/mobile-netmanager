@@ -63,12 +63,16 @@ export const useOfflineMutation = () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-           // Use low accuracy/timeout for speed, or balanced if precision needed. 
-           // Balanced is good compromise.
-           location = await Location.getCurrentPositionAsync({ 
-             accuracy: Location.Accuracy.Balanced,
-             timeInterval: 5000 
+           // Use Promise.race to enforce timeout
+           const locPromise = Location.getCurrentPositionAsync({ 
+             accuracy: Location.Accuracy.Balanced
            });
+           
+           const timeoutPromise = new Promise<null>((resolve) => 
+               setTimeout(() => resolve(null), 5000)
+           );
+
+           location = await Promise.race([locPromise, timeoutPromise]) as Location.LocationObject | null;
         }
       } catch (e) {
         console.log('[useOfflineMutation] Failed to access location:', e);

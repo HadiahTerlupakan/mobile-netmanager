@@ -54,7 +54,11 @@ export default function AmbilBarangScreen() {
     // Loading State
     const [loadingGudang, setLoadingGudang] = useState(true);
     const [loadingBarang, setLoadingBarang] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
+    
+    // Edit Mode State
+    const [initialQuantities, setInitialQuantities] = useState<Record<string, number>>({});
+    const [woDataLoaded, setWoDataLoaded] = useState(false);
+
 
     // Offline Queries
     const { data: gudangData, refetch: refetchGudang } = useOfflineQuery({
@@ -64,6 +68,17 @@ export default function AmbilBarangScreen() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             return res.data;
+        },
+        enabled: !!token && !!workOrderId
+    });
+
+    const { data: woData } = useOfflineQuery({
+        key: `work_order_${workOrderId}`,
+        fetcher: async () => {
+             const res = await axios.get(`${Config.API_URL}/api/mobile/work-orders/${workOrderId}`, {
+                 headers: { Authorization: `Bearer ${token}` }
+             });
+             return res.data?.data;
         },
         enabled: !!token && !!workOrderId
     });
@@ -79,7 +94,7 @@ export default function AmbilBarangScreen() {
         enabled: !!token && !!selectedGudang
     });
 
-    const { mutate } = useOfflineMutation();
+    const { mutate, isLoading: submitting } = useOfflineMutation();
 
     useEffect(() => {
         if (gudangData?.gudangList) {
@@ -90,6 +105,59 @@ export default function AmbilBarangScreen() {
             setLoadingGudang(false);
         }
     }, [gudangData]);
+
+    // Load existing items for Edit Mode
+    useEffect(() => {
+        if (woData && woData.usedMaterials && !woDataLoaded) {
+            const existing: SelectedItem[] = [];
+            const initials: Record<string, number> = {};
+
+            // We need to map usedMaterials (which might lack full Barang details) back to minimal SelectedItem
+            // Note: usedMaterials from backend now includes barangId and gudangId (if recently added)
+            // For older data without IDs, we might skip or try to match by name (risky, skipping for now)
+            
+            woData.usedMaterials.forEach((m: any) => {
+                if (m.barangId && m.gudangId) {
+                    const key = `${m.barangId}-${m.kondisi || 'BARU'}`;
+                    initials[key] = (initials[key] || 0) + m.jumlah;
+                    
+                    // Check if already added to existing list (merge if same item/condition)
+                    const idx = existing.findIndex(e => e.barangId === m.barangId && e.kondisi === (m.kondisi || 'BARU'));
+                    if (idx >= 0) {
+                        existing[idx].jumlah += m.jumlah;
+                    } else {
+                        existing.push({
+                            barangId: m.barangId,
+                            gudangId: m.gudangId,
+                            jumlah: m.jumlah,
+                            kondisi: m.kondisi || 'BARU',
+                            // Mock partial Barang object for display
+                            barang: {
+                                id: m.barangId,
+                                nama: m.name || m.nama,
+                                satuan: m.satuan || 'pcs',
+                                kode: 'EXISTING',
+                                stokBaru: 999, // Unknown, assumes infinite for existing? Or should we fetch?
+                                stokBekas: 999,
+                                stokRusak: 999,
+                                isWorkOrderMaterial: true
+                            }
+                        });
+                    }
+                }
+            });
+
+            if (existing.length > 0) {
+                 setSelectedItems(existing);
+                 setInitialQuantities(initials);
+                 // Set initial warehouse if available
+                 if (existing[0].gudangId) {
+                     setSelectedGudang(existing[0].gudangId);
+                 }
+            }
+            setWoDataLoaded(true);
+        }
+    }, [woData, woDataLoaded]);
 
     useEffect(() => {
         if (barangData?.barangList) {
@@ -164,20 +232,49 @@ export default function AmbilBarangScreen() {
     const handleSubmit = async () => {
         if (selectedItems.length === 0) return;
 
+        // Calculate Deltas
+        const itemsToSend = [];
+        const warnings = [];
+
+        for (const item of selectedItems) {
+             const key = `${item.barangId}-${item.kondisi}`;
+             const initial = initialQuantities[key] || 0;
+             const diff = item.jumlah - initial;
+
+             if (diff > 0) {
+                 itemsToSend.push({
+                     barangId: item.barangId,
+                     gudangId: item.gudangId,
+                     jumlah: diff,
+                     kondisi: item.kondisi
+                 });
+             } else if (diff < 0) {
+                 warnings.push(`${item.barang.nama} (${diff})`);
+             }
+        }
+
+        if (warnings.length > 0) {
+             Alert.alert(
+                 'Tidak Didukung', 
+                 `Pengurangan jumlah barang belum didukung:\n${warnings.join('\n')}\n\nMohon hubungi admin untuk retur barang.`
+             );
+             return;
+        }
+
+        if (itemsToSend.length === 0) {
+             Alert.alert('Info', 'Tidak ada penambahan barang baru.');
+             return;
+        }
+
         await mutate({
-             items: selectedItems.map(i => ({
-                barangId: i.barangId,
-                gudangId: i.gudangId,
-                jumlah: i.jumlah,
-                kondisi: i.kondisi
-            }))
+             items: itemsToSend
         }, {
              url: `/api/mobile/work-orders/${workOrderId}/materials`,
              method: 'POST',
              onSuccess: (data: any, isOffline: boolean) => {
                   Alert.alert(
                       isOffline ? 'Offline' : 'Berhasil', 
-                      isOffline ? 'Data disimpan di antrian' : 'Barang berhasil ditambahkan', 
+                      isOffline ? 'Data disimpan di antrian' : 'Barang berhasil diperbarui', 
                       [{ text: 'OK', onPress: () => router.replace(`/(app)/work-order-detail/${workOrderId}`) }]
                   );
              },
@@ -441,17 +538,27 @@ export default function AmbilBarangScreen() {
                         disabled={submitting}
                         style={tw`bg-blue-600 rounded-xl py-3.5 flex-row items-center justify-center gap-2 shadow-lg shadow-blue-200`}
                     >
-                        {submitting ? (
-                            <ActivityIndicator color="white" size="small" />
-                        ) : (
-                            <>
-                                <Check size={20} color="white" />
-                                <Text style={tw`text-white font-bold text-base`}>
-                                    Ambil Barang ({selectedItems.reduce((a, b) => a + b.jumlah, 0)})
-                                </Text>
-                            </>
-                        )}
+                        {/* Keep button simple, overlay handles the feedback */}
+                         <Check size={20} color="white" />
+                         <Text style={tw`text-white font-bold text-base`}>
+                             Ambil Barang ({selectedItems.reduce((a, b) => a + b.jumlah, 0)})
+                         </Text>
                     </TouchableOpacity>
+                </View>
+            )}
+
+            {/* Loading Overlay - Full Screen with Dark Dim */}
+            {submitting && (
+                <View style={tw`absolute inset-0 bg-black/60 items-center justify-center z-50`}>
+                    <View style={tw`bg-white p-6 rounded-2xl items-center w-3/4 max-w-sm shadow-xl`}>
+                        <ActivityIndicator size={48} color="#2563eb" />
+                        <Text style={tw`text-slate-800 font-bold mt-4 text-lg text-center`}>
+                            Memproses...
+                        </Text>
+                        <Text style={tw`text-slate-500 text-sm mt-2 text-center`}>
+                            Mohon tunggu sebentar...
+                        </Text>
+                    </View>
                 </View>
             )}
         </View>
