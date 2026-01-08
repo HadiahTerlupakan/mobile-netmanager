@@ -324,13 +324,13 @@ export default function AbsensiScreen() {
                 if (!photoUrl) throw new Error("Gagal upload foto");
 
                 // Submit JSON
-                await mutate({
+                const response = await mutate({
                     ...payload,
                     photoUrl: photoUrl
                 }, {
                     url: endpoint,
                     method: 'POST',
-                    onSuccess: async () => {
+                    onSuccess: async (data: any) => {
                          // Start/Stop location tracking based on action
                          if (status === 'idle') {
                              // Check-in: Start tracking
@@ -339,7 +339,17 @@ export default function AbsensiScreen() {
                          } else {
                              // Check-out: Stop tracking
                              await LocationTrackingService.stopTracking();
-                             Alert.alert("Berhasil", "Check-out Berhasil!");
+                             
+                             // Check for warning from FLEXIBLE mode users
+                             if (data?.warning) {
+                                 Alert.alert(
+                                     "⚠️ Peringatan Jam Kerja", 
+                                     data.warning + "\n\nCheckout tetap berhasil.",
+                                     [{ text: "OK" }]
+                                 );
+                             } else {
+                                 Alert.alert("Berhasil", "Check-out Berhasil!");
+                             }
                          }
                          fetchStatus();
                          setPhoto(null);
