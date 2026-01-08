@@ -6,10 +6,11 @@ import axios from 'axios';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as Location from 'expo-location';
 import { AlertTriangle, CalendarOff, Camera, Clock, MapPin, RefreshCw, RotateCcw, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 import tw from 'twrnc';
@@ -81,6 +82,10 @@ export default function AbsensiScreen() {
     } | null>(null);
     const [showOutsideWarning, setShowOutsideWarning] = useState(false);
     const [pendingSubmit, setPendingSubmit] = useState(false);
+    
+    // Loading overlay state
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState('Memproses...');
 
     // Fetch Geofence Zones
     const fetchGeofenceZones = async () => {
@@ -98,7 +103,11 @@ export default function AbsensiScreen() {
 
     // Check geofence when location changes
     const checkGeofence = (userLat: number, userLng: number) => {
+        console.log('[Absensi] checkGeofence called with:', { userLat, userLng });
+        console.log('[Absensi] geofenceZones.length:', geofenceZones.length);
+        
         if (geofenceZones.length === 0) {
+            console.log('[Absensi] No zones found, setting isInside to true (fallback)');
             setGeofenceStatus({ isInside: true, distance: null, siteName: null });
             return;
         }
@@ -109,15 +118,18 @@ export default function AbsensiScreen() {
 
         for (const zone of geofenceZones) {
             const distance = calculateDistance(userLat, userLng, zone.latitude, zone.longitude);
+            console.log(`[Absensi] Distance to ${zone.siteName}: ${distance}m (radius: ${zone.radius}m)`);
             if (distance < nearestDistance) {
                 nearestDistance = distance;
                 nearestSiteName = zone.siteName;
             }
             if (distance <= zone.radius) {
                 isInside = true;
+                console.log(`[Absensi] INSIDE zone: ${zone.siteName}`);
             }
         }
 
+        console.log('[Absensi] Final geofence status:', { isInside, nearestDistance, nearestSiteName });
         setGeofenceStatus({
             isInside,
             distance: Math.round(nearestDistance),
@@ -131,6 +143,15 @@ export default function AbsensiScreen() {
         getLocation();
         if (token) fetchGeofenceZones();
     }, [token]);
+    
+    // Re-check geofence whenever zones or location changes
+    // This fixes the race condition where checkGeofence was called before zones were fetched
+    useEffect(() => {
+        if (location && geofenceZones.length > 0) {
+            console.log('[Absensi] Re-checking geofence with zones:', geofenceZones.length);
+            checkGeofence(location.coords.latitude, location.coords.longitude);
+        }
+    }, [geofenceZones, location]);
 
     const { mutate, isLoading: isMutating } = useOfflineMutation();
 
@@ -227,10 +248,31 @@ export default function AbsensiScreen() {
     const handleCapture = async () => {
         if (cameraRef.current) {
             const photo = await cameraRef.current.takePictureAsync({
-                base64: true,
-                quality: 0.5
+                base64: false, // Don't need base64, we'll manipulate the URI
+                quality: 0.7
             });
-            setPhoto('data:image/jpeg;base64,' + photo?.base64);
+            
+            if (photo?.uri) {
+                try {
+                    // Flip horizontal to fix front camera mirror effect
+                    const manipulated = await ImageManipulator.manipulateAsync(
+                        photo.uri,
+                        [{ flip: ImageManipulator.FlipType.Horizontal }],
+                        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+                    );
+                    
+                    setPhoto('data:image/jpeg;base64,' + manipulated.base64);
+                    console.log('[Absensi] Photo captured and flipped successfully');
+                } catch (flipError) {
+                    console.error('[Absensi] Failed to flip photo, using original:', flipError);
+                    // Fallback: use original photo without flip
+                    const original = await cameraRef.current.takePictureAsync({
+                        base64: true,
+                        quality: 0.7
+                    });
+                    setPhoto('data:image/jpeg;base64,' + original?.base64);
+                }
+            }
             setShowCamera(false);
         }
     };
@@ -239,28 +281,86 @@ export default function AbsensiScreen() {
        return await captureWatermarkedPhoto();
     };
 
-    const uploadPhotos = async (uris: string[]): Promise<string[]> => {
+    const uploadPhotos = async (uris: string[], retryCount = 2): Promise<string[]> => {
         const uploadedUrls: string[] = [];
+        
+        // Warm up connection before upload (fixes Android cold connection issue)
+        try {
+            console.log('[Absensi] Warming up connection...');
+            await axios.get(`${Config.API_URL}/api/health`, { 
+                timeout: 5000,
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            console.log('[Absensi] Connection warmed up');
+        } catch (warmupError) {
+            // Ignore warmup errors, just continue with upload
+            console.log('[Absensi] Warmup request done (may have failed, continuing anyway)');
+        }
+        
+        // Small delay after warmup
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
         for (const uri of uris) {
-            try {
-                const formData = new FormData();
-                const filename = uri.split('/').pop() || 'photo.jpg';
-                formData.append('file', {
-                    uri: uri,
-                    type: 'image/jpeg',
-                    name: filename,
-                } as any);
-                formData.append('type', 'employee-attendance'); // Match backend upload type
-
-                const res = await axios.post(`${Config.API_URL}/api/mobile/upload`, formData, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'multipart/form-data',
+            let attempts = 0;
+            let success = false;
+            let lastError = '';
+            
+            while (attempts <= retryCount && !success) {
+                attempts++;
+                try {
+                    console.log(`[Absensi] Uploading photo attempt ${attempts}/${retryCount + 1}...`);
+                    console.log(`[Absensi] URI: ${uri.substring(0, 50)}...`);
+                    
+                    // Validate URI format
+                    if (!uri || (!uri.startsWith('file://') && !uri.startsWith('/'))) {
+                        console.error('[Absensi] Invalid URI format, skipping');
+                        lastError = 'Format file tidak valid';
+                        break;
                     }
-                });
-                if (res.data?.url) uploadedUrls.push(res.data.url);
-            } catch (error) {
-                console.error('Failed to upload photo:', error);
+                    
+                    const formData = new FormData();
+                    const filename = uri.split('/').pop() || 'photo.jpg';
+                    formData.append('file', {
+                        uri: uri.startsWith('file://') ? uri : `file://${uri}`,
+                        type: 'image/jpeg',
+                        name: filename,
+                    } as any);
+                    formData.append('type', 'employee-attendance');
+
+                    // Use axios timeout config
+                    const res = await axios.post(`${Config.API_URL}/api/mobile/upload`, formData, {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'multipart/form-data',
+                        },
+                        timeout: 60000, // 60 second timeout for upload
+                    });
+                    
+                    if (res.data?.url) {
+                        uploadedUrls.push(res.data.url);
+                        success = true;
+                        console.log('[Absensi] Photo uploaded successfully:', res.data.url);
+                    } else {
+                        lastError = 'Server tidak mengembalikan URL foto';
+                        console.error('[Absensi] Upload response missing URL:', res.data);
+                    }
+                } catch (error: any) {
+                    const errorMsg = error.code === 'ECONNABORTED' 
+                        ? 'Timeout - koneksi terlalu lambat'
+                        : error.response?.data?.error || error.message || 'Upload error';
+                    lastError = errorMsg;
+                    console.error(`[Absensi] Upload attempt ${attempts} failed:`, errorMsg);
+                    
+                    if (attempts <= retryCount) {
+                        console.log(`[Absensi] Retrying upload in 1 second...`);
+                        setLoadingMessage(`Mencoba upload ulang (${attempts}/${retryCount})...`);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+            }
+            
+            if (!success) {
+                console.error('[Absensi] All upload attempts failed. Last error:', lastError);
             }
         }
         return uploadedUrls;
@@ -268,6 +368,10 @@ export default function AbsensiScreen() {
 
     // Handler that checks geofence before submitting
     const handleSubmit = async () => {
+        console.log('[Absensi] handleSubmit called');
+        console.log('[Absensi] geofenceStatus:', geofenceStatus);
+        console.log('[Absensi] photo:', !!photo, 'location:', !!location);
+        
         if (!photo || !location) {
             Alert.alert("Data Belum Lengkap", "Pastikan foto dan lokasi sudah tersedia.");
             return;
@@ -275,35 +379,94 @@ export default function AbsensiScreen() {
 
         // Check geofence status
         if (geofenceStatus && !geofenceStatus.isInside) {
+            console.log('[Absensi] User is OUTSIDE, showing warning modal');
             // Show warning modal instead of blocking
             setShowOutsideWarning(true);
             return;
         }
 
+        console.log('[Absensi] User is INSIDE or no geofence, proceeding to submit');
         // Proceed with submit
         await submitAttendance();
     };
 
     // Called when user confirms continue despite being outside zone
     const handleConfirmOutsideSubmit = async () => {
+        console.log('[Absensi] handleConfirmOutsideSubmit called');
+        console.log('[Absensi] photo:', photo ? 'exists' : 'null');
+        console.log('[Absensi] location:', location ? 'exists' : 'null');
+        console.log('[Absensi] status:', status);
+        console.log('[Absensi] loading:', loading);
+        console.log('[Absensi] isMutating:', isMutating);
+        
+        // TEMP DEBUG - Remove after testing
+        // Alert.alert('DEBUG', `Button clicked!\nPhoto: ${!!photo}\nLocation: ${!!location}\nStatus: ${status}`);
+        
         setShowOutsideWarning(false);
-        await submitAttendance();
+        
+        // Show loading overlay immediately
+        setIsProcessing(true);
+        setLoadingMessage('Memvalidasi data...');
+        
+        // Double check data sebelum submit
+        if (!photo) {
+            console.error('[Absensi] Foto tidak tersedia');
+            setIsProcessing(false);
+            Alert.alert("Foto Tidak Ada", "Foto tidak tersedia. Silakan ambil foto ulang.");
+            return;
+        }
+        
+        if (!location) {
+            console.error('[Absensi] Lokasi tidak tersedia');
+            setIsProcessing(false);
+            Alert.alert("Lokasi Tidak Ada", "Lokasi tidak tersedia. Silakan refresh halaman dan pastikan GPS aktif.");
+            return;
+        }
+        
+        try {
+            await submitAttendance();
+        } catch (error: any) {
+            console.error('[Absensi] Error saat submit dari geofence warning:', error);
+            setIsProcessing(false);
+            Alert.alert("Error", error?.message || "Gagal melakukan absensi. Silakan coba lagi.");
+        }
     };
 
     const submitAttendance = async () => {
+        console.log('[Absensi] submitAttendance called');
+        
         if (!photo || !location) {
+            console.log('[Absensi] submitAttendance - data tidak lengkap, photo:', !!photo, 'location:', !!location);
+            setIsProcessing(false);
             Alert.alert("Data Belum Lengkap", "Pastikan foto dan lokasi sudah tersedia.");
             return;
         }
 
         const endpoint = status === 'idle' ? '/api/mobile/attendance/check-in' : '/api/mobile/attendance/check-out';
+        console.log('[Absensi] endpoint:', endpoint);
+        
+        // Show processing overlay if not already shown
+        if (!isProcessing) {
+            setIsProcessing(true);
+        }
         
         // 1. Process Photo
+        setLoadingMessage('Memproses foto...');
+        console.log('[Absensi] Processing photo...');
         const processedUri = await processPhoto();
-        if (!processedUri) return;
+        console.log('[Absensi] processedUri:', processedUri ? 'success' : 'failed');
+        if (!processedUri) {
+            console.error('[Absensi] processPhoto returned null');
+            setIsProcessing(false);
+            Alert.alert("Error", "Gagal memproses foto. Silakan coba lagi.");
+            return;
+        }
 
         // 2. Check Connection
+        setLoadingMessage('Mengecek koneksi...');
+        console.log('[Absensi] Checking connection...');
         const isOnline = await SyncService.isOnline();
+        console.log('[Absensi] isOnline:', isOnline);
         
         // 3. Prepare Payload (JSON)
         const payload = {
@@ -318,12 +481,14 @@ export default function AbsensiScreen() {
              setLoading(true);
              try {
                 // Upload Photo
+                setLoadingMessage('Mengupload foto...');
                 const uploadedUrls = await uploadPhotos([processedUri]);
                 const photoUrl = uploadedUrls[0];
                 
-                if (!photoUrl) throw new Error("Gagal upload foto");
+                if (!photoUrl) throw new Error("Gagal upload foto. Periksa koneksi internet Anda.");
 
                 // Submit JSON
+                setLoadingMessage('Mengirim data absensi...');
                 const response = await mutate({
                     ...payload,
                     photoUrl: photoUrl
@@ -331,38 +496,59 @@ export default function AbsensiScreen() {
                     url: endpoint,
                     method: 'POST',
                     onSuccess: async (data: any) => {
+                         setLoadingMessage('Berhasil!');
+                         
+                         // Small delay to show success message before closing
+                         await new Promise(resolve => setTimeout(resolve, 500));
+                         
+                         // Close overlay FIRST before any other action
+                         setIsProcessing(false);
+                         setLoading(false);
+                         
                          // Start/Stop location tracking based on action
-                         if (status === 'idle') {
-                             // Check-in: Start tracking
-                             await LocationTrackingService.startTracking();
-                             Alert.alert("Berhasil", "Check-in Berhasil!");
-                         } else {
-                             // Check-out: Stop tracking
-                             await LocationTrackingService.stopTracking();
-                             
-                             // Check for warning from FLEXIBLE mode users
-                             if (data?.warning) {
-                                 Alert.alert(
-                                     "⚠️ Peringatan Jam Kerja", 
-                                     data.warning + "\n\nCheckout tetap berhasil.",
-                                     [{ text: "OK" }]
-                                 );
+                         try {
+                             if (status === 'idle') {
+                                 // Check-in: Start tracking
+                                 await LocationTrackingService.startTracking();
+                                 Alert.alert("Berhasil", "Check-in Berhasil!");
                              } else {
-                                 Alert.alert("Berhasil", "Check-out Berhasil!");
+                                 // Check-out: Stop tracking
+                                 await LocationTrackingService.stopTracking();
+                                 
+                                 // Check for warning from FLEXIBLE mode users
+                                 if (data?.warning) {
+                                     Alert.alert(
+                                         "⚠️ Peringatan Jam Kerja", 
+                                         data.warning + "\n\nCheckout tetap berhasil.",
+                                         [{ text: "OK" }]
+                                     );
+                                 } else {
+                                     Alert.alert("Berhasil", "Check-out Berhasil!");
+                                 }
                              }
+                         } catch (trackingError) {
+                             console.log('[Absensi] Tracking error (non-fatal):', trackingError);
                          }
+                         
                          fetchStatus();
                          setPhoto(null);
                     },
-                    onError: (e) => Alert.alert("Gagal", e.message || "Terjadi kesalahan")
+                    onError: (e) => {
+                        setIsProcessing(false);
+                        setLoading(false);
+                        Alert.alert("Gagal", e.message || "Terjadi kesalahan saat mengirim data.");
+                    }
                 });
              } catch (error: any) {
+                 setIsProcessing(false);
+                 setLoading(false);
                  Alert.alert("Error", error.message || "Gagal Absen");
              } finally {
                  setLoading(false);
              }
         } else {
             // Offline
+            setLoadingMessage('Menyimpan offline...');
             await mutate({
                 ...payload,
                 photoUrl: null, // Placeholder
@@ -376,14 +562,15 @@ export default function AbsensiScreen() {
                 url: endpoint,
                 method: 'POST',
                 onSuccess: (data, isOffline) => {
+                    setIsProcessing(false);
                     if (isOffline) {
                         setPhoto(null);
-                        // Manually update local status to reflect action immediately?
-                        // If Check In -> Set Checked In (optimistic)
-                        // But fetchStatus relies on query cache. 
-                        // I can force update state technically, but complex.
-                        // For now just alert is enough.
+                        Alert.alert("Offline", "Data disimpan dan akan dikirim saat online.");
                     }
+                },
+                onError: (e) => {
+                    setIsProcessing(false);
+                    Alert.alert("Gagal", e.message || "Terjadi kesalahan");
                 }
             });
         }
@@ -405,15 +592,35 @@ export default function AbsensiScreen() {
 
     // Capture watermarked photo before submission
     const captureWatermarkedPhoto = async (): Promise<string | null> => {
-        if (!watermarkRef.current) return photo;
+        console.log('[Absensi] captureWatermarkedPhoto called');
+        console.log('[Absensi] watermarkRef.current:', !!watermarkRef.current);
+        console.log('[Absensi] photo:', photo ? 'exists' : 'null');
+        
+        if (!watermarkRef.current) {
+            console.log('[Absensi] No watermarkRef, returning original photo');
+            return photo;
+        }
+        
         try {
-            const uri = await captureRef(watermarkRef, {
+            console.log('[Absensi] Capturing watermarked photo...');
+            
+            // Add timeout to prevent hanging
+            const timeoutPromise = new Promise<string | null>((_, reject) => 
+                setTimeout(() => reject(new Error('Capture timeout')), 10000)
+            );
+            
+            const capturePromise = captureRef(watermarkRef, {
                 format: 'jpg',
                 quality: 0.8,
             });
+            
+            const uri = await Promise.race([capturePromise, timeoutPromise]);
+            console.log('[Absensi] Watermark capture success:', uri);
             return uri;
         } catch (error) {
-            console.error('Watermark capture error:', error);
+            console.error('[Absensi] Watermark capture error:', error);
+            // Return original photo as fallback
+            console.log('[Absensi] Returning original photo as fallback');
             return photo;
         }
     };
@@ -650,15 +857,32 @@ export default function AbsensiScreen() {
                         
                         <View style={tw`flex-row gap-3`}>
                             <TouchableOpacity 
-                                onPress={() => setShowOutsideWarning(false)} 
+                                onPress={() => {
+                                    console.log('[Absensi] Batal button pressed');
+                                    setShowOutsideWarning(false);
+                                }} 
                                 style={tw`flex-1 bg-gray-100 py-3 rounded-xl items-center`}
+                                activeOpacity={0.7}
                             >
                                 <Text style={tw`font-bold text-gray-600`}>Batal</Text>
                             </TouchableOpacity>
                             <TouchableOpacity 
-                                onPress={handleConfirmOutsideSubmit} 
-                                disabled={loading || isMutating}
-                                style={tw`flex-1 bg-orange-500 py-3 rounded-xl items-center`}
+                                onPress={() => {
+                                    console.log('[Absensi] Lanjutkan button pressed - START');
+                                    console.log('[Absensi] Current state - loading:', loading, 'isMutating:', isMutating);
+                                    console.log('[Absensi] Data - photo:', !!photo, 'location:', !!location);
+                                    
+                                    // Temporarily removed disabled check for debugging
+                                    if (loading || isMutating) {
+                                        console.log('[Absensi] Would be disabled, but proceeding for debug');
+                                    }
+                                    
+                                    handleConfirmOutsideSubmit();
+                                    console.log('[Absensi] handleConfirmOutsideSubmit called - END');
+                                }} 
+                                // disabled={loading || isMutating}  // Temporarily disabled for testing
+                                style={tw`flex-1 ${(loading || isMutating) ? 'bg-orange-300' : 'bg-orange-500'} py-3 rounded-xl items-center`}
+                                activeOpacity={0.7}
                             >
                                 <Text style={tw`font-bold text-white`}>{(loading || isMutating) ? 'Menyimpan...' : 'Lanjutkan'}</Text>
                             </TouchableOpacity>
@@ -666,6 +890,21 @@ export default function AbsensiScreen() {
                     </View>
                 </View>
             </Modal>
+
+            {/* Loading Overlay - Full Screen with Dark Dim */}
+            {isProcessing && (
+                <View style={tw`absolute inset-0 bg-black/60 items-center justify-center z-50`}>
+                    <View style={tw`bg-white p-6 rounded-2xl items-center w-3/4 max-w-sm shadow-xl`}>
+                        <ActivityIndicator size={48} color="#2563eb" />
+                        <Text style={tw`text-slate-800 font-bold mt-4 text-lg text-center`}>
+                            {loadingMessage}
+                        </Text>
+                        <Text style={tw`text-slate-500 text-sm mt-2 text-center`}>
+                            Mohon tunggu sebentar...
+                        </Text>
+                    </View>
+                </View>
+            )}
         </SafeAreaView>
     );
 }
