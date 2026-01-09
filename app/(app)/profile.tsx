@@ -1,12 +1,19 @@
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import axios from 'axios';
+import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import { Briefcase, Building2, Calendar, Clock, Edit3, LogOut, Mail, MapPin } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Image, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+
+// ... inside component
+                    {/* App Version */}
+                    <Text style={tw`text-center text-gray-400 text-xs mt-6`}>
+                        NetManager Mobile v{Constants.expoConfig?.version || '1.0.0'} (Build {Constants.expoConfig?.extra?.versionCode || '1'})
+                    </Text>
 
 interface ProfileData {
     name: string;
@@ -239,7 +246,7 @@ export default function Profile() {
 
                     {/* App Version */}
                     <Text style={tw`text-center text-gray-400 text-xs mt-6`}>
-                        NetManager Mobile v1.0.0
+                        NetManager Mobile v{Constants.expoConfig?.version || '1.0.0'} (Build {Constants.expoConfig?.extra?.versionCode || '1'})
                     </Text>
                 </View>
             </ScrollView>

@@ -53,7 +53,16 @@ if [ -n "$CURRENT_VERSION_NAME" ]; then
     
     # Increment patch version
     NEW_PATCH=$((PATCH + 1))
-    NEW_VERSION_NAME="${MAJOR}.${MINOR}.${NEW_PATCH}"
+    NEW_MINOR=$MINOR
+    NEW_MAJOR=$MAJOR
+
+    # Jika patch mencapai 100, reset ke 0 dan naikkan minor (1.0.99 -> 1.1.0)
+    if [ "$NEW_PATCH" -ge 100 ]; then
+        NEW_PATCH=0
+        NEW_MINOR=$((MINOR + 1))
+    fi
+
+    NEW_VERSION_NAME="${NEW_MAJOR}.${NEW_MINOR}.${NEW_PATCH}"
 else
     NEW_VERSION_NAME="1.0.${NEW_VERSION_CODE}"
 fi
