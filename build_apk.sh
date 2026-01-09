@@ -85,6 +85,8 @@ node -e "
 const fs = require('fs');
 const appJson = JSON.parse(fs.readFileSync('${APP_JSON}', 'utf8'));
 appJson.expo.version = '${NEW_VERSION_NAME}';
+if (!appJson.expo.extra) appJson.expo.extra = {};
+appJson.expo.extra.versionCode = ${NEW_VERSION_CODE};
 fs.writeFileSync('${APP_JSON}', JSON.stringify(appJson, null, 2) + '\n');
 console.log('✓ app.json updated');
 "

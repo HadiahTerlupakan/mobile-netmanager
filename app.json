@@ -2,12 +2,13 @@
   "expo": {
     "name": "SBL KARYAWAN",
     "slug": "netmanager",
-    "version": "1.0.52",
+    "version": "1.0.113",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "netmanager",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "jsEngine": "hermes",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.netmanager.mobile",
@@ -27,6 +28,7 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.REQUEST_INSTALL_PACKAGES",
         "android.permission.VIBRATE",
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.CAMERA",
@@ -99,7 +101,8 @@
       "eas": {
         "projectId": "0e8762f0-6c54-4bc5-82f2-18aa3f8e765a"
       },
-      "router": {}
+      "router": {},
+      "versionCode": 113
     },
     "owner": "rohadimrajas-organization"
   }
