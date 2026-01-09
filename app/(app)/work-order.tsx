@@ -5,7 +5,7 @@ import axios from 'axios';
 import { useRouter } from 'expo-router';
 import { CheckCircle, FileText, Inbox, MapPin, Phone, User } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Linking, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import WorkOrderListItem from '../../components/dashboard/WorkOrderListItem';
@@ -187,11 +187,7 @@ export default function WorkOrderScreen() {
                     renderItem={({ item }) => (
                         <View>
                             {activeTab === 'tersedia' ? (
-                                <TouchableOpacity
-                                    onPress={() => handleClaimWO(item.id)}
-                                    disabled={claiming === item.id}
-                                    activeOpacity={0.7}
-                                >
+                                <View>
                                     <View style={tw`bg-white mx-4 mt-3 p-4 rounded-xl shadow-sm border border-blue-100`}>
                                         {/* Header: WO Number & Status */}
                                         <View style={tw`flex-row justify-between items-start mb-2`}>
@@ -219,7 +215,15 @@ export default function WorkOrderScreen() {
                                         {/* Phone - Tappable */}
                                         {(item.contactPhone || item.pelanggan?.noTelp) && (
                                             <TouchableOpacity
-                                                onPress={() => Linking.openURL(`tel:${item.contactPhone || item.pelanggan?.noTelp}`)}
+                                                onPress={() => {
+                                                    const phone = item.contactPhone || item.pelanggan?.noTelp;
+                                                    if (phone) {
+                                                        const { Linking } = require('react-native');
+                                                        let formatPhone = phone.replace(/\D/g, '');
+                                                        if (formatPhone.startsWith('0')) formatPhone = '62' + formatPhone.substring(1);
+                                                        Linking.openURL(`whatsapp://send?phone=${formatPhone}`).catch(() => Linking.openURL(`tel:${phone}`));
+                                                    }
+                                                }}
                                                 style={tw`flex-row items-center mb-2`}
                                             >
                                                 <Phone size={14} color="#2563eb" style={tw`mr-2`} />
@@ -231,12 +235,22 @@ export default function WorkOrderScreen() {
 
                                         {/* Location */}
                                         {(item.locationAddress || item.pelanggan?.alamat || item.site?.name) && (
-                                            <View style={tw`flex-row items-start mb-3`}>
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    const address = item.locationAddress || item.pelanggan?.alamat || item.site?.name;
+                                                    if (address) {
+                                                        const { Linking } = require('react-native');
+                                                        const query = encodeURIComponent(address);
+                                                        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+                                                    }
+                                                }}
+                                                style={tw`flex-row items-start mb-3`}
+                                            >
                                                 <MapPin size={14} color="#dc2626" style={tw`mr-2 mt-0.5`} />
                                                 <Text style={tw`text-sm text-gray-600 flex-1`} numberOfLines={2}>
                                                     {item.locationAddress || item.pelanggan?.alamat || item.site?.name}
                                                 </Text>
-                                            </View>
+                                            </TouchableOpacity>
                                         )}
 
                                         {/* Tags & Ambil Button */}
@@ -264,7 +278,7 @@ export default function WorkOrderScreen() {
                                             </TouchableOpacity>
                                         </View>
                                     </View>
-                                </TouchableOpacity>
+                                </View>
                             ) : (
                                 <TouchableOpacity onPress={() => router.push(`/work-order-detail/${item.id}`)}>
                                     <WorkOrderListItem item={item} userId={user?.id} />

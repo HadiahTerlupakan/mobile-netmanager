@@ -560,15 +560,25 @@ export default function WorkOrderDetailScreen() {
                         </View>
                     )}
 
-                    <View style={tw`flex-row`}>
+                    <TouchableOpacity 
+                        onPress={() => {
+                            const address = wo.locationAddress || wo.pelanggan?.alamat;
+                            if (address) {
+                                const { Linking } = require('react-native');
+                                const query = encodeURIComponent(address);
+                                Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+                            }
+                        }}
+                        style={tw`flex-row`}
+                    >
                         <MapPin size={20} color="#dc2626" style={tw`mt-0.5 mr-3`} />
                         <View style={tw`flex-1`}>
                             <Text style={tw`text-xs text-gray-400 mb-0.5`}>Lokasi</Text>
-                            <Text style={tw`text-sm font-bold text-gray-800 leading-5`}>
+                            <Text style={tw`text-sm font-bold text-blue-600 leading-5`}>
                                 {wo.locationAddress || wo.pelanggan?.alamat || '-'}
                             </Text>
                         </View>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Contact Card */}
@@ -594,7 +604,15 @@ export default function WorkOrderDetailScreen() {
                                     const phone = wo.contactPhone || wo.pelanggan?.noTelp;
                                     if (phone) {
                                         const { Linking } = require('react-native');
-                                        Linking.openURL(`tel:${phone}`);
+                                        let formattedPhone = phone.replace(/\D/g, '');
+                                        if (formattedPhone.startsWith('0')) {
+                                            formattedPhone = '62' + formattedPhone.substring(1);
+                                        }
+                                        
+                                        Linking.openURL(`whatsapp://send?phone=${formattedPhone}`)
+                                            .catch(() => {
+                                                Linking.openURL(`tel:${phone}`);
+                                            });
                                     }
                                 }}
                                 style={tw`flex-row items-center`}

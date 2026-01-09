@@ -1,8 +1,8 @@
-import { View, Text } from 'react-native';
-import tw from 'twrnc';
-import { Clock, MapPin, AlertCircle, CheckCircle, XCircle } from 'lucide-react-native';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { AlertCircle, Clock, MapPin, Phone } from 'lucide-react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
+import tw from 'twrnc';
 
 interface WorkOrderListItemProps {
     item: any;
@@ -61,13 +61,50 @@ export default function WorkOrderListItem({ item, userId }: WorkOrderListItemPro
                 </Text>
             </View>
 
+            {/* Phone */}
+            {(item.contactPhone || item.pelanggan?.noTelp) && (
+                <TouchableOpacity
+                    onPress={() => {
+                        const phone = item.contactPhone || item.pelanggan?.noTelp;
+                        if (phone) {
+                            const { Linking } = require('react-native');
+                            let formattedPhone = phone.replace(/\D/g, '');
+                            if (formattedPhone.startsWith('0')) {
+                                formattedPhone = '62' + formattedPhone.substring(1);
+                            }
+                            
+                            Linking.openURL(`whatsapp://send?phone=${formattedPhone}`)
+                                .catch(() => {
+                                    Linking.openURL(`tel:${phone}`);
+                                });
+                        }
+                    }}
+                    style={tw`flex-row items-center mb-1`}
+                >
+                    <Phone size={14} color="#2563eb" style={tw`mr-1.5`} />
+                    <Text style={tw`text-sm text-blue-600 flex-1`} numberOfLines={1}>
+                        {item.contactPhone || item.pelanggan?.noTelp}
+                    </Text>
+                </TouchableOpacity>
+            )}
+
             {/* Customer & Location */}
-            <View style={tw`flex-row items-center mb-1`}>
+            <TouchableOpacity
+                onPress={() => {
+                    const address = item.locationAddress || item.pelanggan?.alamat || item.contactName || item.pelanggan?.nama || item.site?.name;
+                    if (address) {
+                        const { Linking } = require('react-native');
+                        const query = encodeURIComponent(address);
+                        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+                    }
+                }}
+                style={tw`flex-row items-center mb-1`}
+            >
                 <MapPin size={14} color="#6b7280" style={tw`mr-1.5`} />
                 <Text style={tw`text-sm text-gray-600 flex-1`} numberOfLines={1}>
                     {item.locationAddress || item.pelanggan?.alamat || item.contactName || item.pelanggan?.nama || item.site?.name || '-'}
                 </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Date */}
             {item.scheduledDate && (
