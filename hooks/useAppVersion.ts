@@ -14,7 +14,6 @@ export interface UseAppVersionState {
     error: string | null
     checkForUpdate: (currentVersionCode: number) => Promise<CheckUpdateResult>
     startUpdate: () => Promise<void>
-    openBrowserDownload: () => Promise<void>
     dismissError: () => void
 }
 
@@ -136,19 +135,7 @@ export function useAppVersion(): UseAppVersionState {
         setDownloadStatus('idle')
     }, [latestVersion])
 
-    const openBrowserDownload = useCallback(async () => {
-        if (!latestVersion || !latestVersion.id) {
-            setError('Tidak ada update')
-            return
-        }
 
-        console.log('[Update] Opening browser download...')
-        try {
-            await appVersionService.openBrowserDownload(latestVersion.id)
-        } catch (err: any) {
-            setError(err.message || 'Gagal buka browser')
-        }
-    }, [latestVersion])
 
     const dismissError = useCallback(() => {
         setError(null)
@@ -165,7 +152,6 @@ export function useAppVersion(): UseAppVersionState {
         error,
         checkForUpdate,
         startUpdate,
-        openBrowserDownload,
         dismissError
     }
 }

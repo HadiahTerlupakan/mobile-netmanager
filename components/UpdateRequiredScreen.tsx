@@ -9,7 +9,6 @@ interface UpdateRequiredScreenProps {
     downloadProgress: DownloadProgress | null
     error: string | null
     onStartUpdate: () => void
-    onBrowserDownload: () => void
     onDismissError?: () => void
 }
 
@@ -19,7 +18,6 @@ export function UpdateRequiredScreen({
     downloadProgress,
     error,
     onStartUpdate,
-    onBrowserDownload,
     onDismissError
 }: UpdateRequiredScreenProps) {
     const isDownloading = downloadStatus === 'downloading'
@@ -124,17 +122,6 @@ export function UpdateRequiredScreen({
                     ) : (
                         <Text style={styles.updateButtonText}>Update Sekarang</Text>
                     )}
-                </TouchableOpacity>
-
-                {/* Browser Fallback */}
-                <TouchableOpacity
-                    style={styles.browserButton}
-                    onPress={onBrowserDownload}
-                    disabled={isBusy}
-                >
-                    <Text style={[styles.browserButtonText, isBusy && { opacity: 0.5 }]}>
-                        Gunakan Browser ↗
-                    </Text>
                 </TouchableOpacity>
 
                 {/* Footer */}

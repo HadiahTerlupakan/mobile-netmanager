@@ -2,6 +2,8 @@ import { NativeModules, Platform } from 'react-native';
 
 interface ApkInstallerInterface {
     installApk(filePath: string): Promise<boolean>;
+    canRequestPackageInstalls(): Promise<boolean>;
+    openInstallSettings(): Promise<boolean>;
 }
 
 const { ApkInstaller } = NativeModules;
@@ -28,4 +30,32 @@ export async function installApkNative(filePath: string): Promise<boolean> {
     }
 
     return NativeApkInstaller.installApk(filePath);
+}
+
+/**
+ * Cek apakah aplikasi memiliki izin untuk menginstall paket
+ */
+export async function checkInstallPermission(): Promise<boolean> {
+    if (Platform.OS !== 'android') return false;
+    if (!NativeApkInstaller) return true; // Fallback jika module belum load
+    
+    try {
+        return await NativeApkInstaller.canRequestPackageInstalls();
+    } catch {
+        return true;
+    }
+}
+
+/**
+ * Buka settings untuk mengizinkan instalasi dari sumber tidak dikenal
+ */
+export async function openInstallSettings(): Promise<void> {
+    if (Platform.OS !== 'android') return;
+    if (!NativeApkInstaller) return;
+
+    try {
+        await NativeApkInstaller.openInstallSettings();
+    } catch (error) {
+        console.error('Failed to open install settings:', error);
+    }
 }

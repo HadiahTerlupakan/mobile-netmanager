@@ -1,9 +1,10 @@
 import { Config } from '@/constants/Config';
+import { checkInstallPermission, installApkNative, openInstallSettings } from '@/native/ApkInstaller';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { Alert, NativeModules, Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 export interface AppVersionInfo {
     id: string
@@ -131,40 +132,20 @@ class AppVersionService {
      * Check if the app has permission to install APKs
      */
     async canInstallPackages(): Promise<boolean> {
-        if (Platform.OS !== 'android') return false
-        
-        try {
-            // For Android 8.0+ (API 26+), we need to check if the app can request package installs
-            // We'll try to use a native module if available, otherwise assume we need to check
-            const PackageManager = NativeModules.PackageManager
-            if (PackageManager && PackageManager.canRequestPackageInstalls) {
-                return await PackageManager.canRequestPackageInstalls()
-            }
-            // If no native module, we'll find out when we try to install
-            return true
-        } catch {
-            return true // Assume true and let the install fail if needed
-        }
+        return await checkInstallPermission();
     }
 
     /**
      * Open settings to allow installing from unknown sources
      */
     async openInstallPermissionSettings(): Promise<void> {
-        if (Platform.OS !== 'android') return
-
         try {
-            // Open the "Install unknown apps" settings for this app
-            await IntentLauncher.startActivityAsync(
-                'android.settings.MANAGE_UNKNOWN_APP_SOURCES',
-                {
-                    data: 'package:com.netmanager.mobile'
-                }
-            )
+            // Use native module which directs to specific app settings
+            await openInstallSettings();
         } catch (error) {
-            console.error('[APK] Failed to open settings:', error)
+            console.error('[APK] Failed to open native settings, fallback to general:', error);
             // Fallback: open general app settings
-            await Linking.openSettings()
+            await Linking.openSettings();
         }
     }
 
@@ -175,47 +156,57 @@ class AppVersionService {
         if (Platform.OS !== 'android') return false
 
         try {
-            // Get content URI from file URI
-            const contentUri = await FileSystem.getContentUriAsync(fileUri)
-            console.log('[APK] Content URI:', contentUri)
+            // 1. Cek Permission Dulu!
+            const hasPermission = await this.canInstallPackages();
+            console.log('[APK] Has install permission:', hasPermission);
 
-            // Store the pending APK URI for retry after permission is granted
-            this.pendingApkUri = fileUri
+            if (!hasPermission) {
+                 // Store pending URI
+                this.pendingApkUri = fileUri
 
-            // Try to launch package installer
-            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-                data: contentUri,
-                type: 'application/vnd.android.package-archive',
-                flags: 1 // FLAG_GRANT_READ_URI_PERMISSION
-            })
-
-            console.log('[APK] Intent launched successfully')
-            return true
-            
-        } catch (error: any) {
-            console.error('[APK] Install error:', error.message)
-            
-            // Check if the error is about install permission
-            if (error.message?.includes('permission') || error.message?.includes('REQUEST_INSTALL_PACKAGES')) {
-                // Show dialog to request permission
+                // Show friendly alert
                 Alert.alert(
                     'Izin Diperlukan',
-                    'Untuk menginstall update, Anda perlu mengizinkan aplikasi ini untuk menginstall dari sumber tidak dikenal.\n\nKetuk "Buka Pengaturan" lalu aktifkan izin.',
+                    'Untuk melakukan update otomatis, aplikasi memerlukan izin instalasi.\n\nMohon aktifkan "Izinkan dari sumber ini" pada halaman pengaturan berikut.',
                     [
-                        { text: 'Batal', style: 'cancel' },
+                        { text: 'Nanti Saja', style: 'cancel' },
                         { 
                             text: 'Buka Pengaturan', 
                             onPress: () => this.openInstallPermissionSettings()
                         }
                     ]
                 )
-            } else {
-                Alert.alert(
-                    'Gagal Install',
-                    'Tidak dapat membuka installer. Coba gunakan "Download via Browser".',
-                    [{ text: 'OK' }]
-                )
+                return false; // Stop here, wait for resume
             }
+
+            // 2. Jika punya permission, langsung install
+            // Try native module first
+            try {
+                // Konversi file:// ke path biasa jika perlu, tapi native module handle itu
+                await installApkNative(fileUri)
+                console.log('[APK] Native install launch success')
+                return true
+            } catch (e) {
+                console.warn('[APK] Native install failed, trying IntentLauncher', e)
+                
+                // Fallback to IntentLauncher
+                const contentUri = await FileSystem.getContentUriAsync(fileUri)
+                await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+                    data: contentUri,
+                    type: 'application/vnd.android.package-archive',
+                    flags: 1 // FLAG_GRANT_READ_URI_PERMISSION
+                })
+                return true
+            }
+            
+        } catch (error: any) {
+            console.error('[APK] Install error:', error.message)
+            
+            Alert.alert(
+                'Gagal Install',
+                'Tidak dapat membuka installer. Mohon hubungi admin IT jika masalah berlanjut.',
+                [{ text: 'OK' }]
+            )
             
             return false
         }
@@ -228,7 +219,11 @@ class AppVersionService {
         if (this.pendingApkUri) {
             const uri = this.pendingApkUri
             this.pendingApkUri = null
-            return this.installApk(uri)
+            // Check permission again just to be sure
+            const hasPermission = await this.canInstallPackages();
+            if (hasPermission) {
+                return this.installApk(uri)
+            }
         }
         return false
     }

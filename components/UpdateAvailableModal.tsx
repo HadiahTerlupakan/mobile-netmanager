@@ -10,7 +10,6 @@ interface UpdateAvailableModalProps {
     downloadProgress: DownloadProgress | null
     error: string | null
     onStartUpdate: () => void
-    onBrowserDownload: () => void
     onLater: () => void
     onDismissError?: () => void
 }
@@ -22,7 +21,6 @@ export function UpdateAvailableModal({
     downloadProgress,
     error,
     onStartUpdate,
-    onBrowserDownload,
     onLater,
     onDismissError
 }: UpdateAvailableModalProps) {
@@ -115,17 +113,6 @@ export function UpdateAvailableModal({
                             )}
                         </TouchableOpacity>
                     </View>
-
-                    {/* Browser Fallback */}
-                    <TouchableOpacity
-                        style={styles.browserButton}
-                        onPress={onBrowserDownload}
-                        disabled={isBusy}
-                    >
-                        <Text style={[styles.browserButtonText, isBusy && { opacity: 0.5 }]}>
-                            Gunakan Browser ↗
-                        </Text>
-                    </TouchableOpacity>
                 </View>
             </View>
         </Modal>

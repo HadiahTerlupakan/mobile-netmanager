@@ -33,7 +33,6 @@ function RootLayoutNav() {
     error: versionError,
     checkForUpdate,
     startUpdate,
-    openBrowserDownload,
     dismissError
   } = useAppVersion();
 
@@ -187,7 +186,6 @@ function RootLayoutNav() {
         downloadProgress={downloadProgress}
         error={versionError}
         onStartUpdate={startUpdate}
-        onBrowserDownload={openBrowserDownload}
         onDismissError={dismissError}
       />
     );
@@ -209,7 +207,6 @@ function RootLayoutNav() {
           downloadProgress={downloadProgress}
           error={versionError}
           onStartUpdate={startUpdate}
-          onBrowserDownload={openBrowserDownload}
           onLater={() => setShowOptionalUpdate(false)}
           onDismissError={dismissError}
         />
