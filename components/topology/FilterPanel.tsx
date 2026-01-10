@@ -1,6 +1,6 @@
 import { Eye, EyeOff } from 'lucide-react-native';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { DeviceType } from './DeviceDetailModal';
 
 interface VisibilityState {
@@ -10,6 +10,7 @@ interface VisibilityState {
   joinbox: boolean;
   pole: boolean;
   pelanggan: boolean;
+  kmz: boolean;
 }
 
 interface FilterPanelProps {
@@ -22,6 +23,7 @@ interface FilterPanelProps {
     joinbox: number;
     pole: number;
     pelanggan: number;
+    kmz: number;
   };
 }
 
@@ -32,16 +34,14 @@ const FILTER_ITEMS: Array<{ type: DeviceType; label: string; color: string }> = 
   { type: 'joinbox', label: 'Joinbox', color: '#a855f7' },
   { type: 'pole', label: 'Tiang', color: '#6b7280' },
   { type: 'pelanggan', label: 'Pelanggan', color: '#ec4899' },
+  { type: 'kmz', label: 'Jalur Fiber', color: '#6366f1' },
 ];
 
 export function FilterPanel({ visibility, onToggle, counts }: FilterPanelProps) {
   return (
     <View style={styles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <Text style={styles.title}>Filter & Layer</Text>
+      <View style={styles.scrollContent}>
         {FILTER_ITEMS.map((item) => {
           const isVisible = visibility[item.type];
           const count = counts[item.type];
@@ -52,49 +52,42 @@ export function FilterPanel({ visibility, onToggle, counts }: FilterPanelProps) 
               style={[
                 styles.filterButton,
                 {
-                  backgroundColor: isVisible ? item.color : '#f3f4f6',
-                  borderColor: item.color,
+                  backgroundColor: isVisible ? item.color + '15' : '#f3f4f6', // Light opacity background
+                  borderColor: isVisible ? item.color : '#e5e7eb',
                 },
               ]}
               onPress={() => onToggle(item.type)}
               activeOpacity={0.7}
             >
               {isVisible ? (
-                <Eye size={14} color="#fff" />
+                <Eye size={14} color={item.color} />
               ) : (
-                <EyeOff size={14} color={item.color} />
+                <EyeOff size={14} color="#9ca3af" />
               )}
               <Text
                 style={[
                   styles.filterLabel,
-                  { color: isVisible ? '#fff' : item.color },
+                  { color: isVisible ? item.color : '#6b7280' },
                 ]}
               >
                 {item.label}
               </Text>
-              <View
+               <View
                 style={[
                   styles.countBadge,
                   {
-                    backgroundColor: isVisible
-                      ? 'rgba(255,255,255,0.3)'
-                      : 'rgba(0,0,0,0.1)',
+                    backgroundColor: isVisible ? item.color : '#d1d5db',
                   },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.countText,
-                    { color: isVisible ? '#fff' : item.color },
-                  ]}
-                >
+                <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
                   {count}
                 </Text>
               </View>
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -102,42 +95,53 @@ export function FilterPanel({ visibility, onToggle, counts }: FilterPanelProps) 
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 100,
-    left: 0,
-    right: 0,
+    bottom: 30, // Move to bottom
+    left: 16,
+    right: 16,
     zIndex: 10,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  title: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#1f2937',
+      marginBottom: 12,
   },
   scrollContent: {
-    paddingHorizontal: 16,
     gap: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap', // Allow wrapping for a better "legend" look
   },
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 20,
-    borderWidth: 1.5,
+    borderWidth: 1,
     gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    marginBottom: 4,
   },
   filterLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   countBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 10,
-    minWidth: 20,
+    minWidth: 18,
     alignItems: 'center',
   },
   countText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
 });

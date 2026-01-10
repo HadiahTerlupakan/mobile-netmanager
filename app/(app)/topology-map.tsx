@@ -1,18 +1,20 @@
 import MapLibreGL from '@maplibre/maplibre-react-native';
+import { DOMParser } from '@xmldom/xmldom';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Layers, RefreshCw } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
+import toGeoJSON from '../../utils/togeojson-wrapper';
 
 import { DeviceData, DeviceDetailModal, DeviceType } from '../../components/topology/DeviceDetailModal';
 import { FilterPanel } from '../../components/topology/FilterPanel';
@@ -96,6 +98,13 @@ interface TopologyData {
       longitude: number;
     };
   }>;
+  kmzFiles?: Array<{
+    id: string;
+    name: string;
+    kmlPath: string;
+    lineColor: string;
+    isActive: boolean;
+  }>;
 }
 
 interface VisibilityState {
@@ -105,6 +114,7 @@ interface VisibilityState {
   joinbox: boolean;
   pole: boolean;
   pelanggan: boolean;
+  kmz: boolean;
 }
 
 // Marker colors
@@ -115,6 +125,7 @@ const MARKER_COLORS: Record<DeviceType, string> = {
   joinbox: '#a855f7',
   pole: '#6b7280',
   pelanggan: '#ec4899',
+  kmz: '#6366f1',
 };
 
 // MapLibre Config
@@ -132,8 +143,11 @@ export default function TopologyMapScreen() {
       odp: true,
       pole: true,
       joinbox: true,
-      pelanggan: true
+      pelanggan: true,
+      kmz: true,
   });
+  
+  const [kmzFeatures, setKmzFeatures] = useState<any[]>([]);
   
   const [selectedDevice, setSelectedDevice] = useState<{
       data: DeviceData;
@@ -146,23 +160,84 @@ export default function TopologyMapScreen() {
 
   // Fetch topology data
   const fetchData = useCallback(async () => {
+    console.log('FetchData called. Token:', token ? 'Present' : 'Missing');
     if (!token) {
-        console.log('No token available');
+        console.log('No token available - aborting fetch');
         return;
     }
 
     try {
         setLoading(true);
+        console.log('Fetching topology from /api/mobile/topology...');
         const response = await api.get('/api/mobile/topology');
+        console.log('Topology Response Status:', response.status);
+        console.log('Topology Data Keys:', Object.keys(response.data));
+        console.log('OTB Count:', response.data.otbs?.length);
+        console.log('ODP Count:', response.data.odps?.length);
+        console.log('KMZ Count:', response.data.kmzFiles?.length);
         setData(response.data); 
     } catch (err: any) {
         console.error('Error fetching topology:', err);
+        console.error('Error Details:', err.response?.data);
         setError(err.response?.data?.error || 'Gagal memuat data topologi');
-        Alert.alert('Error', 'Gagal memuat data topologi');
+        Alert.alert('Error', 'Gagal memuat data topologi: ' + (err.message || 'Unknown error'));
     } finally {
         setLoading(false);
     }
   }, [token]);
+
+  // Parse KMZ/KML files when data changes
+  useEffect(() => {
+    async function loadKmzData() {
+      if (!data?.kmzFiles || data.kmzFiles.length === 0) {
+        setKmzFeatures([]);
+        return;
+      }
+
+      console.log('Loading KMZ files:', data.kmzFiles.length);
+      const allFeatures: any[] = [];
+
+      for (const file of data.kmzFiles) {
+        if (!file.kmlPath) continue;
+        
+        try {
+            // Check if path is absolute
+            const url = file.kmlPath.startsWith('http') 
+                ? file.kmlPath 
+                : `${api.defaults.baseURL}${file.kmlPath.startsWith('/') ? '' : '/'}${file.kmlPath}`;
+
+            console.log(`Fetching KML from: ${url}`);
+            const response = await fetch(url);
+            const text = await response.text();
+            
+            const parser = new DOMParser();
+            const kmlDom = parser.parseFromString(text, 'text/xml');
+            const geoJson = toGeoJSON.kml(kmlDom);
+            
+            if (geoJson.features) {
+                // Add styling properties
+                geoJson.features.forEach((feature: any) => {
+                    if (!feature.properties) feature.properties = {};
+                    feature.properties.color = file.lineColor || '#6366f1';
+                    feature.properties.kmzId = file.id;
+                    feature.properties.sourceFile = file.name;
+                });
+                
+                allFeatures.push(...geoJson.features);
+            }
+        } catch (e) {
+            console.error(`Error loading KML ${file.name}:`, e);
+        }
+      }
+      
+      console.log(`Loaded ${allFeatures.length} KMZ features`);
+      setKmzFeatures(allFeatures);
+    }
+
+    if (data) {
+        loadKmzData();
+    }
+  }, [data]);
 
   useEffect(() => {
     if (token) {
@@ -236,6 +311,14 @@ export default function TopologyMapScreen() {
     return { type: 'FeatureCollection', features };
   }, [data, visibility]);
 
+  // KMZ GeoJSON
+  const kmzGeoJson = useMemo(() => {
+    if (!visibility.kmz || !kmzFeatures || kmzFeatures.length === 0) {
+        return { type: 'FeatureCollection', features: [] };
+    }
+    return { type: 'FeatureCollection', features: kmzFeatures };
+  }, [visibility.kmz, kmzFeatures]);
+
   // Markers
   const allMarkers = useMemo(() => {
     if (!data) return [];
@@ -292,7 +375,7 @@ export default function TopologyMapScreen() {
 
   // Counts for filter panel
   const counts = useMemo(() => {
-    if (!data) return { otb: 0, odc: 0, odp: 0, joinbox: 0, pole: 0, pelanggan: 0 };
+    if (!data) return { otb: 0, odc: 0, odp: 0, joinbox: 0, pole: 0, pelanggan: 0, kmz: 0 };
     return {
       otb: data.otbs.length,
       otbs: data.otbs.length, // Alias
@@ -306,6 +389,7 @@ export default function TopologyMapScreen() {
       poles: data.poles.length, // Alias
       pelanggan: data.pelanggans.length,
       pelanggans: data.pelanggans.length, // Alias
+      kmz: data.kmzFiles?.length || 0,
     };
   }, [data]);
 
@@ -420,17 +504,38 @@ export default function TopologyMapScreen() {
           />
         </MapLibreGL.ShapeSource>
 
+        {/* KMZ/KML Layers */}
+        <MapLibreGL.ShapeSource id="kmzSource" shape={kmzGeoJson as any}>
+            <MapLibreGL.LineLayer
+                id="kmzLineLayer"
+                style={{
+                    lineColor: ['get', 'color'],
+                    lineWidth: 3,
+                    lineOpacity: 0.8,
+                }}
+            />
+
+        </MapLibreGL.ShapeSource>
+
         {/* Device Markers (PointAnnotation) */}
         {allMarkers.map(marker => (
           <MapLibreGL.PointAnnotation
             key={`${marker.type}-${marker.id}`}
             id={`${marker.type}-${marker.id}`}
-            coordinate={[marker.longitude, marker.latitude]} // MapLibre uses [lon, lat]
+            coordinate={[
+                parseFloat(String(marker.longitude || 0)),
+                parseFloat(String(marker.latitude || 0))
+            ]} // MapLibre uses [lon, lat]
             onSelected={() => handleMarkerPress(marker.data, marker.type)}
           >
-             <View style={[styles.marker, { backgroundColor: marker.color }]}>
-                 <View style={styles.markerInner} />
-             </View>
+             <View style={{
+                width: 16,
+                height: 16,
+                borderRadius: 8,
+                borderWidth: 2,
+                borderColor: 'white',
+                backgroundColor: marker.color
+             }} />
           </MapLibreGL.PointAnnotation>
         ))}
       </MapLibreGL.MapView>
@@ -522,12 +627,12 @@ const styles = StyleSheet.create({
   },
   refreshButton: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
+    top: 110, // Move to top below header
+    right: 16,
     backgroundColor: '#3b82f6',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -535,6 +640,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+    zIndex: 5,
   },
   marker: {
       width: 16,

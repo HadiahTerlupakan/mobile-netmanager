@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export type DeviceType = 'otb' | 'odc' | 'odp' | 'joinbox' | 'pole' | 'pelanggan';
+export type DeviceType = 'otb' | 'odc' | 'odp' | 'joinbox' | 'pole' | 'pelanggan' | 'kmz';
 
 export interface DeviceData {
   id: string;
@@ -42,6 +42,7 @@ const DEVICE_COLORS: Record<DeviceType, string> = {
   joinbox: '#a855f7',  // purple
   pole: '#6b7280',     // gray
   pelanggan: '#ec4899', // pink
+  kmz: '#6366f1',      // indigo
 };
 
 const DEVICE_LABELS: Record<DeviceType, string> = {
@@ -51,6 +52,7 @@ const DEVICE_LABELS: Record<DeviceType, string> = {
   joinbox: 'Joinbox',
   pole: 'Tiang',
   pelanggan: 'Pelanggan',
+  kmz: 'Jalur Fiber',
 };
 
 export function DeviceDetailModal({
