@@ -1,3 +1,4 @@
+import LoadingModal from '@/components/LoadingModal';
 import SelectionModal from '@/components/SelectionModal';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
@@ -72,6 +73,10 @@ export default function BarangKeluarScreen() {
     // Modal state
     const [showGudangModal, setShowGudangModal] = useState(false);
     const [showBarangModal, setShowBarangModal] = useState(false);
+    
+    // Loading state
+    const [loadingMessage, setLoadingMessage] = useState('');
+    const [showLoading, setShowLoading] = useState(false);
 
     // Refs for watermark capture
     const watermarkRefs = useRef<(View | null)[]>([]);
@@ -210,30 +215,50 @@ export default function BarangKeluarScreen() {
 
     const uploadPhotos = async (uris: string[]): Promise<string[]> => {
         const uploadedUrls: string[] = [];
-
+        console.log('[Upload] Starting upload for URIs:', uris);
+        
         for (const uri of uris) {
             try {
                 const formData = new FormData();
                 const filename = uri.split('/').pop() || 'photo.jpg';
+                const fileType = filename.endsWith('.png') ? 'image/png' : 'image/jpeg';
+                
+                console.log('[Upload] Processing Image:', { uri, filename, fileType });
+
                 formData.append('file', {
                     uri: uri,
-                    type: 'image/jpeg',
+                    type: fileType,
                     name: filename,
                 } as any);
                 formData.append('type', 'inventory-keluar');
+
+                console.log('[Upload] Sending request to:', `${Config.API_URL}/api/mobile/upload`);
 
                 const res = await axios.post(`${Config.API_URL}/api/mobile/upload`, formData, {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'multipart/form-data',
-                    }
+                    },
+                    transformRequest: (data, headers) => {
+                         // React Native handles FormData automatically
+                        return data;
+                    },
                 });
+                
+                console.log('[Upload] Success:', res.status, res.data);
 
                 if (res.data?.url) {
                     uploadedUrls.push(res.data.url);
                 }
-            } catch (error) {
-                console.error('Failed to upload photo:', error);
+            } catch (error: any) {
+                 console.error('Failed to upload photo:', error);
+                if (error.response) {
+                    console.error('[Upload] Error Response:', error.response.status, error.response.data);
+                } else if (error.request) {
+                    console.error('[Upload] No Response (Network Error):', error.request);
+                } else {
+                    console.error('[Upload] Request Setup Error:', error.message);
+                }
             }
         }
         return uploadedUrls;
@@ -278,67 +303,88 @@ export default function BarangKeluarScreen() {
         }
 
         // 1. Process Photos (Capture Watermark)
-        const processedPhotos = await processPhotos();
-        
-        // 2. Check Connection
-        const isOnline = await SyncService.isOnline();
-        
-        // 3. Prepare Data
-        const payload = {
-            barangId: selectedBarang,
-            gudangId: selectedGudang,
-            jumlah: qty,
-            kondisi,
-            keterangan,
-            tujuanPenggunaan,
-        };
+        setShowLoading(true);
+        setLoadingMessage('Memproses foto...');
 
-        if (isOnline) {
-            setSubmitting(true);
-            try {
-                // Upload photos first
-                const uploadedUrls = await uploadPhotos(processedPhotos);
-                
-                 // Submit via Mutate (Online)
+        try {
+            const processedPhotos = await processPhotos();
+            
+            // 2. Check Connection
+            const isOnline = await SyncService.isOnline();
+            
+            // 3. Prepare Data
+            const payload = {
+                barangId: selectedBarang,
+                gudangId: selectedGudang,
+                jumlah: qty,
+                kondisi,
+                keterangan,
+                tujuanPenggunaan,
+            };
+
+            if (isOnline) {
+                setSubmitting(true);
+                try {
+                    // Upload photos first
+                     setLoadingMessage('Mengupload foto...');
+                    const uploadedUrls = await uploadPhotos(processedPhotos);
+                    
+                     // Submit via Mutate (Online)
+                     setLoadingMessage('Menyimpan data...');
+                     await mutate({
+                        ...payload,
+                        fotoBukti: uploadedUrls
+                    }, {
+                        url: '/api/mobile/inventory/keluar',
+                        method: 'POST',
+                        onSuccess: () => {
+                            setShowLoading(false);
+                            resetForm();
+                            Alert.alert('Sukses', 'Barang keluar berhasil dicatat', [
+                                { text: 'OK', onPress: () => router.back() }
+                            ]);
+                        },
+                        onError: (err) => {
+                            setShowLoading(false);
+                            Alert.alert('Error', err.message || 'Gagal menyimpan data');
+                        }
+                    });
+
+                } catch (error) {
+                    setShowLoading(false);
+                    Alert.alert('Error', 'Gagal upload foto atau simpan data');
+                } finally {
+                    setSubmitting(false);
+                }
+            } else {
+                 // Offline - Submit to Queue with Local URIs
+                 setLoadingMessage('Menyimpan ke antrian offline...');
                  await mutate({
                     ...payload,
-                    fotoBukti: uploadedUrls
+                    fotoBukti: [], // Placeholder
+                    meta: {
+                        photos: processedPhotos, // Local URIs for SyncService
+                        targetField: 'fotoBukti' 
+                    }
                 }, {
                     url: '/api/mobile/inventory/keluar',
                     method: 'POST',
-                    onSuccess: () => {
-                        resetForm();
-                        Alert.alert('Sukses', 'Barang keluar berhasil dicatat', [
-                            { text: 'OK', onPress: () => router.back() }
-                        ]);
+                    onSuccess: (data, isOffline) => {
+                        setShowLoading(false);
+                        if (isOffline) {
+                            resetForm();
+                            router.back();
+                        }
                     },
-                    onError: (err) => Alert.alert('Error', err.message || 'Gagal menyimpan data')
-                });
-
-            } catch (error) {
-                Alert.alert('Error', 'Gagal upload foto atau simpan data');
-            } finally {
-                setSubmitting(false);
-            }
-        } else {
-             // Offline - Submit to Queue with Local URIs
-             await mutate({
-                ...payload,
-                fotoBukti: [], // Placeholder
-                meta: {
-                    photos: processedPhotos, // Local URIs for SyncService
-                    targetField: 'fotoBukti' 
-                }
-            }, {
-                url: '/api/mobile/inventory/keluar',
-                method: 'POST',
-                onSuccess: (data, isOffline) => {
-                    if (isOffline) {
-                        resetForm();
-                        router.back();
+                    onError: () => {
+                        setShowLoading(false);
                     }
-                }
-            });
+                });
+            }
+        } catch (error) {
+            setShowLoading(false);
+            console.error(error);
+            Alert.alert('Error', 'Terjadi kesalahan saat memproses data');
         }
     };
 
@@ -610,6 +656,11 @@ export default function BarangKeluarScreen() {
                 }))}
                 onSelect={(item) => setSelectedBarang(item.value)}
                 selectedValue={selectedBarang}
+            />
+
+            <LoadingModal 
+                visible={showLoading} 
+                message={loadingMessage} 
             />
         </View>
     );

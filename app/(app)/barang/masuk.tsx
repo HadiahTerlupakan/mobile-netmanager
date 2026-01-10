@@ -1,3 +1,4 @@
+import LoadingModal from '@/components/LoadingModal';
 import SelectionModal from '@/components/SelectionModal';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
@@ -69,6 +70,10 @@ export default function BarangMasukScreen() {
     // Modal state
     const [showGudangModal, setShowGudangModal] = useState(false);
     const [showBarangModal, setShowBarangModal] = useState(false);
+    
+    // Loading state
+    const [loadingMessage, setLoadingMessage] = useState('');
+    const [showLoading, setShowLoading] = useState(false);
 
     // Refs for watermark capture
     const watermarkRefs = useRef<(View | null)[]>([]);
@@ -279,65 +284,87 @@ export default function BarangMasukScreen() {
         }
 
         // 1. Process Photos (Capture Watermark)
-        const processedPhotos = await processPhotos();
-        
-        // 2. Check Connection
-        const isOnline = await SyncService.isOnline();
-        
-        // 3. Prepare Data
-        const payload = {
-            barangId: selectedBarang,
-            gudangId: selectedGudang,
-            jumlah: qty,
-            kondisi,
-            keterangan,
-        };
+        setShowLoading(true);
+        setLoadingMessage('Memproses foto...');
 
-        if (isOnline) {
-            setSubmitting(true);
-            try {
-                // Upload photos first
-                const uploadedUrls = await uploadPhotos(processedPhotos);
-                
-                // Submit via Mutate (Online)
-                await mutate({
+        try {
+            const processedPhotos = await processPhotos();
+            
+            // 2. Check Connection
+            const isOnline = await SyncService.isOnline();
+            
+            // 3. Prepare Data
+            const payload = {
+                barangId: selectedBarang,
+                gudangId: selectedGudang,
+                jumlah: qty,
+                kondisi,
+                keterangan,
+            };
+
+            if (isOnline) {
+                setSubmitting(true);
+                try {
+                    // Upload photos first
+                    setLoadingMessage('Mengupload foto...');
+                    const uploadedUrls = await uploadPhotos(processedPhotos);
+                    
+                    // Submit via Mutate (Online)
+                    setLoadingMessage('Menyimpan data...');
+                    await mutate({
+                        ...payload,
+                        fotoBukti: uploadedUrls
+                    }, {
+                        url: '/api/mobile/inventory/masuk',
+                        method: 'POST',
+                        onSuccess: () => {
+                            setShowLoading(false);
+                            resetForm();
+                            Alert.alert('Sukses', 'Barang masuk berhasil dicatat', [
+                                { text: 'OK', onPress: () => router.back() }
+                            ]);
+                        },
+                        onError: (err) => {
+                            setShowLoading(false);
+                            Alert.alert('Error', err.message || 'Gagal menyimpan data');
+                        }
+                    });
+
+                } catch (error) {
+                    setShowLoading(false);
+                    Alert.alert('Error', 'Gagal upload foto atau simpan data');
+                } finally {
+                    setSubmitting(false);
+                }
+            } else {
+                 // Offline - Submit to Queue with Local URIs
+                 setLoadingMessage('Menyimpan ke antrian offline...');
+                 await mutate({
                     ...payload,
-                    fotoBukti: uploadedUrls
+                    fotoBukti: [], // Placeholder
+                    meta: {
+                        photos: processedPhotos, // Local URIs for SyncService
+                        targetField: 'fotoBukti' 
+                    }
                 }, {
                     url: '/api/mobile/inventory/masuk',
                     method: 'POST',
-                    onSuccess: () => {
-                        resetForm();
-                        Alert.alert('Sukses', 'Barang masuk berhasil dicatat', [
-                            { text: 'OK', onPress: () => router.back() }
-                        ]);
+                    onSuccess: (data, isOffline) => {
+                        setShowLoading(false);
+                        if (isOffline) {
+                            resetForm();
+                            router.back();
+                        }
                     },
-                    onError: (err) => Alert.alert('Error', err.message || 'Gagal menyimpan data')
-                });
-            } catch (error) {
-                Alert.alert('Error', 'Gagal upload foto atau simpan data');
-            } finally {
-                setSubmitting(false);
-            }
-        } else {
-             // Offline - Submit to Queue with Local URIs
-             await mutate({
-                ...payload,
-                fotoBukti: [], // Placeholder
-                meta: {
-                    photos: processedPhotos, // Local URIs for SyncService
-                    targetField: 'fotoBukti' 
-                }
-            }, {
-                url: '/api/mobile/inventory/masuk',
-                method: 'POST',
-                onSuccess: (data, isOffline) => {
-                    if (isOffline) {
-                        resetForm();
-                        router.back();
+                    onError: () => {
+                        setShowLoading(false);
                     }
-                }
-            });
+                });
+            }
+        } catch (error) {
+            setShowLoading(false);
+            console.error(error);
+            Alert.alert('Error', 'Terjadi kesalahan saat memproses data');
         }
     };
 
@@ -586,6 +613,11 @@ export default function BarangMasukScreen() {
                 }))}
                 onSelect={(item) => setSelectedBarang(item.value)}
                 selectedValue={selectedBarang}
+            />
+
+            <LoadingModal 
+                visible={showLoading} 
+                message={loadingMessage} 
             />
         </View>
     );
