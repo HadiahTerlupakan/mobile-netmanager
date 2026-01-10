@@ -4,13 +4,13 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, Layers, RefreshCw } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -154,7 +154,7 @@ export default function TopologyMapScreen() {
       type: DeviceType;
   } | null>(null);
   
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
 
   const { token } = useAuth();
 
