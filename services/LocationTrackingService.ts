@@ -124,9 +124,9 @@ export class LocationTrackingService {
             try {
                 await Location.startLocationUpdatesAsync(TASK_NAME, {
                     accuracy: Location.Accuracy.Balanced,
-                    timeInterval: __DEV__ ? 5000 : 60 * 1000, // DEV: 5 detik, PROD: 60 detik
+                    timeInterval: __DEV__ ? 5000 : 5 * 60 * 1000, // DEV: 5 detik, PROD: 5 menit
                     distanceInterval: 0, // Always update regardless of distance moved
-                    deferredUpdatesInterval: __DEV__ ? 5000 : 60 * 1000,
+                    deferredUpdatesInterval: __DEV__ ? 5000 : 5 * 60 * 1000,
                     foregroundService: {
                         notificationTitle: 'Mode Absensi Aktif',
                         notificationBody: 'Jam kerja Anda sedang berjalan',
