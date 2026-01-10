@@ -1,3 +1,4 @@
+import SelectionModal from '@/components/SelectionModal';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
@@ -8,6 +9,7 @@ import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -67,6 +69,10 @@ export default function BarangKeluarScreen() {
     const [tujuanPenggunaan, setTujuanPenggunaan] = useState('');
     const [photos, setPhotos] = useState<PhotoWithMeta[]>([]);
 
+    // Modal state
+    const [showGudangModal, setShowGudangModal] = useState(false);
+    const [showBarangModal, setShowBarangModal] = useState(false);
+
     // Refs for watermark capture
     const watermarkRefs = useRef<(View | null)[]>([]);
 
@@ -105,6 +111,25 @@ export default function BarangKeluarScreen() {
         else if (!selectedGudang) setBarangs([]);
     }, [barangData, selectedGudang]);
 
+    // Helper to resize image
+    const resizeImage = async (uri: string): Promise<{ uri: string; width: number; height: number }> => {
+        try {
+            const manipResult = await manipulateAsync(
+                uri,
+                [{ resize: { width: 1080 } }], // Resize to 1080px width
+                { compress: 0.8, format: SaveFormat.JPEG }
+            );
+            return {
+                uri: manipResult.uri,
+                width: manipResult.width,
+                height: manipResult.height
+            };
+        } catch (error) {
+            console.error('Failed to resize image:', error);
+            return { uri, width: 800, height: 600 }; 
+        }
+    };
+
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
@@ -115,15 +140,16 @@ export default function BarangKeluarScreen() {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
             allowsEditing: false,
-            quality: 0.7,
+            quality: 0.8,
         });
 
         if (!result.canceled && result.assets[0]) {
             const asset = result.assets[0];
+            const resized = await resizeImage(asset.uri);
             setPhotos([...photos, {
-                uri: asset.uri,
-                width: asset.width,
-                height: asset.height,
+                uri: resized.uri,
+                width: resized.width,
+                height: resized.height,
                 capturedAt: new Date()
             }]);
         }
@@ -138,15 +164,16 @@ export default function BarangKeluarScreen() {
 
         const result = await ImagePicker.launchCameraAsync({
             allowsEditing: false,
-            quality: 0.7,
+            quality: 0.8,
         });
 
         if (!result.canceled && result.assets[0]) {
             const asset = result.assets[0];
+            const resized = await resizeImage(asset.uri);
             setPhotos([...photos, {
-                uri: asset.uri,
-                width: asset.width,
-                height: asset.height,
+                uri: resized.uri,
+                width: resized.width,
+                height: resized.height,
                 capturedAt: new Date()
             }]);
         }
@@ -214,6 +241,7 @@ export default function BarangKeluarScreen() {
 
     const selectedBarangData = barangs.find(b => b.id === selectedBarang);
     const selectedBarangName = selectedBarangData ? `${selectedBarangData.kode} - ${selectedBarangData.nama}` : '';
+    const selectedGudangData = gudangs.find(g => g.id === selectedGudang);
 
     const getAvailableStock = () => {
         if (!selectedBarangData) return 0;
@@ -332,46 +360,29 @@ export default function BarangKeluarScreen() {
                     {/* Gudang Picker */}
                     <View style={tw`mb-4`}>
                         <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Gudang *</Text>
-                        <View style={tw`bg-white border border-gray-200 rounded-xl overflow-hidden justify-center h-14`}>
-                            <Picker
-                                selectedValue={selectedGudang}
-                                onValueChange={(itemValue) => setSelectedGudang(String(itemValue))}
-                                mode="dropdown"
-                                style={pickerStyle}
-                                dropdownIconColor={isDarkMode ? '#FFFFFF' : '#1F2937'}
-                            >
-                                <Picker.Item label="Pilih Gudang..." value="" color={isDarkMode ? '#9CA3AF' : '#9CA3AF'} />
-                                {gudangs.map(g => (
-                                    <Picker.Item key={g.id} label={g.nama} value={String(g.id)} color={pickerItemColor} />
-                                ))}
-                            </Picker>
-                        </View>
+                        <TouchableOpacity
+                            onPress={() => setShowGudangModal(true)}
+                            style={tw`bg-white border border-gray-200 rounded-xl px-4 py-3 flex-row items-center justify-between h-14`}
+                        >
+                            <Text style={tw`${selectedGudang ? 'text-gray-900' : 'text-gray-400'} text-base`}>
+                                {selectedGudangData ? selectedGudangData.nama : 'Pilih Gudang...'}
+                            </Text>
+                            <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+                        </TouchableOpacity>
                     </View>
 
                     {/* Barang Picker */}
                     <View style={tw`mb-4`}>
                         <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Barang *</Text>
-                        <View style={tw`bg-white border border-gray-200 rounded-xl overflow-hidden justify-center h-14`}>
-                            {loading ? (
-                                <View style={tw`h-14 items-center justify-center`}>
-                                    <ActivityIndicator size="small" color="#3B82F6" />
-                                </View>
-                            ) : (
-                                <Picker
-                                    selectedValue={selectedBarang}
-                                    onValueChange={(itemValue) => setSelectedBarang(String(itemValue))}
-                                    enabled={!!selectedGudang}
-                                    mode="dropdown"
-                                    style={pickerStyle}
-                                    dropdownIconColor={isDarkMode ? '#FFFFFF' : '#1F2937'}
-                                >
-                                    <Picker.Item label={selectedGudang ? "Pilih Barang..." : "Pilih gudang dulu"} value="" color={isDarkMode ? '#9CA3AF' : '#9CA3AF'} />
-                                    {barangs.map(b => (
-                                        <Picker.Item key={b.id} label={`${b.kode} - ${b.nama}`} value={String(b.id)} color={pickerItemColor} />
-                                    ))}
-                                </Picker>
-                            )}
-                        </View>
+                        <TouchableOpacity
+                            onPress={() => setShowBarangModal(true)}
+                            style={tw`bg-white border border-gray-200 rounded-xl px-4 py-3 flex-row items-center justify-between h-14`}
+                        >
+                            <Text style={tw`${selectedBarang ? 'text-gray-900' : 'text-gray-400'} text-base flex-1 mr-2`} numberOfLines={1}>
+                                {selectedBarangName || 'Pilih Barang...'}
+                            </Text>
+                            <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+                        </TouchableOpacity>
                         {selectedBarangData && (
                             <View style={tw`mt-2 p-3 bg-blue-50 rounded-lg`}>
                                 <Text style={tw`text-xs text-blue-700 font-medium`}>
@@ -467,7 +478,6 @@ export default function BarangKeluarScreen() {
                         )}
 
                         {/* Hidden Watermark Views for Capture */}
-                        {/* Hidden Watermark Views for Capture - Use 0 opacity but keep in layout bounds for reliable capture */}
                         <View style={[tw`absolute`, { top: 0, left: 0, right: 0, opacity: 0, zIndex: -10 }]} pointerEvents="none">
                             {photos.map((photo, index) => (
                                 <View
@@ -570,6 +580,37 @@ export default function BarangKeluarScreen() {
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+
+            {/* MODALS */}
+            <SelectionModal
+                visible={showGudangModal}
+                onClose={() => setShowGudangModal(false)}
+                title="Pilih Gudang"
+                searchPlaceholder="Cari gudang..."
+                items={gudangs.map(g => ({
+                    id: g.id,
+                    label: g.nama,
+                    subLabel: undefined, // Gudang has no code in this interface
+                    value: g.id
+                }))}
+                onSelect={(item) => setSelectedGudang(item.value)}
+                selectedValue={selectedGudang}
+            />
+
+            <SelectionModal
+                visible={showBarangModal}
+                onClose={() => setShowBarangModal(false)}
+                title="Pilih Barang"
+                searchPlaceholder="Cari barang..."
+                items={barangs.map(b => ({
+                    id: b.id,
+                    label: b.nama,
+                    subLabel: b.kode,
+                    value: b.id
+                }))}
+                onSelect={(item) => setSelectedBarang(item.value)}
+                selectedValue={selectedBarang}
+            />
         </View>
     );
 }

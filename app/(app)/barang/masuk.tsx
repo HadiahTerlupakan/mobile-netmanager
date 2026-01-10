@@ -1,3 +1,4 @@
+import SelectionModal from '@/components/SelectionModal';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
@@ -8,6 +9,7 @@ import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -64,6 +66,10 @@ export default function BarangMasukScreen() {
     const [keterangan, setKeterangan] = useState('');
     const [photos, setPhotos] = useState<PhotoWithMeta[]>([]);
 
+    // Modal state
+    const [showGudangModal, setShowGudangModal] = useState(false);
+    const [showBarangModal, setShowBarangModal] = useState(false);
+
     // Refs for watermark capture
     const watermarkRefs = useRef<(View | null)[]>([]);
 
@@ -73,7 +79,7 @@ export default function BarangMasukScreen() {
     const { data: gudangData } = useOfflineQuery<Gudang[]>({
         key: 'gudang_list',
         fetcher: async () => {
-            const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/gudang`, {
+             const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/gudang`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             return res.data?.gudangList || res.data?.data || [];
@@ -99,8 +105,27 @@ export default function BarangMasukScreen() {
 
     useEffect(() => {
         if (barangData) setBarangs(barangData);
-        else if (!selectedGudang) setBarangs([]);
-    }, [barangData, selectedGudang]);
+    }, [barangData]);
+
+    // Helper to resize image
+    const resizeImage = async (uri: string): Promise<{ uri: string; width: number; height: number }> => {
+        try {
+            const manipResult = await manipulateAsync(
+                uri,
+                [{ resize: { width: 1080 } }], // Resize to 1080px width, auto height
+                { compress: 0.8, format: SaveFormat.JPEG }
+            );
+            return {
+                uri: manipResult.uri,
+                width: manipResult.width,
+                height: manipResult.height
+            };
+        } catch (error) {
+            console.error('Failed to resize image:', error);
+            // Fallback to original if resize fails (though unlikely)
+            return { uri, width: 800, height: 600 }; 
+        }
+    };
 
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -111,16 +136,18 @@ export default function BarangMasukScreen() {
 
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
-            allowsEditing: false,
-            quality: 0.7,
+            allowsEditing: false, // We resize manually
+            quality: 0.8,
         });
 
         if (!result.canceled && result.assets[0]) {
             const asset = result.assets[0];
+            // Resize immediately
+            const resized = await resizeImage(asset.uri);
             setPhotos([...photos, {
-                uri: asset.uri,
-                width: asset.width,
-                height: asset.height,
+                uri: resized.uri,
+                width: resized.width,
+                height: resized.height,
                 capturedAt: new Date()
             }]);
         }
@@ -135,15 +162,17 @@ export default function BarangMasukScreen() {
 
         const result = await ImagePicker.launchCameraAsync({
             allowsEditing: false,
-            quality: 0.7,
+            quality: 0.8,
         });
 
         if (!result.canceled && result.assets[0]) {
             const asset = result.assets[0];
+            // Resize immediately
+            const resized = await resizeImage(asset.uri);
             setPhotos([...photos, {
-                uri: asset.uri,
-                width: asset.width,
-                height: asset.height,
+                uri: resized.uri,
+                width: resized.width,
+                height: resized.height,
                 capturedAt: new Date()
             }]);
         }
@@ -180,30 +209,50 @@ export default function BarangMasukScreen() {
 
     const uploadPhotos = async (uris: string[]): Promise<string[]> => {
         const uploadedUrls: string[] = [];
+        console.log('[Upload] Starting upload for URIs:', uris);
 
         for (const uri of uris) {
             try {
                 const formData = new FormData();
                 const filename = uri.split('/').pop() || 'photo.jpg';
+                const fileType = filename.endsWith('.png') ? 'image/png' : 'image/jpeg';
+                
+                console.log('[Upload] Processing Image:', { uri, filename, fileType });
+
                 formData.append('file', {
                     uri: uri,
-                    type: 'image/jpeg',
+                    type: fileType,
                     name: filename,
                 } as any);
                 formData.append('type', 'inventory-masuk');
+
+                console.log('[Upload] Sending request to:', `${Config.API_URL}/api/mobile/upload`);
 
                 const res = await axios.post(`${Config.API_URL}/api/mobile/upload`, formData, {
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'multipart/form-data',
-                    }
+                    },
+                    transformRequest: (data, headers) => {
+                        // React Native handles FormData automatically, but sometimes explicit return is safer to debug
+                        return data;
+                    },
                 });
+
+                console.log('[Upload] Success:', res.status, res.data);
 
                 if (res.data?.url) {
                     uploadedUrls.push(res.data.url);
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Failed to upload photo:', error);
+                if (error.response) {
+                    console.error('[Upload] Error Response:', error.response.status, error.response.data);
+                } else if (error.request) {
+                    console.error('[Upload] No Response (Network Error):', error.request);
+                } else {
+                    console.error('[Upload] Request Setup Error:', error.message);
+                }
             }
         }
         return uploadedUrls;
@@ -271,8 +320,8 @@ export default function BarangMasukScreen() {
                 setSubmitting(false);
             }
         } else {
-            // Offline - Submit to Queue with Local URIs
-            await mutate({
+             // Offline - Submit to Queue with Local URIs
+             await mutate({
                 ...payload,
                 fotoBukti: [], // Placeholder
                 meta: {
@@ -294,6 +343,7 @@ export default function BarangMasukScreen() {
 
     const selectedBarangData = barangs.find(b => b.id === selectedBarang);
     const selectedBarangName = selectedBarangData ? `${selectedBarangData.kode} - ${selectedBarangData.nama}` : '';
+    const selectedGudangData = gudangs.find(g => g.id === selectedGudang);
 
     return (
         <View style={tw`flex-1 bg-gray-50`}>
@@ -310,69 +360,43 @@ export default function BarangMasukScreen() {
 
             <ScrollView style={tw`flex-1`} keyboardShouldPersistTaps="handled">
                 <View style={tw`p-4`}>
-                    {/* Gudang Picker */}
+                    {/* Gudang Selection - Custom Modal */}
                     <View style={tw`mb-4`}>
                         <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Gudang *</Text>
-                        <View style={tw`bg-white border border-gray-200 rounded-xl overflow-hidden justify-center h-14`}>
-                            <Picker
-                                selectedValue={selectedGudang}
-                                onValueChange={(itemValue) => setSelectedGudang(String(itemValue))}
-                                mode="dropdown"
-                                style={pickerStyle}
-                                dropdownIconColor={isDarkMode ? '#FFFFFF' : '#1F2937'}
-                            >
-                                <Picker.Item label="Pilih Gudang..." value="" color={isDarkMode ? '#9CA3AF' : '#9CA3AF'} />
-                                {gudangs.map(g => (
-                                    <Picker.Item key={g.id} label={g.nama} value={String(g.id)} color={pickerItemColor} />
-                                ))}
-                            </Picker>
-                        </View>
+                        <TouchableOpacity
+                            onPress={() => setShowGudangModal(true)}
+                            style={tw`bg-white border border-gray-200 rounded-xl px-4 py-3 flex-row items-center justify-between h-14`}
+                        >
+                            <Text style={tw`${selectedGudang ? 'text-gray-900' : 'text-gray-400'} text-base`}>
+                                {selectedGudangData ? selectedGudangData.nama : 'Pilih Gudang...'}
+                            </Text>
+                            <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+                        </TouchableOpacity>
                     </View>
 
-                    {/* Barang Picker */}
+                    {/* Barang Selection - Custom Modal */}
                     <View style={tw`mb-4`}>
                         <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Barang *</Text>
-                        <View style={tw`bg-white border border-gray-200 rounded-xl overflow-hidden justify-center h-14`}>
-                            {loading ? (
-                                <View style={tw`h-14 items-center justify-center`}>
-                                    <ActivityIndicator size="small" color="#3B82F6" />
-                                </View>
-                            ) : (
-                                <Picker
-                                    selectedValue={selectedBarang}
-                                    onValueChange={(itemValue) => setSelectedBarang(String(itemValue))}
-                                    enabled={!!selectedGudang}
-                                    mode="dropdown"
-                                    style={pickerStyle}
-                                    dropdownIconColor={isDarkMode ? '#FFFFFF' : '#1F2937'}
-                                >
-                                    <Picker.Item label={selectedGudang ? "Pilih Barang..." : "Pilih gudang dulu"} value="" color={isDarkMode ? '#9CA3AF' : '#9CA3AF'} />
-                                    {barangs.map(b => (
-                                        <Picker.Item key={b.id} label={`${b.kode} - ${b.nama}`} value={String(b.id)} color={pickerItemColor} />
-                                    ))}
-                                </Picker>
-                            )}
-                        </View>
-                        {selectedBarangData && (
-                            <Text style={tw`text-xs text-gray-500 mt-1`}>
-                                Satuan: {selectedBarangData.satuan}
+                        <TouchableOpacity
+                            onPress={() => setShowBarangModal(true)}
+                            style={tw`bg-white border border-gray-200 rounded-xl px-4 py-3 flex-row items-center justify-between h-14`}
+                        >
+                            <Text style={tw`${selectedBarang ? 'text-gray-900' : 'text-gray-400'} text-base flex-1 mr-2`} numberOfLines={1}>
+                                {selectedBarangName || 'Pilih Barang...'}
                             </Text>
+                            <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
+                        </TouchableOpacity>
+                        
+                        {selectedBarangData && (
+                            <View style={tw`mt-2 p-3 bg-blue-50 rounded-lg`}>
+                                <Text style={tw`text-xs text-blue-700 font-medium`}>
+                                    Satuan: {selectedBarangData.satuan}
+                                </Text>
+                            </View>
                         )}
                     </View>
 
-                    {/* Jumlah */}
-                    <View style={tw`mb-4`}>
-                        <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Jumlah *</Text>
-                        <TextInput
-                            style={tw`bg-white border border-gray-200 rounded-xl px-4 py-3 text-base`}
-                            placeholder="Masukkan jumlah"
-                            keyboardType="numeric"
-                            value={jumlah}
-                            onChangeText={setJumlah}
-                        />
-                    </View>
-
-                    {/* Kondisi */}
+                    {/* Kondisi - Keep standard Picker for small list */}
                     <View style={tw`mb-4`}>
                         <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Kondisi</Text>
                         <View style={tw`bg-white border border-gray-200 rounded-xl overflow-hidden justify-center h-14`}>
@@ -387,6 +411,18 @@ export default function BarangMasukScreen() {
                                 ))}
                             </Picker>
                         </View>
+                    </View>
+
+                    {/* Jumlah */}
+                    <View style={tw`mb-4`}>
+                        <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Jumlah *</Text>
+                        <TextInput
+                            style={tw`bg-white border border-gray-200 rounded-xl px-4 py-3 text-base`}
+                            placeholder="Masukkan jumlah"
+                            keyboardType="numeric"
+                            value={jumlah}
+                            onChangeText={setJumlah}
+                        />
                     </View>
 
                     {/* Keterangan */}
@@ -427,8 +463,7 @@ export default function BarangMasukScreen() {
                         )}
 
                         {/* Hidden Watermark Views for Capture */}
-                        {/* Hidden Watermark Views for Capture - Use 0 opacity but keep in layout bounds for reliable capture */}
-                        <View style={[tw`absolute`, { top: 0, left: 0, right: 0, opacity: 0, zIndex: -10 }]} pointerEvents="none">
+                         <View style={[tw`absolute`, { top: 0, left: 0, right: 0, opacity: 0, zIndex: -10 }]} pointerEvents="none">
                             {photos.map((photo, index) => (
                                 <View
                                     key={index}
@@ -521,6 +556,37 @@ export default function BarangMasukScreen() {
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+
+            {/* MODALS */}
+            <SelectionModal
+                visible={showGudangModal}
+                onClose={() => setShowGudangModal(false)}
+                title="Pilih Gudang"
+                searchPlaceholder="Cari gudang..."
+                items={gudangs.map(g => ({
+                    id: g.id,
+                    label: g.nama,
+                    subLabel: g.kode,
+                    value: g.id
+                }))}
+                onSelect={(item) => setSelectedGudang(item.value)}
+                selectedValue={selectedGudang}
+            />
+
+            <SelectionModal
+                visible={showBarangModal}
+                onClose={() => setShowBarangModal(false)}
+                title="Pilih Barang"
+                searchPlaceholder="Cari barang..."
+                items={barangs.map(b => ({
+                    id: b.id,
+                    label: b.nama,
+                    subLabel: b.kode,
+                    value: b.id
+                }))}
+                onSelect={(item) => setSelectedBarang(item.value)}
+                selectedValue={selectedBarang}
+            />
         </View>
     );
 }

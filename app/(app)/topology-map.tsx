@@ -2,7 +2,7 @@ import MapLibreGL from '@maplibre/maplibre-react-native';
 import { DOMParser } from '@xmldom/xmldom';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Layers, RefreshCw } from 'lucide-react-native';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,17 @@ import toGeoJSON from '../../utils/togeojson-wrapper';
 
 import { DeviceData, DeviceDetailModal, DeviceType } from '../../components/topology/DeviceDetailModal';
 import { FilterPanel } from '../../components/topology/FilterPanel';
+import { TopologyErrorBoundary } from '../../components/TopologyErrorBoundary';
+
+const MARKER_COLORS: Record<DeviceType, string> = {
+  otb: '#3b82f6',      // blue
+  odc: '#10b981',      // green
+  odp: '#f97316',      // orange
+  joinbox: '#a855f7',  // purple
+  pole: '#6b7280',     // gray
+  pelanggan: '#ec4899', // pink
+  kmz: '#6366f1',      // indigo
+};
 
 // Types
 interface TopologyData {
@@ -117,17 +128,6 @@ interface VisibilityState {
   kmz: boolean;
 }
 
-// Marker colors
-const MARKER_COLORS: Record<DeviceType, string> = {
-  otb: '#3b82f6',
-  odc: '#10b981',
-  odp: '#f97316',
-  joinbox: '#a855f7',
-  pole: '#6b7280',
-  pelanggan: '#ec4899',
-  kmz: '#6366f1',
-};
-
 // MapLibre Config
 MapLibreGL.setAccessToken(null); // Not needed for open tiles
 
@@ -136,7 +136,15 @@ export default function TopologyMapScreen() {
   const [data, setData] = useState<TopologyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+  const [zoom, setZoom] = useState(12); // Track zoom level for clustering
+  const [loadingKmz, setLoadingKmz] = useState(false); // Track KMZ loading state
+  const [viewport, setViewport] = useState<{
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+  } | null>(null); // Track viewport bounds for filtering
+
   const [visibility, setVisibility] = useState({
       otb: true,
       odc: true,
@@ -146,14 +154,17 @@ export default function TopologyMapScreen() {
       pelanggan: true,
       kmz: true,
   });
-  
+
   const [kmzFeatures, setKmzFeatures] = useState<any[]>([]);
-  
+  const kmzCache = useRef<Map<string, any[]>>(new Map()); // Cache for processed KMZ files
+  const cameraRef = useRef<any>(null);
+  const shapeSourceRef = useRef<any>(null);
+
   const [selectedDevice, setSelectedDevice] = useState<{
       data: DeviceData;
       type: DeviceType;
   } | null>(null);
-  
+
   const [showFilters, setShowFilters] = useState(false);
 
   const { token } = useAuth();
@@ -173,8 +184,23 @@ export default function TopologyMapScreen() {
         console.log('Topology Response Status:', response.status);
         console.log('Topology Data Keys:', Object.keys(response.data));
         console.log('OTB Count:', response.data.otbs?.length);
+        console.log('ODC Count:', response.data.odcs?.length);
         console.log('ODP Count:', response.data.odps?.length);
+        console.log('Joinbox Count:', response.data.joinboxes?.length);
+        console.log('Pole Count:', response.data.poles?.length);
+        console.log('Pelanggan Count:', response.data.pelanggans?.length);
         console.log('KMZ Count:', response.data.kmzFiles?.length);
+
+        const totalDevices =
+          (response.data.otbs?.length || 0) +
+          (response.data.odcs?.length || 0) +
+          (response.data.odps?.length || 0) +
+          (response.data.joinboxes?.length || 0) +
+          (response.data.poles?.length || 0) +
+          (response.data.pelanggans?.length || 0);
+
+        console.log('[Topology] Total devices loaded:', totalDevices);
+
         setData(response.data); 
     } catch (err: any) {
         console.error('Error fetching topology:', err);
@@ -186,7 +212,7 @@ export default function TopologyMapScreen() {
     }
   }, [token]);
 
-  // Parse KMZ/KML files when data changes
+  // Parse KMZ/KML files when data changes - OPTIMIZED with cache and non-blocking
   useEffect(() => {
     async function loadKmzData() {
       if (!data?.kmzFiles || data.kmzFiles.length === 0) {
@@ -195,47 +221,67 @@ export default function TopologyMapScreen() {
       }
 
       console.log('Loading KMZ files:', data.kmzFiles.length);
+      setLoadingKmz(true);
+
       const allFeatures: any[] = [];
 
       for (const file of data.kmzFiles) {
         if (!file.kmlPath) continue;
-        
-        try {
-            // Check if path is absolute
-            const url = file.kmlPath.startsWith('http') 
-                ? file.kmlPath 
-                : `${api.defaults.baseURL}${file.kmlPath.startsWith('/') ? '' : '/'}${file.kmlPath}`;
 
-            console.log(`Fetching KML from: ${url}`);
-            const response = await fetch(url);
-            const text = await response.text();
-            
-            const parser = new DOMParser();
-            const kmlDom = parser.parseFromString(text, 'text/xml');
-            const geoJson = toGeoJSON.kml(kmlDom);
-            
-            if (geoJson.features) {
-                // Add styling properties
-                geoJson.features.forEach((feature: any) => {
-                    if (!feature.properties) feature.properties = {};
-                    feature.properties.color = file.lineColor || '#6366f1';
-                    feature.properties.kmzId = file.id;
-                    feature.properties.sourceFile = file.name;
-                });
-                
-                allFeatures.push(...geoJson.features);
-            }
+        // Check cache first
+        const cacheKey = `${file.id}-${file.kmlPath}`;
+        if (kmzCache.current.has(cacheKey)) {
+          console.log(`Using cached KMZ: ${file.name}`);
+          allFeatures.push(...kmzCache.current.get(cacheKey)!);
+          continue;
+        }
+
+        try {
+          // Check if path is absolute
+          const url = file.kmlPath.startsWith('http')
+            ? file.kmlPath
+            : `${api.defaults.baseURL}${file.kmlPath.startsWith('/') ? '' : '/'}${file.kmlPath}`;
+
+          console.log(`Fetching KML from: ${url}`);
+
+          // Use requestAnimationFrame to prevent blocking
+          await new Promise(resolve => requestAnimationFrame(resolve));
+
+          const response = await fetch(url);
+          const text = await response.text();
+
+          // Parse in next tick to avoid blocking main thread
+          await new Promise(resolve => setTimeout(resolve, 0));
+
+          const parser = new DOMParser();
+          const kmlDom = parser.parseFromString(text, 'text/xml');
+          const geoJson = toGeoJSON.kml(kmlDom);
+
+          if (geoJson.features) {
+            // Add styling properties
+            geoJson.features.forEach((feature: any) => {
+              if (!feature.properties) feature.properties = {};
+              feature.properties.color = file.lineColor || '#6366f1';
+              feature.properties.kmzId = file.id;
+              feature.properties.sourceFile = file.name;
+            });
+
+            // Cache the result
+            kmzCache.current.set(cacheKey, geoJson.features);
+            allFeatures.push(...geoJson.features);
+          }
         } catch (e) {
-            console.error(`Error loading KML ${file.name}:`, e);
+          console.error(`Error loading KML ${file.name}:`, e);
         }
       }
-      
+
       console.log(`Loaded ${allFeatures.length} KMZ features`);
       setKmzFeatures(allFeatures);
+      setLoadingKmz(false);
     }
 
     if (data) {
-        loadKmzData();
+      loadKmzData();
     }
   }, [data]);
 
@@ -244,6 +290,12 @@ export default function TopologyMapScreen() {
         fetchData();
     }
   }, [fetchData, token]);
+
+  const handleMarkerPress = useCallback((device: any, type: DeviceType) => {
+    if (device) {
+        setSelectedDevice({ data: device, type: type });
+    }
+  }, []);
 
   // Connection lines GeoJSON
   const connectionLines = useMemo(() => {
@@ -319,59 +371,99 @@ export default function TopologyMapScreen() {
     return { type: 'FeatureCollection', features: kmzFeatures };
   }, [visibility.kmz, kmzFeatures]);
 
-  // Markers
-  const allMarkers = useMemo(() => {
-    if (!data) return [];
-    
-    const markers: Array<{
-        id: string;
-        latitude: number;
-        longitude: number;
-        color: string;
-        title: string;
-        type: DeviceType;
-        data: any; // Original device object
-    }> = [];
+  // Convert data to GeoJSON for ShapeSource
+  const devicesGeoJson = useMemo(() => {
+    if (!data) return { type: 'FeatureCollection', features: [] };
 
-    if (visibility.otb) {
-        data.otbs.forEach(d => markers.push({
-            id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.otb, title: d.name, type: 'otb', data: d
-        }));
-    }
-    if (visibility.odc) {
-        data.odcs.forEach(d => markers.push({
-            id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.odc, title: d.name, type: 'odc', data: d
-        }));
-    }
-    if (visibility.odp) {
-        data.odps.forEach(d => markers.push({
-            id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.odp, title: d.name, type: 'odp', data: d
-        }));
-    }
-    if (visibility.joinbox) {
-        data.joinboxes.forEach(d => markers.push({
-            id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.joinbox, title: d.name, type: 'joinbox', data: d
-        }));
-    }
-    if (visibility.pole) {
-        data.poles.forEach(d => markers.push({
-            id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.pole, title: d.name, type: 'pole', data: d
-        }));
-    }
-    if (visibility.pelanggan) {
-        data.pelanggans.forEach(d => markers.push({
-            id: d.id, latitude: d.latitude, longitude: d.longitude,
-            color: MARKER_COLORS.pelanggan, title: d.nama || d.idPelanggan, type: 'pelanggan', data: d
-        }));
-    }
+    const features: any[] = [];
+    const addFeature = (d: any, type: DeviceType, color: string) => {
+        features.push({
+            type: 'Feature',
+            id: type + '-' + d.id,
+            properties: {
+                id: d.id,
+                type: type,
+                color: color,
+                name: d.name || d.nama || d.idPelanggan,
+            },
+            geometry: {
+                type: 'Point',
+                coordinates: [d.longitude, d.latitude]
+            }
+        });
+    };
 
-    return markers;
+    if (visibility.otb) data.otbs.forEach(d => addFeature(d, 'otb', MARKER_COLORS.otb));
+    if (visibility.odc) data.odcs.forEach(d => addFeature(d, 'odc', MARKER_COLORS.odc));
+    if (visibility.odp) data.odps.forEach(d => addFeature(d, 'odp', MARKER_COLORS.odp));
+    if (visibility.joinbox) data.joinboxes.forEach(d => addFeature(d, 'joinbox', MARKER_COLORS.joinbox));
+    if (visibility.pole) data.poles.forEach(d => addFeature(d, 'pole', MARKER_COLORS.pole));
+    if (visibility.pelanggan) data.pelanggans.forEach(d => addFeature(d, 'pelanggan', MARKER_COLORS.pelanggan));
+
+    return { type: 'FeatureCollection', features };
   }, [data, visibility]);
+
+  const onShapePress = useCallback(async (event: any) => {
+    const { features } = event;
+    const feature = features[0];
+    
+    if (!feature) return;
+
+    const isCluster = feature.properties.cluster;
+
+    if (isCluster) {
+        // Handle cluster press (Zoom in to expansion level)
+        console.log('Cluster pressed, calculating expansion zoom...');
+        try {
+            const expansionZoom = await shapeSourceRef.current?.getClusterExpansionZoom(feature);
+            
+            if (expansionZoom) {
+                console.log('Zooming to:', expansionZoom);
+                cameraRef.current?.setCamera({
+                    centerCoordinate: feature.geometry.coordinates,
+                    zoomLevel: expansionZoom,
+                    animationDuration: 500,
+                });
+            } else {
+                // Fallback if expansion zoom is not returned
+                cameraRef.current?.setCamera({
+                    centerCoordinate: feature.geometry.coordinates,
+                    zoomLevel: zoom + 2,
+                    animationDuration: 500,
+                });
+            }
+        } catch (error) {
+            console.error('Error getting cluster expansion zoom:', error);
+            // Fallback on error
+            cameraRef.current?.setCamera({
+                centerCoordinate: feature.geometry.coordinates,
+                zoomLevel: zoom + 2,
+                animationDuration: 500,
+            });
+        }
+    } else {
+        // Handle single device press
+        const { id, type } = feature.properties;
+        console.log('Device pressed:', type, id);
+        
+        // Find original data object
+        let deviceData = null;
+        if (data) {
+            switch(type) {
+                case 'otb': deviceData = data.otbs.find(d => d.id === id); break;
+                case 'odc': deviceData = data.odcs.find(d => d.id === id); break;
+                case 'odp': deviceData = data.odps.find(d => d.id === id); break;
+                case 'joinbox': deviceData = data.joinboxes.find(d => d.id === id); break;
+                case 'pole': deviceData = data.poles.find(d => d.id === id); break;
+                case 'pelanggan': deviceData = data.pelanggans.find(d => d.id === id); break;
+            }
+        }
+        
+        if (deviceData) {
+            handleMarkerPress(deviceData, type);
+        }
+    }
+  }, [zoom, data, handleMarkerPress]);
 
   // Counts for filter panel
   const counts = useMemo(() => {
@@ -393,15 +485,63 @@ export default function TopologyMapScreen() {
     };
   }, [data]);
 
-  const handleToggleVisibility = (type: DeviceType) => {
-    setVisibility((prev) => ({ ...prev, [type]: !prev[type] }));
-  };
 
-  const handleMarkerPress = (device: any, type: DeviceType) => {
-    if (device) {
-        setSelectedDevice({ data: device, type: type });
+  const handleToggleVisibility = useCallback((type: DeviceType) => {
+    setVisibility((prev) => ({ ...prev, [type]: !prev[type] }));
+  }, []);
+
+  const handleCameraChange = useCallback((payload: any) => {
+    // Update zoom level when camera changes
+    // onRegionDidChange provides geometry and properties
+    const zoomLevel = payload?.properties?.zoom;
+    if (zoomLevel !== undefined) {
+      setZoom(zoomLevel);
     }
-  };
+
+    // Update viewport bounds for filtering
+    const bounds = payload?.properties?.bounds;
+    if (bounds) {
+      setViewport({
+        north: bounds.ne[1],  // latitude of northeast corner
+        south: bounds.sw[1],  // latitude of southwest corner
+        east: bounds.ne[0],   // longitude of northeast corner
+        west: bounds.sw[0],   // longitude of southwest corner
+      });
+    }
+  }, []);
+
+  // Calculate proper map bounds and center coordinate from all devices
+  const mapBounds = useMemo(() => {
+    if (!data || data.otbs.length === 0) return null;
+
+    // Collect all coordinates from all device types
+    const allCoords = [
+      ...data.otbs.map(d => [d.longitude, d.latitude]),
+      ...data.odcs.map(d => [d.longitude, d.latitude]),
+      ...data.odps.map(d => [d.longitude, d.latitude]),
+      ...data.joinboxes.map(d => [d.longitude, d.latitude]),
+      ...data.poles.map(d => [d.longitude, d.latitude]),
+      ...data.pelanggans.map(d => [d.longitude, d.latitude]),
+    ];
+
+    if (allCoords.length === 0) return null;
+
+    const lons = allCoords.map(c => c[0]);
+    const lats = allCoords.map(c => c[1]);
+
+    return {
+      center: [
+        (Math.min(...lons) + Math.max(...lons)) / 2,
+        (Math.min(...lats) + Math.max(...lats)) / 2
+      ] as [number, number],
+      bounds: {
+        ne: [Math.max(...lons), Math.max(...lats)] as [number, number],
+        sw: [Math.min(...lons), Math.min(...lats)] as [number, number]
+      }
+    };
+  }, [data]);
+
+  const centerCoordinate = mapBounds?.center || [106.816666, -6.2]; // Default Jakarta
 
   if (loading) {
     return (
@@ -424,35 +564,33 @@ export default function TopologyMapScreen() {
     );
   }
 
-  // Calculate center coordinate
-  let centerCoordinate = [106.816666, -6.2]; // Default Jakarta
-  if (data && (data.otbs.length > 0 || data.odcs.length > 0)) {
-     // Naive center finding, just take the first OTB or ODC
-     if (data.otbs.length > 0) {
-         centerCoordinate = [data.otbs[0].longitude, data.otbs[0].latitude];
-     } else if (data.odcs.length > 0) {
-         centerCoordinate = [data.odcs[0].longitude, data.odcs[0].latitude];
-     }
-  }
-
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <ArrowLeft size={24} color="#1f2937" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Topology Map</Text>
-        <TouchableOpacity
-          style={styles.filterToggle}
-          onPress={() => setShowFilters(!showFilters)}
-        >
-          <Layers size={24} color={showFilters ? '#3b82f6' : '#6b7280'} />
-        </TouchableOpacity>
-      </View>
+    <TopologyErrorBoundary>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <ArrowLeft size={24} color="#1f2937" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Topology Map</Text>
+          <TouchableOpacity
+            style={styles.filterToggle}
+            onPress={() => setShowFilters(!showFilters)}
+          >
+            <Layers size={24} color={showFilters ? '#3b82f6' : '#6b7280'} />
+          </TouchableOpacity>
+        </View>
 
-      {/* Filter Panel */}
-      {showFilters && (
+        {/* KMZ Loading Indicator */}
+        {loadingKmz && (
+          <View style={styles.kmzLoading}>
+            <ActivityIndicator size="small" color="#3b82f6" />
+            <Text style={styles.kmzLoadingText}>Memuat KMZ...</Text>
+          </View>
+        )}
+
+        {/* Filter Panel */}
+        {showFilters && (
         <FilterPanel
           visibility={visibility}
           onToggle={handleToggleVisibility}
@@ -484,9 +622,11 @@ export default function TopologyMapScreen() {
           ],
         }}
         logoEnabled={false}
+        onRegionDidChange={handleCameraChange}
       >
         <MapLibreGL.Camera
-          zoomLevel={12}
+          ref={cameraRef}
+          zoomLevel={zoom}
           centerCoordinate={centerCoordinate}
           animationMode={'flyTo'}
           animationDuration={2000}
@@ -517,27 +657,81 @@ export default function TopologyMapScreen() {
 
         </MapLibreGL.ShapeSource>
 
-        {/* Device Markers (PointAnnotation) */}
-        {allMarkers.map(marker => (
-          <MapLibreGL.PointAnnotation
-            key={`${marker.type}-${marker.id}`}
-            id={`${marker.type}-${marker.id}`}
-            coordinate={[
-                parseFloat(String(marker.longitude || 0)),
-                parseFloat(String(marker.latitude || 0))
-            ]} // MapLibre uses [lon, lat]
-            onSelected={() => handleMarkerPress(marker.data, marker.type)}
-          >
-             <View style={{
-                width: 16,
-                height: 16,
-                borderRadius: 8,
-                borderWidth: 2,
-                borderColor: 'white',
-                backgroundColor: marker.color
-             }} />
-          </MapLibreGL.PointAnnotation>
-        ))}
+        {/* DEVICE MARKERS (Native Rendering) */}
+        <MapLibreGL.ShapeSource
+            ref={shapeSourceRef}
+            id="devicesSource"
+            shape={devicesGeoJson as any}
+            cluster={true}
+            clusterRadius={50}
+            clusterMaxZoomLevel={14}
+            onPress={onShapePress}
+            hitbox={{ width: 20, height: 20 }}
+        >
+            {/* 1. Unclustered Points (Individual Markers) */}
+            {/* Invisible Hitbox Layer (Large) */}
+            <MapLibreGL.CircleLayer
+                id="unclustered-point-hitbox"
+                filter={['!', ['has', 'point_count']]}
+                style={{
+                    circleColor: 'transparent',
+                    circleRadius: 22, // 44px diameter touch target
+                    circleOpacity: 0,
+                    circleStrokeWidth: 0,
+                }}
+            />
+            {/* Visual Dot Layer */}
+            <MapLibreGL.CircleLayer
+                id="unclustered-point"
+                filter={['!', ['has', 'point_count']]}
+                style={{
+                    circleColor: ['get', 'color'],
+                    circleRadius: 6, // 12px visual size
+                    circleStrokeWidth: 2,
+                    circleStrokeColor: 'white',
+                }}
+            />
+
+            {/* 2. Clustered Points (Groups) */}
+            <MapLibreGL.CircleLayer
+                id="clustered-point"
+                filter={['has', 'point_count']}
+                style={{
+                    circleColor: [
+                        'step',
+                        ['get', 'point_count'],
+                        '#3b82f6', // default blue
+                        10, '#eab308', // yellow
+                        20, '#f97316', // orange
+                        50, '#dc2626'  // red
+                    ],
+                    circleRadius: [
+                        'step',
+                        ['get', 'point_count'],
+                        10, // default 20px
+                        10, 12, // 24px
+                        20, 15, // 30px
+                        50, 18  // 36px
+                    ],
+                    circleStrokeWidth: 2,
+                    circleStrokeColor: 'white'
+                }}
+            />
+
+            {/* 3. Cluster Counts (Text) */}
+             <MapLibreGL.SymbolLayer
+                id="cluster-count"
+                filter={['has', 'point_count']}
+                style={{
+                    textField: '{point_count_abbreviated}',
+                    textSize: 12,
+                    textColor: '#ffffff',
+                    textAllowOverlap: true,
+                    textIgnorePlacement: true,
+                    textAnchor: 'center',
+                }}
+            />
+        </MapLibreGL.ShapeSource>
       </MapLibreGL.MapView>
 
       {/* Refresh Button */}
@@ -552,7 +746,8 @@ export default function TopologyMapScreen() {
         device={selectedDevice?.data || null}
         deviceType={selectedDevice?.type || null}
       />
-    </View>
+      </View>
+    </TopologyErrorBoundary>
   );
 }
 
@@ -656,5 +851,27 @@ const styles = StyleSheet.create({
       height: 4,
       borderRadius: 2,
       backgroundColor: 'white',
+  },
+  kmzLoading: {
+    position: 'absolute',
+    top: 110,
+    left: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 5,
+  },
+  kmzLoadingText: {
+    marginLeft: 8,
+    fontSize: 12,
+    color: '#6b7280',
   }
 });

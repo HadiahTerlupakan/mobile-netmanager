@@ -14,6 +14,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as TaskManager from 'expo-task-manager';
 import { Alert, Linking } from 'react-native';
 import { Config } from '../constants/Config';
+import * as Battery from 'expo-battery';
 
 const TASK_NAME = 'BACKGROUND_LOCATION_TASK';
 const STORAGE_KEY_TRACKING = '@location_tracking_enabled';
@@ -27,6 +28,8 @@ interface LocationData {
     altitude: number | null;
     speed: number | null;
     heading: number | null;
+    batteryLevel?: number;
+    isMoving?: boolean;
     recordedAt: string;
 }
 
@@ -34,7 +37,7 @@ interface LocationData {
 TaskManager.defineTask(TASK_NAME, async ({ data, error }: { data: any; error: any }) => {
     const timestamp = new Date().toISOString();
     console.log(`[LocationTracking][${timestamp}] Background task triggered`);
-    
+
     if (error) {
         console.error(`[LocationTracking][${timestamp}] Background task error:`, error);
         return;
@@ -43,9 +46,23 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: { data: any; error: an
     if (data) {
         const { locations } = data as { locations: Location.LocationObject[] };
         console.log(`[LocationTracking][${timestamp}] Received ${locations?.length || 0} locations from OS`);
-        
+
         if (locations && locations.length > 0) {
             const location = locations[0];
+
+            // Get battery level for monitoring
+            let batteryLevel: number | undefined;
+            try {
+                batteryLevel = await Battery.getBatteryLevelAsync();
+                console.log(`[LocationTracking][${timestamp}] Battery level: ${(batteryLevel * 100).toFixed(0)}%`);
+            } catch (e) {
+                console.warn(`[LocationTracking][${timestamp}] Failed to get battery level:`, e);
+            }
+
+            // Detect movement: speed > 0.5 m/s = ~1.8 km/h (walking pace)
+            const isMoving = location.coords.speed !== null && location.coords.speed > 0.5;
+            console.log(`[LocationTracking][${timestamp}] Speed: ${location.coords.speed?.toFixed(2)} m/s, isMoving: ${isMoving}`);
+
             const locationData: LocationData = {
                 latitude: location.coords.latitude,
                 longitude: location.coords.longitude,
@@ -53,6 +70,8 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: { data: any; error: an
                 altitude: location.coords.altitude,
                 speed: location.coords.speed,
                 heading: location.coords.heading,
+                batteryLevel,
+                isMoving,
                 recordedAt: new Date(location.timestamp).toISOString()
             };
 
@@ -124,15 +143,15 @@ export class LocationTrackingService {
             try {
                 await Location.startLocationUpdatesAsync(TASK_NAME, {
                     accuracy: Location.Accuracy.Balanced,
-                    timeInterval: __DEV__ ? 5000 : 5 * 60 * 1000, // DEV: 5 detik, PROD: 5 menit
-                    distanceInterval: 0, // Always update regardless of distance moved
-                    deferredUpdatesInterval: __DEV__ ? 5000 : 5 * 60 * 1000,
+                    timeInterval: __DEV__ ? 30000 : 10 * 60 * 1000, // DEV: 30 detik, PROD: 10 menit (OPTIMIZED)
+                    distanceInterval: 50, // Only update if moved 50m+ (OPTIMIZED)
+                    deferredUpdatesInterval: __DEV__ ? 5000 : 15 * 60 * 1000, // DEV: 5s, PROD: 15 min (OPTIMIZED)
                     foregroundService: {
                         notificationTitle: 'Mode Absensi Aktif',
                         notificationBody: 'Jam kerja Anda sedang berjalan',
                         notificationColor: '#ffffff'
                     },
-                    pausesUpdatesAutomatically: false,
+                    pausesUpdatesAutomatically: true, // Allow OS to pause when stationary (OPTIMIZED)
                     showsBackgroundLocationIndicator: false
                 });
             } catch (error) {

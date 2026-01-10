@@ -37,7 +37,7 @@ const FILTER_ITEMS: Array<{ type: DeviceType; label: string; color: string }> = 
   { type: 'kmz', label: 'Jalur Fiber', color: '#6366f1' },
 ];
 
-export function FilterPanel({ visibility, onToggle, counts }: FilterPanelProps) {
+export const FilterPanel = React.memo<FilterPanelProps>(({ visibility, onToggle, counts }: FilterPanelProps) => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Filter & Layer</Text>
@@ -90,7 +90,13 @@ export function FilterPanel({ visibility, onToggle, counts }: FilterPanelProps) 
       </View>
     </View>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent unnecessary re-renders
+  return (
+    prevProps.counts === nextProps.counts &&
+    JSON.stringify(prevProps.visibility) === JSON.stringify(nextProps.visibility)
+  );
+});
 
 const styles = StyleSheet.create({
   container: {

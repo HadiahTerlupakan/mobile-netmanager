@@ -1,11 +1,11 @@
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useState, useEffect } from 'react';
-import tw from 'twrnc';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/context/AuthContext';
-import axios from 'axios';
 import { Config } from '@/constants/Config';
+import { useAuth } from '@/context/AuthContext';
+import { Ionicons } from '@expo/vector-icons';
+import axios from 'axios';
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
+import tw from 'twrnc';
 
 interface Transaction {
     id: string;
@@ -78,6 +78,44 @@ export default function RiwayatBarangScreen() {
         { label: 'Keluar', value: 'keluar' }
     ];
 
+    const renderTransactionItem = ({ item: t }: { item: Transaction }) => (
+        <View
+            style={tw`bg-white rounded-xl p-4 mb-3 border border-gray-100 shadow-sm`}
+        >
+            <View style={tw`flex-row items-start`}>
+                <View
+                    style={tw`w-10 h-10 rounded-lg items-center justify-center ${t.type === 'masuk' ? 'bg-green-100' : 'bg-orange-100'}`}
+                >
+                    <Ionicons
+                        name={t.type === 'masuk' ? 'add' : 'remove'}
+                        size={20}
+                        color={t.type === 'masuk' ? '#16A34A' : '#EA580C'}
+                    />
+                </View>
+                <View style={tw`flex-1 ml-3`}>
+                    <View style={tw`flex-row items-start justify-between`}>
+                        <View style={tw`flex-1`}>
+                            <Text style={tw`font-semibold text-gray-900`}>{t.barang.nama}</Text>
+                            <Text style={tw`text-xs text-gray-500`}>{t.barang.kode}</Text>
+                        </View>
+                        <Text style={tw`text-sm font-bold ${t.type === 'masuk' ? 'text-green-600' : 'text-orange-600'}`}>
+                            {t.type === 'masuk' ? '+' : '-'}{t.jumlah} {t.barang.satuan}
+                        </Text>
+                    </View>
+                    <View style={tw`mt-2 flex-row items-center flex-wrap gap-1`}>
+                        <Text style={tw`text-xs text-gray-500`}>{t.gudang.nama}</Text>
+                        <Text style={tw`text-xs text-gray-400`}>•</Text>
+                        <Text style={tw`text-xs text-gray-500`}>{t.kondisi}</Text>
+                    </View>
+                    <Text style={tw`text-xs text-gray-400 mt-1`}>{formatDate(t.tanggal)}</Text>
+                    {t.keterangan && (
+                        <Text style={tw`text-sm text-gray-600 mt-2`}>{t.keterangan}</Text>
+                    )}
+                </View>
+            </View>
+        </View>
+    );
+
     return (
         <View style={tw`flex-1 bg-gray-50`}>
             {/* Header */}
@@ -106,62 +144,29 @@ export default function RiwayatBarangScreen() {
                 </View>
             </View>
 
-            <ScrollView
-                style={tw`flex-1`}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-            >
-                <View style={tw`p-4`}>
-                    {loading ? (
-                        <View style={tw`py-12 items-center`}>
-                            <Text style={tw`text-gray-500`}>Memuat...</Text>
-                        </View>
-                    ) : filteredTransactions.length === 0 ? (
+            {loading ? (
+                <View style={tw`flex-1 items-center justify-center`}>
+                    <ActivityIndicator size="large" color="#3B82F6" />
+                    <Text style={tw`text-gray-500 mt-4`}>Memuat riwayat...</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={filteredTransactions}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderTransactionItem}
+                    contentContainerStyle={tw`p-4 pb-20`}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                    ListEmptyComponent={
                         <View style={tw`py-12 items-center`}>
                             <Ionicons name="document-text-outline" size={48} color="#9CA3AF" />
                             <Text style={tw`text-gray-500 mt-2`}>Belum ada transaksi</Text>
                         </View>
-                    ) : (
-                        filteredTransactions.map((t) => (
-                            <View
-                                key={t.id}
-                                style={tw`bg-white rounded-xl p-4 mb-3 border border-gray-100 shadow-sm`}
-                            >
-                                <View style={tw`flex-row items-start`}>
-                                    <View
-                                        style={tw`w-10 h-10 rounded-lg items-center justify-center ${t.type === 'masuk' ? 'bg-green-100' : 'bg-orange-100'}`}
-                                    >
-                                        <Ionicons
-                                            name={t.type === 'masuk' ? 'add' : 'remove'}
-                                            size={20}
-                                            color={t.type === 'masuk' ? '#16A34A' : '#EA580C'}
-                                        />
-                                    </View>
-                                    <View style={tw`flex-1 ml-3`}>
-                                        <View style={tw`flex-row items-start justify-between`}>
-                                            <View style={tw`flex-1`}>
-                                                <Text style={tw`font-semibold text-gray-900`}>{t.barang.nama}</Text>
-                                                <Text style={tw`text-xs text-gray-500`}>{t.barang.kode}</Text>
-                                            </View>
-                                            <Text style={tw`text-sm font-bold ${t.type === 'masuk' ? 'text-green-600' : 'text-orange-600'}`}>
-                                                {t.type === 'masuk' ? '+' : '-'}{t.jumlah} {t.barang.satuan}
-                                            </Text>
-                                        </View>
-                                        <View style={tw`mt-2 flex-row items-center flex-wrap gap-1`}>
-                                            <Text style={tw`text-xs text-gray-500`}>{t.gudang.nama}</Text>
-                                            <Text style={tw`text-xs text-gray-400`}>•</Text>
-                                            <Text style={tw`text-xs text-gray-500`}>{t.kondisi}</Text>
-                                        </View>
-                                        <Text style={tw`text-xs text-gray-400 mt-1`}>{formatDate(t.tanggal)}</Text>
-                                        {t.keterangan && (
-                                            <Text style={tw`text-sm text-gray-600 mt-2`}>{t.keterangan}</Text>
-                                        )}
-                                    </View>
-                                </View>
-                            </View>
-                        ))
-                    )}
-                </View>
-            </ScrollView>
+                    }
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={10}
+                    windowSize={5}
+                />
+            )}
         </View>
     );
 }

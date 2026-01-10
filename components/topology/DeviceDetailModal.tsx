@@ -55,14 +55,14 @@ const DEVICE_LABELS: Record<DeviceType, string> = {
   kmz: 'Jalur Fiber',
 };
 
-export function DeviceDetailModal({
+export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(({
   visible,
   onClose,
   device,
   deviceType,
-}: DeviceDetailModalProps) {
+}: DeviceDetailModalProps) => {
   const insets = useSafeAreaInsets();
-  
+
   if (!device || !deviceType) return null;
 
   const displayName = device.name || device.nama || device.idPelanggan || 'Tidak ada nama';
@@ -175,13 +175,82 @@ export function DeviceDetailModal({
               </View>
             )}
 
+            {/* OTB Information (for ODC) */}
+            {deviceType === 'odc' && (device as any).otbCore?.otb && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Terhubung ke OTB</Text>
+                <View style={styles.card}>
+                  <View style={styles.row}>
+                    <Text style={styles.label}>OTB:</Text>
+                    <Text style={styles.value}>{(device as any).otbCore.otb.name}</Text>
+                  </View>
+                  <View style={styles.row}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.label}>Tube</Text>
+                      <View style={[styles.colorBadge, { backgroundColor: (device as any).otbCore.tubeColor }]}>
+                         <Text style={styles.colorText}>{(device as any).otbCore.tubeColor}</Text>
+                      </View>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.label}>Core</Text>
+                      <View style={[styles.colorBadge, { backgroundColor: (device as any).otbCore.coreColor }]}>
+                         <Text style={styles.colorText}>{(device as any).otbCore.coreColor}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* ODC Information (for ODP) */}
+            {deviceType === 'odp' && (device as any).odcOutput?.odc && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Terhubung ke ODC</Text>
+                <View style={styles.card}>
+                  <View style={styles.row}>
+                    <Text style={styles.label}>ODC:</Text>
+                    <Text style={styles.value}>{(device as any).odcOutput.odc.name}</Text>
+                  </View>
+                  <View style={styles.row}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.label}>Tube</Text>
+                      <View style={[styles.colorBadge, { backgroundColor: (device as any).odcOutput.tubeColor }]}>
+                         <Text style={styles.colorText}>{(device as any).odcOutput.tubeColor}</Text>
+                      </View>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.label}>Core</Text>
+                      <View style={[styles.colorBadge, { backgroundColor: (device as any).odcOutput.coreColor }]}>
+                         <Text style={styles.colorText}>{(device as any).odcOutput.coreColor}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* ODP Information (for Pelanggan) */}
+            {deviceType === 'pelanggan' && (device as any).odp && (
+               <View style={styles.section}>
+                 <Text style={styles.sectionTitle}>Terhubung ke ODP</Text>
+                 <View style={styles.card}>
+                   <View style={styles.row}>
+                     <Text style={styles.label}>ODP:</Text>
+                     <Text style={styles.value}>{(device as any).odp.name}</Text>
+                   </View>
+                 </View>
+               </View>
+            )}
+
             {/* Notes */}
             {device.notes && (
-              <View style={styles.row}>
-                <Info size={18} color="#6b7280" />
-                <View style={styles.rowContent}>
-                  <Text style={styles.label}>Catatan</Text>
-                  <Text style={styles.value}>{device.notes}</Text>
+              <View style={styles.section}>
+                <View style={styles.row}>
+                    <Info size={18} color="#6b7280" />
+                    <View style={styles.rowContent}>
+                        <Text style={styles.label}>Catatan</Text>
+                        <Text style={styles.value}>{device.notes}</Text>
+                    </View>
                 </View>
               </View>
             )}
@@ -201,7 +270,14 @@ export function DeviceDetailModal({
       </View>
     </Modal>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent unnecessary re-renders
+  return (
+    prevProps.visible === nextProps.visible &&
+    prevProps.device?.id === nextProps.device?.id &&
+    prevProps.deviceType === nextProps.deviceType
+  );
+});
 
 const styles = StyleSheet.create({
   overlay: {
@@ -294,5 +370,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  section: {
+    marginBottom: 20,
+    marginTop: 4,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#3b82f6',
+    paddingLeft: 8,
+  },
+  card: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  colorBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    minWidth: 60,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  colorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
 });
