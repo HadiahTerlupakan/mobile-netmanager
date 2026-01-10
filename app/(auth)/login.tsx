@@ -1,4 +1,5 @@
 import axios from 'axios';
+import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import { Lock, Mail } from 'lucide-react-native';
 import React, { useState } from 'react';
@@ -21,10 +22,16 @@ export default function LoginScreen() {
 
         setLoading(true);
         try {
-            console.log('Attempting login to:', `${Config.API_URL}/api/mobile/auth/login`);
+            const versionCode = Constants.expoConfig?.extra?.versionCode || 53;
+            // Native version for APK (e.g. 1.0.7), fallback to 1.0.0
+            const versionName = Constants.expoConfig?.version || '1.0.0';
+            
+            console.log('Attempting login to:', `${Config.API_URL}/api/mobile/auth/login`, 'Version:', versionCode, versionName);
             const res = await axios.post(`${Config.API_URL}/api/mobile/auth/login`, {
                 email,
-                password
+                password,
+                versionCode: versionCode.toString(),
+                versionName: versionName
             });
 
             if (res.data.success) {

@@ -9,16 +9,18 @@ import { UpdateRequiredScreen } from '../components/UpdateRequiredScreen';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { SocketProvider } from '../context/SocketContext';
 import { useAppVersion } from '../hooks/useAppVersion';
+import { appVersionService } from '../services/AppVersionService';
 import { DatabaseService } from '../services/DatabaseService';
 import '../services/LocationTrackingService'; // Register background task
 import { SyncService } from '../services/SyncService';
 import logger from '../utils/logger';
 
-// Get current version code from app.json
-const CURRENT_VERSION_CODE = Constants.expoConfig?.extra?.versionCode || 53; // Default to 53 based on version 1.0.53
+// Get current version from app.json
+const CURRENT_VERSION_CODE = Constants.expoConfig?.extra?.versionCode || 53;
+const CURRENT_VERSION_NAME = Constants.expoConfig?.version || '1.0.0';
 
 function RootLayoutNav() {
-  const { user, isLoading } = useAuth();
+  const { user, token, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -77,6 +79,15 @@ function RootLayoutNav() {
 
     checkAppVersion();
   }, [versionChecked, checkForUpdate]);
+
+  // Report App Version
+  useEffect(() => {
+      if (user && token) {
+          appVersionService.reportVersion(CURRENT_VERSION_CODE, CURRENT_VERSION_NAME, token).catch(e => {
+              console.error('Failed to report version:', e);
+          });
+      }
+  }, [user, token]);
 
   // Handle Push Notifications
   useEffect(() => {

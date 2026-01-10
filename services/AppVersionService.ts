@@ -63,20 +63,41 @@ class AppVersionService {
                 success: true,
                 updateAvailable: data.updateAvailable,
                 isForceUpdate: data.isForceUpdate,
-                currentVersion: data.currentVersion,
+                currentVersion: '', // Not used by caller usually
                 latestVersion: data.latestVersion
             }
         } catch (error: any) {
+            console.error('Check update error:', error)
             return {
                 success: false,
                 updateAvailable: false,
                 isForceUpdate: false,
                 currentVersion: '',
                 latestVersion: null,
-                error: error.message || 'Failed to check for updates'
+                error: error.message || 'Gagal memeriksa update'
             }
         }
     }
+
+    async reportVersion(versionCode: number, versionName: string | null = null, token?: string): Promise<void> {
+        try {
+            const headers: any = {
+                'Content-Type': 'application/json'
+            }
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`
+            }
+
+            await fetch(`${this.baseUrl}/api/mobile/app-version/report`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ versionCode: versionCode.toString(), versionName })
+            })
+        } catch (error) {
+            console.error('Report version error:', error)
+        }
+    }
+
 
     async downloadApk(
         versionId: string,
