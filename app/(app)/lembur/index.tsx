@@ -1,3 +1,4 @@
+import LoadingModal from '@/components/LoadingModal';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
@@ -34,9 +35,13 @@ interface HolidayInfo {
 export default function LemburScreen() {
     const { user, token } = useAuth();
     const router = useRouter();
-    const [loading, setLoading] = useState(false);
+    // const [loading, setLoading] = useState(false); // Replaced by LoadingModal
     const [refreshing, setRefreshing] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
+
+    // Loading State
+    const [showLoading, setShowLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState('');
 
     // Data States
     const [history, setHistory] = useState<Overtime[]>([]);
@@ -153,6 +158,9 @@ export default function LemburScreen() {
             return;
         }
         
+        setShowLoading(true);
+        setLoadingMessage('Mengirim pengajuan...');
+
         await mutate({
              action: 'request',
              date: new Date().toISOString(),
@@ -161,12 +169,16 @@ export default function LemburScreen() {
              url: `/api/mobile/overtime`,
              method: 'POST',
              onSuccess: (data, isOffline) => {
+                  setShowLoading(false);
                   Alert.alert(isOffline ? 'Offline' : 'Sukses', isOffline ? 'Pengajuan diantrikan' : 'Pengajuan berhasil dikirim');
                   setShowRequestModal(false);
                   setReason('');
                   fetchData();
              },
-             onError: (err) => Alert.alert('Error', err.message || 'Gagal mengirim pengajuan')
+             onError: (err) => {
+                 setShowLoading(false);
+                 Alert.alert('Error', err.message || 'Gagal mengirim pengajuan');
+             }
         });
     };
 
@@ -210,11 +222,14 @@ export default function LemburScreen() {
             return;
         }
 
-        setLoading(true);
+        setShowLoading(true);
+        
         try {
+            setLoadingMessage('Memproses foto...');
             const watermarkedUri = await captureWatermarkedPhoto();
             if (!watermarkedUri) throw new Error('Failed to capture photo');
 
+            setLoadingMessage('Mengirim data...');
             // Use useOfflineMutation with URI and Meta
             await mutate({
                 action: activeAction,
@@ -232,19 +247,22 @@ export default function LemburScreen() {
                 url: `/api/mobile/overtime`,
                 method: 'POST',
                 onSuccess: (data, isOffline) => {
+                     setShowLoading(false);
                      Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Aksi disimpan di antrian" : (activeAction === 'start' ? "Lembur dimulai!" : "Lembur selesai!"));
                      setPhoto(null);
                      setCapturedTime(null);
                      setActiveAction(null);
                      fetchData();
                 },
-                onError: (err) => Alert.alert('Gagal', err.message || 'Terjadi kesalahan')
+                onError: (err) => {
+                    setShowLoading(false);
+                    Alert.alert('Gagal', err.message || 'Terjadi kesalahan');
+                }
             });
 
         } catch (error: any) {
+            setShowLoading(false);
             Alert.alert("Gagal", error.response?.data?.error || error.message || "Terjadi kesalahan.");
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -434,8 +452,8 @@ export default function LemburScreen() {
                                     <TouchableOpacity onPress={() => { setPhoto(null); setCapturedTime(null); }} style={tw`flex-1 bg-gray-100 py-3 rounded-xl items-center`}>
                                         <Text style={tw`font-bold text-gray-600`}>Ulang Foto</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={submitAction} disabled={loading} style={tw`flex-1 bg-indigo-600 py-3 rounded-xl items-center`}>
-                                        <Text style={tw`font-bold text-white`}>{loading ? 'Menyimpan...' : 'Konfirmasi'}</Text>
+                                    <TouchableOpacity onPress={submitAction} disabled={showLoading} style={tw`flex-1 bg-indigo-600 py-3 rounded-xl items-center`}>
+                                        <Text style={tw`font-bold text-white`}>{showLoading ? 'Memproses...' : 'Konfirmasi'}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -560,9 +578,9 @@ export default function LemburScreen() {
                             <TouchableOpacity
                                 style={[tw`flex-1 py-3 rounded-xl`, reason.trim() ? tw`bg-indigo-600` : tw`bg-gray-300`]}
                                 onPress={handleSubmitRequest}
-                                disabled={!reason.trim() || loading}
+                                disabled={!reason.trim() || showLoading}
                             >
-                                {loading ? (
+                                {showLoading ? (
                                     <ActivityIndicator color="white" />
                                 ) : (
                                     <Text style={tw`text-center text-white font-bold`}>Kirim</Text>
@@ -572,6 +590,7 @@ export default function LemburScreen() {
                     </View>
                 </View>
             </Modal>
+            <LoadingModal visible={showLoading} message={loadingMessage} />
         </SafeAreaView>
     );
 }

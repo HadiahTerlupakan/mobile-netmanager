@@ -10,10 +10,11 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import * as Location from 'expo-location';
 import { AlertTriangle, CalendarOff, Camera, Clock, MapPin, RefreshCw, RotateCcw, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 import tw from 'twrnc';
+import LoadingModal from '../../components/LoadingModal';
 import { Config } from '../../constants/Config';
 import { useAuth } from '../../context/AuthContext';
 
@@ -496,38 +497,43 @@ export default function AbsensiScreen() {
                     url: endpoint,
                     method: 'POST',
                     onSuccess: async (data: any) => {
-                         setLoadingMessage('Berhasil!');
                          
-                         // Small delay to show success message before closing
+                         // Start/Stop location tracking based on action
+                         try {
+                             if (status === 'idle') {
+                                 // Check-in: Start tracking
+                                 setLoadingMessage('Mengaktifkan tracking...');
+                                 await LocationTrackingService.startTracking();
+                             } else {
+                                 // Check-out: Stop tracking
+                                 setLoadingMessage('Menonaktifkan tracking...');
+                                 await LocationTrackingService.stopTracking();
+                             }
+                         } catch (trackingError) {
+                             console.log('[Absensi] Tracking error (non-fatal):', trackingError);
+                         }
+
+                         setLoadingMessage('Berhasil!');
                          await new Promise(resolve => setTimeout(resolve, 500));
                          
                          // Close overlay FIRST before any other action
                          setIsProcessing(false);
                          setLoading(false);
                          
-                         // Start/Stop location tracking based on action
-                         try {
-                             if (status === 'idle') {
-                                 // Check-in: Start tracking
-                                 await LocationTrackingService.startTracking();
-                                 Alert.alert("Berhasil", "Check-in Berhasil!");
+                         // Alert logic
+                         if (status === 'idle') {
+                             Alert.alert("Berhasil", "Check-in Berhasil!");
+                         } else {
+                             // Check for warning from FLEXIBLE mode users
+                             if (data?.warning) {
+                                 Alert.alert(
+                                     "⚠️ Peringatan Jam Kerja", 
+                                     data.warning + "\n\nCheckout tetap berhasil.",
+                                     [{ text: "OK" }]
+                                 );
                              } else {
-                                 // Check-out: Stop tracking
-                                 await LocationTrackingService.stopTracking();
-                                 
-                                 // Check for warning from FLEXIBLE mode users
-                                 if (data?.warning) {
-                                     Alert.alert(
-                                         "⚠️ Peringatan Jam Kerja", 
-                                         data.warning + "\n\nCheckout tetap berhasil.",
-                                         [{ text: "OK" }]
-                                     );
-                                 } else {
-                                     Alert.alert("Berhasil", "Check-out Berhasil!");
-                                 }
+                                 Alert.alert("Berhasil", "Check-out Berhasil!");
                              }
-                         } catch (trackingError) {
-                             console.log('[Absensi] Tracking error (non-fatal):', trackingError);
                          }
                          
                          fetchStatus();
@@ -544,7 +550,9 @@ export default function AbsensiScreen() {
                  setLoading(false);
                  Alert.alert("Error", error.message || "Gagal Absen");
              } finally {
-                 setLoading(false);
+                 // Do not force setLoading(false) here as it might be handled in onSuccess
+                 // But strictly speaking, if we follow the flow above, it's handled.
+                 if (!isOnline) setLoading(false);
              }
         } else {
             // Offline
@@ -891,20 +899,11 @@ export default function AbsensiScreen() {
                 </View>
             </Modal>
 
-            {/* Loading Overlay - Full Screen with Dark Dim */}
-            {isProcessing && (
-                <View style={tw`absolute inset-0 bg-black/60 items-center justify-center z-50`}>
-                    <View style={tw`bg-white p-6 rounded-2xl items-center w-3/4 max-w-sm shadow-xl`}>
-                        <ActivityIndicator size={48} color="#2563eb" />
-                        <Text style={tw`text-slate-800 font-bold mt-4 text-lg text-center`}>
-                            {loadingMessage}
-                        </Text>
-                        <Text style={tw`text-slate-500 text-sm mt-2 text-center`}>
-                            Mohon tunggu sebentar...
-                        </Text>
-                    </View>
-                </View>
-            )}
+            {/* Loading Overlay Standard */}
+            <LoadingModal 
+                visible={isProcessing} 
+                message={loadingMessage} 
+            />
         </SafeAreaView>
     );
 }

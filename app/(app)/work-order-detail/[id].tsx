@@ -794,42 +794,103 @@ export default function WorkOrderDetailScreen() {
             <View style={tw`h-0.5 bg-gray-100 mb-6`} />
 
             <Text style={tw`text-xs text-gray-400 font-bold mb-4 uppercase`}>Diskusi</Text>
-            {wo.updates?.filter((u: any) => ['COMMENT', 'NOTE', 'PHOTO'].includes(u.updateType)).map((update: any, index: number) => (
-                <View key={index} style={tw`flex-row mb-6 relative`}>
-                    {/* Line */}
-                    {index !== wo.updates.filter((u: any) => ['COMMENT', 'NOTE', 'PHOTO'].includes(u.updateType)).length - 1 && (
-                        <View style={tw`absolute left-3 top-6 bottom--6 w-0.5 bg-gray-200`} />
-                    )}
+            {(() => {
+                // Merge Updates (COMMENT, NOTE) and Attachments (PHOTO)
+                const comments = wo.updates?.filter((u: any) => ['COMMENT', 'NOTE'].includes(u.updateType)) || [];
+                const photos = wo.attachments?.map((a: any) => ({
+                    ...a,
+                    updateType: 'PHOTO',
+                    createdAt: a.uploadedAt,
+                    message: a.caption,
+                    // Normalize user object
+                    user: a.user, 
+                    createdBy: a.user // Attachments have user relation, mapping to createdBy for consistency
+                })) || [];
 
-                    {/* Dot */}
-                    <View style={tw`w-6 h-6 rounded-full bg-blue-100 items-center justify-center mr-3 z-10`}>
-                        <View style={tw`w-2 h-2 rounded-full bg-blue-600`} />
-                    </View>
+                // Combine and Sort
+                const timeline = [...comments, ...photos].sort((a, b) => 
+                    new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                );
 
-                    {/* Content */}
-                    <View style={tw`flex-1`}>
-                        <View style={tw`flex-row justify-between items-start`}>
-                            <Text style={tw`font-bold text-gray-800 text-sm`}>
-                                {update.createdBy?.name || 'Unknown'}
-                            </Text>
-                            <Text style={tw`text-xs text-gray-500 mb-0.5`}>
-                                {format(new Date(update.createdAt), 'dd MMM HH:mm', { locale: idLocale })}
-                            </Text>
+                if (timeline.length === 0) {
+                    return (
+                        <View style={tw`items-center justify-center py-8`}>
+                            <MessageSquare size={32} color="#e5e7eb" style={tw`mb-2`} />
+                            <Text style={tw`text-center text-gray-400`}>Belum ada diskusi</Text>
+                            <Text style={tw`text-center text-gray-300 text-xs`}>Mulai percakapan dengan tim</Text>
                         </View>
-                        <Text style={tw`text-gray-600 text-sm mt-1 leading-5`}>{update.message}</Text>
-                    </View>
-                </View>
-            ))}
-            {(!wo.updates || wo.updates.filter((u: any) => ['COMMENT', 'NOTE', 'PHOTO'].includes(u.updateType)).length === 0) && (
-                <Text style={tw`text-center text-gray-400 py-4`}>Belum ada diskusi</Text>
-            )}
+                    );
+                }
+
+                return timeline.map((item: any, index: number) => {
+                    const creator = item.user || item.createdBy;
+                    const isMe = creator?.id === user?.id;
+                    const isPhoto = item.updateType === 'PHOTO';
+                    
+                    return (
+                        <View key={`${item.updateType}-${item.id}`} style={tw`mb-4 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            {!isMe && (
+                                <View style={tw`w-8 h-8 rounded-full bg-gray-200 items-center justify-center mr-2 self-end mb-1`}>
+                                    <Text style={tw`font-bold text-gray-600 text-xs`}>
+                                        {creator?.name?.charAt(0) || '?'}
+                                    </Text>
+                                </View>
+                            )}
+                            
+                            <View style={tw`max-w-[80%]`}>
+                                <View style={tw`rounded-2xl overflow-hidden ${
+                                    isPhoto ? '' : // Photos handle their own rounding or have no bg
+                                    isMe 
+                                        ? 'bg-blue-600 rounded-tr-none px-4 py-2.5' 
+                                        : 'bg-gray-100 rounded-tl-none px-4 py-2.5'
+                                }`}>
+                                    {!isMe && !isPhoto && (
+                                        <Text style={tw`text-xs font-bold text-gray-500 mb-1`}>
+                                            {creator?.name || 'Unknown'}
+                                        </Text>
+                                    )}
+
+                                    {isPhoto ? (
+                                        <View>
+                                            <TouchableOpacity 
+                                                onPress={() => {
+                                                    // TODO: Open Image Viewer
+                                                }}
+                                                activeOpacity={0.9}
+                                            >
+                                                <Image 
+                                                    source={{ uri: `${Config.API_URL}${item.filePath}` }} 
+                                                    style={tw`w-48 h-64 bg-gray-200 rounded-lg`} 
+                                                    resizeMode="cover"
+                                                />
+                                            </TouchableOpacity>
+                                            {item.message && (
+                                                 <View style={tw`bg-black/50 absolute bottom-0 left-0 right-0 p-2`}>
+                                                     <Text style={tw`text-white text-xs`} numberOfLines={2}>{item.message}</Text>
+                                                 </View>
+                                            )}
+                                        </View>
+                                    ) : (
+                                        <Text style={tw`text-sm ${isMe ? 'text-white' : 'text-gray-800'}`}>
+                                            {item.message}
+                                        </Text>
+                                    )}
+                                </View>
+                                <Text style={tw`text-[10px] text-gray-400 mt-1 ${isMe ? 'text-right' : 'text-left'}`}>
+                                    {format(new Date(item.createdAt), 'dd MMM HH:mm', { locale: idLocale })}
+                                </Text>
+                            </View>
+                        </View>
+                    );
+                });
+            })()}
         </View>
     );
 
     const renderTimelineTab = () => (
         <View style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}>
             <Text style={tw`text-xs text-gray-400 font-bold mb-4 uppercase`}>Riwayat Aktivitas</Text>
-            {wo.updates?.filter((u: any) => !['COMMENT', 'NOTE', 'PHOTO'].includes(u.updateType)).map((update: any, index: number, arr: any[]) => (
+            {wo.updates?.filter((u: any) => !['COMMENT', 'NOTE'].includes(u.updateType)).map((update: any, index: number, arr: any[]) => (
                 <View key={index} style={tw`flex-row mb-6 relative`}>
                     {/* Line */}
                     {index !== arr.length - 1 && (
@@ -837,8 +898,8 @@ export default function WorkOrderDetailScreen() {
                     )}
 
                     {/* Dot */}
-                    <View style={tw`w-6 h-6 rounded-full bg-gray-100 items-center justify-center mr-3 z-10`}>
-                        <View style={tw`w-2 h-2 rounded-full bg-gray-400`} />
+                    <View style={tw`w-6 h-6 rounded-full ${update.updateType === 'PHOTO' ? 'bg-purple-100' : 'bg-gray-100'} items-center justify-center mr-3 z-10`}>
+                        <View style={tw`w-2 h-2 rounded-full ${update.updateType === 'PHOTO' ? 'bg-purple-600' : 'bg-gray-400'}`} />
                     </View>
 
                     {/* Content */}
@@ -849,17 +910,23 @@ export default function WorkOrderDetailScreen() {
                         <Text style={tw`font-bold text-gray-800 text-sm`}>
                             {update.updateType === 'STATUS_CHANGE'
                                 ? `Status: ${update.newStatus}`
-                                : update.updateType}
+                                : update.updateType === 'PHOTO' 
+                                    ? 'Foto Diupload' 
+                                    : update.updateType}
                         </Text>
                         <Text style={tw`text-gray-600 text-sm mt-1 leading-5`}>{update.message}</Text>
 
-                        {update.createdBy && (
-                            <Text style={tw`text-xs text-gray-400 mt-1 italic`}>Oleh: {update.createdBy.name}</Text>
+                        {update.user && (
+                            <Text style={tw`text-xs text-gray-400 mt-1 italic`}>Oleh: {update.user.name}</Text>
+                        )}
+                         {/* Fallback for system updates that use createdBy but might not include user relation in some contexts, though repo ensures it */}
+                        {!update.user && update.createdBy && (
+                            <Text style={tw`text-xs text-gray-400 mt-1 italic`}>Oleh: {update.createdBy.name || 'System'}</Text>
                         )}
                     </View>
                 </View>
             ))}
-            {(!wo.updates || wo.updates.filter((u: any) => !['COMMENT', 'NOTE', 'PHOTO'].includes(u.updateType)).length === 0) && (
+            {(!wo.updates || wo.updates.filter((u: any) => !['COMMENT', 'NOTE'].includes(u.updateType)).length === 0) && (
                 <Text style={tw`text-center text-gray-400 py-4`}>Belum ada riwayat sistem</Text>
             )}
         </View>

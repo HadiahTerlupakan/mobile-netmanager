@@ -321,7 +321,7 @@ export default function BarangMasukScreen() {
                             setShowLoading(false);
                             resetForm();
                             Alert.alert('Sukses', 'Barang masuk berhasil dicatat', [
-                                { text: 'OK', onPress: () => router.back() }
+                                { text: 'OK', onPress: () => router.replace('/(app)/barang') }
                             ]);
                         },
                         onError: (err) => {
