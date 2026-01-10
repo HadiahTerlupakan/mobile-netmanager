@@ -6,7 +6,7 @@ import { id as idLocale } from 'date-fns/locale';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Calendar, Camera, CheckCircle, CheckSquare, Clock, FileText, History, Image as ImageIcon, ListChecks, MapPin, Package, Pause, Phone, Play, Square, User, X } from 'lucide-react-native';
+import { ArrowLeft, Calendar, Camera, CheckCircle, CheckSquare, Clock, FileText, History, Image as ImageIcon, ListChecks, MapPin, MessageSquare, Package, Pause, Phone, Play, Square, User, X } from 'lucide-react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Dimensions, FlatList, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,7 +25,7 @@ export default function WorkOrderDetailScreen() {
     const insets = useSafeAreaInsets();
 
     const [wo, setWo] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState<'INFO' | 'TASKS' | 'TIMELINE' | 'ITEMS'>('INFO');
+    const [activeTab, setActiveTab] = useState<'INFO' | 'TASKS' | 'TIMELINE' | 'ITEMS' | 'DISKUSI'>('INFO');
 
     // Completion State (Moved to separate screen)
     const [resolutionNotes, setResolutionNotes] = useState('');
@@ -308,7 +308,7 @@ export default function WorkOrderDetailScreen() {
         }
 
         const payload: any = {
-             action: 'NOTE',
+             action: 'COMMENT',
              latitude: finalLocation?.coords.latitude.toString(),
              longitude: finalLocation?.coords.longitude.toString(),
              locationName,
@@ -747,18 +747,16 @@ export default function WorkOrderDetailScreen() {
         </View>
     );
 
-    const renderTimelineTab = () => (
+    const renderDiscussionTab = () => (
         <View style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}>
-            <Text style={tw`text-xs text-gray-400 font-bold mb-4 uppercase`}>Update Aktivitas</Text>
-
             {/* Input Form */}
             <View style={tw`mb-6`}>
                 <TextInput
                     style={tw`bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm h-20 mb-3`}
                     multiline
                     textAlignVertical="top"
-                    placeholder="Tulis update aktivitas..."
-                    value={resolutionNotes} // Reuse specific state or create new one? reusing for now
+                    placeholder="Tulis diskusi..."
+                    value={resolutionNotes}
                     onChangeText={setResolutionNotes}
                 />
 
@@ -787,7 +785,7 @@ export default function WorkOrderDetailScreen() {
                         {updateConfigLoading ? (
                             <ActivityIndicator size="small" color="#fff" />
                         ) : (
-                            <Text style={tw`text-white font-bold text-sm`}>Kirim Update</Text>
+                            <Text style={tw`text-white font-bold text-sm`}>Kirim</Text>
                         )}
                     </TouchableOpacity>
                 </View>
@@ -795,17 +793,52 @@ export default function WorkOrderDetailScreen() {
 
             <View style={tw`h-0.5 bg-gray-100 mb-6`} />
 
-            <Text style={tw`text-xs text-gray-400 font-bold mb-4 uppercase`}>Riwayat Aktivitas</Text>
-            {wo.updates?.map((update: any, index: number) => (
+            <Text style={tw`text-xs text-gray-400 font-bold mb-4 uppercase`}>Diskusi</Text>
+            {wo.updates?.filter((u: any) => ['COMMENT', 'NOTE', 'PHOTO'].includes(u.updateType)).map((update: any, index: number) => (
                 <View key={index} style={tw`flex-row mb-6 relative`}>
                     {/* Line */}
-                    {index !== wo.updates.length - 1 && (
+                    {index !== wo.updates.filter((u: any) => ['COMMENT', 'NOTE', 'PHOTO'].includes(u.updateType)).length - 1 && (
                         <View style={tw`absolute left-3 top-6 bottom--6 w-0.5 bg-gray-200`} />
                     )}
 
                     {/* Dot */}
                     <View style={tw`w-6 h-6 rounded-full bg-blue-100 items-center justify-center mr-3 z-10`}>
                         <View style={tw`w-2 h-2 rounded-full bg-blue-600`} />
+                    </View>
+
+                    {/* Content */}
+                    <View style={tw`flex-1`}>
+                        <View style={tw`flex-row justify-between items-start`}>
+                            <Text style={tw`font-bold text-gray-800 text-sm`}>
+                                {update.createdBy?.name || 'Unknown'}
+                            </Text>
+                            <Text style={tw`text-xs text-gray-500 mb-0.5`}>
+                                {format(new Date(update.createdAt), 'dd MMM HH:mm', { locale: idLocale })}
+                            </Text>
+                        </View>
+                        <Text style={tw`text-gray-600 text-sm mt-1 leading-5`}>{update.message}</Text>
+                    </View>
+                </View>
+            ))}
+            {(!wo.updates || wo.updates.filter((u: any) => ['COMMENT', 'NOTE', 'PHOTO'].includes(u.updateType)).length === 0) && (
+                <Text style={tw`text-center text-gray-400 py-4`}>Belum ada diskusi</Text>
+            )}
+        </View>
+    );
+
+    const renderTimelineTab = () => (
+        <View style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}>
+            <Text style={tw`text-xs text-gray-400 font-bold mb-4 uppercase`}>Riwayat Aktivitas</Text>
+            {wo.updates?.filter((u: any) => !['COMMENT', 'NOTE', 'PHOTO'].includes(u.updateType)).map((update: any, index: number, arr: any[]) => (
+                <View key={index} style={tw`flex-row mb-6 relative`}>
+                    {/* Line */}
+                    {index !== arr.length - 1 && (
+                        <View style={tw`absolute left-3 top-6 bottom--6 w-0.5 bg-gray-200`} />
+                    )}
+
+                    {/* Dot */}
+                    <View style={tw`w-6 h-6 rounded-full bg-gray-100 items-center justify-center mr-3 z-10`}>
+                        <View style={tw`w-2 h-2 rounded-full bg-gray-400`} />
                     </View>
 
                     {/* Content */}
@@ -820,18 +853,14 @@ export default function WorkOrderDetailScreen() {
                         </Text>
                         <Text style={tw`text-gray-600 text-sm mt-1 leading-5`}>{update.message}</Text>
 
-                        {/* Show Attachment if any (Need to filter attachments by match? Or just show general logic?) 
-                            Ideally updates should be linked to attachments, but simple list for now.
-                        */}
-
                         {update.createdBy && (
                             <Text style={tw`text-xs text-gray-400 mt-1 italic`}>Oleh: {update.createdBy.name}</Text>
                         )}
                     </View>
                 </View>
             ))}
-            {(!wo.updates || wo.updates.length === 0) && (
-                <Text style={tw`text-center text-gray-400 py-4`}>Belum ada riwayat aktivitas</Text>
+            {(!wo.updates || wo.updates.filter((u: any) => !['COMMENT', 'NOTE', 'PHOTO'].includes(u.updateType)).length === 0) && (
+                <Text style={tw`text-center text-gray-400 py-4`}>Belum ada riwayat sistem</Text>
             )}
         </View>
     );
@@ -919,6 +948,7 @@ export default function WorkOrderDetailScreen() {
                     { key: 'INFO', label: 'Info', icon: FileText },
                     { key: 'TASKS', label: 'Tugas', icon: ListChecks },
                     { key: 'ITEMS', label: 'Barang', icon: Package },
+                    { key: 'DISKUSI', label: 'Diskusi', icon: MessageSquare },
                     { key: 'TIMELINE', label: 'Riwayat', icon: History },
                 ].map((tab: any) => (
                     <TouchableOpacity
@@ -938,6 +968,7 @@ export default function WorkOrderDetailScreen() {
                 {activeTab === 'INFO' && renderInfoTab()}
                 {activeTab === 'TASKS' && renderTasksTab()}
                 {activeTab === 'ITEMS' && renderItemsTab()}
+                {activeTab === 'DISKUSI' && renderDiscussionTab()}
                 {activeTab === 'TIMELINE' && renderTimelineTab()}
 
                 {/* Completion Form - Removed (Moved to separate screen) */}
