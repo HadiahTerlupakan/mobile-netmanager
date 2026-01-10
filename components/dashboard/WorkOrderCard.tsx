@@ -1,3 +1,4 @@
+import React from 'react';
 import { ArrowRight, FileText } from 'lucide-react-native';
 import { Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
@@ -8,7 +9,7 @@ interface WorkOrderCardProps {
     onPress: () => void;
 }
 
-export const WorkOrderCard = ({ assigned, pending, onPress }: WorkOrderCardProps) => {
+export const WorkOrderCard = React.memo<WorkOrderCardProps>(({ assigned, pending, onPress }) => {
     return (
         <View style={tw`mx-4 mb-4 rounded-xl overflow-hidden shadow-md`}>
             {/* Note: LinearGradient needs expo-linear-gradient package. 
@@ -46,4 +47,4 @@ export const WorkOrderCard = ({ assigned, pending, onPress }: WorkOrderCardProps
             </View>
         </View>
     );
-};
+});

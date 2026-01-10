@@ -1,10 +1,39 @@
-/**
- * Alert helper - wraps React Native Alert for testability
- */
-import { Alert as RNAlert } from 'react-native';
+import { Alert } from 'react-native';
 
-export const showAlert = (title: string, message?: string) => {
-  RNAlert.alert(title, message);
+type AlertButton = {
+    text: string;
+    style?: 'default' | 'cancel' | 'destructive';
+    onPress?: () => void;
 };
 
-export default { showAlert };
+export const AlertService = {
+    success: (title: string, message: string) => {
+        Alert.alert(title, message, [{ text: 'OK', style: 'default' }]);
+    },
+
+    error: (title: string, message: string) => {
+        Alert.alert(title, message, [{ text: 'OK', style: 'destructive' }]);
+    },
+
+    info: (title: string, message: string) => {
+        Alert.alert(title, message, [{ text: 'OK', style: 'default' }]);
+    },
+
+    confirm: (title: string, message: string, onConfirm: () => void) => {
+        Alert.alert(title, message, [
+            { text: 'Batal', style: 'cancel' },
+            { text: 'OK', onPress: onConfirm, style: 'default' }
+        ]);
+    },
+
+    confirmDestructive: (title: string, message: string, onConfirm: () => void) => {
+        Alert.alert(title, message, [
+            { text: 'Batal', style: 'cancel' },
+            { text: 'Hapus', onPress: onConfirm, style: 'destructive' }
+        ]);
+    },
+
+    custom: (title: string, message: string, buttons: AlertButton[]) => {
+        Alert.alert(title, message, buttons as any);
+    }
+};

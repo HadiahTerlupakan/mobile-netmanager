@@ -61,18 +61,7 @@ export default function WorkOrderScreen() {
         refetchWO().finally(() => setRefreshing(false));
     }, [refetchWO]);
 
-    // WebSocket: Auto-refresh on WO updates
-    const handleWOEvent = useCallback((data: any) => {
-        console.log('[WS Mobile] WO Event received, refreshing list...');
-        refetchWO();
-    }, [refetchWO]);
-
-    // Subscribe to WO events for real-time updates
-    useSocketEvent(SOCKET_EVENTS.WORKORDER_NEW, handleWOEvent);
-    useSocketEvent(SOCKET_EVENTS.WORKORDER_UPDATE, handleWOEvent);
-    useSocketEvent(SOCKET_EVENTS.WORKORDER_ASSIGNED, handleWOEvent);
-
-    const handleClaimWO = async (workOrderId: string) => {
+    const handleClaimWO = useCallback(async (workOrderId: string) => {
         Alert.alert(
             'Ambil Tugas',
             'Apakah Anda yakin ingin mengambil tugas ini?',
@@ -82,9 +71,9 @@ export default function WorkOrderScreen() {
                     text: 'Ya, Ambil',
                     onPress: async () => {
                         setClaiming(workOrderId);
-                        
+
                         const isOnline = await SyncService.isOnline();
-                        
+
                         // Optimistic Update (Offline)
                         if (!isOnline) {
                              Alert.alert('Offline', 'Permintaan disimpan di antrian.');
@@ -111,7 +100,122 @@ export default function WorkOrderScreen() {
                 }
             ]
         );
-    };
+    }, [claimMutate]);
+
+    // Extract renderItem untuk optimasi FlatList
+    const renderItem = useCallback(({ item }: { item: any }) => (
+        <View>
+            {activeTab === 'tersedia' ? (
+                <View>
+                    <View style={tw`bg-white mx-4 mt-3 p-4 rounded-xl shadow-sm border border-blue-100`}>
+                        {/* Header: WO Number & Status */}
+                        <View style={tw`flex-row justify-between items-start mb-2`}>
+                            <Text style={tw`font-bold text-gray-800`}>{item.workOrderNumber}</Text>
+                            <View style={tw`px-2 py-0.5 rounded-full bg-yellow-100`}>
+                                <Text style={tw`text-xs font-bold text-yellow-700`}>TERSEDIA</Text>
+                            </View>
+                        </View>
+
+                        {/* Title */}
+                        <Text style={tw`text-base font-semibold text-gray-900 mb-3`} numberOfLines={2}>
+                            {item.title}
+                        </Text>
+
+                        {/* Contact Info */}
+                        {(item.contactName || item.pelanggan?.nama) && (
+                            <View style={tw`flex-row items-center mb-2`}>
+                                <User size={14} color="#6b7280" style={tw`mr-2`} />
+                                <Text style={tw`text-sm text-gray-700 font-medium`}>
+                                    {item.contactName || item.pelanggan?.nama}
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Phone - Tappable */}
+                        {(item.contactPhone || item.pelanggan?.noTelp) && (
+                            <TouchableOpacity
+                                onPress={() => {
+                                    const phone = item.contactPhone || item.pelanggan?.noTelp;
+                                    if (phone) {
+                                        const { Linking } = require('react-native');
+                                        let formatPhone = phone.replace(/\D/g, '');
+                                        if (formatPhone.startsWith('0')) formatPhone = '62' + formatPhone.substring(1);
+                                        Linking.openURL(`whatsapp://send?phone=${formatPhone}`).catch(() => Linking.openURL(`tel:${phone}`));
+                                    }
+                                }}
+                                style={tw`flex-row items-center mb-2`}
+                            >
+                                <Phone size={14} color="#2563eb" style={tw`mr-2`} />
+                                <Text style={tw`text-sm text-blue-600 font-medium`}>
+                                    {item.contactPhone || item.pelanggan?.noTelp}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {/* Location */}
+                        {(item.locationAddress || item.pelanggan?.alamat || item.site?.name) && (
+                            <TouchableOpacity
+                                onPress={() => {
+                                    const address = item.locationAddress || item.pelanggan?.alamat || item.site?.name;
+                                    if (address) {
+                                        const { Linking } = require('react-native');
+                                        const query = encodeURIComponent(address);
+                                        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+                                    }
+                                }}
+                                style={tw`flex-row items-start mb-3`}
+                            >
+                                <MapPin size={14} color="#dc2626" style={tw`mr-2 mt-0.5`} />
+                                <Text style={tw`text-sm text-gray-600 flex-1`} numberOfLines={2}>
+                                    {item.locationAddress || item.pelanggan?.alamat || item.site?.name}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {/* Tags & Ambil Button */}
+                        <View style={tw`flex-row items-center justify-between pt-2 border-t border-gray-100`}>
+                            <View style={tw`flex-row gap-2`}>
+                                <View style={tw`px-2 py-0.5 rounded bg-gray-100`}>
+                                    <Text style={tw`text-xs text-gray-600`}>{item.type}</Text>
+                                </View>
+                                <View style={tw`px-2 py-0.5 rounded ${item.priority === 'HIGH' || item.priority === 'URGENT' || item.priority === 'CRITICAL' ? 'bg-red-100' : 'bg-blue-100'}`}>
+                                    <Text style={tw`text-xs ${item.priority === 'HIGH' || item.priority === 'URGENT' || item.priority === 'CRITICAL' ? 'text-red-600' : 'text-blue-600'}`}>
+                                        {item.priority}
+                                    </Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => handleClaimWO(item.id)}
+                                disabled={claiming === item.id}
+                                style={tw`bg-blue-600 px-4 py-2 rounded-lg ${claiming === item.id ? 'opacity-50' : ''}`}
+                            >
+                                {claiming === item.id ? (
+                                    <ActivityIndicator size="small" color="white" />
+                                ) : (
+                                    <Text style={tw`text-white font-bold text-sm`}>Ambil</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            ) : (
+                <TouchableOpacity onPress={() => router.push(`/work-order-detail/${item.id}`)}>
+                    <WorkOrderListItem item={item} userId={user?.id} />
+                </TouchableOpacity>
+            )}
+        </View>
+    ), [activeTab, claiming, router, user?.id, handleClaimWO]);
+
+    // WebSocket: Auto-refresh on WO updates
+    const handleWOEvent = useCallback((data: any) => {
+        console.log('[WS Mobile] WO Event received, refreshing list...');
+        refetchWO();
+    }, [refetchWO]);
+
+    // Subscribe to WO events for real-time updates
+    useSocketEvent(SOCKET_EVENTS.WORKORDER_NEW, handleWOEvent);
+    useSocketEvent(SOCKET_EVENTS.WORKORDER_UPDATE, handleWOEvent);
+    useSocketEvent(SOCKET_EVENTS.WORKORDER_ASSIGNED, handleWOEvent);
 
     const getTabStyle = (tab: TabType) => {
         const isActive = activeTab === tab;
@@ -184,108 +288,7 @@ export default function WorkOrderScreen() {
                 <FlatList
                     data={workOrders}
                     keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                        <View>
-                            {activeTab === 'tersedia' ? (
-                                <View>
-                                    <View style={tw`bg-white mx-4 mt-3 p-4 rounded-xl shadow-sm border border-blue-100`}>
-                                        {/* Header: WO Number & Status */}
-                                        <View style={tw`flex-row justify-between items-start mb-2`}>
-                                            <Text style={tw`font-bold text-gray-800`}>{item.workOrderNumber}</Text>
-                                            <View style={tw`px-2 py-0.5 rounded-full bg-yellow-100`}>
-                                                <Text style={tw`text-xs font-bold text-yellow-700`}>TERSEDIA</Text>
-                                            </View>
-                                        </View>
-
-                                        {/* Title */}
-                                        <Text style={tw`text-base font-semibold text-gray-900 mb-3`} numberOfLines={2}>
-                                            {item.title}
-                                        </Text>
-
-                                        {/* Contact Info */}
-                                        {(item.contactName || item.pelanggan?.nama) && (
-                                            <View style={tw`flex-row items-center mb-2`}>
-                                                <User size={14} color="#6b7280" style={tw`mr-2`} />
-                                                <Text style={tw`text-sm text-gray-700 font-medium`}>
-                                                    {item.contactName || item.pelanggan?.nama}
-                                                </Text>
-                                            </View>
-                                        )}
-
-                                        {/* Phone - Tappable */}
-                                        {(item.contactPhone || item.pelanggan?.noTelp) && (
-                                            <TouchableOpacity
-                                                onPress={() => {
-                                                    const phone = item.contactPhone || item.pelanggan?.noTelp;
-                                                    if (phone) {
-                                                        const { Linking } = require('react-native');
-                                                        let formatPhone = phone.replace(/\D/g, '');
-                                                        if (formatPhone.startsWith('0')) formatPhone = '62' + formatPhone.substring(1);
-                                                        Linking.openURL(`whatsapp://send?phone=${formatPhone}`).catch(() => Linking.openURL(`tel:${phone}`));
-                                                    }
-                                                }}
-                                                style={tw`flex-row items-center mb-2`}
-                                            >
-                                                <Phone size={14} color="#2563eb" style={tw`mr-2`} />
-                                                <Text style={tw`text-sm text-blue-600 font-medium`}>
-                                                    {item.contactPhone || item.pelanggan?.noTelp}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        )}
-
-                                        {/* Location */}
-                                        {(item.locationAddress || item.pelanggan?.alamat || item.site?.name) && (
-                                            <TouchableOpacity
-                                                onPress={() => {
-                                                    const address = item.locationAddress || item.pelanggan?.alamat || item.site?.name;
-                                                    if (address) {
-                                                        const { Linking } = require('react-native');
-                                                        const query = encodeURIComponent(address);
-                                                        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
-                                                    }
-                                                }}
-                                                style={tw`flex-row items-start mb-3`}
-                                            >
-                                                <MapPin size={14} color="#dc2626" style={tw`mr-2 mt-0.5`} />
-                                                <Text style={tw`text-sm text-gray-600 flex-1`} numberOfLines={2}>
-                                                    {item.locationAddress || item.pelanggan?.alamat || item.site?.name}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        )}
-
-                                        {/* Tags & Ambil Button */}
-                                        <View style={tw`flex-row items-center justify-between pt-2 border-t border-gray-100`}>
-                                            <View style={tw`flex-row gap-2`}>
-                                                <View style={tw`px-2 py-0.5 rounded bg-gray-100`}>
-                                                    <Text style={tw`text-xs text-gray-600`}>{item.type}</Text>
-                                                </View>
-                                                <View style={tw`px-2 py-0.5 rounded ${item.priority === 'HIGH' || item.priority === 'URGENT' || item.priority === 'CRITICAL' ? 'bg-red-100' : 'bg-blue-100'}`}>
-                                                    <Text style={tw`text-xs ${item.priority === 'HIGH' || item.priority === 'URGENT' || item.priority === 'CRITICAL' ? 'text-red-600' : 'text-blue-600'}`}>
-                                                        {item.priority}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                            <TouchableOpacity
-                                                onPress={() => handleClaimWO(item.id)}
-                                                disabled={claiming === item.id}
-                                                style={tw`bg-blue-600 px-4 py-2 rounded-lg ${claiming === item.id ? 'opacity-50' : ''}`}
-                                            >
-                                                {claiming === item.id ? (
-                                                    <ActivityIndicator size="small" color="white" />
-                                                ) : (
-                                                    <Text style={tw`text-white font-bold text-sm`}>Ambil</Text>
-                                                )}
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                </View>
-                            ) : (
-                                <TouchableOpacity onPress={() => router.push(`/work-order-detail/${item.id}`)}>
-                                    <WorkOrderListItem item={item} userId={user?.id} />
-                                </TouchableOpacity>
-                            )}
-                        </View>
-                    )}
+                    renderItem={renderItem}
                     contentContainerStyle={tw`pb-20 pt-1 ${activeTab !== 'tersedia' ? 'px-4' : ''}`}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
@@ -297,6 +300,12 @@ export default function WorkOrderScreen() {
                             <Text style={tw`text-gray-400 mt-4`}>{getEmptyMessage()}</Text>
                         </View>
                     }
+                    // Performance optimizations
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={10}
+                    initialNumToRender={10}
+                    windowSize={5}
+                    updateCellsBatchingPeriod={50}
                 />
             )}
         </SafeAreaView>

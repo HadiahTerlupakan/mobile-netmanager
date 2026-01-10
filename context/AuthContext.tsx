@@ -3,7 +3,7 @@ import { addNotificationListeners, registerForPushNotificationsAsync } from '@/s
 import api from '@/services/api';
 import logger from '@/utils/logger';
 import * as SecureStore from 'expo-secure-store';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
 
 type User = {
@@ -29,37 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        loadStorageData();
-
-        // Listen for unauthorized events
-        const subscription = DeviceEventEmitter.addListener(Events.AUTH_UNAUTHORIZED, () => {
-            logger.warn('[Auth] Received unauthorized event, logging out...');
-            signOut();
-        });
-
-        return () => {
-            subscription.remove();
-        };
-    }, []);
-
-    // Setup notification listeners when user is logged in
-    useEffect(() => {
-        if (token) {
-            const cleanup = addNotificationListeners(
-                (notification) => {
-                    logger.info('[Push] Received:', notification.request.content.title);
-                },
-                (response) => {
-                    logger.info('[Push] Tapped:', response.notification.request.content.title);
-                    // TODO: Navigate to notification target
-                }
-            );
-            return cleanup;
-        }
-    }, [token]);
-
-    async function loadStorageData() {
+    const loadStorageData = useCallback(async () => {
         try {
             const storedToken = await SecureStore.getItemAsync('session_token');
             const storedUser = await SecureStore.getItemAsync('user_data');
@@ -76,9 +46,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } finally {
             setIsLoading(false);
         }
-    }
+    }, []);
 
-    async function signIn(newToken: string, userData: User) {
+    const signIn = useCallback(async (newToken: string, userData: User) => {
         setIsLoading(true);
         logger.auth('signIn started for:', userData.email);
         try {
@@ -103,9 +73,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsLoading(false);
             logger.auth('Loading state set to false');
         }
-    }
+    }, []);
 
-    async function signOut() {
+    const signOut = useCallback(async () => {
         try {
             // Remove push token from backend
             if (token) {
@@ -123,13 +93,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
             logger.error('Sign out error', error);
         }
-    }
+    }, [token]);
 
-    // Alias for signOut
+    // Alias for signOut - also memoized
     const logout = signOut;
 
+    // Memoize context value to prevent unnecessary re-renders
+    const contextValue = useMemo<AuthContextType>(() => ({
+        user,
+        token,
+        isLoading,
+        signIn,
+        signOut,
+        logout
+    }), [user, token, isLoading, signIn, signOut, logout]);
+
+    useEffect(() => {
+        loadStorageData();
+
+        // Listen for unauthorized events
+        const subscription = DeviceEventEmitter.addListener(Events.AUTH_UNAUTHORIZED, () => {
+            logger.warn('[Auth] Received unauthorized event, logging out...');
+            signOut();
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, [signOut, loadStorageData]);
+
+    // Setup notification listeners when user is logged in
+    useEffect(() => {
+        if (token) {
+            const cleanup = addNotificationListeners(
+                (notification) => {
+                    logger.info('[Push] Received:', notification.request.content.title);
+                },
+                (response) => {
+                    logger.info('[Push] Tapped:', response.notification.request.content.title);
+                    // TODO: Navigate to notification target
+                }
+            );
+            return cleanup;
+        }
+    }, [token]);
+
     return (
-        <AuthContext.Provider value={{ user, token, isLoading, signIn, signOut, logout }}>
+        <AuthContext.Provider value={contextValue}>
             {children}
         </AuthContext.Provider>
     );
