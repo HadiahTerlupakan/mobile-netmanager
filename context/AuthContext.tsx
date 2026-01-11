@@ -3,7 +3,7 @@ import { addNotificationListeners, registerForPushNotificationsAsync } from '@/s
 import api from '@/services/api';
 import logger from '@/utils/logger';
 import * as SecureStore from 'expo-secure-store';
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
 
 type User = {
@@ -11,6 +11,8 @@ type User = {
     name: string;
     email: string;
     role: string;
+    features?: string[];
+    image?: string | null;
 };
 
 type AuthContextType = {
@@ -20,6 +22,7 @@ type AuthContextType = {
     signIn: (token: string, userData: User) => Promise<void>;
     signOut: () => Promise<void>;
     logout: () => Promise<void>;
+    updateUser: (userData: User) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -95,6 +98,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, [token]);
 
+    const updateUser = useCallback(async (userData: User) => {
+        try {
+            logger.auth('Updating user data in storage...');
+            await SecureStore.setItemAsync('user_data', JSON.stringify(userData));
+            setUser(userData);
+        } catch (error) {
+            logger.error('Failed to update user data', error);
+        }
+    }, []);
+
     // Alias for signOut - also memoized
     const logout = signOut;
 
@@ -105,8 +118,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         signIn,
         signOut,
-        logout
-    }), [user, token, isLoading, signIn, signOut, logout]);
+        logout,
+        updateUser
+    }), [user, token, isLoading, signIn, signOut, logout, updateUser]);
 
     useEffect(() => {
         loadStorageData();

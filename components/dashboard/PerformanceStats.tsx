@@ -1,17 +1,18 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { Text, View } from 'react-native';
 import tw from 'twrnc';
 
 interface PerformanceStatsProps {
     today: number;
     week: number;
     month: number;
+    title?: string;
 }
 
-export const PerformanceStats = ({ today, week, month }: PerformanceStatsProps) => {
+export const PerformanceStats = ({ today, week, month, title = 'Tiket Selesai' }: PerformanceStatsProps) => {
     return (
         <View style={tw`mx-4 mb-4 bg-white rounded-xl p-4 shadow-sm border border-gray-100`}>
-            <Text style={tw`text-sm font-bold text-gray-900 mb-3`}>Tiket Selesai</Text>
+            <Text style={tw`text-sm font-bold text-gray-900 mb-3`}>{title}</Text>
             <View style={tw`flex-row justify-between`}>
                 <StatBox value={today} label="Hari Ini" bg="bg-blue-50" text="text-blue-600" />
                 <View style={tw`w-2`} />

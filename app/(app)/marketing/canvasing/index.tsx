@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 export default function CanvasingListScreen() {
@@ -24,7 +24,7 @@ export default function CanvasingListScreen() {
         enabled: !!token
     });
 
-    const { data: profile } = useOfflineQuery<any>({
+    const { data: profile, isLoading: profileLoading } = useOfflineQuery<any>({
         key: 'user_profile',
         fetcher: async () => {
             const res = await axios.get(`${Config.API_URL}/api/mobile/profile`, {
@@ -34,6 +34,12 @@ export default function CanvasingListScreen() {
         },
         enabled: !!token
     });
+
+    // Check if user has access to canvasing feature
+    const hasAccess = useMemo(() => {
+        const features = profile?.features || [];
+        return features.includes('canvasing') || features.includes('sales');
+    }, [profile?.features]);
 
     const stats = useMemo(() => {
         if (!requests) return { total: 0, approved: 0, pending: 0, points: 0, rate: 0 };
@@ -49,6 +55,39 @@ export default function CanvasingListScreen() {
             rate: requests.length > 0 ? Math.round((approvedCount / requests.length) * 100) : 0
         };
     }, [requests]);
+
+    // Show loading while checking access
+    if (profileLoading) {
+        return (
+            <View style={tw`flex-1 bg-gray-50 items-center justify-center`}>
+                <ActivityIndicator size="large" color="#4f46e5" />
+                <Text style={tw`text-gray-500 mt-4`}>Memuat...</Text>
+            </View>
+        );
+    }
+
+    // Access denied screen
+    if (!hasAccess) {
+        return (
+            <View style={tw`flex-1 bg-gray-50 items-center justify-center px-8`}>
+                <View style={tw`bg-red-50 p-5 rounded-full mb-6`}>
+                    <Ionicons name="lock-closed" size={48} color="#dc2626" />
+                </View>
+                <Text style={tw`text-xl font-bold text-gray-900 text-center mb-2`}>Akses Terbatas</Text>
+                <Text style={tw`text-gray-500 text-center mb-8`}>
+                    Anda tidak memiliki izin untuk mengakses fitur Canvasing. Hubungi administrator untuk mendapatkan akses.
+                </Text>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={tw`bg-indigo-600 px-8 py-3 rounded-xl`}
+                >
+                    <Text style={tw`text-white font-bold`}>Kembali</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+
 
     const filteredRequests = requests?.filter(item => 
         item.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||

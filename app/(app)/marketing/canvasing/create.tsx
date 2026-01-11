@@ -1,10 +1,11 @@
 import { LocationPickerModal } from '@/components/marketing/LocationPickerModal';
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { Camera, ChevronLeft, Image as ImageIcon, Info, Map as MapIcon, MapPin, Package, Settings, User, X } from 'lucide-react-native';
-import React, { useState } from 'react';
+import { Camera, ChevronLeft, Image as ImageIcon, Info, Map as MapIcon, MapPin, Package, RotateCcw, Settings, User, X, Zap, ZapOff } from 'lucide-react-native';
+import React, { useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -12,6 +13,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    StatusBar,
     Text,
     TextInput,
     TouchableOpacity,
@@ -54,30 +56,35 @@ export default function CreateCanvasingScreen() {
     const [fotoKtpLocal, setFotoKtpLocal] = useState<string | null>(null);
     const [showMapModal, setShowMapModal] = useState(false);
 
+    // Camera State
+    const [showCamera, setShowCamera] = useState(false);
+    const [targetPhoto, setTargetPhoto] = useState<'foto' | 'ktp'>('foto');
+    const [permission, requestPermission] = useCameraPermissions();
+    const [facing, setFacing] = useState<CameraType>('back');
+    const [flash, setFlash] = useState<'off' | 'on'>('off');
+    const cameraRef = useRef<CameraView>(null);
+
     const { mutate, isLoading: isMutating } = useOfflineMutation();
 
-    // handleGetLocation removed in favor of Modal
-
-    const pickImage = async (type: 'foto' | 'ktp', useCamera: boolean = false) => {
-        try {
-            const permissionResult = useCamera 
-                ? await ImagePicker.requestCameraPermissionsAsync()
-                : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-            if (!permissionResult.granted) {
-                Alert.alert('Izin Ditolak', `Aplikasi butuh izin ${useCamera ? 'kamera' : 'galeri'} untuk mengambil foto.`);
+    const openCamera = async (type: 'foto' | 'ktp') => {
+        if (!permission?.granted) {
+            const result = await requestPermission();
+            if (!result.granted) {
+                Alert.alert('Izin Ditolak', 'Aplikasi butuh izin kamera untuk mengambil foto.');
                 return;
             }
+        }
+        setTargetPhoto(type);
+        setFacing('back'); // Default back camera
+        setShowCamera(true);
+    };
 
-            const result = useCamera
-                ? await ImagePicker.launchCameraAsync({
-                    allowsEditing: false,
-                    quality: 0.7,
-                })
-                : await ImagePicker.launchImageLibraryAsync({
-                    allowsEditing: false,
-                    quality: 0.7,
-                });
+    const handleGalleryPick = async (type: 'foto' | 'ktp') => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                allowsEditing: false,
+                quality: 0.7,
+            });
 
             if (!result.canceled) {
                 const manipulated = await ImageManipulator.manipulateAsync(
@@ -90,8 +97,45 @@ export default function CreateCanvasingScreen() {
                 else setFotoKtpLocal(manipulated.uri);
             }
         } catch (error) {
-            console.error('Pick image error:', error);
-            Alert.alert('Error', 'Gagal memproses gambar');
+            console.error('Gallery pick error:', error);
+            Alert.alert('Error', 'Gagal mengambil gambar dari galeri');
+        }
+    };
+
+    const handleCapture = async () => {
+        if (!cameraRef.current) return;
+        
+        try {
+            const photo = await cameraRef.current.takePictureAsync({
+                quality: 0.7,
+                skipProcessing: false
+            });
+
+            if (photo?.uri) {
+                // Define manipulation actions
+                const actions: ImageManipulator.Action[] = [{ resize: { width: 1024 } }];
+
+                // Retrieve current target
+                // If it's KTP, we forced a Portrait photo of a Landscape doc.
+                // We rotate it -90 (or 90) to restore it to Landscape orientation for the preview/upload.
+                if (targetPhoto === 'ktp') {
+                    actions.push({ rotate: -90 });
+                }
+
+                const manipulated = await ImageManipulator.manipulateAsync(
+                    photo.uri,
+                    actions,
+                    { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+                );
+
+                if (targetPhoto === 'foto') setFotoLocal(manipulated.uri);
+                else setFotoKtpLocal(manipulated.uri);
+                
+                setShowCamera(false);
+            }
+        } catch (error) {
+            console.error('Capture error:', error);
+            Alert.alert('Error', 'Gagal mengambil foto');
         }
     };
 
@@ -106,14 +150,11 @@ export default function CreateCanvasingScreen() {
             return;
         }
 
-        if (!form.latitude || !form.longitude) {
-            Alert.alert('Peringatan', 'Lokasi (Tikor) wajib diisi. Silakan pilih dari Map atau gunakan Link Shareloc agar lokasi akurat.');
-            return;
-        }
-
         setIsLoading(true);
         try {
             const kabelNum = parseInt(form.kabel);
+            
+            // Prepare photo map for upload
             const photoMap: Record<string, string> = {};
             if (fotoLocal) photoMap['foto'] = fotoLocal;
             if (fotoKtpLocal) photoMap['fotoKtp'] = fotoKtpLocal;
@@ -136,14 +177,81 @@ export default function CreateCanvasingScreen() {
                          ]);
                     },
                     onError: (err) => {
+                        console.error('Submit error:', err);
                         Alert.alert('Gagal', err.message || 'Terjadi kesalahan saat menyimpan data');
                     }
                 }
             );
+        } catch (error) {
+            console.error('Submit exception:', error);
+            Alert.alert('Error', 'Terjadi kesalahan sistem');
         } finally {
             setIsLoading(false);
         }
     };
+
+    // Custom Camera View
+    if (showCamera) {
+        return (
+            <View style={tw`flex-1 bg-black`}>
+                <StatusBar hidden />
+                <CameraView
+                    style={tw`flex-1`}
+                    facing={facing}
+                    flash={flash}
+                    ref={cameraRef}
+                >
+                    {/* Top Controls */}
+                    <View style={tw`flex-row justify-between p-6 pt-12 bg-black/30`}>
+                        <TouchableOpacity onPress={() => setShowCamera(false)} style={tw`bg-black/40 p-2 rounded-full`}>
+                            <X color="white" size={24} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setFlash(f => f === 'off' ? 'on' : 'off')} style={tw`bg-black/40 p-2 rounded-full`}>
+                           {flash === 'on' ? <Zap color="#facc15" size={24} /> : <ZapOff color="white" size={24} />}
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Guide Overlay */}
+                    <View style={tw`flex-1 items-center justify-center`}>
+                        {targetPhoto === 'ktp' ? (
+                            <View style={tw`relative items-center justify-center`}>
+                                {/* Dark overlay around the box - top */}
+                                <View style={tw`absolute -top-[1000px] left-0 right-0 h-[1000px] bg-black/60`} />
+                                {/* Dark overlay around the box - bottom */}
+                                <View style={tw`absolute -bottom-[1000px] left-0 right-0 h-[1000px] bg-black/60`} />
+                                {/* Dark overlay around the box - left */}
+                                <View style={tw`absolute top-0 -left-[1000px] w-[1000px] bottom-0 bg-black/60`} />
+                                {/* Dark overlay around the box - right */}
+                                <View style={tw`absolute top-0 -right-[1000px] w-[1000px] bottom-0 bg-black/60`} />
+                                
+                                {/* The KTP Box - Fixed Dimensions 1:1.58 Portrait (280px x 444px) - Larger for better visibility */}
+                                <View style={tw`w-[280px] h-[444px] border-2 border-white/80 rounded-xl bg-transparent relative z-10`}>
+                                    <View style={tw`absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-xl`} />
+                                    <View style={tw`absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-xl`} />
+                                    <View style={tw`absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-xl`} />
+                                    <View style={tw`absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-xl`} />
+                                </View>
+                            </View>
+                        ) : (
+                            // Simple guide for location/photo
+                             <View style={tw`w-[80%] aspect-square border border-white/30 border-dashed rounded-3xl relative`} />
+                        )}
+                    </View>
+
+                    {/* Bottom Controls */}
+                    <View style={tw`flex-row items-center justify-around pb-12 pt-6 bg-black/40`}>
+                        <View style={tw`w-12`} /> 
+                        <TouchableOpacity onPress={handleCapture} style={tw`w-20 h-20 bg-white rounded-full border-4 border-gray-300 items-center justify-center`}>
+                            <View style={tw`w-16 h-16 bg-white rounded-full border-2 border-gray-200`} />
+                        </TouchableOpacity>
+                         <TouchableOpacity onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')} style={tw`w-12 items-center`}>
+                            <RotateCcw color="white" size={24} />
+                        </TouchableOpacity>
+                    </View>
+                </CameraView>
+            </View>
+        );
+    }
 
     return (
         <KeyboardAvoidingView 
@@ -181,14 +289,16 @@ export default function CreateCanvasingScreen() {
                         <PhotoPickerField 
                             title="Foto Lokasi / Rumah" 
                             value={fotoLocal} 
-                            onPick={(cam: boolean) => pickImage('foto', cam)} 
+                            onPickCamera={() => openCamera('foto')} 
+                            onPickGallery={() => handleGalleryPick('foto')}
                             onRemove={() => setFotoLocal(null)}
                         />
                         <View style={tw`h-px bg-gray-50 my-4`} />
                         <PhotoPickerField 
                             title="Foto Kartu Identitas (KTP)" 
                             value={fotoKtpLocal} 
-                            onPick={(cam: boolean) => pickImage('ktp', cam)} 
+                            onPickCamera={() => openCamera('ktp')} 
+                            onPickGallery={() => handleGalleryPick('ktp')}
                             onRemove={() => setFotoKtpLocal(null)}
                             required
                         />
@@ -269,6 +379,12 @@ export default function CreateCanvasingScreen() {
                                 />
                             </View>
                         </View>
+                        <InputField 
+                            label="Serial Number (SN)" 
+                            placeholder="Contoh: ZTE..." 
+                            value={form.sn}
+                            onChangeText={(text: string) => setForm({...form, sn: text})}
+                        />
                         <View style={tw`mb-5`}>
                             <Text style={tw`text-[10px] text-gray-400 font-black uppercase tracking-widest mb-2 ml-1`}>
                                 Link Shareloc (Google Maps)
@@ -280,23 +396,15 @@ export default function CreateCanvasingScreen() {
                                     placeholderTextColor="#d1d5db"
                                     value={form.shareloc}
                                     onChangeText={(text: string) => {
-                                        // Try to parse lat/long from URL
                                         let lat = form.latitude;
                                         let lng = form.longitude;
-                                        
-                                        // Regex for standard maps link with q=lat,lng or @lat,lng
                                         const regex = /[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)/;
                                         const match = text.match(regex);
-                                        
                                         if (match) {
                                             const [coords] = match;
                                             const [l, g] = coords.split(',').map(s => parseFloat(s.trim()));
-                                            if (!isNaN(l) && !isNaN(g)) {
-                                                lat = l;
-                                                lng = g;
-                                            }
+                                            if (!isNaN(l) && !isNaN(g)) { lat = l; lng = g; }
                                         }
-
                                         setForm({...form, shareloc: text, latitude: lat, longitude: lng});
                                     }}
                                     autoCapitalize="none"
@@ -308,13 +416,12 @@ export default function CreateCanvasingScreen() {
                                     <MapIcon size={20} color="#2563eb" />
                                 </TouchableOpacity>
                             </View>
-                            {/* Coordinate Indicator */}
                             <View style={tw`flex-row items-center ml-1`}>
                                 <View style={tw`w-2 h-2 rounded-full ${form.latitude ? 'bg-emerald-500' : 'bg-gray-300'} mr-2`} />
                                 <Text style={tw`text-[10px] font-bold ${form.latitude ? 'text-emerald-600' : 'text-gray-400'}`}>
                                     {form.latitude && form.longitude 
                                         ? `Tikor: ${form.latitude.toFixed(6)}, ${form.longitude.toFixed(6)}`
-                                        : 'Koordinat belum terdeteksi (Pilih Map / Paste Link)'}
+                                        : 'Koordinat belum terdeteksi'}
                                 </Text>
                             </View>
                         </View>
@@ -395,7 +502,7 @@ function InputField({ label, placeholder, value, onChangeText, required, ...prop
     );
 }
 
-function PhotoPickerField({ title, value, onPick, onRemove, required }: any) {
+function PhotoPickerField({ title, value, onPickCamera, onPickGallery, onRemove, required }: any) {
     return (
         <View>
             <Text style={tw`text-[10px] text-gray-400 font-black uppercase tracking-widest mb-3 ml-1`}>
@@ -416,7 +523,7 @@ function PhotoPickerField({ title, value, onPick, onRemove, required }: any) {
             ) : (
                 <View style={tw`flex-row gap-3`}>
                     <TouchableOpacity 
-                        onPress={() => onPick(true)}
+                        onPress={onPickCamera}
                         activeOpacity={0.7}
                         style={tw`flex-1 h-20 items-center justify-center bg-blue-50/50 border border-dashed border-blue-200 rounded-2xl gap-2`}
                     >
@@ -426,7 +533,7 @@ function PhotoPickerField({ title, value, onPick, onRemove, required }: any) {
                         <Text style={tw`text-blue-600 text-[10px] font-black uppercase`}>Kamera</Text>
                     </TouchableOpacity>
                     <TouchableOpacity 
-                        onPress={() => onPick(false)}
+                        onPress={onPickGallery}
                         activeOpacity={0.7}
                         style={tw`flex-1 h-20 items-center justify-center bg-gray-50 border border-dashed border-gray-200 rounded-2xl gap-2`}
                     >
