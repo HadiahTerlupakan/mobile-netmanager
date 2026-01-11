@@ -4,7 +4,7 @@ import { useOfflineQuery } from '@/hooks/useOfflineQuery';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, Image, Linking, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Platform, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 export default function CanvasingDetailScreen() {
@@ -12,7 +12,7 @@ export default function CanvasingDetailScreen() {
     const router = useRouter();
     const { token } = useAuth();
 
-    const { data: item, isLoading, refetch, isOfflineData } = useOfflineQuery<any>({
+    const { data: item, isLoading, isOfflineData } = useOfflineQuery<any>({
         key: `marketing_canvasing_detail_${id}`,
         fetcher: async () => {
             const res = await axios.get(`${Config.API_URL}/api/marketing/canvasing/${id}`, {
@@ -24,152 +24,276 @@ export default function CanvasingDetailScreen() {
     });
 
     const openMaps = () => {
-        if (!item?.shareloc) {
-            Alert.alert('Info', 'Link shareloc tidak tersedia');
+        if (item?.latitude && item?.longitude) {
+            const url = Platform.select({
+                ios: `maps:0,0?q=${item.latitude},${item.longitude}`,
+                android: `geo:0,0?q=${item.latitude},${item.longitude}`
+            });
+            if (url) Linking.openURL(url);
             return;
         }
-        Linking.openURL(item.shareloc);
+
+        if (item?.shareloc) {
+             Linking.openURL(item.shareloc);
+             return;
+        }
+        
+        Alert.alert('Info', 'Lokasi tidak tersedia (Map & Lat/Long kosong)');
+    };
+
+    const openWhatsApp = () => {
+        if (!item?.noTelpon) {
+             Alert.alert('Info', 'Nomor telepon tidak tersedia');
+             return;
+        }
+        let phone = item.noTelpon.replace(/\D/g, '').replace(/^0/, '62');
+        if (!phone.startsWith('62')) phone = '62' + phone;
+        Linking.openURL(`https://wa.me/${phone}`);
+    };
+
+    const callNumber = () => {
+        if (!item?.noTelpon) {
+             Alert.alert('Info', 'Nomor telepon tidak tersedia');
+             return;
+        }
+        Linking.openURL(`tel:${item.noTelpon}`);
+    };
+
+    const copyID = async () => {
+        const textToCopy = item?.sn || item?.id || '';
+        if (textToCopy) {
+            try {
+                await Share.share({
+                    message: textToCopy,
+                });
+            } catch (error: any) {
+                Alert.alert('Error', error.message);
+            }
+        } else {
+             Alert.alert('Info', 'Tidak ada ID yang bisa disalin');
+        }
     };
 
     if (isLoading && !item) {
         return (
             <View style={tw`flex-1 items-center justify-center bg-white`}>
-                <ActivityIndicator size="large" color="#2563eb" />
+                <ActivityIndicator size="large" color="#4f46e5" />
+                <Text style={tw`mt-4 text-gray-500 font-medium`}>Memuat Detail...</Text>
             </View>
         );
     }
 
     if (!item) {
         return (
-            <View style={tw`flex-1 items-center justify-center bg-white p-4`}>
-                <Ionicons name="alert-circle-outline" size={64} color="#ef4444" />
-                <Text style={tw`text-lg font-bold text-gray-900 mt-4`}>Data tidak ditemukan</Text>
-                <TouchableOpacity onPress={() => router.back()} style={tw`mt-4 bg-blue-600 px-6 py-2 rounded-lg`}>
-                    <Text style={tw`text-white font-bold`}>Kembali</Text>
+            <View style={tw`flex-1 items-center justify-center bg-white p-8`}>
+                <View style={tw`w-20 h-20 bg-rose-50 items-center justify-center rounded-full mb-6`}>
+                    <Ionicons name="alert-circle" size={48} color="#ef4444" />
+                </View>
+                <Text style={tw`text-xl font-bold text-gray-900 text-center`}>Data Tidak Ditemukan</Text>
+                <TouchableOpacity 
+                    onPress={() => router.back()} 
+                    style={tw`mt-8 bg-indigo-600 px-8 py-3 rounded-2xl shadow-sm`}
+                >
+                    <Text style={tw`text-white font-bold`}>Kembali ke Daftar</Text>
                 </TouchableOpacity>
             </View>
         );
     }
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'APPROVED': return 'text-green-600 bg-green-50';
-            case 'REJECTED': return 'text-red-600 bg-red-50';
-            default: return 'text-yellow-600 bg-yellow-50';
-        }
-    };
+    const statusUI = getStatusUI(item.status);
 
     return (
-        <View style={tw`flex-1 bg-white`}>
-            {/* Header */}
-            <View style={tw`px-4 py-4 border-b border-gray-100 flex-row items-center`}>
-                <TouchableOpacity onPress={() => router.back()} style={tw`p-2 -ml-2`}>
-                    <Ionicons name="arrow-back" size={24} color="#374151" />
-                </TouchableOpacity>
-                <Text style={tw`text-lg font-bold text-gray-900 ml-2`}>Detail Canvasing</Text>
+        <View style={tw`flex-1 bg-gray-50`}>
+            {/* Premium Header */}
+            <View style={tw`bg-indigo-700 pt-12 pb-24 px-5 shadow-xl z-0`}>
+                <View style={tw`flex-row items-center justify-between mb-6`}>
+                    <TouchableOpacity 
+                        onPress={() => router.back()} 
+                        style={tw`w-10 h-10 items-center justify-center bg-white/10 rounded-full`}
+                    >
+                        <Ionicons name="chevron-back" size={24} color="white" />
+                    </TouchableOpacity>
+                    <Text style={tw`text-lg font-black text-white uppercase tracking-tighter`}>Detail Pelanggan</Text>
+                    <View style={tw`w-10`} /> 
+                </View>
+                
+                {/* Hero Content */}
+                <View style={tw`flex-row items-center justify-between`}>
+                    <View style={tw`flex-1 mr-4`}>
+                        <Text style={tw`text-indigo-200 text-xs font-bold uppercase tracking-widest mb-1`}>
+                            {item.sn || 'NO SERIAL NUMBER'}
+                        </Text>
+                        <Text style={tw`text-white text-2xl font-black leading-8 mb-2`}>
+                            {item.nama}
+                        </Text>
+                        <View style={tw`flex-row items-center`}>
+                            <Ionicons name="location" size={14} color="#a5b4fc" />
+                            <Text style={tw`text-indigo-100 text-xs font-medium ml-1`} numberOfLines={1}>
+                                {item.alamat}
+                            </Text>
+                        </View>
+                    </View>
+                    
+                    {/* Status Badge */}
+                    <View style={tw`${statusUI.bg} w-16 h-16 rounded-2xl border-4 border-white/10 items-center justify-center shadow-lg`}>
+                        <Ionicons name={statusUI.icon} size={28} color={statusUI.fgColor} />
+                    </View>
+                </View>
             </View>
 
-            {isOfflineData && (
-                <View style={tw`bg-orange-50 px-4 py-1 flex-row items-center justify-center`}>
-                    <Ionicons name="cloud-offline-outline" size={12} color="#f97316" />
-                    <Text style={tw`text-[10px] text-orange-700 ml-2 font-medium`}>Mode Offline</Text>
-                </View>
-            )}
-
-            <ScrollView style={tw`flex-1 px-4 py-6`}>
-                {/* Status Card */}
-                <View style={tw`bg-gray-50 rounded-2xl p-4 mb-6 flex-row justify-between items-center`}>
-                    <View>
-                        <Text style={tw`text-xs text-gray-500 uppercase font-bold`}>Status Request</Text>
-                        <Text style={tw`text-sm text-gray-900 mt-1 font-medium`}>
-                            {item.status === 'APPROVED' ? 'Telah Disetujui' : item.status === 'REJECTED' ? 'Ditolak' : 'Menunggu Persetujuan'}
-                        </Text>
+            <ScrollView 
+                style={tw`flex-1 -mt-12 z-10`}
+                contentContainerStyle={tw`px-5 pb-32`}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Offline Badge */}
+                {isOfflineData && (
+                    <View style={tw`bg-amber-100 p-2 rounded-xl mb-4 flex-row items-center justify-center shadow-sm`}>
+                        <Ionicons name="cloud-offline" size={16} color="#d97706" />
+                        <Text style={tw`text-xs font-bold text-amber-700 ml-2`}>Mode Offline</Text>
                     </View>
-                    <View style={tw`px-4 py-1.5 rounded-full ${getStatusColor(item.status)}`}>
-                        <Text style={tw`text-xs font-bold`}>{item.status}</Text>
-                    </View>
-                </View>
-
-                {/* Foto Section */}
-                <View style={tw`flex-row gap-4 mb-6`}>
-                    <View style={tw`flex-1`}>
-                        <Text style={tw`text-sm font-bold text-gray-900 mb-2`}>Foto Lokasi</Text>
-                        <View style={tw`aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden`}>
-                            {item.foto ? (
-                                <Image source={{ uri: item.foto.startsWith('http') ? item.foto : `${Config.API_URL}${item.foto}` }} style={tw`w-full h-full`} />
-                            ) : (
-                                <View style={tw`flex-1 items-center justify-center`}>
-                                    <Ionicons name="image-outline" size={32} color="#d1d5db" />
-                                </View>
-                            )}
-                        </View>
-                    </View>
-                    <View style={tw`flex-1`}>
-                        <Text style={tw`text-sm font-bold text-gray-900 mb-2`}>Foto KTP</Text>
-                        <View style={tw`aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden`}>
-                            {item.fotoKtp ? (
-                                <Image source={{ uri: item.fotoKtp.startsWith('http') ? item.fotoKtp : `${Config.API_URL}${item.fotoKtp}` }} style={tw`w-full h-full`} />
-                            ) : (
-                                <View style={tw`flex-1 items-center justify-center`}>
-                                    <Ionicons name="card-outline" size={32} color="#d1d5db" />
-                                </View>
-                            )}
-                        </View>
-                    </View>
-                </View>
-
-                {/* Data Pelanggan */}
-                <View style={tw`mb-8`}>
-                    <Text style={tw`text-lg font-extrabold text-gray-900 mb-4`}>Data Pelanggan</Text>
-                    
-                    <View style={tw`bg-white border border-gray-100 rounded-2xl p-4 shadow-sm`}>
-                        <InfoRow label="Nama Lengkap" value={item.nama} icon="person" />
-                        <InfoRow label="NIK KTP" value={item.noKtp} icon="card" />
-                        <InfoRow label="No. Telepon" value={item.noTelpon} icon="call" />
-                        <InfoRow label="Paket" value={item.paket} icon="gift" />
-                        <InfoRow label="Alamat" value={item.alamat} icon="location" last />
-                    </View>
-                </View>
-
-                {/* Teknis Section */}
-                <View style={tw`mb-8`}>
-                    <Text style={tw`text-lg font-extrabold text-gray-900 mb-4`}>Detail Teknis</Text>
-                    <View style={tw`bg-white border border-gray-100 rounded-2xl p-4 shadow-sm`}>
-                        <InfoRow label="Estimasi Kabel" value={`${item.kabel} Meter`} icon="infinite" />
-                        <InfoRow label="ODP Terdekat" value={item.odp || '-'} icon="share-social" />
-                        <InfoRow label="Serial Number" value={item.sn || '-'} icon="barcode" last />
-                    </View>
-                </View>
-
-                {item.shareloc && (
-                    <TouchableOpacity 
-                        onPress={openMaps}
-                        style={tw`bg-blue-50 border border-blue-100 rounded-2xl p-4 flex-row items-center mb-10`}
-                    >
-                        <View style={tw`bg-blue-600 p-2 rounded-lg`}>
-                            <Ionicons name="map" size={20} color="white" />
-                        </View>
-                        <View style={tw`ml-4 flex-1`}>
-                            <Text style={tw`text-sm font-bold text-blue-900`}>Buka di Google Maps</Text>
-                            <Text style={tw`text-xs text-blue-600 mt-0.5`}>Lihat lokasi pemasangan di peta</Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={18} color="#2563eb" />
-                    </TouchableOpacity>
                 )}
+
+                {/* Quick Actions Card */}
+                <View style={tw`bg-white rounded-3xl p-5 shadow-lg shadow-indigo-900/10 mb-6 flex-row justify-between border border-gray-100`}>
+                    <QuickAction 
+                        icon="call" 
+                        label="Telepon" 
+                        color="bg-emerald-500" 
+                        onPress={callNumber} 
+                    />
+                    <QuickAction 
+                        icon="logo-whatsapp" 
+                        label="WhatsApp" 
+                        color="bg-green-500" 
+                        onPress={openWhatsApp} 
+                    />
+                    <QuickAction 
+                        icon="map" 
+                        label="Navigasi" 
+                        color="bg-blue-500" 
+                        onPress={openMaps} 
+                    />
+                    <QuickAction 
+                        icon="copy" 
+                        label="Salin ID" 
+                        color="bg-gray-500" 
+                        onPress={copyID} 
+                    />
+                </View>
+
+                {/* Information Sections */}
+                <View style={tw`gap-6`}>
+                    {/* Personal Info */}
+                    <InfoCard title="Informasi Pribadi" icon="person">
+                        <InfoRow label="NIK KTP" value={item.noKtp} />
+                        <InfoRow label="No. Telepon" value={item.noTelpon} isLast />
+                    </InfoCard>
+
+                    {/* Technical Info */}
+                    <InfoCard title="Layanan & Teknis" icon="server">
+                        <InfoRow label="Paket Internet" value={item.paket} highlighted />
+                        <InfoRow label="Estimasi Kabel" value={`${item.kabel} Meter`} />
+                        <InfoRow label="ODP" value={item.odp} />
+                        <InfoRow label="Serial Number" value={item.sn} isLast />
+                    </InfoCard>
+
+                    {/* Photos */}
+                    <View>
+                        <View style={tw`flex-row items-center mb-4 ml-1`}>
+                            <View style={tw`w-8 h-8 bg-indigo-50 rounded-xl items-center justify-center mr-3`}>
+                                <Ionicons name="images" size={16} color="#4f46e5" />
+                            </View>
+                            <Text style={tw`text-base font-black text-gray-900`}>Dokumentasi</Text>
+                        </View>
+                        <View style={tw`flex-row gap-3`}>
+                            <PhotoPreview title="Lokasi" uri={item.foto} />
+                            <PhotoPreview title="KTP" uri={item.fotoKtp} />
+                        </View>
+                    </View>
+
+                    {/* Footer Meta */}
+                    <Text style={tw`text-center text-xs text-gray-400 font-medium py-4`}>
+                        Dibuat pada {new Date(item.createdAt).toLocaleDateString('id-ID', {
+                            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+                        })} • {new Date(item.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                </View>
             </ScrollView>
         </View>
     );
 }
 
-function InfoRow({ label, value, icon, last }: any) {
+// --- Helper Components ---
+
+function getStatusUI(status: string) {
+    switch (status) {
+        case 'APPROVED': return { bg: 'bg-emerald-500', fgColor: 'white', icon: 'checkmark-circle' as const, label: 'Disetujui' };
+        case 'REJECTED': return { bg: 'bg-rose-500', fgColor: 'white', icon: 'close-circle' as const, label: 'Ditolak' };
+        default: return { bg: 'bg-amber-400', fgColor: 'white', icon: 'time' as const, label: 'Pending' };
+    }
+}
+
+function QuickAction({ icon, label, color, onPress }: any) {
     return (
-        <View style={tw`flex-row items-center py-3 ${last ? '' : 'border-b border-gray-50'}`}>
-            <View style={tw`w-8`}>
-                <Ionicons name={icon as any} size={18} color="#9CA3AF" />
+        <TouchableOpacity onPress={onPress} style={tw`items-center flex-1`}>
+            <View style={tw`w-12 h-12 ${color} rounded-2xl items-center justify-center shadow-sm mb-2`}>
+                <Ionicons name={icon} size={22} color="white" />
             </View>
-            <View style={tw`flex-1`}>
-                <Text style={tw`text-[10px] text-gray-400 font-bold uppercase`}>{label}</Text>
-                <Text style={tw`text-sm text-gray-800 font-medium mt-0.5`}>{value || '-'}</Text>
+            <Text style={tw`text-[10px] font-bold text-gray-600 uppercase`}>{label}</Text>
+        </TouchableOpacity>
+    );
+}
+
+function InfoCard({ title, icon, children }: any) {
+    return (
+        <View style={tw`bg-white rounded-3xl p-5 shadow-sm border border-gray-100`}>
+            <View style={tw`flex-row items-center mb-4 pb-4 border-b border-gray-50`}>
+                <View style={tw`w-8 h-8 bg-indigo-50 rounded-xl items-center justify-center mr-3`}>
+                    <Ionicons name={icon} size={16} color="#4f46e5" />
+                </View>
+                <Text style={tw`text-base font-black text-gray-900`}>{title}</Text>
+            </View>
+            <View>
+                {children}
+            </View>
+        </View>
+    );
+}
+
+function InfoRow({ label, value, highlighted, isLast }: any) {
+    return (
+        <View style={tw`${isLast ? '' : 'mb-4'}`}>
+            <Text style={tw`text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1`}>{label}</Text>
+            <Text style={tw`text-sm font-bold ${highlighted ? 'text-indigo-600 text-base' : 'text-gray-900'}`}>{value || '-'}</Text>
+        </View>
+    );
+}
+
+function PhotoPreview({ title, uri }: any) {
+    const fullUri = uri?.startsWith('http') ? uri : `${Config.API_URL}${uri}`;
+
+    // Debug logging
+    if (uri) console.log('[PhotoPreview] Loading URI:', fullUri);
+
+    return (
+        <View style={[tw`flex-1 bg-white rounded-2xl p-2 shadow-sm border border-gray-100`, { aspectRatio: 4/3 }]}>
+            <View style={tw`flex-1 bg-gray-100 rounded-xl overflow-hidden relative`}>
+                {uri ? (
+                    <Image 
+                        source={{ uri: fullUri }} 
+                        style={tw`w-full h-full`} 
+                        resizeMode="cover"
+                        onError={(e) => console.log(`[PhotoPreview] Load Error (${title}):`, e.nativeEvent.error)}
+                    />
+                ) : (
+                    <View style={tw`flex-1 items-center justify-center`}>
+                        <Ionicons name="image-outline" size={24} color="#d1d5db" />
+                    </View>
+                )}
+                <View style={tw`absolute bottom-0 left-0 right-0 bg-black/50 p-2`}>
+                    <Text style={tw`text-white text-[10px] font-bold text-center uppercase`}>{title}</Text>
+                </View>
             </View>
         </View>
     );

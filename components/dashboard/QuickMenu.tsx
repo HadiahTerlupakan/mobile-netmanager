@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Calendar, CalendarDays, ClipboardCheck, Clock, Map, MessageCircle, PackageMinus, PackagePlus } from 'lucide-react-native';
+import { Banknote, Calendar, CalendarDays, ClipboardCheck, Clock, Map, MessageCircle, PackageMinus, PackagePlus } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
@@ -75,7 +75,7 @@ export const QuickMenu = () => {
         {
             title: 'Canvasing',
             subtitle: 'Marketing',
-            icon: Map,
+            icon: Banknote,
             color: 'bg-blue-50',
             iconColor: '#2563eb',
             route: '/(app)/marketing/canvasing'

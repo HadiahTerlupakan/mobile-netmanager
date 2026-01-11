@@ -92,8 +92,8 @@ export const useOfflineMutation = () => {
       // User asked for "tikor". We send it in body if possible, AND keep in meta.
       let payload = {
           ...variables,
-          latitude: meta.latitude,
-          longitude: meta.longitude,
+          latitude: variables.latitude ?? meta.latitude,
+          longitude: variables.longitude ?? meta.longitude,
           _offline_meta: meta // Optional: backend might ignore this
       };
 

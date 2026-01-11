@@ -237,7 +237,6 @@ export default function AppLayout() {
                     name="marketing/canvasing/create"
                     options={{
                         href: null,
-                        tabBarStyle: { display: 'none' },
                     }}
                 />
                 <Tabs.Screen
