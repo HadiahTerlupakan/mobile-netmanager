@@ -1,11 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'netmanager_offline.db';
-
-// Singleton instance dan flag untuk track status database
-let dbInstance: SQLite.SQLiteDatabase | null = null;
-let isDbReady = false;
-let initPromise: Promise<void> | null = null;
+const CURRENT_DB_VERSION = 2; // Increment this when changing schema
 
 export interface SyncQueueItem {
     id: number;
@@ -17,97 +13,126 @@ export interface SyncQueueItem {
     meta: string; // JSON string for extra info (e.g., photo paths to upload first)
 }
 
-export const DatabaseService = {
-    // Check if database is ready
-    isReady: () => isDbReady,
+class DatabaseServiceImpl {
+    private static instance: DatabaseServiceImpl;
+    private db: SQLite.SQLiteDatabase | null = null;
+    private initPromise: Promise<void> | null = null;
+    private isReady: boolean = false;
 
-    // Wait for database to be ready
-    waitForReady: async () => {
-        if (isDbReady && dbInstance) return;
-        if (initPromise) {
-            await initPromise;
+    private constructor() { }
+
+    public static getInstance(): DatabaseServiceImpl {
+        if (!DatabaseServiceImpl.instance) {
+            DatabaseServiceImpl.instance = new DatabaseServiceImpl();
+        }
+        return DatabaseServiceImpl.instance;
+    }
+
+    public isInitialized(): boolean {
+        return this.isReady;
+    }
+
+    public async waitForReady(): Promise<void> {
+        if (this.isReady && this.db) return;
+        if (this.initPromise) {
+            await this.initPromise;
             return;
         }
-        // If no init in progress, start one
-        await DatabaseService.initDatabase();
-    },
+        await this.initDatabase();
+    }
 
-    getDB: async () => {
-        // If database is not ready, wait for initialization
-        if (!isDbReady || !dbInstance) {
-            await DatabaseService.waitForReady();
+    public async getDB(): Promise<SQLite.SQLiteDatabase> {
+        if (!this.isReady || !this.db) {
+            await this.waitForReady();
         }
-        if (!dbInstance) {
-            throw new Error('Database not initialized');
+        if (!this.db) {
+            throw new Error('Database initialization failed - DB instance is null');
         }
-        return dbInstance;
-    },
+        return this.db;
+    }
 
-    initDatabase: async () => {
-        // Prevent multiple parallel initializations
-        if (initPromise) {
-            return initPromise;
-        }
+    public async initDatabase(): Promise<void> {
+        if (this.initPromise) return this.initPromise;
 
-        if (isDbReady && dbInstance) {
-            return;
-        }
-
-        initPromise = (async () => {
+        this.initPromise = (async () => {
             try {
-                // Open database directly (don't use getDB to avoid circular call)
-                dbInstance = await SQLite.openDatabaseAsync(DB_NAME);
+                this.db = await SQLite.openDatabaseAsync(DB_NAME, { useNewConnection: true });
 
-                // Create Settings / Metadata table (for last sync time, etc.)
-                await dbInstance.execAsync(`
-                    CREATE TABLE IF NOT EXISTS settings (
-                        key TEXT PRIMARY KEY,
-                        value TEXT
-                    );
-                `);
+                // Check version and migrate
+                const versionResult = await this.db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+                const currentVersion = versionResult?.user_version ?? 0;
 
-                // Create Sync Queue Table
-                await dbInstance.execAsync(`
-                    CREATE TABLE IF NOT EXISTS sync_queue (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        url TEXT NOT NULL,
-                        method TEXT NOT NULL,
-                        body TEXT,
-                        status TEXT DEFAULT 'PENDING',
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        meta TEXT
-                    );
-                `);
+                console.log(`[Database] Current Version: ${currentVersion}, Target Version: ${CURRENT_DB_VERSION}`);
 
-                // Create Offline Data Cache Table (Key-Value Store for large JSONs)
-                await dbInstance.execAsync(`
-                    CREATE TABLE IF NOT EXISTS offline_cache (
-                        key TEXT PRIMARY KEY,
-                        data TEXT,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                `);
+                if (currentVersion < 1) {
+                    await this.migrateV1(this.db);
+                }
+                
+                if (currentVersion < 2) {
+                     await this.migrateV2(this.db);
+                }
 
-                isDbReady = true;
-                console.log('Database initialized successfully');
+                // Future migrations go here...
+                // if (currentVersion < 3) await this.migrateV3(this.db);
+
+                this.isReady = true;
+                console.log('[Database] Initialization complete');
             } catch (error) {
-                console.error('Database initialization failed:', error);
-                // Reset state on failure
-                dbInstance = null;
-                isDbReady = false;
+                console.error('[Database] Initialization error:', error);
+                this.db = null;
+                this.isReady = false;
                 throw error;
             } finally {
-                initPromise = null;
+                this.initPromise = null;
             }
         })();
 
-        return initPromise;
-    },
+        return this.initPromise;
+    }
 
-    // --- Sync Queue Operations ---
+    // --- MIGRATIONS ---
 
-    addToQueue: async (url: string, method: string, body: any, meta: any = {}) => {
-        const db = await DatabaseService.getDB();
+    private async migrateV1(db: SQLite.SQLiteDatabase) {
+        console.log('[Database] Running Migration V1...');
+        await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
+            
+            CREATE TABLE IF NOT EXISTS sync_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT NOT NULL,
+                method TEXT NOT NULL,
+                body TEXT,
+                status TEXT DEFAULT 'PENDING',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                meta TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS offline_cache (
+                key TEXT PRIMARY KEY,
+                data TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            PRAGMA user_version = 1;
+        `);
+    }
+
+    private async migrateV2(db: SQLite.SQLiteDatabase) {
+        console.log('[Database] Running Migration V2...');
+        // Example: Add index to sync_queue status for faster queries
+        await db.execAsync(`
+            CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status);
+            PRAGMA user_version = 2;
+        `);
+    }
+
+    // --- OPERATIONS ---
+
+    public async addToQueue(url: string, method: string, body: any, meta: any = {}) {
+        const db = await this.getDB();
         const jsonBody = JSON.stringify(body);
         const jsonMeta = JSON.stringify(meta);
 
@@ -115,11 +140,11 @@ export const DatabaseService = {
             'INSERT INTO sync_queue (url, method, body, meta, status) VALUES (?, ?, ?, ?, ?)',
             url, method, jsonBody, jsonMeta, 'PENDING'
         );
-        console.log('Added to sync queue:', url);
-    },
+        console.log('[Database] Added to sync queue:', url);
+    }
 
-    getPendingQueue: async (): Promise<SyncQueueItem[]> => {
-        const db = await DatabaseService.getDB();
+    public async getPendingQueue(): Promise<SyncQueueItem[]> {
+        const db = await this.getDB();
         const result = await db.getAllAsync<any>(
             "SELECT * FROM sync_queue WHERE status IN ('PENDING', 'RETRY') ORDER BY created_at ASC"
         );
@@ -133,36 +158,50 @@ export const DatabaseService = {
             createdAt: row.created_at,
             meta: row.meta
         }));
-    },
+    }
 
-    removeFromQueue: async (id: number) => {
-        const db = await DatabaseService.getDB();
+    public async removeFromQueue(id: number) {
+        const db = await this.getDB();
         await db.runAsync('DELETE FROM sync_queue WHERE id = ?', id);
-    },
+    }
 
-    markAsRetry: async (id: number) => {
-        const db = await DatabaseService.getDB();
+    public async markAsRetry(id: number) {
+        const db = await this.getDB();
         await db.runAsync("UPDATE sync_queue SET status = 'RETRY' WHERE id = ?", id);
-    },
+    }
 
-    // --- Offline Cache Operations ---
-
-    saveOfflineData: async (key: string, data: any) => {
-        const db = await DatabaseService.getDB();
+    public async saveOfflineData(key: string, data: any) {
+        const db = await this.getDB();
         const jsonData = JSON.stringify(data);
         await db.runAsync(
             `INSERT INTO offline_cache (key, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
              ON CONFLICT(key) DO UPDATE SET data = excluded.data, updated_at = CURRENT_TIMESTAMP`,
             key, jsonData
         );
-    },
+    }
 
-    getOfflineData: async (key: string) => {
-        const db = await DatabaseService.getDB();
+    public async getOfflineData(key: string) {
+        const db = await this.getDB();
         const result = await db.getFirstAsync<{ data: string }>(
             'SELECT data FROM offline_cache WHERE key = ?',
             key
         );
         return result ? JSON.parse(result.data) : null;
     }
+}
+
+// Export a singleton wrapper object to maintain API compatibility
+const instance = DatabaseServiceImpl.getInstance();
+
+export const DatabaseService = {
+    isReady: () => instance.isInitialized(),
+    waitForReady: () => instance.waitForReady(),
+    getDB: () => instance.getDB(),
+    initDatabase: () => instance.initDatabase(),
+    addToQueue: (url: string, method: string, body: any, meta: any = {}) => instance.addToQueue(url, method, body, meta),
+    getPendingQueue: () => instance.getPendingQueue(),
+    removeFromQueue: (id: number) => instance.removeFromQueue(id),
+    markAsRetry: (id: number) => instance.markAsRetry(id),
+    saveOfflineData: (key: string, data: any) => instance.saveOfflineData(key, data),
+    getOfflineData: (key: string) => instance.getOfflineData(key)
 };

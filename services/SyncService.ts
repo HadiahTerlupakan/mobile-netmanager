@@ -1,8 +1,9 @@
 import NetInfo from '@react-native-community/netinfo';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import pLimit from 'p-limit';
 import { Config } from '../constants/Config';
-import { DatabaseService } from './DatabaseService';
+import { DatabaseService, SyncQueueItem } from './DatabaseService'; // Ensure SyncQueueItem is exported
 import { NotificationService } from './NotificationService';
 
 // Helper for upload (outside component)
@@ -82,37 +83,52 @@ export const SyncService = {
     console.log(`[SyncService] Found ${queue.length} items to sync.`);
 
     // Helper to get token (can't use hook here outside component)
-    const token = await SecureStore.getItemAsync('session_token'); // Make sure key matches AuthContext ('session_token')
+    const token = await SecureStore.getItemAsync('session_token');
 
-    for (const item of queue) {
+    // CONCURRENCY LIMIT
+    // 3 parallel requests is safe for most mobile devices/networks
+    const limit = pLimit(3); 
+    
+    // Process all items with concurrency limit
+    const promises = queue.map(item => limit(() => SyncService.processQueueItem(item, token)));
+    
+    await Promise.allSettled(promises);
+    
+    console.log('[SyncService] Queue processing batch complete.');
+  },
+
+  /**
+   * Process a single queue item with retry logic
+   */
+  processQueueItem: async (item: SyncQueueItem, token: string | null) => {
       try {
         console.log(`[SyncService] Processing item ${item.id}: ${item.method} ${item.url}`);
         
-        // Parse bodies
         let body = item.body ? JSON.parse(item.body) : {};
         const meta = item.meta ? JSON.parse(item.meta) : {};
 
-        // 1. Handle Photo Uploads first if they exist in meta
+        // 1. Handle Photo Uploads (Parallel if multiple)
         if (meta.photos && Array.isArray(meta.photos) && meta.photos.length > 0) {
             console.log(`[SyncService] Uploading ${meta.photos.length} photos...`);
-            const uploadedUrls: string[] = [];
             
-            for (const photoUri of meta.photos) {
-                if (photoUri.startsWith('file://')) {
-                    const url = await uploadFile(
+            // Upload photos in parallel within this item
+            const photoUploadLimit = pLimit(3);
+            const uploadPromises = meta.photos.map((photoUri: string) => photoUploadLimit(async () => {
+                 if (photoUri.startsWith('file://')) {
+                    return await uploadFile(
                         photoUri, 
                         token || '', 
                         meta.photoType || 'general',
-                        meta.watermarkLines // Pass watermark lines from meta
+                        meta.watermarkLines
                     );
-                    if (url) uploadedUrls.push(url);
                 } else {
-                    uploadedUrls.push(photoUri); // Already remote?
+                    return photoUri; 
                 }
-            }
+            }));
 
-            // SAFETY CHECK: If photos existed but upload failed entirely, reject this sync attempt
-            // so it stays in queue for retry later (instead of sending invalid data)
+            const uploadedUrls = (await Promise.all(uploadPromises)).filter((url): url is string => url !== null);
+
+            // SAFETY CHECK
             if (meta.photos.length > 0 && uploadedUrls.length === 0) {
                  throw new Error('Gagal mengupload semua foto bukti saat background sync.');
             }
@@ -146,7 +162,6 @@ export const SyncService = {
           console.log(`[SyncService] Item ${item.id} synced successfully.`);
           await DatabaseService.removeFromQueue(item.id);
         } else {
-             // Should not happen as axios throws on non-2xx usually, but just in case validateStatus is changed
             console.warn(`[SyncService] Item ${item.id} failed with status ${response.status}`);
             await DatabaseService.markAsRetry(item.id);
         }
@@ -158,16 +173,13 @@ export const SyncService = {
         if (axios.isAxiosError(error) && error.response) {
             const status = error.response.status;
             
-            // 4xx Errors (Client Error) -> STOP RETRY
-            // e.g. 400 (Bad Request), 401 (Unauthorized), 404 (Not Found), 422 (Validation), 409 (Conflict)
+            // 4xx Errors -> Permanent Failure -> Remove from Queue
             if (status >= 400 && status < 500) {
-                 console.log(`[SyncService] Client Error (${status}). Removing item ${item.id} from queue.`);
+                 console.log(`[SyncService] Client Error (${status}). Removing item ${item.id}.`);
                  
-                 // 1. Remove from Queue (Stop Infinite Loop)
                  await DatabaseService.removeFromQueue(item.id);
 
-                 // 2. Notify User
-                 const method = item.method.toUpperCase();
+                 // Notify User
                  const urlPart = item.url.split('/').pop() || 'Unknown';
                  const errorMsg = error.response.data?.message || error.message || 'Data tidak valid';
                  
@@ -180,15 +192,13 @@ export const SyncService = {
                      title,
                      `Data dibatalkan: ${errorMsg}`
                  );
-                 continue; // Move to next item
+                 return;
             }
         }
         
-        // 5xx or Network Error -> Keep as RETRY
+        // 5xx or Network Error -> Retry logic could be expanded here (e.g. exponential backoff delay)
+        // For now, DatabaseService.markAsRetry simply keeps it in queue for next network event
         await DatabaseService.markAsRetry(item.id);
       }
-    }
-    
-    console.log('[SyncService] Queue processing complete.');
   }
 };
