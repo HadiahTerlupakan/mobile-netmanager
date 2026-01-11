@@ -107,39 +107,38 @@ export const SyncService = {
         let body = item.body ? JSON.parse(item.body) : {};
         const meta = item.meta ? JSON.parse(item.meta) : {};
 
-        // 1. Handle Photo Uploads (Parallel if multiple)
+        // 1. Legacy: Support Photo Uploads (Parallel if multiple)
         if (meta.photos && Array.isArray(meta.photos) && meta.photos.length > 0) {
             console.log(`[SyncService] Uploading ${meta.photos.length} photos...`);
             
-            // Upload photos in parallel within this item
-            const photoUploadLimit = pLimit(3);
-            const uploadPromises = meta.photos.map((photoUri: string) => photoUploadLimit(async () => {
+            const uploadPromises = meta.photos.map(async (photoUri: string) => {
                  if (photoUri.startsWith('file://')) {
-                    return await uploadFile(
-                        photoUri, 
-                        token || '', 
-                        meta.photoType || 'general',
-                        meta.watermarkLines
-                    );
+                    return await uploadFile(photoUri, token || '', meta.photoType || 'general', meta.watermarkLines);
                 } else {
                     return photoUri; 
                 }
-            }));
+            });
 
             const uploadedUrls = (await Promise.all(uploadPromises)).filter((url): url is string => url !== null);
 
-            // SAFETY CHECK
-            if (meta.photos.length > 0 && uploadedUrls.length === 0) {
-                 throw new Error('Gagal mengupload semua foto bukti saat background sync.');
-            }
-
-            // Update body with uploaded/remote URLs
             if (meta.targetField) {
                  if (meta.singleFile) {
                      body[meta.targetField] = uploadedUrls[0] || null;
                  } else {
                      body[meta.targetField] = uploadedUrls;
                  }
+            }
+        }
+
+        // New: Support photoMap for specific fields mapping
+        if (meta.photoMap && typeof meta.photoMap === 'object') {
+            console.log(`[SyncService] Processing photoMap for item ${item.id}...`);
+            for (const [field, uri] of Object.entries(meta.photoMap)) {
+                if (typeof uri === 'string' && uri.startsWith('file://')) {
+                    const url = await uploadFile(uri, token || '', meta.photoType || 'general', meta.watermarkLines);
+                    if (url) body[field] = url;
+                    else throw new Error(`Gagal upload foto untuk field ${field}`);
+                }
             }
         }
 

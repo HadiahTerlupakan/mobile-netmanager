@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { Briefcase, Calendar, CalendarDays, ClipboardCheck, Clock, Map, MessageCircle, PackageMinus, PackagePlus } from 'lucide-react-native';
+import { Calendar, CalendarDays, ClipboardCheck, Clock, Map, MessageCircle, PackageMinus, PackagePlus } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
@@ -8,14 +8,6 @@ export const QuickMenu = () => {
     const router = useRouter();
 
     const menuItems = [
-        {
-            title: 'Ambil Tiket',
-            subtitle: 'Work Order',
-            icon: Briefcase,
-            color: 'bg-blue-50',
-            iconColor: '#2563eb',
-            route: '/(app)/work-order'
-        },
         {
             title: 'Topology Map',
             subtitle: 'Peta Jaringan',
@@ -79,6 +71,14 @@ export const QuickMenu = () => {
             color: 'bg-red-50',
             iconColor: '#dc2626',
             route: '/(app)/holidays'
+        },
+        {
+            title: 'Canvasing',
+            subtitle: 'Marketing',
+            icon: Map,
+            color: 'bg-blue-50',
+            iconColor: '#2563eb',
+            route: '/(app)/marketing/canvasing'
         },
     ];
 

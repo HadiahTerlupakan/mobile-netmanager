@@ -101,43 +101,42 @@ export const useOfflineMutation = () => {
         // --- ONLINE MODE ---
         console.log('[useOfflineMutation] Online. Submitting directly:', options.url);
         
-        // Upload photos first if they exist in meta
+        // Legacy: Support photos array with targetField
         if (meta.photos && Array.isArray(meta.photos) && meta.photos.length > 0) {
             console.log(`[useOfflineMutation] Uploading ${meta.photos.length} photos...`);
             const uploadedUrls: string[] = [];
             
             for (const photoUri of meta.photos) {
                 if (photoUri.startsWith('file://') || photoUri.startsWith('/')) {
-                    const url = await uploadFile(
-                        photoUri, 
-                        token || '', 
-                        meta.photoType || 'general',
-                        meta.watermarkLines
-                    );
+                    const url = await uploadFile(photoUri, token || '', meta.photoType || 'general', meta.watermarkLines);
                     if (url) uploadedUrls.push(url);
                 } else if (photoUri.startsWith('http')) {
-                    uploadedUrls.push(photoUri); // Already remote URL
+                    uploadedUrls.push(photoUri);
                 }
             }
 
-            // Update payload with uploaded URLs
             if (meta.targetField) {
                 if (meta.singleFile) {
-                    payload[meta.targetField as keyof typeof payload] = uploadedUrls[0] || null;
+                    payload[meta.targetField] = uploadedUrls[0] || null;
                 } else {
-                    payload[meta.targetField as keyof typeof payload] = uploadedUrls as any;
+                    payload[meta.targetField] = uploadedUrls;
                 }
             }
-            
-            console.log(`[useOfflineMutation] Photos uploaded:`, uploadedUrls);
+        }
 
-            // SAFETY CHECK: If we had photos to upload but none succeeded, DO NOT PROCEED.
-            // This prevents sending empty photos[] to backend which causes "Foto wajib diupload" error.
-            if (meta.photos.length > 0 && uploadedUrls.length === 0) {
-                 throw new Error('Gagal mengupload foto bukti. Mohon periksa koneksi internet Anda dan coba lagi.');
+        // New: Support photoMap for specific fields mapping
+        if (meta.photoMap && typeof meta.photoMap === 'object') {
+            console.log(`[useOfflineMutation] Processing photoMap...`);
+            for (const [field, uri] of Object.entries(meta.photoMap)) {
+                if (typeof uri === 'string' && (uri.startsWith('file://') || uri.startsWith('/'))) {
+                    const url = await uploadFile(uri, token || '', meta.photoType || 'general', meta.watermarkLines);
+                    if (url) payload[field] = url;
+                } else if (typeof uri === 'string' && uri.startsWith('http')) {
+                    payload[field] = uri;
+                }
             }
         }
-        
+
         const response = await axios({
             method: options.method,
             url: options.url.startsWith('http') ? options.url : `${Config.API_URL}${options.url}`,

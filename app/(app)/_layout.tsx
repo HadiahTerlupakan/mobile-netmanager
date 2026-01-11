@@ -226,6 +226,28 @@ export default function AppLayout() {
                     }}
                 />
 
+                {/* Marketing / Canvasing Screens - Hidden from tab bar */}
+                <Tabs.Screen
+                    name="marketing/canvasing/index"
+                    options={{
+                        href: null,
+                    }}
+                />
+                <Tabs.Screen
+                    name="marketing/canvasing/create"
+                    options={{
+                        href: null,
+                        tabBarStyle: { display: 'none' },
+                    }}
+                />
+                <Tabs.Screen
+                    name="marketing/canvasing/[id]/index"
+                    options={{
+                        href: null,
+                        tabBarStyle: { display: 'none' },
+                    }}
+                />
+
             </Tabs>
 
             {/* Announcement Popup - shows after login */}

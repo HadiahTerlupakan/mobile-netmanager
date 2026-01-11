@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DatabaseService } from '../services/DatabaseService';
 import { SyncService } from '../services/SyncService';
 
@@ -16,8 +16,12 @@ export const useOfflineQuery = <T>(options: QueryOptions<T>) => {
   const [error, setError] = useState<any>(null);
   const [isOfflineData, setIsOfflineData] = useState(false);
 
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
   const fetchData = useCallback(async () => {
-    if (options.enabled === false) return;
+    const currentOptions = optionsRef.current;
+    if (currentOptions.enabled === false) return;
 
     setIsLoading(true);
     setError(null);
@@ -29,49 +33,52 @@ export const useOfflineQuery = <T>(options: QueryOptions<T>) => {
       if (isOnline) {
         // --- ONLINE ---
         try {
-          const result = await options.fetcher();
+          const result = await currentOptions.fetcher();
           setData(result);
           
           // Save to Cache
-          await DatabaseService.saveOfflineData(options.key, result);
-          options.onSuccess?.(result);
+          await DatabaseService.saveOfflineData(currentOptions.key, result);
+          currentOptions.onSuccess?.(result);
         } catch (err) {
-            console.warn(`[useOfflineQuery] Online fetch failed for ${options.key}, falling back to cache.`);
+            console.warn(`[useOfflineQuery] Online fetch failed for ${currentOptions.key}, falling back to cache.`);
             // Fallback to cache if online fetch fails
-            const cached = await DatabaseService.getOfflineData(options.key);
+            const cached = await DatabaseService.getOfflineData(currentOptions.key);
             if (cached) {
                 setData(cached as T);
                 setIsOfflineData(true);
+                currentOptions.onSuccess?.(cached as T);
             } else {
                 throw err;
             }
         }
       } else {
         // --- OFFLINE ---
-        console.log(`[useOfflineQuery] Offline. Loading from cache: ${options.key}`);
-        const cached = await DatabaseService.getOfflineData(options.key);
+        console.log(`[useOfflineQuery] Offline. Loading from cache: ${currentOptions.key}`);
+        const cached = await DatabaseService.getOfflineData(currentOptions.key);
         if (cached) {
           setData(cached as T);
           setIsOfflineData(true);
-          options.onSuccess?.(cached as T);
+          currentOptions.onSuccess?.(cached as T);
         } else {
            // No cache available
            setError(new Error('No internet and no cached data available.'));
         }
       }
     } catch (err) {
-      console.error(`[useOfflineQuery] Error in ${options.key}:`, err);
+      console.error(`[useOfflineQuery] Error in ${currentOptions.key}:`, err);
       setError(err);
-      options.onError?.(err);
+      currentOptions.onError?.(err);
     } finally {
       setIsLoading(false);
     }
-  }, [options.key, options.enabled]);
+  }, []); // Stable fetchData
 
   // Initial fetch
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (options.enabled !== false) {
+      fetchData();
+    }
+  }, [options.key, options.enabled, fetchData]);
 
   return { data, isLoading, error, isOfflineData, refetch: fetchData };
 };
