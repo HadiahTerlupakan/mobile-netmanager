@@ -35,6 +35,18 @@ export default function CanvasingListScreen() {
         enabled: !!token
     });
 
+    // Fetch point summary from API
+    const { data: pointSummary, refetch: refetchSummary } = useOfflineQuery<any>({
+        key: 'marketing_point_summary',
+        fetcher: async () => {
+            const res = await axios.get(`${Config.API_URL}/api/marketing/point-claims/summary`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return res.data;
+        },
+        enabled: !!token
+    });
+
     // Check if user has access to canvasing feature
     const hasAccess = useMemo(() => {
         const features = profile?.features || [];
@@ -42,19 +54,24 @@ export default function CanvasingListScreen() {
     }, [profile?.features]);
 
     const stats = useMemo(() => {
-        if (!requests) return { total: 0, approved: 0, pending: 0, points: 0, rate: 0 };
+        if (!requests) return { total: 0, approved: 0, pending: 0, points: 0, rate: 0, pendingClaims: 0 };
         
         const approvedCount = requests.filter(r => r.status === 'APPROVED').length;
         const pendingCount = requests.filter(r => r.status === 'PENDING').length;
+        
+        // Use point summary from API if available, otherwise calculate locally
+        const totalPoints = pointSummary?.totalPoints ?? 0;
+        const pendingClaims = pointSummary?.pendingClaims ?? 0;
         
         return {
             total: requests.length,
             approved: approvedCount,
             pending: pendingCount,
-            points: (approvedCount * 10) + (pendingCount * 2),
-            rate: requests.length > 0 ? Math.round((approvedCount / requests.length) * 100) : 0
+            points: totalPoints,
+            rate: requests.length > 0 ? Math.round((approvedCount / requests.length) * 100) : 0,
+            pendingClaims
         };
-    }, [requests]);
+    }, [requests, pointSummary]);
 
     // Show loading while checking access
     if (profileLoading) {
@@ -94,7 +111,29 @@ export default function CanvasingListScreen() {
         item.alamat.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const getStatusUI = (status: string) => {
+    const getStatusUI = (status: string, woStatus?: string) => {
+        // Check if WO is completed/verified/closed - show "Selesai"
+        const woCompleted = woStatus && ['COMPLETED', 'VERIFIED', 'CLOSED'].includes(woStatus);
+        if (status === 'APPROVED' && woCompleted) {
+            return { 
+                color: 'text-teal-700', 
+                bg: 'bg-teal-50', 
+                icon: 'checkmark-done' as const,
+                label: 'Selesai'
+            };
+        }
+        
+        // Check if WO is in progress - show "Dikerjakan"
+        const woInProgress = woStatus && ['IN_PROGRESS', 'ON_HOLD'].includes(woStatus);
+        if (status === 'APPROVED' && woInProgress) {
+            return { 
+                color: 'text-blue-700', 
+                bg: 'bg-blue-50', 
+                icon: 'construct' as const,
+                label: 'Dikerjakan'
+            };
+        }
+        
         switch (status) {
             case 'APPROVED': 
                 return { 
@@ -118,6 +157,23 @@ export default function CanvasingListScreen() {
                     label: 'Pending'
                 };
         }
+    };
+
+    // Check if canvasing is eligible for point claim
+    const canClaimPoints = (item: any) => {
+        const woCompleted = item.workOrder?.status && ['COMPLETED', 'VERIFIED', 'CLOSED'].includes(item.workOrder.status);
+        const hasNoClaim = !item.pointClaims || item.pointClaims.length === 0;
+        return woCompleted && hasNoClaim;
+    };
+
+    // Check if point claim is pending
+    const hasClaimPending = (item: any) => {
+        return item.pointClaims?.[0]?.status === 'PENDING';
+    };
+
+    // Check if point claim was approved
+    const hasClaimApproved = (item: any) => {
+        return item.pointClaims?.[0]?.status === 'APPROVED';
     };
 
     const targetMonthly = profile?.canvasingTarget || 50;
@@ -167,7 +223,7 @@ export default function CanvasingListScreen() {
 
                 {/* Stats Cards Row */}
                 <View style={tw`flex-row gap-3`}>
-                    <StatBox label="APPROVED" value={stats.approved} icon="checkmark-double" color="bg-emerald-500" />
+                    <StatBox label="APPROVED" value={stats.approved} icon="checkmark-done" color="bg-emerald-500" />
                     <StatBox label="CONV RATE" value={`${stats.rate}%`} icon="trending-up" color="bg-amber-500" />
                     <StatBox label="PENDING" value={stats.pending} icon="hourglass" color="bg-indigo-500" />
                 </View>
@@ -218,7 +274,7 @@ export default function CanvasingListScreen() {
                     </View>
                 ) : (
                     filteredRequests?.map((item: any) => {
-                        const statusUI = getStatusUI(item.status);
+                        const statusUI = getStatusUI(item.status, item.workOrder?.status);
                         return (
                             <TouchableOpacity
                                 key={item.id}
@@ -263,9 +319,33 @@ export default function CanvasingListScreen() {
                                         </Text>
                                     </View>
                                     
-                                    <View style={tw`flex-row items-center bg-blue-50 px-2 py-1 rounded-lg`}>
-                                        <Text style={tw`text-[10px] font-bold text-blue-600 mr-1`}>Detail</Text>
-                                        <Ionicons name="chevron-forward" size={12} color="#2563eb" />
+                                    <View style={tw`flex-row items-center gap-2`}>
+                                        {/* Tombol Claim Poin jika eligible */}
+                                        {canClaimPoints(item) && (
+                                            <TouchableOpacity 
+                                                onPress={() => router.push(`/(app)/marketing/canvasing/${item.id}/claim`)}
+                                                style={tw`flex-row items-center bg-purple-100 px-2 py-1 rounded-lg`}
+                                            >
+                                                <Ionicons name="gift" size={14} color="#7c3aed" />
+                                                <Text style={tw`text-[10px] font-bold text-purple-600 ml-1`}>Claim</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                        {hasClaimPending(item) && (
+                                            <View style={tw`flex-row items-center bg-pink-100 px-2 py-1 rounded-lg`}>
+                                                <Ionicons name="hourglass" size={12} color="#db2777" />
+                                                <Text style={tw`text-[10px] font-bold text-pink-600 ml-1`}>Pending</Text>
+                                            </View>
+                                        )}
+                                        {hasClaimApproved(item) && (
+                                            <View style={tw`flex-row items-center bg-yellow-100 px-2 py-1 rounded-lg`}>
+                                                <Ionicons name="star" size={12} color="#d97706" />
+                                                <Text style={tw`text-[10px] font-bold text-yellow-600 ml-1`}>Diklaim</Text>
+                                            </View>
+                                        )}
+                                        <View style={tw`flex-row items-center bg-blue-50 px-2 py-1 rounded-lg`}>
+                                            <Text style={tw`text-[10px] font-bold text-blue-600 mr-1`}>Detail</Text>
+                                            <Ionicons name="chevron-forward" size={12} color="#2563eb" />
+                                        </View>
                                     </View>
                                 </View>
                             </TouchableOpacity>

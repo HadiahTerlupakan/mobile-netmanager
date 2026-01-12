@@ -12,7 +12,7 @@ export default function CanvasingDetailScreen() {
     const router = useRouter();
     const { token } = useAuth();
 
-    const { data: item, isLoading, isOfflineData } = useOfflineQuery<any>({
+    const { data: item, isLoading, isOfflineData, refetch } = useOfflineQuery<any>({
         key: `marketing_canvasing_detail_${id}`,
         fetcher: async () => {
             const res = await axios.get(`${Config.API_URL}/api/marketing/canvasing/${id}`, {
@@ -22,6 +22,20 @@ export default function CanvasingDetailScreen() {
         },
         enabled: !!id && !!token
     });
+
+    // Fetch claim status
+    const { data: claimData } = useOfflineQuery<any>({
+        key: `marketing_canvasing_claim_${id}`,
+        fetcher: async () => {
+            const res = await axios.get(`${Config.API_URL}/api/marketing/canvasing/${id}/claim`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return res.data;
+        },
+        enabled: !!id && !!token
+    });
+
+    const claim = claimData?.claim;
 
     const openMaps = () => {
         if (item?.latitude && item?.longitude) {
@@ -74,6 +88,32 @@ export default function CanvasingDetailScreen() {
         }
     };
 
+    // Check if can claim - WO must be completed
+    const canClaim = () => {
+        if (!item) return false;
+        if (claim) return false; // Already claimed
+        if (item.isLocked) return false;
+        
+        const wo = item.workOrder;
+        if (!wo) return false;
+        
+        const completedStatuses = ['COMPLETED', 'VERIFIED', 'CLOSED'];
+        return completedStatuses.includes(wo.status);
+    };
+
+    const getClaimStatusUI = () => {
+        if (!claim) return null;
+        
+        switch (claim.status) {
+            case 'APPROVED':
+                return { bg: 'bg-emerald-50', color: 'text-emerald-700', icon: 'checkmark-circle', label: 'Claim Disetujui (+2 Poin)' };
+            case 'REJECTED':
+                return { bg: 'bg-rose-50', color: 'text-rose-700', icon: 'close-circle', label: 'Claim Ditolak' };
+            default:
+                return { bg: 'bg-amber-50', color: 'text-amber-700', icon: 'time', label: 'Menunggu Review Admin' };
+        }
+    };
+
     if (isLoading && !item) {
         return (
             <View style={tw`flex-1 items-center justify-center bg-white`}>
@@ -101,6 +141,7 @@ export default function CanvasingDetailScreen() {
     }
 
     const statusUI = getStatusUI(item.status);
+    const claimStatusUI = getClaimStatusUI();
 
     return (
         <View style={tw`flex-1 bg-gray-50`}>
@@ -154,6 +195,19 @@ export default function CanvasingDetailScreen() {
                     </View>
                 )}
 
+                {/* Claim Status Card - Show if claim exists */}
+                {claimStatusUI && (
+                    <View style={tw`${claimStatusUI.bg} rounded-2xl p-4 mb-4 flex-row items-center border border-gray-100`}>
+                        <Ionicons name={claimStatusUI.icon as any} size={24} color={tw.color(claimStatusUI.color.replace('text-', ''))} />
+                        <View style={tw`ml-3 flex-1`}>
+                            <Text style={tw`${claimStatusUI.color} font-bold`}>{claimStatusUI.label}</Text>
+                            {claim?.reviewNotes && (
+                                <Text style={tw`text-gray-600 text-xs mt-1`}>{claim.reviewNotes}</Text>
+                            )}
+                        </View>
+                    </View>
+                )}
+
                 {/* Quick Actions Card */}
                 <View style={tw`bg-white rounded-3xl p-5 shadow-lg shadow-indigo-900/10 mb-6 flex-row justify-between border border-gray-100`}>
                     <QuickAction 
@@ -184,6 +238,14 @@ export default function CanvasingDetailScreen() {
 
                 {/* Information Sections */}
                 <View style={tw`gap-6`}>
+                    {/* Work Order Info - if exists */}
+                    {item.workOrder && (
+                        <InfoCard title="Work Order" icon="construct">
+                            <InfoRow label="Nomor WO" value={item.workOrder.workOrderNumber} highlighted />
+                            <InfoRow label="Status WO" value={getWOStatusLabel(item.workOrder.status)} isLast />
+                        </InfoCard>
+                    )}
+
                     {/* Personal Info */}
                     <InfoCard title="Informasi Pribadi" icon="person">
                         <InfoRow label="NIK KTP" value={item.noKtp} />
@@ -212,6 +274,25 @@ export default function CanvasingDetailScreen() {
                         </View>
                     </View>
 
+                    {/* Claim Bukti Photos - if claim exists */}
+                    {claim && claim.buktiUrls && claim.buktiUrls.length > 0 && (
+                        <View>
+                            <View style={tw`flex-row items-center mb-4 ml-1`}>
+                                <View style={tw`w-8 h-8 bg-purple-50 rounded-xl items-center justify-center mr-3`}>
+                                    <Ionicons name="receipt" size={16} color="#7c3aed" />
+                                </View>
+                                <Text style={tw`text-base font-black text-gray-900`}>Bukti Claim</Text>
+                            </View>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                <View style={tw`flex-row gap-3`}>
+                                    {claim.buktiUrls.map((uri: string, index: number) => (
+                                        <PhotoPreview key={index} title={`Bukti ${index + 1}`} uri={uri} />
+                                    ))}
+                                </View>
+                            </ScrollView>
+                        </View>
+                    )}
+
                     {/* Footer Meta */}
                     <Text style={tw`text-center text-xs text-gray-400 font-medium py-4`}>
                         Dibuat pada {new Date(item.createdAt).toLocaleDateString('id-ID', {
@@ -232,6 +313,20 @@ function getStatusUI(status: string) {
         case 'REJECTED': return { bg: 'bg-rose-500', fgColor: 'white', icon: 'close-circle' as const, label: 'Ditolak' };
         default: return { bg: 'bg-amber-400', fgColor: 'white', icon: 'time' as const, label: 'Pending' };
     }
+}
+
+function getWOStatusLabel(status: string) {
+    const labels: Record<string, string> = {
+        'PENDING': 'Menunggu',
+        'ASSIGNED': 'Ditugaskan',
+        'IN_PROGRESS': 'Sedang Dikerjakan',
+        'ON_HOLD': 'Ditunda',
+        'COMPLETED': 'Selesai',
+        'VERIFIED': 'Terverifikasi',
+        'CLOSED': 'Ditutup',
+        'CANCELLED': 'Dibatalkan'
+    };
+    return labels[status] || status;
 }
 
 function QuickAction({ icon, label, color, onPress }: any) {
@@ -273,18 +368,14 @@ function InfoRow({ label, value, highlighted, isLast }: any) {
 function PhotoPreview({ title, uri }: any) {
     const fullUri = uri?.startsWith('http') ? uri : `${Config.API_URL}${uri}`;
 
-    // Debug logging
-    if (uri) console.log('[PhotoPreview] Loading URI:', fullUri);
-
     return (
-        <View style={[tw`flex-1 bg-white rounded-2xl p-2 shadow-sm border border-gray-100`, { aspectRatio: 4/3 }]}>
+        <View style={[tw`flex-1 bg-white rounded-2xl p-2 shadow-sm border border-gray-100`, { aspectRatio: 4/3, minWidth: 120 }]}>
             <View style={tw`flex-1 bg-gray-100 rounded-xl overflow-hidden relative`}>
                 {uri ? (
                     <Image 
                         source={{ uri: fullUri }} 
                         style={tw`w-full h-full`} 
                         resizeMode="cover"
-                        onError={(e) => console.log(`[PhotoPreview] Load Error (${title}):`, e.nativeEvent.error)}
                     />
                 ) : (
                     <View style={tw`flex-1 items-center justify-center`}>

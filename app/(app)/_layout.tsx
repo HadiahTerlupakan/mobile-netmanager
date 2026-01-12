@@ -1,5 +1,5 @@
 import { Tabs, useRouter } from 'expo-router';
-import { ClipboardList, Home, Package, ScanLine, User } from 'lucide-react-native';
+import { DollarSign, Home, Package, ScanLine, User } from 'lucide-react-native';
 import { Fragment, useEffect } from 'react';
 import { Alert } from 'react-native';
 import tw from 'twrnc';
@@ -78,13 +78,13 @@ export default function AppLayout() {
                     }}
                 />
                 <Tabs.Screen
-                    name="work-order"
+                    name="marketing/canvasing/index"
                     options={{
-                        title: 'Work Order',
-                        tabBarIcon: ({ color }) => <ClipboardList size={24} color={getIconColor(color, 'm_work_order')} />,
+                        title: 'Canvasing',
+                        tabBarIcon: ({ color }) => <DollarSign size={24} color={getIconColor(color, 'm_canvasing')} />,
                     }}
                     listeners={{
-                        tabPress: (e) => handleTabPress(e, 'm_work_order'),
+                        tabPress: (e) => handleTabPress(e, 'm_canvasing'),
                     }}
                 />
                 <Tabs.Screen
@@ -217,13 +217,15 @@ export default function AppLayout() {
                     }}
                 />
 
-                {/* Marketing / Canvasing Screens - Hidden from tab bar */}
+                {/* Work Order - Hidden from tab bar, accessed via dashboard card */}
                 <Tabs.Screen
-                    name="marketing/canvasing/index"
+                    name="work-order"
                     options={{
                         href: null,
                     }}
                 />
+
+                {/* Marketing / Canvasing Screens - Hidden from tab bar */}
                 <Tabs.Screen
                     name="marketing/canvasing/create"
                     options={{
@@ -232,6 +234,13 @@ export default function AppLayout() {
                 />
                 <Tabs.Screen
                     name="marketing/canvasing/[id]/index"
+                    options={{
+                        href: null,
+                        tabBarStyle: { display: 'none' },
+                    }}
+                />
+                <Tabs.Screen
+                    name="marketing/canvasing/[id]/claim"
                     options={{
                         href: null,
                         tabBarStyle: { display: 'none' },

@@ -24,6 +24,17 @@ interface DashboardStats {
     barangMasukToday: number;
 }
 
+interface CanvasingSummary {
+    total: number;
+    woStartedToday: number;
+    completedToday: number;
+    completedWeek: number;
+    completedMonth: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+}
+
 interface UserProfile {
     name: string | null;
     image: string | null;
@@ -76,6 +87,18 @@ export default function Dashboard() {
         }
     });
 
+    // Fetch canvasing summary
+    const { data: canvasingSummary, refetch: refetchCanvasing } = useOfflineQuery({
+        key: 'canvasing_summary',
+        fetcher: async () => {
+            const res = await axios.get(`${Config.API_URL}/api/marketing/canvasing/summary`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            return res.data as CanvasingSummary;
+        },
+        enabled: !!token
+    });
+
     // Effect to sync user data
     const { updateUser } = useAuth();
     useEffect(() => {
@@ -115,13 +138,14 @@ export default function Dashboard() {
         return profileData?.features?.includes(feature) ?? false;
     };
 
-    const isWorkOrderDisabled = !hasFeature('m_work_order');
+    const hasWorkOrder = hasFeature('m_work_order');
+    const hasCanvasing = hasFeature('m_canvasing');
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        await Promise.all([refetch(), refetchProfile()]);
+        await Promise.all([refetch(), refetchProfile(), refetchCanvasing()]);
         setRefreshing(false);
-    }, [refetch, refetchProfile]);
+    }, [refetch, refetchProfile, refetchCanvasing]);
 
     if (loading && !stats) {
         return (
@@ -151,59 +175,110 @@ export default function Dashboard() {
                     <Text style={tw`text-2xl font-bold text-gray-900`}>{profileData?.name || user?.name || 'User'}</Text>
                 </View>
 
-                {/* Cards Carousel */}
-                <View>
-                    <ScrollView 
-                        horizontal 
-                        pagingEnabled 
-                        showsHorizontalScrollIndicator={false}
-                        decelerationRate="fast"
-                        snapToInterval={width}
-                        snapToAlignment="center"
-                        onScroll={handleScroll}
-                        scrollEventThrottle={16}
-                    >
-                        <View style={{ width: width }}>
-                            <WorkOrderCard
-                                assigned={stats?.workOrdersAssigned || 0}
-                                pending={stats?.workOrdersPending || 0}
-                                onPress={() => router.push('/(app)/work-order' as any)}
-                                disabled={isWorkOrderDisabled}
-                            />
-                        </View>
-                        
-                        <View style={{ width: width }}>
-                            <CanvasingCard
-                                assigned={0} 
-                                completed={0} 
-                                onPress={() => router.push('/(app)/marketing/canvasing' as any)}
-                                disabled={!hasFeature('m_canvasing')}
-                            />
-                        </View>
-                    </ScrollView>
+                {/* Cards Carousel - Show only accessible cards */}
+                {(() => {
+                    const cards = [];
+                    if (hasWorkOrder) {
+                        cards.push(
+                            <View key="wo" style={{ width: width }}>
+                                <WorkOrderCard
+                                    assigned={stats?.workOrdersAssigned || 0}
+                                    pending={stats?.workOrdersPending || 0}
+                                    onPress={() => router.push('/(app)/work-order' as any)}
+                                    disabled={false}
+                                />
+                            </View>
+                        );
+                    }
+                    if (hasCanvasing) {
+                        cards.push(
+                            <View key="canvasing" style={{ width: width }}>
+                                <CanvasingCard
+                                    assigned={canvasingSummary?.approved || 0} 
+                                    completed={canvasingSummary?.woStartedToday || 0} 
+                                    onPress={() => router.push('/(app)/marketing/canvasing' as any)}
+                                    disabled={false}
+                                />
+                            </View>
+                        );
+                    }
+                    // Fallback if no cards accessible
+                    if (cards.length === 0) {
+                        cards.push(
+                            <View key="no-access" style={{ width: width }}>
+                                <View style={tw`mx-4 bg-gray-100 rounded-2xl p-6 items-center`}>
+                                    <Text style={tw`text-gray-500`}>Tidak ada modul aktif</Text>
+                                </View>
+                            </View>
+                        );
+                    }
+                    return (
+                        <View>
+                            <ScrollView 
+                                horizontal 
+                                pagingEnabled 
+                                showsHorizontalScrollIndicator={false}
+                                decelerationRate="fast"
+                                snapToInterval={width}
+                                snapToAlignment="center"
+                                onScroll={handleScroll}
+                                scrollEventThrottle={16}
+                            >
+                                {cards}
+                            </ScrollView>
 
-                    {/* Pagination Dots */}
-                    <View style={tw`flex-row justify-center items-center mt-2 mb-4 space-x-2`}>
-                        {[0, 1].map((index) => (
-                            <View
-                                key={index}
-                                style={tw`h-2 rounded-full ${
-                                    index === activeIndex 
-                                        ? 'bg-blue-600 w-6' 
-                                        : 'bg-gray-300 w-2'
-                                }`}
-                            />
-                        ))}
-                    </View>
-                </View>
+                            {/* Pagination Dots - Only show if more than 1 card */}
+                            {cards.length > 1 && (
+                                <View style={tw`flex-row justify-center items-center mt-2 mb-4 gap-2`}>
+                                    {cards.map((_, index) => (
+                                        <View
+                                            key={index}
+                                            style={tw`h-2 rounded-full ${
+                                                index === activeIndex 
+                                                    ? 'bg-blue-600 w-6' 
+                                                    : 'bg-gray-300 w-2'
+                                            }`}
+                                        />
+                                    ))}
+                                </View>
+                            )}
+                        </View>
+                    );
+                })()}
 
-                {/* Performance Stats */}
-                <PerformanceStats
-                    title={activeIndex === 0 ? 'Tiket Selesai' : 'Kunjungan Selesai'}
-                    today={activeIndex === 0 ? (stats?.woCompletedToday || 0) : 0}
-                    week={activeIndex === 0 ? (stats?.woCompletedWeek || 0) : 0}
-                    month={activeIndex === 0 ? (stats?.woCompletedMonth || 0) : 0}
-                />
+                {/* Performance Stats - Show based on active card considering access */}
+                {(() => {
+                    // Determine which card is currently showing based on access and index
+                    // If only WO: activeIndex=0 shows WO
+                    // If only Canvasing: activeIndex=0 shows Canvasing (WO not in list)
+                    // If both: activeIndex=0 shows WO, activeIndex=1 shows Canvasing
+                    const isShowingWO = hasWorkOrder && activeIndex === 0;
+                    const isShowingCanvasing = hasCanvasing && (
+                        (!hasWorkOrder && activeIndex === 0) || // Only canvasing card exists
+                        (hasWorkOrder && activeIndex === 1)      // Both exist, canvasing is second
+                    );
+                    
+                    if (isShowingWO) {
+                        return (
+                            <PerformanceStats
+                                title="Tiket Selesai"
+                                today={stats?.woCompletedToday || 0}
+                                week={stats?.woCompletedWeek || 0}
+                                month={stats?.woCompletedMonth || 0}
+                            />
+                        );
+                    } else if (isShowingCanvasing) {
+                        return (
+                            <PerformanceStats
+                                title="Canvasing Selesai"
+                                today={canvasingSummary?.completedToday || 0}
+                                week={canvasingSummary?.completedWeek || 0}
+                                month={canvasingSummary?.completedMonth || 0}
+                            />
+                        );
+                    }
+                    return null; // No cards
+                })()}
 
                 {/* Quick Menu - Pass features for access control */}
                 <QuickMenu features={profileData?.features || []} />
