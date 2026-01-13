@@ -137,10 +137,14 @@ export const useOfflineMutation = () => {
             }
         }
 
+        // Remove _offline_meta for online requests to avoid triggering offline signature verification
+        // (which fails because we don't sign online requests)
+        const { _offline_meta, ...onlinePayload } = payload;
+
         const response = await axios({
             method: options.method,
             url: options.url.startsWith('http') ? options.url : `${Config.API_URL}${options.url}`,
-            data: payload,
+            data: onlinePayload,
             headers: {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'application/json'

@@ -17,6 +17,7 @@ import tw from 'twrnc';
 import LoadingModal from '../../components/LoadingModal';
 import { Config } from '../../constants/Config';
 import { useAuth } from '../../context/AuthContext';
+import { generateSignature } from '../../utils/crypto';
 
 // Geofence Types
 interface GeofenceZone {
@@ -565,6 +566,15 @@ export default function AbsensiScreen() {
                     targetField: 'photoUrl',
                     singleFile: true,
                     photoType: 'employee-attendance'
+                },
+                _offline_meta: {
+                    capturedAt: payload.capturedAt,
+                    signature: generateSignature({
+                        userId: user?.id,
+                        timestamp: payload.capturedAt,
+                        latitude: payload.latitude,
+                        longitude: payload.longitude
+                    })
                 }
             }, {
                 url: endpoint,
