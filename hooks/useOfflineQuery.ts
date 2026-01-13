@@ -39,8 +39,14 @@ export const useOfflineQuery = <T>(options: QueryOptions<T>) => {
           // Save to Cache
           await DatabaseService.saveOfflineData(currentOptions.key, result);
           currentOptions.onSuccess?.(result);
-        } catch (err) {
+        } catch (err: any) {
             console.warn(`[useOfflineQuery] Online fetch failed for ${currentOptions.key}, falling back to cache.`);
+            if (err.response) {
+                console.warn(`[useOfflineQuery] Status: ${err.response.status}`);
+                console.warn(`[useOfflineQuery] Data:`, JSON.stringify(err.response.data, null, 2));
+            } else {
+                console.warn(err);
+            }
             // Fallback to cache if online fetch fails
             const cached = await DatabaseService.getOfflineData(currentOptions.key);
             if (cached) {

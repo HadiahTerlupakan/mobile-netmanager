@@ -2,7 +2,7 @@ import { useOfflineQuery } from '@/hooks/useOfflineQuery';
 import axios from 'axios';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { CanvasingCard } from '../../components/dashboard/CanvasingCard';
@@ -196,7 +196,18 @@ export default function Dashboard() {
                                 <CanvasingCard
                                     assigned={canvasingSummary?.approved || 0} 
                                     completed={canvasingSummary?.woStartedToday || 0} 
-                                    onPress={() => router.push('/(app)/marketing/canvasing' as any)}
+                                    onPress={() => {
+                                        // Strict Sales Check
+                                        if (!user?.isSales) {
+                                            Alert.alert(
+                                                'Akses Terbatas',
+                                                'Fitur ini hanya dapat diakses oleh Sales yang aktif.',
+                                                [{ text: 'OK' }]
+                                            );
+                                            return;
+                                        }
+                                        router.push('/(app)/marketing/canvasing' as any);
+                                    }}
                                     disabled={false}
                                 />
                             </View>
@@ -281,7 +292,7 @@ export default function Dashboard() {
                 })()}
 
                 {/* Quick Menu - Pass features for access control */}
-                <QuickMenu features={profileData?.features || []} />
+                <QuickMenu features={profileData?.features || []} isSales={user?.isSales ?? false} />
 
             </ScrollView>
         </SafeAreaView>

@@ -13,6 +13,9 @@ export default function AppLayout() {
     const insets = useSafeAreaInsets();
     const { token, user } = useAuth();
 
+    console.log('[Layout] User State:', JSON.stringify(user, null, 2));
+    console.log('[Layout] isSales:', user?.isSales);
+
     // Helper to check features
     const hasFeature = (feature: string) => {
         if (!user) return false;
@@ -89,11 +92,18 @@ export default function AppLayout() {
                     name="marketing/canvasing/index"
                     options={{
                         title: 'Canvasing',
-                        href: !hasFeature('m_work_order') ? '/marketing/canvasing' : null,
+                        href: hasFeature('m_canvasing') ? '/marketing/canvasing' : null,
                         tabBarIcon: ({ color }) => <DollarSign size={24} color={getIconColor(color, 'm_canvasing')} />,
                     }}
                     listeners={{
-                        tabPress: (e) => handleTabPress(e, 'm_canvasing'),
+                        tabPress: (e) => {
+                            if (!user?.isSales) {
+                                e.preventDefault();
+                                Alert.alert('Akses Terbatas', 'Fitur ini hanya dapat diakses oleh Sales yang aktif.', [{ text: 'OK' }]);
+                                return;
+                            }
+                            handleTabPress(e, 'm_canvasing');
+                        },
                     }}
                 />
                 <Tabs.Screen

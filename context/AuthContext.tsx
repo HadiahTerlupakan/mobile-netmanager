@@ -12,6 +12,7 @@ type User = {
     email: string;
     role: string;
     features?: string[];
+    isSales?: boolean;
     image?: string | null;
 };
 

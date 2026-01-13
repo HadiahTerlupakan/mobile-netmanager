@@ -6,9 +6,10 @@ import tw from 'twrnc';
 
 interface QuickMenuProps {
     features?: string[];
+    isSales?: boolean;
 }
 
-export const QuickMenu = ({ features = [] }: QuickMenuProps) => {
+export const QuickMenu = ({ features = [], isSales = false }: QuickMenuProps) => {
     const router = useRouter();
 
     // Check if user has a specific feature
@@ -97,13 +98,24 @@ export const QuickMenu = ({ features = [] }: QuickMenuProps) => {
             color: 'bg-blue-50',
             iconColor: '#2563eb',
             route: '/(app)/marketing/canvasing',
-            requiredFeatures: ['m_canvasing']
+            requiredFeatures: ['m_canvasing'],
+            requiresSales: true
         },
     ];
 
-    const handleMenuPress = (item: typeof menuItems[0]) => {
+    const handleMenuPress = (item: any) => {
         const enabled = hasFeature(item.requiredFeatures);
+        
         if (enabled) {
+            // Strict Sales Check for Sales Features
+            if (item.requiresSales && !isSales) {
+                Alert.alert(
+                    'Akses Terbatas',
+                    'Fitur ini hanya dapat diakses oleh Sales yang aktif.',
+                    [{ text: 'OK' }]
+                );
+                return;
+            }
             router.push(item.route as any);
         } else {
             Alert.alert(
