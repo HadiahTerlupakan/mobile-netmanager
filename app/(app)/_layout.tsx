@@ -1,5 +1,5 @@
 import { Tabs, useRouter } from 'expo-router';
-import { DollarSign, Home, Package, ScanLine, User } from 'lucide-react-native';
+import { ClipboardList, DollarSign, Home, Package, ScanLine, User } from 'lucide-react-native';
 import { Fragment, useEffect } from 'react';
 import { Alert } from 'react-native';
 import tw from 'twrnc';
@@ -78,9 +78,18 @@ export default function AppLayout() {
                     }}
                 />
                 <Tabs.Screen
+                    name="work-order"
+                    options={{
+                        title: 'Work Order',
+                        href: hasFeature('m_work_order') ? '/work-order' : null,
+                        tabBarIcon: ({ color }) => <ClipboardList size={24} color={color} />,
+                    }}
+                />
+                <Tabs.Screen
                     name="marketing/canvasing/index"
                     options={{
                         title: 'Canvasing',
+                        href: !hasFeature('m_work_order') ? '/marketing/canvasing' : null,
                         tabBarIcon: ({ color }) => <DollarSign size={24} color={getIconColor(color, 'm_canvasing')} />,
                     }}
                     listeners={{
@@ -217,13 +226,7 @@ export default function AppLayout() {
                     }}
                 />
 
-                {/* Work Order - Hidden from tab bar, accessed via dashboard card */}
-                <Tabs.Screen
-                    name="work-order"
-                    options={{
-                        href: null,
-                    }}
-                />
+                {/* Work Order - Moved to dynamic tab slot above */}
 
                 {/* Marketing / Canvasing Screens - Hidden from tab bar */}
                 <Tabs.Screen
