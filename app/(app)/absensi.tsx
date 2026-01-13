@@ -286,21 +286,9 @@ export default function AbsensiScreen() {
     const uploadPhotos = async (uris: string[], retryCount = 2): Promise<string[]> => {
         const uploadedUrls: string[] = [];
         
-        // Warm up connection before upload (fixes Android cold connection issue)
-        try {
-            console.log('[Absensi] Warming up connection...');
-            await axios.get(`${Config.API_URL}/api/health`, { 
-                timeout: 5000,
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            console.log('[Absensi] Connection warmed up');
-        } catch (warmupError) {
-            // Ignore warmup errors, just continue with upload
-            console.log('[Absensi] Warmup request done (may have failed, continuing anyway)');
-        }
-        
-        // Small delay after warmup
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // NOTE: Warmup request removed - retry logic handles connection issues better
+        // Previous warmup added ~300-500ms latency without significant benefit
+
         
         for (const uri of uris) {
             let attempts = 0;
