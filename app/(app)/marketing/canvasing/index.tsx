@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 export default function CanvasingListScreen() {
@@ -180,10 +181,10 @@ export default function CanvasingListScreen() {
     const progressPerc = Math.min((stats.total / targetMonthly) * 100, 100);
 
     return (
-        <View style={tw`flex-1 bg-gray-50`}>
+        <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
             {/* Premium Header Dashboard */}
-            <View style={tw`bg-indigo-700 pt-12 pb-6 px-5 shadow-lg`}>
-                <View style={tw`flex-row items-center justify-between mb-6`}>
+            <View style={tw`bg-indigo-700 pb-6 px-5 shadow-lg`}>
+                <View style={tw`flex-row items-center justify-between pt-4 mb-6`}>
                     <TouchableOpacity 
                         onPress={() => router.back()} 
                         style={tw`w-10 h-10 items-center justify-center bg-white/10 rounded-full`}
@@ -353,7 +354,7 @@ export default function CanvasingListScreen() {
                     })
                 )}
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }
 

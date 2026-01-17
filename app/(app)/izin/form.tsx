@@ -1,11 +1,13 @@
+import CustomDatePickerModal from '@/components/CustomDatePickerModal'; // Import Custom Modal
 import { useOfflineMutation } from '@/hooks/useOfflineMutation';
+import api from '@/services/api';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { format } from 'date-fns';
+import { addMonths, eachDayOfInterval, endOfMonth, format, isSameDay, startOfMonth } from 'date-fns';
 import { useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Camera, ChevronDown, X } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
@@ -18,7 +20,10 @@ const LEAVE_TYPES = [
     { value: 'LAINNYA', label: 'Lainnya' },
 ];
 
+import { useAuth } from '@/context/AuthContext';
+
 export default function LeaveFormScreen() {
+    const { user } = useAuth();
     const router = useRouter();
     
     // Form State
@@ -34,6 +39,32 @@ export default function LeaveFormScreen() {
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
     const [showReplacementPicker, setShowReplacementPicker] = useState(false); // New Picker
+
+    // Live Data State
+    const [liveWorkDays, setLiveWorkDays] = useState<string | null>(null);
+    const [liveWorkingHourMode, setLiveWorkingHourMode] = useState<string | null>(null);
+
+    // Fetch latest profile data to get up-to-date workDays
+    useEffect(() => {
+        let isMounted = true;
+        const fetchProfile = async () => {
+            try {
+                const { data } = await api.get('/api/mobile/profile');
+                if (isMounted && data.success && data.data) {
+                     setLiveWorkDays(data.data.workDays);
+                     setLiveWorkingHourMode(data.data.workingHourMode);
+                }
+            } catch (error) {
+                console.log('Failed to fetch fresh profile:', error);
+            }
+        };
+        fetchProfile();
+        return () => { isMounted = false; };
+    }, []);
+
+    // Use live data if available, otherwise fall back to context
+    const currentWorkDays = liveWorkDays ?? user?.workDays;
+    const currentWorkingHourMode = liveWorkingHourMode ?? user?.workingHourMode;
 
     // Camera
     const [showCamera, setShowCamera] = useState(false);
@@ -57,6 +88,48 @@ export default function LeaveFormScreen() {
         if (type !== 'CUTI' && type !== 'TUKAR_LIBUR' && photos.length === 0) {
             Alert.alert('Error', 'Foto bukti wajib diupload');
             return;
+        }
+
+        // Validate Tukar Libur Dates
+        if (type === 'TUKAR_LIBUR') {
+            if (!replacementDate) {
+                 Alert.alert('Error', 'Tanggal pengganti wajib diisi');
+                 return;
+            }
+            
+            if (currentWorkDays) {
+                 const workDays = currentWorkDays.split(',').map(d => d.trim());
+                 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                 
+                 const startDayName = days[startDate.getDay()];
+                 const replacementDayName = days[replacementDate.getDay()];
+
+                 // 1. Start Date MUST be a Working Day
+                 if (!workDays.includes(startDayName)) {
+                      Alert.alert('Error Validasi', `Tanggal izin (${format(startDate, 'dd MMM')}) harus merupakan HARI KERJA Anda (Jadwal: ${currentWorkDays}).`);
+                      return;
+                 }
+
+                 // 2. Replacement Date MUST be an Off Day (not in workDays)
+                 // Note: We only check if it is NOT in workDays. 
+                 // If it IS in workDays, it's invalid UNLESS it's a Holiday (which backend checks).
+                 // For stricter frontend UX, we warn if it looks like a working day.
+                 if (workDays.includes(replacementDayName)) {
+                      // Optional: You could allow it if it matches a known holiday, but frontend doesn't have holiday data easily.
+                      // For now, let's show a warning or rely on backend for the strict "Holiday" exception if user insists.
+                      // Or be strict: "Replacement must be outside normal work days OR a red date". 
+                      // Since we can't check 'red date' easily here without API, maybe we let it pass to backend 
+                      // if user insists, OR we just warn.
+                      // Let's rely on Backend for the "Holiday" exception to be safe, 
+                      // BUT we can warn if it looks like a normal work day.
+                      // However, to follow the requested logic strictly: 
+                      // "User TIDAK BISA menawarkan PENGGANTI di hari Selasa (karena sudah jadwal kerja), KECUALI hari Selasa tersebut adalah Tanggal Merah".
+                      // Since we can't check holiday here, we should probably let it submit and let backend fail if it's not a holiday.
+                      // BUT, usually these are basic "Work day vs Weekend" swaps. 
+                      // Let's skips strict frontend blocking for replacement date to allow for the "Holiday exception".
+                      // We ONLY strictly block the Start Date (must be work day).
+                 }
+            }
         }
 
         await mutate({
@@ -155,14 +228,50 @@ export default function LeaveFormScreen() {
                             {LEAVE_TYPES.map((t) => (
                                 <TouchableOpacity
                                     key={t.value}
-                                    onPress={() => { setType(t.value); setShowTypePicker(false); }}
+                                    onPress={() => { 
+                                        if (t.value === 'TUKAR_LIBUR' && currentWorkingHourMode === 'FLEXIBLE') {
+                                            Alert.alert(
+                                                'Tidak Tersedia',
+                                                'Fitur Tukar Libur tidak tersedia untuk karyawan dengan Jam Kerja Fleksibel karena Anda tidak memiliki jadwal libur tetap.'
+                                            );
+                                            setShowTypePicker(false);
+                                            return;
+                                        }
+                                        setType(t.value); 
+                                        setShowTypePicker(false); 
+                                    }}
                                     style={tw`p-3 border-b border-gray-100 ${type === t.value ? 'bg-teal-50' : ''}`}
                                 >
-                                    <Text style={tw`${type === t.value ? 'text-teal-600 font-bold' : 'text-slate-700'}`}>{t.label}</Text>
+                                    <View style={tw`flex-row justify-between items-center`}>
+                                        <Text style={tw`${type === t.value ? 'text-teal-600 font-bold' : 'text-slate-700'}`}>{t.label}</Text>
+                                        {t.value === 'TUKAR_LIBUR' && currentWorkingHourMode === 'FLEXIBLE' && (
+                                            <Text style={tw`text-[10px] text-red-500 bg-red-50 px-2 py-0.5 rounded-full`}>Tidak Bisa</Text>
+                                        )}
+                                    </View>
                                 </TouchableOpacity>
                             ))}
                         </View>
                     )}
+                </View>
+
+                {/* Debug / Schedule Info */}
+                <View style={tw`bg-blue-50 p-3 rounded-xl border border-blue-100 mb-6`}>
+                    <Text style={tw`text-xs font-bold text-blue-600 uppercase mb-1`}>
+                        Jadwal Kerja Anda {liveWorkDays ? '(Live)' : '(Cached)'}
+                    </Text>
+                    <Text style={tw`text-sm text-blue-800`}>
+                        {(() => {
+                            if (currentWorkingHourMode === 'FLEXIBLE') {
+                                return 'Jam Kerja Fleksibel (Bebas / Tidak ada jadwal tetap)';
+                            }
+                            if (!currentWorkDays) return 'Belum diatur (Asumsi: Senin - Jumat)';
+                            const dayMap: {[key: string]: string} = { 'Mon': 'Senin', 'Tue': 'Selasa', 'Wed': 'Rabu', 'Thu': 'Kamis', 'Fri': 'Jumat', 'Sat': 'Sabtu', 'Sun': 'Minggu' };
+                            return currentWorkDays.split(',').map(d => dayMap[d.trim()] || d).join(', ');
+                        })()}
+                    </Text>
+                    <Text style={tw`text-[10px] text-blue-500 mt-1 italic`}>
+                        *Data diambil dari server.
+                    </Text>
                 </View>
 
                 {/* Date Pickers */}
@@ -195,7 +304,8 @@ export default function LeaveFormScreen() {
                     )}
                 </View>
 
-                {showStartPicker && (
+                {/* Native Picker for Start Date - Only if NOT Tukar Libur */}
+                {type !== 'TUKAR_LIBUR' && showStartPicker && (
                     <DateTimePicker
                         value={startDate}
                         mode="date"
@@ -203,10 +313,7 @@ export default function LeaveFormScreen() {
                             setShowStartPicker(false); 
                             if (date) { 
                                 setStartDate(date); 
-                                // For TUKAR_LIBUR or auto-range convenience, sync end date initially
-                                if (type === 'TUKAR_LIBUR' || endDate < date) {
-                                    setEndDate(date);
-                                }
+                                if (endDate < date) setEndDate(date);
                             } 
                         }}
                     />
@@ -220,10 +327,12 @@ export default function LeaveFormScreen() {
                 )}
 
                 {/* Replacement Date for TUKAR_LIBUR */}
+                {/* Replacement Date for TUKAR_LIBUR */}
+                {/* Replacement Date for TUKAR_LIBUR */}
                 {type === 'TUKAR_LIBUR' && (
                     <View style={tw`mb-4`}>
                         <Text style={tw`text-xs font-bold text-teal-600 uppercase mb-2`}>Tanggal Pengganti (Wajib Masuk)</Text>
-                        <TouchableOpacity
+                         <TouchableOpacity
                             onPress={() => setShowReplacementPicker(true)}
                             style={tw`bg-teal-50 p-3 rounded-xl border border-teal-200`}
                             disabled={isSubmitting}
@@ -234,8 +343,137 @@ export default function LeaveFormScreen() {
                     </View>
                 )}
 
-                {showReplacementPicker && (
+                {/* Custom Calendar Modals for TUKAR_LIBUR */}
+                {type === 'TUKAR_LIBUR' && (
+                    <>
+                        {/* Start Date Picker (Hari Izin - Should be WORK DAY) */}
+                        <CustomDatePickerModal
+                            visible={showStartPicker}
+                            onClose={() => setShowStartPicker(false)}
+                            onSelect={(date) => {
+                                setStartDate(date);
+                                // Sync end date
+                                if (endDate < date) setEndDate(date);
+                            }}
+                            title="Pilih Tanggal Izin"
+                            minDate={new Date().toISOString().split('T')[0]}
+                            markedDates={(() => {
+                                const workDays = user?.workDays ? user.workDays.split(',').map(d => d.trim()) : [];
+                                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                                const marks: any = {};
+                                
+                                // Generate marks for next 3 months to be safe
+                                const today = new Date();
+                                const rangeStart = startOfMonth(today);
+                                const rangeEnd = endOfMonth(addMonths(today, 2));
+                                
+                                eachDayOfInterval({ start: rangeStart, end: rangeEnd }).forEach(date => {
+                                    const dateStr = format(date, 'yyyy-MM-dd');
+                                    const dayName = days[date.getDay()];
+                                    const isWorkDay = workDays.includes(dayName);
+                                    const isSelected = isSameDay(date, startDate);
+                                    
+                                    if (isWorkDay) {
+                                        // Work Day: Green (Selectable)
+                                        marks[dateStr] = { 
+                                            customStyles: {
+                                                container: {
+                                                    backgroundColor: isSelected ? '#0d9488' : 'transparent',
+                                                    borderWidth: isSelected ? 0 : 0,
+                                                    borderRadius: 8
+                                                },
+                                                text: {
+                                                    color: isSelected ? '#ffffff' : '#0f172a', // Dark text for unselected
+                                                    fontWeight: '600'
+                                                }
+                                            }
+                                        };
+                                    } else {
+                                        // Off Day: Disabled (Gray)
+                                        marks[dateStr] = { 
+                                            disabled: true, 
+                                            disableTouchEvent: true,
+                                            customStyles: {
+                                                container: {
+                                                    backgroundColor: '#f1f5f9'
+                                                },
+                                                text: {
+                                                    color: '#cbd5e1' // Gray text
+                                                }
+                                            }
+                                        }; 
+                                    }
+                                });
+                                return marks;
+                            })()}
+                        />
+
+                        {/* Replacement Date Picker (Hari Pengganti - Should be OFF DAY) */}
+                        <CustomDatePickerModal
+                            visible={showReplacementPicker}
+                            onClose={() => setShowReplacementPicker(false)}
+                            onSelect={(date) => setReplacementDate(date)}
+                            title="Pilih Tanggal Pengganti"
+                            minDate={new Date().toISOString().split('T')[0]}
+                            markedDates={(() => {
+                                const workDays = user?.workDays ? user.workDays.split(',').map(d => d.trim()) : [];
+                                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                                const marks: any = {};
+                                
+                                // Generate marks for next 3 months
+                                const today = new Date();
+                                const rangeStart = startOfMonth(today);
+                                const rangeEnd = endOfMonth(addMonths(today, 2));
+                                
+                                eachDayOfInterval({ start: rangeStart, end: rangeEnd }).forEach(date => {
+                                    const dateStr = format(date, 'yyyy-MM-dd');
+                                    const dayName = days[date.getDay()];
+                                    const isWorkDay = workDays.includes(dayName);
+                                    const isSelected = isSameDay(date, replacementDate);
+                                    
+                                    if (!isWorkDay) {
+                                        // OFF DAYS are Good for Replacement -> Green
+                                        marks[dateStr] = { 
+                                            customStyles: {
+                                                container: {
+                                                    backgroundColor: isSelected ? '#0d9488' : '#ecfdf5', // Light green bg for suggestion
+                                                    borderRadius: 8
+                                                },
+                                                text: {
+                                                    color: isSelected ? '#ffffff' : '#047857', // Dark green text
+                                                    fontWeight: 'bold'
+                                                }
+                                            }
+                                        };
+                                    } else {
+                                        // WORK DAYS are Bad for Replacement -> Red (but clickable)
+                                        marks[dateStr] = { 
+                                            customStyles: {
+                                                text: {
+                                                    color: '#ef4444', // Red text
+                                                    fontWeight: 'normal'
+                                                }
+                                            }
+                                        }; 
+                                    }
+                                });
+                                return marks;
+                            })()}
+                        />
+                    </>
+                )}
+
+                {/* Native Picker for other types OR if not TUKAR_LIBUR */}
+                {type !== 'TUKAR_LIBUR' && showStartPicker && (
                     <DateTimePicker
+                        value={startDate}
+                        mode="date"
+                        onChange={(_, date) => { setShowStartPicker(false); if (date) setStartDate(date); }}
+                    />
+                )}
+                 {/* Only show Native Replacement Picker if NOT TUKAR_LIBUR (which shouldn't happen logic-wise but good safeguard) */}
+                {type !== 'TUKAR_LIBUR' && showReplacementPicker && (
+                     <DateTimePicker
                         value={replacementDate}
                         mode="date"
                         onChange={(_, date) => { setShowReplacementPicker(false); if (date) setReplacementDate(date); }}
@@ -256,8 +494,8 @@ export default function LeaveFormScreen() {
                     />
                 </View>
 
-                {/* Photo Upload (required for non-CUTI) */}
-                {type !== 'CUTI' && (
+                {/* Photo Upload (required for non-CUTI and non-TUKAR_LIBUR) */}
+                {type !== 'CUTI' && type !== 'TUKAR_LIBUR' && (
                     <View style={tw`mb-6`}>
                         <Text style={tw`text-xs font-bold text-slate-500 uppercase mb-2`}>Foto Bukti (Wajib)</Text>
                         
@@ -296,10 +534,10 @@ export default function LeaveFormScreen() {
                 {/* Submit All */}
                 <TouchableOpacity
                     onPress={handleSubmit}
-                    disabled={isSubmitting || (type !== 'CUTI' && photos.length === 0) || !reason.trim()}
+                    disabled={isSubmitting || (type !== 'CUTI' && type !== 'TUKAR_LIBUR' && photos.length === 0) || !reason.trim()}
                     style={[
                         tw`py-4 rounded-xl items-center shadow-sm`,
-                        (isSubmitting || (type !== 'CUTI' && photos.length === 0) || !reason.trim()) ? tw`bg-gray-300` : tw`bg-teal-600`
+                        (isSubmitting || (type !== 'CUTI' && type !== 'TUKAR_LIBUR' && photos.length === 0) || !reason.trim()) ? tw`bg-gray-300` : tw`bg-teal-600`
                     ]}
                 >
                     <Text style={tw`text-white font-bold text-lg`}>

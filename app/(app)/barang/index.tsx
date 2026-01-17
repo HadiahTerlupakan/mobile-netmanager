@@ -1,12 +1,13 @@
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { useState, useCallback } from 'react';
-import tw from 'twrnc';
-import { Ionicons } from '@expo/vector-icons';
+import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import { useSocketEvent } from '@/context/SocketContext';
+import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
-import { Config } from '@/constants/Config';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import tw from 'twrnc';
 
 interface DashboardStats {
     barangMasukToday: number;
@@ -90,7 +91,7 @@ export default function BarangIndexScreen() {
     ];
 
     return (
-        <View style={tw`flex-1 bg-gray-50`}>
+        <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
             {/* Header */}
             <View style={tw`bg-white px-4 py-4 border-b border-gray-100`}>
                 <View style={tw`flex-row items-center justify-between`}>
@@ -149,6 +150,6 @@ export default function BarangIndexScreen() {
                     </View>
                 </View>
             </ScrollView>
-        </View>
+        </SafeAreaView>
     );
 }

@@ -4,14 +4,14 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, Layers, RefreshCw } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import toGeoJSON from '../../utils/togeojson-wrapper';
@@ -566,7 +566,7 @@ export default function TopologyMapScreen() {
 
   return (
     <TopologyErrorBoundary>
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -746,7 +746,7 @@ export default function TopologyMapScreen() {
         device={selectedDevice?.data || null}
         deviceType={selectedDevice?.type || null}
       />
-      </View>
+      </SafeAreaView>
     </TopologyErrorBoundary>
   );
 }
@@ -760,9 +760,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 50 : 40,
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingVertical: 12,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',

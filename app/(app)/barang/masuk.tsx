@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 import tw from 'twrnc';
 
@@ -373,7 +374,7 @@ export default function BarangMasukScreen() {
     const selectedGudangData = gudangs.find(g => g.id === selectedGudang);
 
     return (
-        <View style={tw`flex-1 bg-gray-50`}>
+        <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
             {/* Header */}
             <View style={tw`bg-white px-4 py-4 border-b border-gray-100`}>
                 <View style={tw`flex-row items-center justify-between`}>
@@ -619,6 +620,6 @@ export default function BarangMasukScreen() {
                 visible={showLoading} 
                 message={loadingMessage} 
             />
-        </View>
+        </SafeAreaView>
     );
 }

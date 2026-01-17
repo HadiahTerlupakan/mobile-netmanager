@@ -6,6 +6,7 @@ import axios from 'axios';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 interface Transaction {
@@ -194,10 +195,10 @@ export default function RiwayatBarangScreen() {
     ), []);
 
     return (
-        <View style={tw`flex-1 bg-gray-50`}>
+        <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
             {/* Header */}
-            <View style={tw`bg-white border-b border-gray-200 pt-12 pb-2`}>
-                <View style={tw`flex-row items-center justify-between px-4 mb-4`}>
+            <View style={tw`bg-white border-b border-gray-200 pb-2`}>
+                <View style={tw`flex-row items-center justify-between px-4 py-4`}>
                     <TouchableOpacity 
                         onPress={() => router.back()}
                         style={tw`w-8 h-8 items-center justify-center rounded-full bg-gray-50`}
@@ -234,7 +235,6 @@ export default function RiwayatBarangScreen() {
                     <FlashList
                         data={transactions}
                         renderItem={renderTransactionItem}
-                        estimatedItemSize={140}
                         onEndReached={onLoadMore}
                         onEndReachedThreshold={0.5}
                         refreshControl={
@@ -247,6 +247,6 @@ export default function RiwayatBarangScreen() {
                     />
                 </View>
             )}
-        </View>
+        </SafeAreaView>
     );
 }

@@ -171,7 +171,6 @@ export default function AppLayout() {
                     name="izin"
                     options={{
                         href: null,
-                        tabBarStyle: { display: 'none' },
                     }}
                 />
                 <Tabs.Screen

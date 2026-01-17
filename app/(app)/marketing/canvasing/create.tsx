@@ -19,6 +19,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 export default function CreateCanvasingScreen() {
@@ -254,12 +255,13 @@ export default function CreateCanvasingScreen() {
     }
 
     return (
-        <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={tw`flex-1 bg-gray-50`}
-        >
-            {/* Header */}
-            <View style={tw`bg-white pt-12 pb-4 px-4 shadow-sm z-10 flex-row items-center justify-between`}>
+        <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={tw`flex-1`}
+            >
+                {/* Header */}
+                <View style={tw`bg-white pb-4 px-4 pt-4 shadow-sm z-10 flex-row items-center justify-between`}>
                 <TouchableOpacity 
                     onPress={() => router.back()} 
                     style={tw`w-10 h-10 items-center justify-center bg-gray-50 rounded-full`}
@@ -469,7 +471,8 @@ export default function CreateCanvasingScreen() {
                     setShowMapModal(false);
                 }}
             />
-        </KeyboardAvoidingView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
 

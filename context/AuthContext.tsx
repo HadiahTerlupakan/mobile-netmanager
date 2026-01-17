@@ -14,6 +14,8 @@ type User = {
     features?: string[];
     isSales?: boolean;
     image?: string | null;
+    workDays?: string | null;
+    workingHourMode?: string | null;
 };
 
 type AuthContextType = {
