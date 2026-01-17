@@ -1,7 +1,14 @@
 import MapLibreGL from "@maplibre/maplibre-react-native";
 import { DOMParser } from "@xmldom/xmldom";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Layers, RefreshCw } from "lucide-react-native";
+import {
+    ArrowLeft,
+    Layers,
+    MapPin,
+    Plus,
+    RefreshCw,
+    Target
+} from "lucide-react-native";
 import React, {
     useCallback,
     useEffect,
@@ -15,13 +22,14 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import toGeoJSON from "../../utils/togeojson-wrapper";
 
+import { DeviceCreateModal } from "../../components/topology/DeviceCreateModal";
 import {
     DeviceData,
     DeviceDetailModal,
@@ -153,14 +161,15 @@ export default function TopologyMapScreen() {
   const [data, setData] = useState<TopologyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(12); // Track zoom level for clustering
+  // Use refs instead of state for camera tracking to prevent re-renders
+  const zoomRef = useRef(12);
   const [loadingKmz, setLoadingKmz] = useState(false); // Track KMZ loading state
-  const [viewport, setViewport] = useState<{
+  const viewportRef = useRef<{
     north: number;
     south: number;
     east: number;
     west: number;
-  } | null>(null); // Track viewport bounds for filtering
+  } | null>(null);
 
   const [visibility, setVisibility] = useState({
     otb: true,
@@ -183,6 +192,46 @@ export default function TopologyMapScreen() {
   } | null>(null);
 
   const [showFilters, setShowFilters] = useState(false);
+
+  // Creation Mode State
+  const [isPickerMode, setIsPickerMode] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  // Use ref for currentCenter to prevent re-renders
+  const currentCenterRef = useRef<[number, number] | null>(null);
+
+  // Camera position refs for stable MapLibre Camera props
+  const cameraCenterRef = useRef<[number, number]>([106.816666, -6.2]);
+  const cameraZoomRef = useRef(12);
+
+  // Memoize map style to prevent reloads on render
+  const mapStyle = useMemo(
+    () => ({
+      version: 8,
+      sources: {
+        osm: {
+          type: "raster",
+          tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+          tileSize: 256,
+          attribution: "© OpenStreetMap contributors",
+        },
+      },
+      layers: [
+        {
+          id: "osm-tiles",
+          type: "raster",
+          source: "osm",
+          minzoom: 0,
+          maxzoom: 19,
+        },
+      ],
+    }),
+    [],
+  );
+
+  useEffect(() => {
+    console.log("[TopologyMap] Component MOUNTED");
+    return () => console.log("[TopologyMap] Component UNMOUNTED");
+  }, []);
 
   const { token } = useAuth();
 
@@ -471,7 +520,7 @@ export default function TopologyMapScreen() {
             // Fallback if expansion zoom is not returned
             cameraRef.current?.setCamera({
               centerCoordinate: feature.geometry.coordinates,
-              zoomLevel: zoom + 2,
+              zoomLevel: zoomRef.current + 2,
               animationDuration: 500,
             });
           }
@@ -480,7 +529,7 @@ export default function TopologyMapScreen() {
           // Fallback on error
           cameraRef.current?.setCamera({
             centerCoordinate: feature.geometry.coordinates,
-            zoomLevel: zoom + 2,
+            zoomLevel: zoomRef.current + 2,
             animationDuration: 500,
           });
         }
@@ -522,7 +571,7 @@ export default function TopologyMapScreen() {
         }
       }
     },
-    [zoom, data, handleMarkerPress],
+    [data, handleMarkerPress],
   );
 
   // Counts for filter panel
@@ -559,30 +608,45 @@ export default function TopologyMapScreen() {
   }, []);
 
   const handleCameraChange = useCallback((payload: any) => {
-    // Update zoom level when camera changes
-    // onRegionDidChange provides geometry and properties
+    // Update zoom level (using ref to prevent re-renders)
     const zoomLevel = payload?.properties?.zoom;
     if (zoomLevel !== undefined) {
-      setZoom(zoomLevel);
+      zoomRef.current = zoomLevel;
+      cameraZoomRef.current = zoomLevel; // Keep Camera prop in sync
     }
 
-    // Update viewport bounds for filtering
+    // Update center for picker (using ref to prevent re-renders)
+    const center = payload?.geometry?.coordinates;
+    if (center) {
+      currentCenterRef.current = center;
+      cameraCenterRef.current = center; // Keep Camera prop in sync
+    }
+
+    // Update viewport bounds (using ref to prevent re-renders)
     const bounds = payload?.properties?.bounds;
     if (bounds) {
-      setViewport({
-        north: bounds.ne[1], // latitude of northeast corner
-        south: bounds.sw[1], // latitude of southwest corner
-        east: bounds.ne[0], // longitude of northeast corner
-        west: bounds.sw[0], // longitude of southwest corner
-      });
+      viewportRef.current = {
+        north: bounds.ne[1],
+        south: bounds.sw[1],
+        east: bounds.ne[0],
+        west: bounds.sw[0],
+      };
     }
   }, []);
 
+  // Memoize style loading callback to prevent recreating on every render
+  const handleStyleLoaded = useCallback(() => {
+    console.log("[TopologyMap] Style finished loading");
+    setMapReady(true);
+  }, []);
+
+  const [mapReady, setMapReady] = useState(false); // Track map readiness
+
   // Calculate proper map bounds and center coordinate from all devices
   const mapBounds = useMemo(() => {
-    if (!data || data.otbs.length === 0) return null;
+    if (!data) return null;
 
-    // Collect all coordinates from all device types
+    // Collect all coordinates from all device types (not just OTBs)
     const allCoords = [
       ...data.otbs.map((d) => [d.longitude, d.latitude]),
       ...data.odcs.map((d) => [d.longitude, d.latitude]),
@@ -608,6 +672,8 @@ export default function TopologyMapScreen() {
       },
     };
   }, [data]);
+
+  // Camera initialization removed - map shows default view without programmatic positioning
 
   const centerCoordinate = mapBounds?.center || [106.816666, -6.2]; // Default Jakarta
 
@@ -671,36 +737,20 @@ export default function TopologyMapScreen() {
 
         {/* Map Content - Using mapStyle prop (v10+) */}
         <MapLibreGL.MapView
+          key="topology-map-view"
           style={styles.map}
-          mapStyle={{
-            version: 8,
-            sources: {
-              osm: {
-                type: "raster",
-                tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-                tileSize: 256,
-                attribution: "© OpenStreetMap contributors",
-              },
-            },
-            layers: [
-              {
-                id: "osm-tiles",
-                type: "raster",
-                source: "osm",
-                minzoom: 0,
-                maxzoom: 19,
-              },
-            ],
-          }}
+          mapStyle={mapStyle}
           logoEnabled={false}
           onRegionDidChange={handleCameraChange}
+          onDidFinishLoadingStyle={handleStyleLoaded}
         >
           <MapLibreGL.Camera
             ref={cameraRef}
-            zoomLevel={zoom}
-            centerCoordinate={centerCoordinate}
-            animationMode={"flyTo"}
-            animationDuration={2000}
+            followUserLocation={false}
+            defaultSettings={{
+              centerCoordinate: [106.816666, -6.2], // Jakarta, Indonesia
+              zoomLevel: 10, // Reasonable zoom to see the area
+            }}
           />
 
           {/* Connection Lines (GeoJSON) */}
@@ -817,6 +867,70 @@ export default function TopologyMapScreen() {
         <TouchableOpacity style={styles.refreshButton} onPress={fetchData}>
           <RefreshCw size={20} color="#fff" />
         </TouchableOpacity>
+
+        {/* Creation Modal */}
+        <DeviceCreateModal
+          visible={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          initialLocation={
+            currentCenterRef.current
+              ? {
+                  latitude: currentCenterRef.current[1],
+                  longitude: currentCenterRef.current[0],
+                }
+              : undefined
+          }
+          onSuccess={() => {
+            fetchData();
+            setIsPickerMode(false);
+          }}
+        />
+
+        {/* Mobile Creation UI Elements */}
+
+        {/* Crosshair (Picker Mode Only) */}
+        {isPickerMode && (
+          <View style={styles.crosshairContainer} pointerEvents="none">
+            <Target size={40} color="#EF4444" />
+          </View>
+        )}
+
+        {/* FAB & Action Buttons */}
+        <View style={styles.fabContainer}>
+          {!isPickerMode ? (
+            <TouchableOpacity
+              style={styles.fab}
+              onPress={() => {
+                setIsPickerMode(true);
+                Alert.alert(
+                  "Mode Tambah Device",
+                  "Geser peta untuk menentukan lokasi, lalu tekan 'Pasang Disini'",
+                );
+              }}
+            >
+              <Plus color="white" size={24} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.pickerControls}>
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  { backgroundColor: "#EF4444", marginRight: 8 },
+                ]}
+                onPress={() => setIsPickerMode(false)}
+              >
+                <Text style={styles.actionButtonText}>Batal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionButton, { backgroundColor: "#10B981" }]}
+                onPress={() => setShowCreateModal(true)}
+              >
+                <MapPin color="white" size={16} style={{ marginRight: 4 }} />
+                <Text style={styles.actionButtonText}>Pasang Disini</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         {/* Device Detail Modal */}
         <DeviceDetailModal
@@ -946,6 +1060,85 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
     zIndex: 5,
+  },
+  searchContainer: {
+    position: "absolute",
+    top: 60,
+    left: 16,
+    right: 16,
+    zIndex: 20,
+  },
+  searchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "white",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 16,
+    color: "#374151",
+  },
+  crosshairContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 15,
+  },
+  fabContainer: {
+    position: "absolute",
+    bottom: 30,
+    right: 20,
+    left: 20,
+    alignItems: "flex-end",
+    zIndex: 30,
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#2563EB",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  pickerControls: {
+    flexDirection: "row",
+    width: "100%",
+    justifyContent: "center",
+  },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  actionButtonText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 16,
   },
   kmzLoadingText: {
     marginLeft: 8,
