@@ -1,7 +1,7 @@
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import { useOfflineMutation } from '@/hooks/useOfflineMutation';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
+import { useOfflineMutationCompat as useOfflineMutation } from '@/hooks/queries';
+import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';

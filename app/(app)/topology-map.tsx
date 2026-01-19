@@ -25,18 +25,18 @@ import {
     View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "../../context/AuthContext";
-import api from "../../services/api";
-import toGeoJSON from "../../utils/togeojson-wrapper";
+import { useAuth } from "@/context/AuthContext";
+import api from "@/services/api";
+import toGeoJSON from "@/utils/togeojson-wrapper";
 
-import { DeviceCreateModal } from "../../components/topology/DeviceCreateModal";
+import { DeviceCreateModal } from "@/components/topology/DeviceCreateModal";
 import {
     DeviceData,
     DeviceDetailModal,
     DeviceType,
-} from "../../components/topology/DeviceDetailModal";
-import { FilterPanel } from "../../components/topology/FilterPanel";
-import { TopologyErrorBoundary } from "../../components/TopologyErrorBoundary";
+} from "@/components/topology/DeviceDetailModal";
+import { FilterPanel } from "@/components/topology/FilterPanel";
+import { TopologyErrorBoundary } from "@/components/TopologyErrorBoundary";
 
 const MARKER_COLORS: Record<DeviceType, string> = {
   otb: "#3b82f6", // blue

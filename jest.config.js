@@ -8,32 +8,33 @@ if (!originalGlobal.__ExpoImportMetaRegistry) {
 }
 
 module.exports = {
-  preset: 'react-native',
-  testEnvironment: 'node',
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
-  testMatch: ['**/__tests__/**/*.test.ts?(x)'],
+  preset: "react-native",
+  testEnvironment: "node",
+  setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
+  testMatch: ["**/__tests__/**/*.test.ts?(x)"],
   transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': 'babel-jest',
+    "^.+\\.(js|jsx|ts|tsx)$": "babel-jest",
   },
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|twrnc|lucide-react-native|axios)'
+    "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|twrnc|lucide-react-native|axios)",
   ],
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/$1',
-    '^expo-sqlite$': '<rootDir>/__mocks__/expo-sqlite.js',
-    '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.js',
-    '^@react-native-community/netinfo$': '<rootDir>/__mocks__/@react-native-community/netinfo.js',
-    '^expo-location$': '<rootDir>/__mocks__/expo-location.js',
-    '^expo-notifications$': '<rootDir>/__mocks__/expo-notifications.js',
-    '^expo$': '<rootDir>/__mocks__/expo.js',
-    '^@/utils/logger$': '<rootDir>/__mocks__/logger.js',
+    "^@/(.*)$": "<rootDir>/src/$1",
+    "^expo-sqlite$": "<rootDir>/__mocks__/expo-sqlite.js",
+    "^expo-secure-store$": "<rootDir>/__mocks__/expo-secure-store.js",
+    "^@react-native-community/netinfo$":
+      "<rootDir>/__mocks__/@react-native-community/netinfo.js",
+    "^expo-location$": "<rootDir>/__mocks__/expo-location.js",
+    "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.js",
+    "^expo$": "<rootDir>/__mocks__/expo.js",
+    "^@/utils/logger$": "<rootDir>/__mocks__/logger.js",
   },
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
   collectCoverageFrom: [
-    'services/**/*.ts',
-    'hooks/**/*.ts',
-    'context/**/*.tsx',
-    '!**/node_modules/**'
+    "services/**/*.ts",
+    "hooks/**/*.ts",
+    "context/**/*.tsx",
+    "!**/node_modules/**",
   ],
   resetMocks: false,
   clearMocks: true,

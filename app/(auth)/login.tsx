@@ -5,8 +5,8 @@ import { Lock, Mail } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
-import { Config } from '../../constants/Config';
-import { useAuth } from '../../context/AuthContext';
+import { Config } from '@/constants/Config';
+import { useAuth } from '@/context/AuthContext';
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');

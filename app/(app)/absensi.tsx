@@ -1,5 +1,5 @@
-import { useOfflineMutation } from '@/hooks/useOfflineMutation';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
+import { useOfflineMutationCompat as useOfflineMutation } from '@/hooks/queries';
+import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
 import { LocationTrackingService } from '@/services/LocationTrackingService';
 import { SyncService } from '@/services/SyncService';
 import axios from 'axios';
@@ -14,10 +14,10 @@ import { Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
 import tw from 'twrnc';
-import LoadingModal from '../../components/LoadingModal';
-import { Config } from '../../constants/Config';
-import { useAuth } from '../../context/AuthContext';
-import { generateSignature } from '../../utils/crypto';
+import LoadingModal from '@/components/LoadingModal';
+import { Config } from '@/constants/Config';
+import { useAuth } from '@/context/AuthContext';
+import { generateSignature } from '@/utils/crypto';
 
 // Geofence Types
 interface GeofenceZone {

@@ -1,6 +1,6 @@
 import { LocationPickerModal } from "@/components/marketing/LocationPickerModal";
 
-import { useOfflineMutation } from "@/hooks/useOfflineMutation";
+import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";

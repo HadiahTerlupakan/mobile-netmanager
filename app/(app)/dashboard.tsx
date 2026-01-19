@@ -1,17 +1,17 @@
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
+import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
 import axios from 'axios';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { CanvasingCard } from '../../components/dashboard/CanvasingCard';
-import { DashboardHeader } from '../../components/dashboard/Header';
-import { PerformanceStats } from '../../components/dashboard/PerformanceStats';
-import { QuickMenu } from '../../components/dashboard/QuickMenu';
-import { WorkOrderCard } from '../../components/dashboard/WorkOrderCard';
-import { Config } from '../../constants/Config';
-import { useAuth } from '../../context/AuthContext';
+import { CanvasingCard } from '@/components/dashboard/CanvasingCard';
+import { DashboardHeader } from '@/components/dashboard/Header';
+import { PerformanceStats } from '@/components/dashboard/PerformanceStats';
+import { QuickMenu } from '@/components/dashboard/QuickMenu';
+import { WorkOrderCard } from '@/components/dashboard/WorkOrderCard';
+import { Config } from '@/constants/Config';
+import { useAuth } from '@/context/AuthContext';
 
 // Define stats interface
 interface DashboardStats {

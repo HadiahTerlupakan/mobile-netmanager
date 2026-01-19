@@ -1,8 +1,8 @@
 import NetInfo from '@react-native-community/netinfo';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
-import { DatabaseService } from '../../services/DatabaseService';
-import { SyncService } from '../../services/SyncService';
+import { DatabaseService } from '@/services/DatabaseService';
+import { SyncService } from '@/services/SyncService';
 
 // Mock DatabaseService
 jest.mock('../../services/DatabaseService', () => ({

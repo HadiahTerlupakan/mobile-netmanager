@@ -1,5 +1,5 @@
-import { useOfflineMutation } from '@/hooks/useOfflineMutation';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
+import { useOfflineMutationCompat as useOfflineMutation } from '@/hooks/queries';
+import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
 import { SyncService } from '@/services/SyncService';
 import axios from 'axios';
 import { useRouter } from 'expo-router';
@@ -8,11 +8,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import WorkOrderListItem from '../../components/dashboard/WorkOrderListItem';
-import { Config } from '../../constants/Config';
-import { useAuth } from '../../context/AuthContext';
-import { useSocket, useSocketEvent } from '../../context/SocketContext';
-import { SOCKET_EVENTS } from '../../context/socketTypes';
+import WorkOrderListItem from '@/components/dashboard/WorkOrderListItem';
+import { Config } from '@/constants/Config';
+import { useAuth } from '@/context/AuthContext';
+import { useSocket, useSocketEvent } from '@/context/SocketContext';
+import { SOCKET_EVENTS } from '@/context/socketTypes';
 
 type TabType = 'tersedia' | 'aktif' | 'riwayat';
 

@@ -1,23 +1,24 @@
-import Constants from 'expo-constants';
-import { Slot, useRouter, useSegments } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
-import tw from 'twrnc';
-import { UpdateAvailableModal } from '../components/UpdateAvailableModal';
-import { UpdateRequiredScreen } from '../components/UpdateRequiredScreen';
-import { AuthProvider, useAuth } from '../context/AuthContext';
-import { SocketProvider } from '../context/SocketContext';
-import { useAppVersion } from '../hooks/useAppVersion';
-import { appVersionService } from '../services/AppVersionService';
-import { DatabaseService } from '../services/DatabaseService';
-import '../services/LocationTrackingService'; // Register background task
-import { SyncService } from '../services/SyncService';
-import logger from '../utils/logger';
+import { UpdateAvailableModal } from "@/components/UpdateAvailableModal";
+import { UpdateRequiredScreen } from "@/components/UpdateRequiredScreen";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { SocketProvider } from "@/context/SocketContext";
+import { useAppVersion } from "@/hooks/useAppVersion";
+import { asyncStoragePersister, queryClient } from "@/lib/queryClient";
+import { appVersionService } from "@/services/AppVersionService";
+import "@/services/LocationTrackingService"; // Register background task
+import { SyncService } from "@/services/SyncService";
+import logger from "@/utils/logger";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import Constants from "expo-constants";
+import { Slot, useRouter, useSegments } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Platform, View } from "react-native";
+import tw from "twrnc";
 
 // Get current version from app.json
 const CURRENT_VERSION_CODE = Constants.expoConfig?.extra?.versionCode || 53;
-const CURRENT_VERSION_NAME = Constants.expoConfig?.version || '1.0.0';
+const CURRENT_VERSION_NAME = Constants.expoConfig?.version || "1.0.0";
 
 function RootLayoutNav() {
   const { user, token, isLoading } = useAuth();
@@ -35,7 +36,7 @@ function RootLayoutNav() {
     error: versionError,
     checkForUpdate,
     startUpdate,
-    dismissError
+    dismissError,
   } = useAppVersion();
 
   const [versionChecked, setVersionChecked] = useState(false);
@@ -44,7 +45,6 @@ function RootLayoutNav() {
   // Initialize Offline Services
   useEffect(() => {
     const initServices = async () => {
-      await DatabaseService.initDatabase();
       SyncService.startMonitoring();
     };
     initServices();
@@ -54,25 +54,27 @@ function RootLayoutNav() {
   useEffect(() => {
     const checkAppVersion = async () => {
       if (versionChecked) return;
-      
+
       // Skip update check for iOS - APK updates are Android only
-      if (Platform.OS === 'ios') {
+      if (Platform.OS === "ios") {
         setVersionChecked(true);
         return;
       }
-      
+
       try {
-        console.log(`[VersionCheck] Checking for updates. Current Code: ${CURRENT_VERSION_CODE}`)
+        console.log(
+          `[VersionCheck] Checking for updates. Current Code: ${CURRENT_VERSION_CODE}`,
+        );
         const result = await checkForUpdate(CURRENT_VERSION_CODE);
-        console.log('[VersionCheck] Result:', JSON.stringify(result, null, 2))
-        
+        console.log("[VersionCheck] Result:", JSON.stringify(result, null, 2));
+
         if (result.success && result.updateAvailable && !result.isForceUpdate) {
           setShowOptionalUpdate(true);
         }
-        
+
         setVersionChecked(true);
       } catch (error) {
-        logger.error('Version check failed:', error);
+        logger.error("Version check failed:", error);
         setVersionChecked(true);
       }
     };
@@ -82,74 +84,86 @@ function RootLayoutNav() {
 
   // Report App Version
   useEffect(() => {
-      if (user && token) {
-          appVersionService.reportVersion(CURRENT_VERSION_CODE, CURRENT_VERSION_NAME, token).catch(e => {
-              console.error('Failed to report version:', e);
-          });
-      }
+    if (user && token) {
+      appVersionService
+        .reportVersion(CURRENT_VERSION_CODE, CURRENT_VERSION_NAME, token)
+        .catch((e) => {
+          console.error("Failed to report version:", e);
+        });
+    }
   }, [user, token]);
 
   // Handle Push Notifications
   useEffect(() => {
     // Import dynamically to avoid circular dependencies if any
     const setupNotifications = async () => {
-      const { addNotificationListeners } = await import('../services/PushNotificationService');
+      const { addNotificationListeners } =
+        await import("@/services/PushNotificationService");
 
       const cleanup = addNotificationListeners(
-        (notification) => {
+        (notification: any) => {
           // Handle foreground notification received
-          logger.info('Foreground notification:', notification);
+          logger.info("Foreground notification:", notification);
         },
-        (response) => {
+        (response: any) => {
           // Handle notification tap
           const data = response.notification.request.content.data;
-          logger.info('Notification tapped, data:', data);
+          logger.info("Notification tapped, data:", data);
 
           if (data?.url) {
             try {
               // Map known routes - skip invalid ones
               const validRoutes = [
-                '/dashboard',
-                '/work-order',
-                '/barang',
-                '/absensi',
-                '/profile',
-                '/notifications',
-                '/lembur',
-                '/izin',
-                '/chat',
-                '/holidays'
+                "/dashboard",
+                "/work-order",
+                "/barang",
+                "/absensi",
+                "/profile",
+                "/notifications",
+                "/lembur",
+                "/izin",
+                "/chat",
+                "/holidays",
               ];
-              
+
               const url = data.url as string;
-              
+
               // Check if it's a valid route or starts with a valid route prefix
-              const isValidRoute = validRoutes.some(r => 
-                url === r || 
-                url.startsWith(r + '/') ||
-                url.startsWith('/(app)' + r)
-              ) || url.startsWith('/work-order-detail/') || url.startsWith('/chat/');
-              
+              const isValidRoute =
+                validRoutes.some(
+                  (r) =>
+                    url === r ||
+                    url.startsWith(r + "/") ||
+                    url.startsWith("/(app)" + r),
+                ) ||
+                url.startsWith("/work-order-detail/") ||
+                url.startsWith("/chat/");
+
               if (isValidRoute) {
                 router.push(url as any);
               } else {
                 // Invalid route like /announcement - just go to dashboard
-                logger.warn('Invalid notification route, redirecting to dashboard:', url);
-                router.replace('/(app)/dashboard');
+                logger.warn(
+                  "Invalid notification route, redirecting to dashboard:",
+                  url,
+                );
+                router.replace("/(app)/dashboard");
               }
-            } catch (e) {
-              logger.error('Navigation failed:', e);
-              router.replace('/(app)/dashboard');
+            } catch (e: any) {
+              logger.error("Navigation failed:", e);
+              router.replace("/(app)/dashboard");
             }
           }
-        }
+        },
       );
 
       return cleanup;
     };
 
     let cleanupFn: (() => void) | undefined;
-    setupNotifications().then(cleanup => { cleanupFn = cleanup; });
+    setupNotifications().then((cleanup) => {
+      cleanupFn = cleanup;
+    });
 
     return () => {
       if (cleanupFn) cleanupFn();
@@ -157,25 +171,32 @@ function RootLayoutNav() {
   }, []);
 
   useEffect(() => {
-    logger.auth('Effect triggered. User:', !!user, 'Segments:', segments, 'Loading:', isLoading);
+    logger.auth(
+      "Effect triggered. User:",
+      !!user,
+      "Segments:",
+      segments,
+      "Loading:",
+      isLoading,
+    );
 
     if (isLoading) {
-      logger.auth('Still loading, skipping redirect check');
+      logger.auth("Still loading, skipping redirect check");
       return;
     }
 
-    const inAuthGroup = segments[0] === '(auth)';
-    const inAppGroup = segments[0] === '(app)';
+    const inAuthGroup = segments[0] === "(auth)";
+    const inAppGroup = segments[0] === "(app)";
 
-    logger.auth('Status:', { user: !!user, inAuthGroup, inAppGroup, segments });
+    logger.auth("Status:", { user: !!user, inAuthGroup, inAppGroup, segments });
 
     if (!user && !inAuthGroup) {
-      logger.auth('Redirecting to Login');
-      router.replace('/(auth)/login');
+      logger.auth("Redirecting to Login");
+      router.replace("/(auth)/login");
     } else if (user && !inAppGroup) {
       // Redirect to dashboard if logged in but not in (app) group (e.g. at root or login page)
-      logger.auth('Redirecting to Dashboard');
-      router.replace('/(app)/dashboard');
+      logger.auth("Redirecting to Dashboard");
+      router.replace("/(app)/dashboard");
     }
   }, [user, segments, isLoading]);
 
@@ -229,7 +250,12 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootLayoutNav />
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: asyncStoragePersister }}
+      >
+        <RootLayoutNav />
+      </PersistQueryClientProvider>
     </AuthProvider>
   );
 }

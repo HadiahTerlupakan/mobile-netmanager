@@ -1,6 +1,6 @@
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import { useOfflineQuery } from '@/hooks/useOfflineQuery';
+import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { useFocusEffect, useRouter } from 'expo-router';
