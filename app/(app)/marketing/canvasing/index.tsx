@@ -36,6 +36,10 @@ export default function CanvasingListScreen() {
       return res.data;
     },
     enabled: !!token,
+    // Optimization: Cache data for 5 minutes (staleTime) and keep in memory for 24 hours (gcTime)
+    // This prevents "Offline Mode" banner from flashing when data is just stale but we are online
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 60 * 24, // 24 hours
   });
 
   const { data: profile, isLoading: profileLoading } = useOfflineQuery<any>({

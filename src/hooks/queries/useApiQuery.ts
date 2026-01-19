@@ -9,6 +9,7 @@
  */
 
 import api from "@/services/api";
+import { useNetInfo } from "@react-native-community/netinfo";
 import { useQuery, UseQueryOptions } from "@tanstack/react-query";
 
 type QueryFn<T> = () => Promise<T>;
@@ -70,17 +71,22 @@ export function useApiQuery<T>(options: ApiQueryOptions<T>) {
  *
  * @deprecated Gunakan useApiQuery dengan queryKey pattern baru
  */
-export function useOfflineQueryCompat<T>(options: {
-  key: string;
-  fetcher: () => Promise<T>;
-  onSuccess?: (data: T) => void;
-  onError?: (error: any) => void;
-  enabled?: boolean;
-}) {
+export function useOfflineQueryCompat<T>(
+  options: {
+    key: string;
+    fetcher: () => Promise<T>;
+    onSuccess?: (data: T) => void;
+    onError?: (error: any) => void;
+  } & Omit<UseQueryOptions<T, Error>, "queryKey" | "queryFn">,
+) {
+  const { key, fetcher, onSuccess, onError, enabled, ...queryOptions } =
+    options;
+
   const result = useQuery<T, Error>({
-    queryKey: [options.key],
-    queryFn: options.fetcher,
-    enabled: options.enabled,
+    queryKey: [key],
+    queryFn: fetcher,
+    enabled: enabled,
+    ...queryOptions,
   });
 
   // Trigger callbacks for backward compatibility
@@ -91,11 +97,15 @@ export function useOfflineQueryCompat<T>(options: {
     options.onError(result.error);
   }
 
+  const netInfo = useNetInfo();
+  const isOffline = netInfo.isConnected === false;
+
   return {
     data: result.data ?? null,
     isLoading: result.isLoading,
     error: result.error,
-    isOfflineData: result.isStale, // Approximate mapping
+    isOfflineData: isOffline, // Only show offline banner if actually offline
     refetch: result.refetch,
+    isStale: result.isStale,
   };
 }

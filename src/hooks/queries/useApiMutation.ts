@@ -6,15 +6,19 @@
  * - Automatic cache invalidation
  * - Retry pada error
  * - Geo-location tracking
+ * - Automatic file upload
  */
 
+import { Config } from "@/constants/Config";
 import api from "@/services/api";
 import {
     useMutation,
     UseMutationOptions,
     useQueryClient,
 } from "@tanstack/react-query";
+import axios from "axios";
 import * as Location from "expo-location";
+import * as SecureStore from "expo-secure-store";
 import { Alert } from "react-native";
 
 type HttpMethod = "POST" | "PUT" | "PATCH" | "DELETE";
@@ -102,6 +106,108 @@ async function getCurrentLocation(
 }
 
 /**
+ * Retry helper with exponential backoff
+ * @param fn - Async function to retry
+ * @param maxRetries - Maximum number of retries (default: 3)
+ * @param baseDelay - Base delay in ms (default: 1000)
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000,
+): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+
+      // Don't retry on client errors (4xx) except timeout/network
+      const status = error?.response?.status;
+      const isNetworkError =
+        error.code === "ECONNABORTED" || error.message === "Network Error";
+
+      if (status && status >= 400 && status < 500 && !isNetworkError) {
+        console.log(
+          `[retryWithBackoff] Client error (${status}), not retrying`,
+        );
+        throw error;
+      }
+
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
+        console.log(
+          `[retryWithBackoff] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Helper to upload a single file with retry
+ */
+async function uploadFile(
+  uri: string,
+  type: string = "general",
+): Promise<string> {
+  return retryWithBackoff(
+    async () => {
+      console.log("[uploadFile] Starting upload:", {
+        uri: uri.substring(0, 50),
+        type,
+      });
+
+      const formData = new FormData();
+      const filename = uri.split("/").pop() || `upload_${Date.now()}.jpg`;
+
+      // @ts-ignore - React Native FormData requires this structure
+      formData.append("file", {
+        uri,
+        type: "image/jpeg",
+        name: filename,
+      });
+
+      formData.append("type", type);
+
+      const token = await SecureStore.getItemAsync("session_token");
+      console.log("[uploadFile] Token available:", !!token);
+      console.log(
+        "[uploadFile] Uploading to:",
+        `${Config.API_URL}/api/mobile/upload`,
+      );
+
+      const response = await axios.post(
+        `${Config.API_URL}/api/mobile/upload`,
+        formData,
+        {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : "",
+            "Content-Type": "multipart/form-data",
+          },
+          timeout: 60000, // 60 second timeout for large files
+        },
+      );
+
+      console.log("[uploadFile] Upload successful:", response.data);
+
+      if (response.data && response.data.url) {
+        return response.data.url;
+      }
+
+      throw new Error("Gagal mengupload gambar - no URL returned");
+    },
+    3,
+    1000,
+  ); // 3 retries, starting with 1 second delay
+}
+
+/**
  * Hook untuk mutations API dengan TanStack Query
  *
  * @example
@@ -131,8 +237,25 @@ export function useApiMutation<TData = unknown, TVariables = unknown>(
 
   return useMutation<TData, Error, TVariables>({
     ...mutationOptions,
-    mutationFn: async (variables) => {
-      let payload: any = { ...variables };
+    mutationFn: async (variables: any) => {
+      let payload = { ...variables };
+
+      // Handle photoMap uploads
+      if (payload.meta?.photoMap) {
+        const photoMap = payload.meta.photoMap as Record<string, string>;
+        const photoType = payload.meta.photoType || "general";
+
+        // Upload all photos in parallel
+        const uploadPromises = Object.entries(photoMap).map(
+          async ([field, uri]) => {
+            if (!uri || uri.startsWith("http")) return; // Skip empty or already uploaded
+            const url = await uploadFile(uri, photoType);
+            payload[field] = url; // Update payload with server URL
+          },
+        );
+
+        await Promise.all(uploadPromises);
+      }
 
       // Add location if requested
       if (includeLocation) {
@@ -144,7 +267,7 @@ export function useApiMutation<TData = unknown, TVariables = unknown>(
         };
       }
 
-      // Make API request
+      // Make API request with updated payload
       const response = await api.request({
         url: endpoint,
         method,
@@ -202,11 +325,55 @@ export function useOfflineMutationCompat() {
     },
   ) => {
     try {
+      let payload = { ...variables };
+
+      // Handle photoMap uploads
+      if (payload.meta?.photoMap) {
+        const photoMap = payload.meta.photoMap as Record<string, string>;
+        const photoType = payload.meta.photoType || "general";
+
+        // Upload all photos in parallel and collect results
+        const uploadResults: { field: string; url: string }[] = [];
+        const uploadPromises = Object.entries(photoMap).map(
+          async ([field, uri]) => {
+            if (!uri) return; // Skip empty
+            if (uri.startsWith("http") || uri.startsWith("/uploads")) {
+              // Already uploaded, just collect it
+              uploadResults.push({ field, url: uri });
+              return;
+            }
+            try {
+              const url = await uploadFile(uri, photoType);
+              uploadResults.push({ field, url });
+            } catch (err) {
+              console.error(`Failed to upload ${field}:`, err);
+              throw err;
+            }
+          },
+        );
+
+        await Promise.all(uploadPromises);
+
+        // Check if fields follow 'photoN' pattern (for photos array)
+        const arrayPattern = uploadResults.filter((r) =>
+          /^photo\d+$/.test(r.field),
+        );
+        if (arrayPattern.length > 0) {
+          // Collect into photos array for backend
+          payload.photos = arrayPattern.map((r) => r.url);
+        } else {
+          // Assign to individual fields (e.g., startPhoto, endPhoto)
+          uploadResults.forEach((r) => {
+            payload[r.field] = r.url;
+          });
+        }
+      }
+
       // Get location
       const { latitude, longitude } = await getCurrentLocation();
 
-      const payload = {
-        ...variables,
+      payload = {
+        ...payload,
         latitude: variables.latitude ?? latitude,
         longitude: variables.longitude ?? longitude,
       };
