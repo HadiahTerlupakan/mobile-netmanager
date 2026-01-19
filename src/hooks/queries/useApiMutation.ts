@@ -354,13 +354,17 @@ export function useOfflineMutationCompat() {
 
         await Promise.all(uploadPromises);
 
+        // Get target field name from meta or default based on pattern
+        const targetField = payload.meta?.targetField;
+
         // Check if fields follow 'photoN' pattern (for photos array)
         const arrayPattern = uploadResults.filter((r) =>
           /^photo\d+$/.test(r.field),
         );
         if (arrayPattern.length > 0) {
-          // Collect into photos array for backend
-          payload.photos = arrayPattern.map((r) => r.url);
+          // Use targetField if specified, otherwise default to 'photos'
+          const fieldName = targetField || "photos";
+          payload[fieldName] = arrayPattern.map((r) => r.url);
         } else {
           // Assign to individual fields (e.g., startPhoto, endPhoto)
           uploadResults.forEach((r) => {

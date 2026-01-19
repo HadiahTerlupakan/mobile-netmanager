@@ -16,7 +16,7 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
@@ -177,6 +177,12 @@ export default function CompleteWorkOrderScreen() {
         locStr,
       ];
 
+      // Build photoMap from photos array (hook expects photoN pattern)
+      const photoMap: Record<string, string> = {};
+      photos.forEach((uri, index) => {
+        photoMap[`photo${index + 1}`] = uri;
+      });
+
       const payload = {
         action: "COMPLETE",
         latitude: finalLocation?.coords.latitude.toString(),
@@ -189,11 +195,9 @@ export default function CompleteWorkOrderScreen() {
       await mutate(
         {
           ...payload,
-          photoUrls: [], // Placeholder
           meta: {
-            photos: photos,
-            targetField: "photoUrls", // Backend expects photoUrls array for COMPLETE
-            singleFile: false,
+            photoMap,
+            targetField: "photoUrls", // Backend expects photoUrls array
             photoType: "workorder-completion",
             watermarkLines,
           },
