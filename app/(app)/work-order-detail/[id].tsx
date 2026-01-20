@@ -981,7 +981,58 @@ export default function WorkOrderDetailScreen() {
         </Text>
       )}
 
-      <View style={tw`mt-6`}>
+      {/* Returned Materials Section (for DISCONNECTION) */}
+      {wo.returnedMaterials &&
+        Array.isArray(wo.returnedMaterials) &&
+        wo.returnedMaterials.length > 0 && (
+          <View style={tw`mt-6`}>
+            <Text style={tw`font-bold text-gray-800 mb-4`}>
+              Barang Dikembalikan
+            </Text>
+            {wo.returnedMaterials.map((item: any, idx: number) => (
+              <View
+                key={idx}
+                style={tw`flex-row justify-between items-center py-2 border-b border-gray-100`}
+              >
+                <View style={tw`flex-1`}>
+                  <Text style={tw`text-gray-700`}>
+                    {item.name || item.barangName || item.nama}
+                  </Text>
+                  <View style={tw`flex-row items-center gap-2 mt-1`}>
+                    <View
+                      style={tw`px-1.5 py-0.5 rounded ${
+                        item.kondisi === "BARU"
+                          ? "bg-green-100"
+                          : item.kondisi === "BEKAS"
+                            ? "bg-yellow-100"
+                            : "bg-red-100"
+                      }`}
+                    >
+                      <Text
+                        style={tw`text-[10px] font-bold ${
+                          item.kondisi === "BARU"
+                            ? "text-green-700"
+                            : item.kondisi === "BEKAS"
+                              ? "text-yellow-700"
+                              : "text-red-700"
+                        }`}
+                      >
+                        {item.kondisi}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <Text style={tw`font-bold`}>
+                  {item.quantity || item.jumlah}{" "}
+                  {item.unit || item.satuan || "pcs"}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+      <View style={tw`mt-6 gap-3`}>
+        {/* Ambil Barang Button - For all work order types */}
         <TouchableOpacity
           onPress={() => router.push(`/(app)/ambil-barang/${id}`)}
           style={tw`flex-row items-center justify-center p-3 bg-blue-50 rounded-xl border border-blue-200 active:bg-blue-100`}
@@ -991,6 +1042,17 @@ export default function WorkOrderDetailScreen() {
             Ambil Barang / Material
           </Text>
         </TouchableOpacity>
+
+        {/* Kembalikan Barang Button - For DISCONNECTION and RELOCATION */}
+        {(wo.type === "DISCONNECTION" || wo.type === "RELOCATION") && (
+          <TouchableOpacity
+            onPress={() => router.push(`/(app)/kembalikan-barang/${id}`)}
+            style={tw`flex-row items-center justify-center p-3 bg-green-50 rounded-xl border border-green-200 active:bg-green-100`}
+          >
+            <Package size={20} color="#16a34a" style={tw`mr-2`} />
+            <Text style={tw`font-bold text-green-600`}>Kembalikan Barang</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
