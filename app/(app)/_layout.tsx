@@ -214,6 +214,13 @@ export default function AppLayout() {
             tabBarStyle: { display: "none" },
           }}
         />
+        <Tabs.Screen
+          name="kembalikan-barang/[id]"
+          options={{
+            href: null,
+            tabBarStyle: { display: "none" },
+          }}
+        />
 
         {/* Chat Screens - Hidden from tab bar, accessed via QuickMenu */}
         <Tabs.Screen

@@ -71,8 +71,9 @@ export default function CanvasingListScreen() {
   // Check if user has access to canvasing feature
   const hasAccess = useMemo(() => {
     const features = profile?.features || [];
-    return features.includes("canvasing") || features.includes("sales");
-  }, [profile?.features]);
+    // Check for m_canvasing (mobile feature prefix) or isSales flag
+    return features.includes("m_canvasing") || profile?.isSales === true;
+  }, [profile?.features, profile?.isSales]);
 
   const stats = useMemo(() => {
     if (!requests)
