@@ -136,6 +136,13 @@ export default function MixRadiusIsolirScreen() {
   };
 
   const onSubmitSearch = () => {
+    if (!selectedGroup) {
+      Alert.alert(
+        "Pilih Site",
+        "Mohon pilih site terlebih dahulu sebelum mencari.",
+      );
+      return;
+    }
     setHasSelectedGroup(true);
     fetchData(true, search);
   };
@@ -286,7 +293,8 @@ export default function MixRadiusIsolirScreen() {
               <TouchableOpacity
                 onPress={() => {
                   setSelectedGroup(null);
-                  setHasSelectedGroup(true);
+                  setHasSelectedGroup(false);
+                  setData([]); // Clear data
                   setTotalCount(0);
                   setShowGroupModal(false);
                 }}
@@ -297,7 +305,8 @@ export default function MixRadiusIsolirScreen() {
           </View>
         )}
 
-        {!selectedGroup && hasSelectedGroup && (
+        {/* Removed "Total Isolir (Semua Site)" view since it's disabled */}
+        {false && !selectedGroup && hasSelectedGroup && (
           <View style={tw`px-4 pt-3 bg-white`}>
             <View
               style={tw`flex-row items-center justify-between bg-gray-50 px-3 py-2 rounded-lg border border-gray-100`}
@@ -420,21 +429,6 @@ export default function MixRadiusIsolirScreen() {
             </View>
 
             <ScrollView style={tw`p-4`}>
-              <TouchableOpacity
-                style={tw`py-3 border-b border-gray-50 ${selectedGroup === null ? "bg-blue-50 rounded-lg px-2" : ""}`}
-                onPress={() => {
-                  setSelectedGroup(null);
-                  setHasSelectedGroup(true); // "All Sites" is a valid selection? Yes.
-                  setShowGroupModal(false);
-                }}
-              >
-                <Text
-                  style={tw`text-base ${selectedGroup === null ? "text-blue-600 font-bold" : "text-gray-700"}`}
-                >
-                  Semua Site
-                </Text>
-              </TouchableOpacity>
-
               {groups.map((group) => (
                 <TouchableOpacity
                   key={group.id}
