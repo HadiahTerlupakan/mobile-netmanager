@@ -1,5 +1,6 @@
 import {
     MixRadiusCustomer,
+    MixRadiusCustomerDetail,
     MixRadiusService,
     OwnerGroup,
 } from "@/services/MixRadiusService";
@@ -13,6 +14,7 @@ import {
     Filter,
     MapPin,
     Phone,
+    Receipt,
     Search,
     User,
     X,
@@ -51,6 +53,14 @@ export default function MixRadiusIsolirScreen() {
   const [selectedGroup, setSelectedGroup] = useState<OwnerGroup | null>(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [hasSelectedGroup, setHasSelectedGroup] = useState(false);
+
+  // Customer Detail Modal States
+  const [selectedCustomer, setSelectedCustomer] =
+    useState<MixRadiusCustomer | null>(null);
+  const [customerDetail, setCustomerDetail] =
+    useState<MixRadiusCustomerDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   const pageSize = 20;
 
@@ -187,12 +197,31 @@ export default function MixRadiusIsolirScreen() {
     }
   };
 
+  const handleOpenDetail = async (customer: MixRadiusCustomer) => {
+    setSelectedCustomer(customer);
+    setShowDetailModal(true);
+    setLoadingDetail(true);
+    setCustomerDetail(null);
+
+    try {
+      const detail = await MixRadiusService.getCustomerDetail(customer.id);
+      setCustomerDetail(detail);
+    } catch (error) {
+      console.error("Failed to fetch customer detail:", error);
+      Alert.alert("Error", "Gagal memuat detail pelanggan");
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
   const renderItem = ({ item }: { item: MixRadiusCustomer }) => {
     const expired = isExpired(item.expired_on);
 
     return (
-      <View
+      <TouchableOpacity
         style={tw`bg-white p-4 mb-3 rounded-xl border border-gray-100 shadow-sm`}
+        onPress={() => handleOpenDetail(item)}
+        activeOpacity={0.7}
       >
         <View style={tw`flex-row justify-between items-start mb-2`}>
           <View style={tw`flex-1`}>
@@ -212,7 +241,10 @@ export default function MixRadiusIsolirScreen() {
 
         <TouchableOpacity
           style={tw`flex-row items-center mb-1 active:bg-green-50 rounded-lg p-1 -ml-1`}
-          onPress={() => handleOpenWhatsApp(item.phonenumber)}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleOpenWhatsApp(item.phonenumber);
+          }}
         >
           <Phone size={14} style={tw`text-green-600 mr-2`} />
           <Text
@@ -224,7 +256,10 @@ export default function MixRadiusIsolirScreen() {
 
         <TouchableOpacity
           style={tw`flex-row items-center mb-1 active:bg-blue-50 rounded-lg p-1 -ml-1`}
-          onPress={() => handleOpenMaps(item.address)}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleOpenMaps(item.address);
+          }}
         >
           <MapPin size={14} style={tw`text-blue-500 mr-2`} />
           <Text
@@ -244,17 +279,29 @@ export default function MixRadiusIsolirScreen() {
           </Text>
         </View>
 
-        {item.owner_name && (
+        <View
+          style={tw`flex-row items-center justify-between mt-2 pt-2 border-t border-gray-50`}
+        >
+          {item.owner_name ? (
+            <View style={tw`flex-row items-center`}>
+              <User size={14} style={tw`text-gray-400 mr-2`} />
+              <Text style={tw`text-xs text-gray-500`}>
+                Owner: {item.owner_name}
+              </Text>
+            </View>
+          ) : (
+            <View />
+          )}
           <View
-            style={tw`flex-row items-center mt-2 pt-2 border-t border-gray-50`}
+            style={tw`flex-row items-center bg-blue-50 px-2 py-1 rounded-lg`}
           >
-            <User size={14} style={tw`text-gray-400 mr-2`} />
-            <Text style={tw`text-xs text-gray-500`}>
-              Owner: {item.owner_name}
+            <Receipt size={12} style={tw`text-blue-600 mr-1`} />
+            <Text style={tw`text-xs text-blue-600 font-medium`}>
+              Lihat Riwayat
             </Text>
           </View>
-        )}
-      </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -451,6 +498,158 @@ export default function MixRadiusIsolirScreen() {
               ))}
               <View style={tw`h-8`} />
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Customer Detail Modal with Invoice History */}
+      <Modal
+        visible={showDetailModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowDetailModal(false)}
+        statusBarTranslucent
+      >
+        <View style={tw`flex-1 justify-end bg-black/50`}>
+          <TouchableOpacity
+            style={tw`absolute inset-0`}
+            activeOpacity={1}
+            onPress={() => setShowDetailModal(false)}
+          />
+          <View
+            style={[
+              tw`bg-white rounded-t-2xl max-h-[85%]`,
+              { paddingBottom: insets.bottom },
+            ]}
+          >
+            <View
+              style={tw`flex-row justify-between items-center p-4 border-b border-gray-100`}
+            >
+              <View style={tw`flex-1`}>
+                <Text style={tw`text-lg font-bold text-gray-900`}>
+                  {selectedCustomer?.fullname || "Detail Pelanggan"}
+                </Text>
+                <Text style={tw`text-xs text-gray-500 font-mono`}>
+                  {selectedCustomer?.member_id}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDetailModal(false)}>
+                <X size={24} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            {loadingDetail ? (
+              <View style={tw`p-8 items-center justify-center`}>
+                <ActivityIndicator size="large" color="#3b82f6" />
+                <Text style={tw`text-gray-500 mt-3`}>
+                  Memuat riwayat tagihan...
+                </Text>
+              </View>
+            ) : customerDetail ? (
+              <ScrollView style={tw`p-4`}>
+                {/* Summary Card */}
+                <View
+                  style={tw`bg-gradient-to-r from-blue-500 to-blue-600 bg-blue-600 p-4 rounded-xl mb-4`}
+                >
+                  <View style={tw`flex-row items-center justify-between`}>
+                    <View>
+                      <Text style={tw`text-white/80 text-sm`}>
+                        Total Langganan
+                      </Text>
+                      <Text style={tw`text-white text-3xl font-bold`}>
+                        {customerDetail.invoices?.length || 0}
+                      </Text>
+                      <Text style={tw`text-white/80 text-sm`}>
+                        Kali Pembayaran
+                      </Text>
+                    </View>
+                    <View style={tw`bg-white/20 p-3 rounded-full`}>
+                      <Receipt size={32} color="white" />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Customer Info */}
+                <View style={tw`bg-gray-50 p-3 rounded-xl mb-4`}>
+                  <View style={tw`flex-row justify-between mb-2`}>
+                    <Text style={tw`text-gray-500 text-sm`}>Paket</Text>
+                    <Text style={tw`text-gray-900 font-medium text-sm`}>
+                      {customerDetail.plan_name || "-"}
+                    </Text>
+                  </View>
+                  <View style={tw`flex-row justify-between mb-2`}>
+                    <Text style={tw`text-gray-500 text-sm`}>Tipe Bayar</Text>
+                    <Text style={tw`text-gray-900 font-medium text-sm`}>
+                      {customerDetail.payment_type || "-"}
+                    </Text>
+                  </View>
+                  <View style={tw`flex-row justify-between`}>
+                    <Text style={tw`text-gray-500 text-sm`}>Jatuh Tempo</Text>
+                    <Text style={tw`text-red-600 font-bold text-sm`}>
+                      {formatDateStr(customerDetail.expired_on)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Invoice History */}
+                <Text style={tw`text-base font-bold text-gray-900 mb-3`}>
+                  Riwayat Tagihan
+                </Text>
+
+                {customerDetail.invoices &&
+                customerDetail.invoices.length > 0 ? (
+                  customerDetail.invoices.map((invoice, index) => (
+                    <View
+                      key={invoice.id || index}
+                      style={tw`bg-white border border-gray-100 p-3 rounded-xl mb-2`}
+                    >
+                      <View
+                        style={tw`flex-row justify-between items-start mb-2`}
+                      >
+                        <View style={tw`flex-1`}>
+                          <Text style={tw`text-xs text-gray-500 font-mono`}>
+                            {invoice.invoice_number}
+                          </Text>
+                          <Text style={tw`text-sm font-medium text-gray-900`}>
+                            {invoice.plan_name}
+                          </Text>
+                        </View>
+                        <View
+                          style={tw`${invoice.status?.toLowerCase().includes("unpaid") || invoice.status?.toLowerCase().includes("belum") ? "bg-red-100" : invoice.status?.toLowerCase().includes("paid") || invoice.status?.toLowerCase().includes("lunas") ? "bg-green-100" : "bg-yellow-100"} px-2 py-1 rounded-full`}
+                        >
+                          <Text
+                            style={tw`text-xs ${invoice.status?.toLowerCase().includes("unpaid") || invoice.status?.toLowerCase().includes("belum") ? "text-red-700" : invoice.status?.toLowerCase().includes("paid") || invoice.status?.toLowerCase().includes("lunas") ? "text-green-700" : "text-yellow-700"} font-medium uppercase`}
+                          >
+                            {invoice.status || "Unknown"}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={tw`flex-row justify-between`}>
+                        <Text style={tw`text-sm text-gray-600`}>
+                          {invoice.activation_date} - {invoice.deadline_date}
+                        </Text>
+                        <Text style={tw`text-sm font-bold text-blue-600`}>
+                          {invoice.amount}
+                        </Text>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View style={tw`bg-gray-50 p-4 rounded-xl items-center`}>
+                    <Receipt size={32} style={tw`text-gray-300 mb-2`} />
+                    <Text style={tw`text-gray-500 text-center`}>
+                      Tidak ada riwayat tagihan
+                    </Text>
+                  </View>
+                )}
+
+                <View style={tw`h-8`} />
+              </ScrollView>
+            ) : (
+              <View style={tw`p-8 items-center justify-center`}>
+                <Text style={tw`text-gray-500`}>Gagal memuat data</Text>
+              </View>
+            )}
           </View>
         </View>
       </Modal>

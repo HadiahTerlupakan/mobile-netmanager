@@ -13,6 +13,34 @@ export interface MixRadiusCustomer {
   owner_name: string;
 }
 
+export interface MixRadiusInvoice {
+  id: string;
+  invoice_number: string;
+  plan_name: string;
+  amount: string;
+  activation_date: string;
+  deadline_date: string;
+  owner: string;
+  status: string;
+}
+
+export interface MixRadiusCustomerDetail {
+  id: string;
+  member_id: string;
+  username: string;
+  fullname: string;
+  email: string;
+  phonenumber: string;
+  address: string;
+  plan_name: string;
+  payment_type: string;
+  renewed_on: string;
+  expired_on: string;
+  auth_status: string;
+  owner_name?: string;
+  invoices?: MixRadiusInvoice[];
+}
+
 export interface MixRadiusResponse {
   draw: number;
   recordsTotal: number;
@@ -59,6 +87,21 @@ export const MixRadiusService = {
       return response.data;
     } catch (error) {
       throw error;
+    }
+  },
+
+  getCustomerDetail: async (
+    customerId: string,
+  ): Promise<MixRadiusCustomerDetail | null> => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: MixRadiusCustomerDetail;
+      }>(`/api/integrations/mixradius/customers/${customerId}`);
+      return response.data.data;
+    } catch (error) {
+      console.error("Failed to fetch customer detail", error);
+      return null;
     }
   },
 
