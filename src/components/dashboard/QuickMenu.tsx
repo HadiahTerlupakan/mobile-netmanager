@@ -8,7 +8,8 @@ import {
     Map,
     MessageCircle,
     PackageMinus,
-    PackagePlus
+    PackagePlus,
+    WifiOff,
 } from "lucide-react-native";
 import React from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
@@ -109,7 +110,7 @@ export const QuickMenu = ({
     {
       title: "Isolir",
       subtitle: "MixRadius",
-      icon: Lock,
+      icon: WifiOff,
       color: "bg-red-100", // Distinct color
       iconColor: "#dc2626",
       route: "/(app)/mixradius/isolir",
