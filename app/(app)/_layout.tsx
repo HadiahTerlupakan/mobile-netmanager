@@ -285,6 +285,14 @@ export default function AppLayout() {
             tabBarStyle: { display: "none" },
           }}
         />
+
+        {/* MixRadius Screens - Hidden from tab bar */}
+        <Tabs.Screen
+          name="mixradius/isolir"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
 
       {/* Announcement Popup - shows after login */}
