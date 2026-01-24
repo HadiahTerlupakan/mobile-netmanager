@@ -2,13 +2,17 @@ import LoadingModal from "@/components/LoadingModal";
 import SelectionModal from "@/components/SelectionModal";
 import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
-import { useOfflineMutationCompat as useOfflineMutation, useOfflineQueryCompat as useOfflineQuery } from "@/hooks/queries";
+import {
+    useOfflineMutationCompat as useOfflineMutation,
+    useOfflineQueryCompat as useOfflineQuery,
+} from "@/hooks/queries";
 import { SyncService } from "@/services/SyncService";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import axios from "axios";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import * as FileSystem from "expo-file-system/legacy";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -242,54 +246,79 @@ export default function BarangMasukScreen() {
     console.log("[Upload] Starting upload for URIs:", uris);
 
     for (const uri of uris) {
-      try {
-        const formData = new FormData();
-        const filename = uri.split("/").pop() || "photo.jpg";
-        const fileType = filename.endsWith(".png") ? "image/png" : "image/jpeg";
+      let retries = 0;
+      const maxRetries = 2;
 
-        console.log("[Upload] Processing Image:", { uri, filename, fileType });
+      while (retries <= maxRetries) {
+        try {
+          const filename = uri.split("/").pop() || "photo.jpg";
+          const fileType = filename.endsWith(".png")
+            ? "image/png"
+            : "image/jpeg";
 
-        formData.append("file", {
-          uri: uri,
-          type: fileType,
-          name: filename,
-        } as any);
-        formData.append("type", "inventory-masuk");
+          console.log("[Upload] Processing Image:", {
+            uri,
+            filename,
+            fileType,
+            attempt: retries + 1,
+          });
 
-        console.log(
-          "[Upload] Sending request to:",
-          `${Config.API_URL}/api/mobile/upload`,
-        );
-
-        const res = await axios.post(
-          `${Config.API_URL}/api/mobile/upload`,
-          formData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "multipart/form-data",
+          // Use expo-file-system uploadAsync for better Android compatibility
+          const uploadResult = await FileSystem.uploadAsync(
+            `${Config.API_URL}/api/mobile/upload`,
+            uri,
+            {
+              httpMethod: "POST",
+              uploadType: 1, // FileSystemUploadType.MULTIPART = 1
+              fieldName: "file",
+              mimeType: fileType,
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+              parameters: {
+                type: "inventory-masuk",
+              },
             },
-            timeout: 60000, // 60 second timeout for upload
-          },
-        );
-
-        console.log("[Upload] Success:", res.status, res.data);
-
-        if (res.data?.url) {
-          uploadedUrls.push(res.data.url);
-        }
-      } catch (error: any) {
-        console.error("Failed to upload photo:", error);
-        if (error.response) {
-          console.error(
-            "[Upload] Error Response:",
-            error.response.status,
-            error.response.data,
           );
-        } else if (error.request) {
-          console.error("[Upload] No Response (Network Error):", error.request);
-        } else {
-          console.error("[Upload] Request Setup Error:", error.message);
+
+          console.log(
+            "[Upload] Result:",
+            uploadResult.status,
+            uploadResult.body,
+          );
+
+          if (uploadResult.status >= 200 && uploadResult.status < 300) {
+            try {
+              const data = JSON.parse(uploadResult.body);
+              if (data?.url) {
+                uploadedUrls.push(data.url);
+              }
+            } catch (parseError) {
+              console.error("[Upload] Failed to parse response:", parseError);
+            }
+            break; // Success, exit retry loop
+          } else {
+            console.error(
+              "[Upload] Server Error:",
+              uploadResult.status,
+              uploadResult.body,
+            );
+            break; // Server responded with error, don't retry
+          }
+        } catch (error: any) {
+          retries++;
+          console.error(
+            `[Upload] Attempt ${retries} failed:`,
+            error.message || error,
+          );
+
+          // Network error - may retry
+          if (retries > maxRetries) {
+            console.error("[Upload] Max retries exceeded");
+          } else {
+            console.log("[Upload] Retrying in 1 second...");
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
         }
       }
     }

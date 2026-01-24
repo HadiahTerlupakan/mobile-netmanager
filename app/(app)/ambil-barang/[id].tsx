@@ -205,11 +205,22 @@ export default function AmbilBarangScreen() {
   }, [woData, woDataLoaded]);
 
   useEffect(() => {
+    console.log("[AmbilBarang] barangData changed:", {
+      barangData,
+      loadingBarangNet,
+      selectedGudang,
+    });
     if (barangData?.barangList) {
+      console.log(
+        "[AmbilBarang] Setting barangs:",
+        barangData.barangList.length,
+        "items",
+      );
       setBarangs(barangData.barangList);
       setLoadingBarang(false);
     } else if (!loadingBarangNet) {
       // Data loaded but no barangList - treat as empty
+      console.log("[AmbilBarang] No barangList, setting empty");
       setBarangs([]);
       setLoadingBarang(false);
     } else {
