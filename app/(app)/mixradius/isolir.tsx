@@ -16,8 +16,8 @@ import {
     Phone,
     Receipt,
     Search,
-    User,
-    X,
+    Trash2,
+    X
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -35,6 +35,18 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import tw from "twrnc";
+
+const DISMANTLE_REASONS = [
+  "Telat Bayar",
+  "Pindah Rumah",
+  "Pindah ke Provider Lain",
+  "Sering Gangguan",
+  "Pelayanan Pelanggan Buruk",
+  "Kebutuhan Menurun",
+  "Harga Terlalu Mahal",
+  "Kecepatan Tidak Sesuai Janji",
+  "Tidak Ada Keterangan",
+];
 
 export default function MixRadiusIsolirScreen() {
   const router = useRouter();
@@ -61,6 +73,12 @@ export default function MixRadiusIsolirScreen() {
     useState<MixRadiusCustomerDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  // Dismantle Modal States
+  const [showDismantleModal, setShowDismantleModal] = useState(false);
+  const [dismantleLoading, setDismantleLoading] = useState(false);
+  const [dismantleNote, setDismantleNote] = useState("");
+  const [selectedReason, setSelectedReason] = useState("");
 
   const pageSize = 20;
 
@@ -214,6 +232,43 @@ export default function MixRadiusIsolirScreen() {
     }
   };
 
+  const handleRequestDismantle = async () => {
+    if (!selectedCustomer) return;
+    if (!selectedReason) {
+      Alert.alert(
+        "Alasan Diperlukan",
+        "Mohon pilih alasan penarikan terlebih dahulu.",
+      );
+      return;
+    }
+
+    try {
+      setDismantleLoading(true);
+      const res = await MixRadiusService.requestDismantle(
+        selectedCustomer.id,
+        selectedReason,
+        dismantleNote,
+      );
+
+      if (res.success) {
+        Alert.alert("Berhasil", res.message);
+        setShowDismantleModal(false);
+        setSelectedReason("");
+        setDismantleNote("");
+      } else {
+        throw new Error(res.message);
+      }
+    } catch (err: any) {
+      console.error("Dismantle request failed:", err);
+      Alert.alert(
+        "Gagal",
+        err.error || err.message || "Gagal membuat request dismantle",
+      );
+    } finally {
+      setDismantleLoading(false);
+    }
+  };
+
   const renderItem = ({ item }: { item: MixRadiusCustomer }) => {
     const expired = isExpired(item.expired_on);
 
@@ -232,10 +287,35 @@ export default function MixRadiusIsolirScreen() {
               {item.fullname}
             </Text>
           </View>
-          <View
-            style={tw`bg-red-50 px-2 py-1 rounded-full border border-red-100`}
-          >
-            <Text style={tw`text-xs text-red-700 font-medium`}>Isolir</Text>
+          <View style={tw`flex-row gap-1`}>
+            {item.online ? (
+              <View
+                style={tw`bg-green-50 px-2 py-1 rounded-full border border-green-100 flex-row items-center gap-1`}
+              >
+                <View style={tw`w-1.5 h-1.5 rounded-full bg-green-500`} />
+                <Text
+                  style={tw`text-[10px] text-green-700 font-bold uppercase`}
+                >
+                  Online
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={tw`bg-gray-50 px-2 py-1 rounded-full border border-gray-100 flex-row items-center gap-1`}
+              >
+                <View style={tw`w-1.5 h-1.5 rounded-full bg-gray-400`} />
+                <Text style={tw`text-[10px] text-gray-500 font-bold uppercase`}>
+                  Offline
+                </Text>
+              </View>
+            )}
+            <View
+              style={tw`bg-red-50 px-2 py-1 rounded-full border border-red-100`}
+            >
+              <Text style={tw`text-[10px] text-red-700 font-bold uppercase`}>
+                Isolir
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -279,27 +359,29 @@ export default function MixRadiusIsolirScreen() {
           </Text>
         </View>
 
-        <View
-          style={tw`flex-row items-center justify-between mt-2 pt-2 border-t border-gray-50`}
-        >
-          {item.owner_name ? (
-            <View style={tw`flex-row items-center`}>
-              <User size={14} style={tw`text-gray-400 mr-2`} />
-              <Text style={tw`text-xs text-gray-500`}>
-                Owner: {item.owner_name}
-              </Text>
-            </View>
-          ) : (
-            <View />
-          )}
-          <View
-            style={tw`flex-row items-center bg-blue-50 px-2 py-1 rounded-lg`}
+        <View style={tw`flex-row gap-2 mt-2 pt-2 border-t border-gray-50`}>
+          <TouchableOpacity
+            onPress={() => {
+              setSelectedCustomer(item);
+              setShowDismantleModal(true);
+            }}
+            style={tw`flex-1 flex-row items-center justify-center bg-red-50 py-2 rounded-lg border border-red-100`}
+          >
+            <Trash2 size={12} style={tw`text-red-600 mr-1`} />
+            <Text style={tw`text-[10px] text-red-600 font-bold uppercase`}>
+              Request Dismantle
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => handleOpenDetail(item)}
+            style={tw`flex-1 flex-row items-center justify-center bg-blue-50 py-2 rounded-lg border border-blue-100`}
           >
             <Receipt size={12} style={tw`text-blue-600 mr-1`} />
-            <Text style={tw`text-xs text-blue-600 font-medium`}>
+            <Text style={tw`text-[10px] text-blue-600 font-bold uppercase`}>
               Lihat Riwayat
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     );
@@ -529,9 +611,39 @@ export default function MixRadiusIsolirScreen() {
                 <Text style={tw`text-lg font-bold text-gray-900`}>
                   {selectedCustomer?.fullname || "Detail Pelanggan"}
                 </Text>
-                <Text style={tw`text-xs text-gray-500 font-mono`}>
-                  {selectedCustomer?.member_id}
-                </Text>
+                <View style={tw`flex-row items-center gap-2`}>
+                  <Text style={tw`text-xs text-gray-500 font-mono`}>
+                    {selectedCustomer?.member_id}
+                  </Text>
+                  {selectedCustomer?.online ? (
+                    <View
+                      style={tw`flex-row items-center gap-1 bg-green-50 px-1.5 py-0.5 rounded border border-green-100`}
+                    >
+                      <View style={tw`w-1.5 h-1.5 rounded-full bg-green-500`} />
+                      <Text
+                        style={tw`text-[9px] text-green-700 font-bold uppercase`}
+                      >
+                        Online
+                      </Text>
+                    </View>
+                  ) : (
+                    <View
+                      style={tw`flex-row items-center gap-1 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100`}
+                    >
+                      <View style={tw`w-1.5 h-1.5 rounded-full bg-gray-400`} />
+                      <Text
+                        style={tw`text-[9px] text-gray-500 font-bold uppercase`}
+                      >
+                        Offline
+                      </Text>
+                    </View>
+                  )}
+                  {selectedCustomer?.active_session_ip && (
+                    <Text style={tw`text-[10px] text-gray-400 font-mono`}>
+                      ({selectedCustomer.active_session_ip})
+                    </Text>
+                  )}
+                </View>
               </View>
               <TouchableOpacity onPress={() => setShowDetailModal(false)}>
                 <X size={24} color="#6b7280" />
@@ -650,6 +762,116 @@ export default function MixRadiusIsolirScreen() {
                 <Text style={tw`text-gray-500`}>Gagal memuat data</Text>
               </View>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Dismantle Reason Modal */}
+      <Modal
+        visible={showDismantleModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => !dismantleLoading && setShowDismantleModal(false)}
+        statusBarTranslucent
+      >
+        <View style={tw`flex-1 justify-center items-center bg-black/60 px-4`}>
+          <View
+            style={tw`bg-white w-full max-h-[80%] rounded-2xl overflow-hidden shadow-2xl`}
+          >
+            {/* Modal Header */}
+            <View
+              style={tw`p-4 bg-red-600 flex-row justify-between items-center`}
+            >
+              <View>
+                <Text
+                  style={tw`text-white text-lg font-bold uppercase tracking-tight`}
+                >
+                  Request Dismantle
+                </Text>
+                <Text
+                  style={tw`text-white/80 text-[10px] uppercase font-bold mt-0.5`}
+                >
+                  {selectedCustomer?.fullname}
+                </Text>
+              </View>
+              {!dismantleLoading && (
+                <TouchableOpacity
+                  onPress={() => setShowDismantleModal(false)}
+                  style={tw`bg-white/10 p-1 rounded-full`}
+                >
+                  <X size={20} color="white" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView style={tw`p-5`}>
+              <Text style={tw`text-sm font-bold text-gray-800 mb-3`}>
+                Pilih Alasan Pembongkaran:
+              </Text>
+
+              <View style={tw`flex-row flex-wrap gap-2 mb-6`}>
+                {DISMANTLE_REASONS.map((reason) => (
+                  <TouchableOpacity
+                    key={reason}
+                    onPress={() => setSelectedReason(reason)}
+                    style={tw`${selectedReason === reason ? "bg-red-600 border-red-700 shadow-md" : "bg-gray-50 border-gray-100"} px-3 py-2 rounded-xl border flex-grow`}
+                  >
+                    <Text
+                      style={tw`${selectedReason === reason ? "text-white font-bold" : "text-gray-600"} text-xs text-center`}
+                    >
+                      {reason}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={tw`text-sm font-bold text-gray-800 mb-2`}>
+                Catatan Tambahan (Opsional):
+              </Text>
+              <TextInput
+                multiline
+                numberOfLines={3}
+                placeholder="Tambahkan keterangan teknis jika diperlukan..."
+                value={dismantleNote}
+                onChangeText={setDismantleNote}
+                style={tw`bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm text-gray-700 min-h-[80px] text-vertical-top`}
+                editable={!dismantleLoading}
+              />
+
+              <View style={tw`h-6`} />
+
+              <View style={tw`flex-row gap-3 mb-4`}>
+                <TouchableOpacity
+                  onPress={() => setShowDismantleModal(false)}
+                  disabled={dismantleLoading}
+                  style={tw`flex-1 bg-gray-100 py-3.5 rounded-xl border border-gray-200`}
+                >
+                  <Text
+                    style={tw`text-gray-600 text-center font-bold text-sm uppercase tracking-wider`}
+                  >
+                    Batal
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleRequestDismantle}
+                  disabled={dismantleLoading || !selectedReason}
+                  style={tw`flex-2 bg-red-600 py-3.5 rounded-xl border border-red-700 shadow-lg shadow-red-200 flex-row justify-center items-center gap-2 ${dismantleLoading || !selectedReason ? "opacity-50" : ""}`}
+                >
+                  {dismantleLoading ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <>
+                      <Trash2 size={16} color="white" />
+                      <Text
+                        style={tw`text-white text-center font-bold text-sm uppercase tracking-wider`}
+                      >
+                        Konfirmasi Bongkar
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>

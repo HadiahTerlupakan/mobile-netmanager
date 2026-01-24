@@ -11,6 +11,8 @@ export interface MixRadiusCustomer {
   auth_status: string;
   expired_on: string;
   owner_name: string;
+  online?: boolean;
+  active_session_ip?: string;
 }
 
 export interface MixRadiusInvoice {
@@ -38,6 +40,8 @@ export interface MixRadiusCustomerDetail {
   expired_on: string;
   auth_status: string;
   owner_name?: string;
+  online?: boolean;
+  active_session_ip?: string;
   invoices?: MixRadiusInvoice[];
 }
 
@@ -126,6 +130,27 @@ export const MixRadiusService = {
     } catch (error) {
       console.error("Failed to fetch owner groups", error);
       return [];
+    }
+  },
+
+  requestDismantle: async (
+    customerId: string,
+    reason: string,
+    notes?: string,
+  ) => {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: any;
+        message: string;
+      }>("/api/integrations/mixradius/dismantle", {
+        customerId,
+        reason,
+        notes,
+      });
+      return response.data;
+    } catch (error: any) {
+      throw error.response?.data || error;
     }
   },
 };
