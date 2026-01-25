@@ -3,13 +3,13 @@ import {
     Banknote,
     Calendar,
     CalendarDays,
+    ClipboardPlus,
     Clock,
     Lock,
     Map,
     MessageCircle,
     PackageMinus,
-    PackagePlus,
-    WifiOff,
+    WifiOff
 } from "lucide-react-native";
 import React from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
@@ -34,6 +34,15 @@ export const QuickMenu = ({
 
   const menuItems = [
     {
+      title: "Request WO",
+      subtitle: "Ajukan Tiket",
+      icon: ClipboardPlus,
+      color: "bg-sky-50",
+      iconColor: "#0284c7",
+      route: "/(app)/request-work-order",
+      requiredFeatures: ["m_work_order"],
+    },
+    {
       title: "Topology Map",
       subtitle: "Peta Jaringan",
       icon: Map,
@@ -41,15 +50,6 @@ export const QuickMenu = ({
       iconColor: "#0891b2",
       route: "/(app)/topology-map",
       requiredFeatures: ["m_topology_map"],
-    },
-    {
-      title: "Barang Masuk",
-      subtitle: "Input stok",
-      icon: PackagePlus,
-      color: "bg-green-50",
-      iconColor: "#16a34a",
-      route: "/(app)/barang/masuk",
-      requiredFeatures: ["m_barang_masuk"],
     },
     {
       title: "Barang Keluar",
@@ -111,15 +111,10 @@ export const QuickMenu = ({
       title: "Isolir",
       subtitle: "MixRadius",
       icon: WifiOff,
-      color: "bg-red-100", // Distinct color
+      color: "bg-red-100",
       iconColor: "#dc2626",
       route: "/(app)/mixradius/isolir",
-      requiredFeatures: [], // Public for now or restrict if needed. Assuming 'm_mixradius_isolir' or similar doesn't exist yet on mobile permission list, so leaving empty or using a known one.
-      // Better to assume it's available for users who have backend permission.
-      // Since we don't have mobile permission map for this yet, let's leave it open or check existing pattern.
-      // Existing pattern uses 'm_...' strings.
-      // I'll leave it empty to show for everyone or 'm_mixradius' if I knew it.
-      // Let's use empty for now to ensure visibility as requested.
+      requiredFeatures: [],
     },
   ];
 

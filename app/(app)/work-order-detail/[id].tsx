@@ -74,6 +74,9 @@ export default function WorkOrderDetailScreen() {
     null,
   );
 
+  // Readonly check - Tab Tugas, Barang, Diskusi readonly sebelum Mulai Kerja
+  const isWorkStarted = wo?.status === "IN_PROGRESS";
+
   // Partner State
   const [isPartnerModalVisible, setIsPartnerModalVisible] = useState(false);
   const [availablePartners, setAvailablePartners] = useState<any[]>([]);
@@ -958,6 +961,17 @@ export default function WorkOrderDetailScreen() {
     <View
       style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100 min-h-64`}
     >
+      {/* Readonly Banner */}
+      {!isWorkStarted && (
+        <View
+          style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}
+        >
+          <Text style={tw`text-yellow-700 text-xs flex-1`}>
+            ⚠️ Klik "Mulai Kerja" terlebih dahulu untuk mengambil barang
+          </Text>
+        </View>
+      )}
+
       <Text style={tw`font-bold text-gray-800 mb-4`}>Barang Digunakan</Text>
       {wo.usedMaterials &&
       Array.isArray(wo.usedMaterials) &&
@@ -1034,11 +1048,20 @@ export default function WorkOrderDetailScreen() {
       <View style={tw`mt-6 gap-3`}>
         {/* Ambil Barang Button - For all work order types */}
         <TouchableOpacity
-          onPress={() => router.push(`/(app)/ambil-barang/${id}`)}
-          style={tw`flex-row items-center justify-center p-3 bg-blue-50 rounded-xl border border-blue-200 active:bg-blue-100`}
+          onPress={() =>
+            isWorkStarted && router.push(`/(app)/ambil-barang/${id}`)
+          }
+          disabled={!isWorkStarted}
+          style={tw`flex-row items-center justify-center p-3 rounded-xl border ${isWorkStarted ? "bg-blue-50 border-blue-200 active:bg-blue-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
         >
-          <ImageIcon size={20} color="#2563eb" style={tw`mr-2`} />
-          <Text style={tw`font-bold text-blue-600`}>
+          <ImageIcon
+            size={20}
+            color={isWorkStarted ? "#2563eb" : "#9ca3af"}
+            style={tw`mr-2`}
+          />
+          <Text
+            style={tw`font-bold ${isWorkStarted ? "text-blue-600" : "text-gray-400"}`}
+          >
             Ambil Barang / Material
           </Text>
         </TouchableOpacity>
@@ -1046,11 +1069,22 @@ export default function WorkOrderDetailScreen() {
         {/* Kembalikan Barang Button - For DISCONNECTION and RELOCATION */}
         {(wo.type === "DISCONNECTION" || wo.type === "RELOCATION") && (
           <TouchableOpacity
-            onPress={() => router.push(`/(app)/kembalikan-barang/${id}`)}
-            style={tw`flex-row items-center justify-center p-3 bg-green-50 rounded-xl border border-green-200 active:bg-green-100`}
+            onPress={() =>
+              isWorkStarted && router.push(`/(app)/kembalikan-barang/${id}`)
+            }
+            disabled={!isWorkStarted}
+            style={tw`flex-row items-center justify-center p-3 rounded-xl border ${isWorkStarted ? "bg-green-50 border-green-200 active:bg-green-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
           >
-            <Package size={20} color="#16a34a" style={tw`mr-2`} />
-            <Text style={tw`font-bold text-green-600`}>Kembalikan Barang</Text>
+            <Package
+              size={20}
+              color={isWorkStarted ? "#16a34a" : "#9ca3af"}
+              style={tw`mr-2`}
+            />
+            <Text
+              style={tw`font-bold ${isWorkStarted ? "text-green-600" : "text-gray-400"}`}
+            >
+              Kembalikan Barang
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1061,15 +1095,31 @@ export default function WorkOrderDetailScreen() {
     <View
       style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}
     >
+      {/* Readonly Banner */}
+      {!isWorkStarted && (
+        <View
+          style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}
+        >
+          <Text style={tw`text-yellow-700 text-xs flex-1`}>
+            ⚠️ Klik "Mulai Kerja" terlebih dahulu untuk mengirim diskusi
+          </Text>
+        </View>
+      )}
+
       {/* Input Form */}
-      <View style={tw`mb-6`}>
+      <View style={tw`mb-6 ${!isWorkStarted ? "opacity-60" : ""}`}>
         <TextInput
           style={tw`bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm h-20 mb-3`}
           multiline
           textAlignVertical="top"
-          placeholder="Tulis diskusi..."
+          placeholder={
+            isWorkStarted
+              ? "Tulis diskusi..."
+              : "Mulai kerja dulu untuk berdiskusi"
+          }
           value={resolutionNotes}
           onChangeText={setResolutionNotes}
+          editable={isWorkStarted}
         />
 
         {photo && (
@@ -1090,21 +1140,26 @@ export default function WorkOrderDetailScreen() {
 
         <View style={tw`flex-row justify-between items-center mt-2`}>
           <TouchableOpacity
-            onPress={handleImageSelection}
-            style={tw`p-3 bg-gray-100 rounded-xl items-center justify-center`}
+            onPress={() => isWorkStarted && handleImageSelection()}
+            disabled={!isWorkStarted}
+            style={tw`p-3 rounded-xl items-center justify-center ${isWorkStarted ? "bg-gray-100" : "bg-gray-50"}`}
           >
-            <Camera size={20} color="#4b5563" />
+            <Camera size={20} color={isWorkStarted ? "#4b5563" : "#9ca3af"} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={handleUpdateActivity}
-            disabled={updateConfigLoading}
-            style={tw`bg-blue-600 px-6 py-3 rounded-xl items-center justify-center shadow-sm`}
+            onPress={() => isWorkStarted && handleUpdateActivity()}
+            disabled={updateConfigLoading || !isWorkStarted}
+            style={tw`px-6 py-3 rounded-xl items-center justify-center shadow-sm ${isWorkStarted ? "bg-blue-600" : "bg-gray-300"}`}
           >
             {updateConfigLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={tw`text-white font-bold text-sm`}>Kirim</Text>
+              <Text
+                style={tw`font-bold text-sm ${isWorkStarted ? "text-white" : "text-gray-500"}`}
+              >
+                Kirim
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -1341,6 +1396,17 @@ export default function WorkOrderDetailScreen() {
     <View
       style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}
     >
+      {/* Readonly Banner */}
+      {!isWorkStarted && (
+        <View
+          style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}
+        >
+          <Text style={tw`text-yellow-700 text-xs flex-1`}>
+            ⚠️ Klik "Mulai Kerja" terlebih dahulu untuk mencentang tugas
+          </Text>
+        </View>
+      )}
+
       <View style={tw`flex-row justify-between items-center mb-4`}>
         <Text style={tw`text-xs text-gray-400 font-bold uppercase`}>
           Daftar Tugas
@@ -1355,8 +1421,11 @@ export default function WorkOrderDetailScreen() {
         wo.tasks.map((task: any, index: number) => (
           <TouchableOpacity
             key={task.id}
-            style={tw`flex-row items-center py-3 border-b border-gray-50 last:border-0`}
-            onPress={() => handleToggleTask(task.id, task.status)}
+            style={tw`flex-row items-center py-3 border-b border-gray-50 last:border-0 ${!isWorkStarted ? "opacity-60" : ""}`}
+            onPress={() =>
+              isWorkStarted && handleToggleTask(task.id, task.status)
+            }
+            disabled={!isWorkStarted}
           >
             <View style={tw`mr-3`}>
               {task.status === "COMPLETED" ? (

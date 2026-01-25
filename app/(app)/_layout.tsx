@@ -293,6 +293,15 @@ export default function AppLayout() {
             href: null,
           }}
         />
+
+        {/* WO Request Screen - Hidden from tab bar, accessed via WO list */}
+        <Tabs.Screen
+          name="request-work-order"
+          options={{
+            href: null,
+            tabBarStyle: { display: "none" },
+          }}
+        />
       </Tabs>
 
       {/* Announcement Popup - shows after login */}
