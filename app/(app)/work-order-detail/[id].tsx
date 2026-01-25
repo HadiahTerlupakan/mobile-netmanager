@@ -1313,10 +1313,30 @@ export default function WorkOrderDetailScreen() {
 
             {/* Dot */}
             <View
-              style={tw`w-6 h-6 rounded-full ${update.updateType === "PHOTO" ? "bg-purple-100" : "bg-gray-100"} items-center justify-center mr-3 z-10`}
+              style={tw`w-6 h-6 rounded-full ${
+                update.updateType === "PHOTO"
+                  ? "bg-purple-100"
+                  : update.updateType === "MATERIAL_PICKUP"
+                    ? "bg-orange-100"
+                    : update.updateType === "MATERIAL_RETURN"
+                      ? "bg-green-100"
+                      : update.updateType === "STATUS_CHANGE"
+                        ? "bg-blue-100"
+                        : "bg-gray-100"
+              } items-center justify-center mr-3 z-10`}
             >
               <View
-                style={tw`w-2 h-2 rounded-full ${update.updateType === "PHOTO" ? "bg-purple-600" : "bg-gray-400"}`}
+                style={tw`w-2 h-2 rounded-full ${
+                  update.updateType === "PHOTO"
+                    ? "bg-purple-600"
+                    : update.updateType === "MATERIAL_PICKUP"
+                      ? "bg-orange-600"
+                      : update.updateType === "MATERIAL_RETURN"
+                        ? "bg-green-600"
+                        : update.updateType === "STATUS_CHANGE"
+                          ? "bg-blue-600"
+                          : "bg-gray-400"
+                }`}
               />
             </View>
 
@@ -1331,8 +1351,16 @@ export default function WorkOrderDetailScreen() {
                 {update.updateType === "STATUS_CHANGE"
                   ? `Status: ${update.newStatus}`
                   : update.updateType === "PHOTO"
-                    ? "Foto Diupload"
-                    : update.updateType}
+                    ? "📷 Foto Diupload"
+                    : update.updateType === "MATERIAL_PICKUP"
+                      ? "📦 Ambil Barang"
+                      : update.updateType === "MATERIAL_RETURN"
+                        ? "↩️ Kembalikan Barang"
+                        : update.updateType === "ASSIGNMENT"
+                          ? "👤 Penugasan"
+                          : update.updateType === "PARTNER_RESPONSE"
+                            ? "🤝 Respon Partner"
+                            : update.updateType}
               </Text>
               <Text style={tw`text-gray-600 text-sm mt-1 leading-5`}>
                 {update.message}
