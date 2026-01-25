@@ -592,7 +592,10 @@ export default function AmbilBarangScreen() {
                   style={tw`flex-row items-center justify-between p-3 border-b border-gray-50 last:border-0`}
                 >
                   <View style={tw`flex-1`}>
-                    <Text style={tw`font-medium text-gray-900 truncate`}>
+                    <Text
+                      style={tw`font-medium text-gray-900`}
+                      numberOfLines={1}
+                    >
                       {item.barang.nama}
                     </Text>
                     <View style={tw`flex-row items-center gap-2 mt-1`}>

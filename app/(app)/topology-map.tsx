@@ -1,3 +1,6 @@
+import { useAuth } from "@/context/AuthContext";
+import api from "@/services/api";
+import toGeoJSON from "@/utils/togeojson-wrapper";
 import MapLibreGL from "@maplibre/maplibre-react-native";
 import { DOMParser } from "@xmldom/xmldom";
 import { useRouter } from "expo-router";
@@ -7,7 +10,7 @@ import {
     MapPin,
     Plus,
     RefreshCw,
-    Target
+    Target,
 } from "lucide-react-native";
 import React, {
     useCallback,
@@ -22,12 +25,9 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
-import api from "@/services/api";
-import toGeoJSON from "@/utils/togeojson-wrapper";
 
 import { DeviceCreateModal } from "@/components/topology/DeviceCreateModal";
 import {
@@ -155,6 +155,16 @@ interface VisibilityState {
 
 // MapLibre Config
 MapLibreGL.setAccessToken(null); // Not needed for open tiles
+
+// Suppress MapLibre HTTP errors for empty URLs
+MapLibreGL.Logger.setLogCallback((log) => {
+  const { message } = log;
+  // Ignore empty resourceUrl errors
+  if (message?.includes("Unable to parse resourceUrl")) {
+    return true; // Suppress this log
+  }
+  return false; // Let other logs through
+});
 
 export default function TopologyMapScreen() {
   const router = useRouter();
@@ -673,7 +683,20 @@ export default function TopologyMapScreen() {
     };
   }, [data]);
 
-  // Camera initialization removed - map shows default view without programmatic positioning
+  // Auto-center camera to data bounds when data is loaded
+  useEffect(() => {
+    if (mapReady && mapBounds && cameraRef.current) {
+      console.log(
+        "[TopologyMap] Auto-centering to data bounds:",
+        mapBounds.center,
+      );
+      cameraRef.current.setCamera({
+        centerCoordinate: mapBounds.center,
+        zoomLevel: 14, // Zoom closer to see markers
+        animationDuration: 1000,
+      });
+    }
+  }, [mapReady, mapBounds]);
 
   const centerCoordinate = mapBounds?.center || [106.816666, -6.2]; // Default Jakarta
 

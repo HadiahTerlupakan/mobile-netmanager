@@ -17,7 +17,7 @@ import {
     Receipt,
     Search,
     Trash2,
-    X
+    X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -834,7 +834,10 @@ export default function MixRadiusIsolirScreen() {
                 placeholder="Tambahkan keterangan teknis jika diperlukan..."
                 value={dismantleNote}
                 onChangeText={setDismantleNote}
-                style={tw`bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm text-gray-700 min-h-[80px] text-vertical-top`}
+                style={[
+                  tw`bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm text-gray-700 min-h-[80px]`,
+                  { textAlignVertical: "top" },
+                ]}
                 editable={!dismantleLoading}
               />
 
