@@ -1,7 +1,10 @@
 import LoadingModal from "@/components/LoadingModal";
 import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
-import { useOfflineMutationCompat as useOfflineMutation, useOfflineQueryCompat as useOfflineQuery } from "@/hooks/queries";
+import {
+    useOfflineMutationCompat as useOfflineMutation,
+    useOfflineQueryCompat as useOfflineQuery,
+} from "@/hooks/queries";
 import { LocationTrackingService } from "@/services/LocationTrackingService";
 import { SyncService } from "@/services/SyncService";
 import { generateSignature } from "@/utils/crypto";
@@ -99,6 +102,8 @@ export default function AbsensiScreen() {
     name: string | null;
   }>({ isHoliday: false, name: null });
   const [isOffDay, setIsOffDay] = useState(false);
+  const [isTukarLiburWorkDay, setIsTukarLiburWorkDay] = useState(false); // Hari ini user masuk ganti libur
+  const [isTukarLiburLeaveDay, setIsTukarLiburLeaveDay] = useState(false); // Hari ini user libur ganti kerja
 
   // Clock
   useEffect(() => {
@@ -236,6 +241,10 @@ export default function AbsensiScreen() {
       } else {
         setIsOffDay(false);
       }
+
+      // Update Tukar Libur Status
+      setIsTukarLiburWorkDay(statusData.today?.isTukarLiburWorkDay || false);
+      setIsTukarLiburLeaveDay(statusData.today?.isTukarLiburLeaveDay || false);
 
       if (statusData.data.length > 0) {
         const lastAttendance = statusData.data[0];
@@ -893,16 +902,41 @@ export default function AbsensiScreen() {
                 </Text>
               </View>
             )}
-            {isOffDay && !todayHoliday.isHoliday && (
+            {/* Tukar Libur: Masuk Ganti Libur */}
+            {isTukarLiburWorkDay && (
               <View
-                style={tw`bg-amber-100/80 px-3 py-1 rounded-full mt-2 flex-row items-center`}
+                style={tw`bg-green-100/90 px-3 py-1 rounded-full mt-2 flex-row items-center`}
               >
-                <CalendarOff size={14} color="#d97706" />
-                <Text style={tw`text-amber-700 font-bold text-xs ml-1`}>
-                  HARI LIBUR ANDA
+                <CalendarOff size={14} color="#16a34a" />
+                <Text style={tw`text-green-700 font-bold text-xs ml-1`}>
+                  MASUK GANTI LIBUR
                 </Text>
               </View>
             )}
+            {/* Tukar Libur: Libur Ganti Hari Kerja */}
+            {isTukarLiburLeaveDay && !todayHoliday.isHoliday && (
+              <View
+                style={tw`bg-purple-100/90 px-3 py-1 rounded-full mt-2 flex-row items-center`}
+              >
+                <CalendarOff size={14} color="#9333ea" />
+                <Text style={tw`text-purple-700 font-bold text-xs ml-1`}>
+                  TUKAR LIBUR HARI INI
+                </Text>
+              </View>
+            )}
+            {isOffDay &&
+              !todayHoliday.isHoliday &&
+              !isTukarLiburWorkDay &&
+              !isTukarLiburLeaveDay && (
+                <View
+                  style={tw`bg-amber-100/80 px-3 py-1 rounded-full mt-2 flex-row items-center`}
+                >
+                  <CalendarOff size={14} color="#d97706" />
+                  <Text style={tw`text-amber-700 font-bold text-xs ml-1`}>
+                    HARI LIBUR ANDA
+                  </Text>
+                </View>
+              )}
             {todayHoliday.name && (
               <Text
                 style={tw`text-white/80 text-xs mt-1 text-center max-w-[80%]`}
@@ -1031,9 +1065,19 @@ export default function AbsensiScreen() {
                 disabled={
                   status === "checked-out" || todayHoliday.isHoliday || isOffDay
                 }
-                style={tw`${todayHoliday.isHoliday ? "bg-red-50 border-red-200" : isOffDay ? "bg-amber-50 border-amber-200" : "bg-blue-50 border-blue-200"} border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
+                style={tw`${todayHoliday.isHoliday ? "bg-red-50 border-red-200" : isTukarLiburLeaveDay ? "bg-purple-50 border-purple-200" : isOffDay ? "bg-amber-50 border-amber-200" : isTukarLiburWorkDay ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"} border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
               >
-                {isOffDay && !todayHoliday.isHoliday ? (
+                {isTukarLiburLeaveDay && !todayHoliday.isHoliday ? (
+                  <>
+                    <CalendarOff size={32} color="#9333ea" />
+                    <Text style={tw`text-purple-600 font-bold mt-2`}>
+                      Tukar Libur Hari Ini
+                    </Text>
+                    <Text style={tw`text-purple-500 text-xs`}>
+                      Anda mengambil libur ganti
+                    </Text>
+                  </>
+                ) : isOffDay && !todayHoliday.isHoliday ? (
                   <>
                     <CalendarOff size={32} color="#d97706" />
                     <Text style={tw`text-amber-600 font-bold mt-2`}>
@@ -1055,10 +1099,17 @@ export default function AbsensiScreen() {
                   </>
                 ) : (
                   <>
-                    <Camera size={32} color="#2563eb" />
-                    <Text style={tw`text-blue-600 font-bold mt-2`}>
+                    <Camera
+                      size={32}
+                      color={isTukarLiburWorkDay ? "#16a34a" : "#2563eb"}
+                    />
+                    <Text
+                      style={tw`${isTukarLiburWorkDay ? "text-green-600" : "text-blue-600"} font-bold mt-2`}
+                    >
                       {status === "idle"
-                        ? "Ambil Foto Masuk"
+                        ? isTukarLiburWorkDay
+                          ? "Ambil Foto (Ganti Libur)"
+                          : "Ambil Foto Masuk"
                         : status === "checked-in"
                           ? "Ambil Foto Keluar"
                           : "Absensi Selesai"}
