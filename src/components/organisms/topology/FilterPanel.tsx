@@ -151,3 +151,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
+FilterPanel.displayName = 'FilterPanel';

@@ -896,7 +896,7 @@ useEffect(() => {
 
 ### 4.1 WorkOrderListItem - Functions Created on Every Render ⚠️ SEDANG
 
-**Lokasi:** [`components/dashboard/WorkOrderListItem.tsx`](../components/dashboard/WorkOrderListItem.tsx:17-39)
+**Lokasi:** [`components/organisms/dashboard/WorkOrderListItem.tsx`](../components/organisms/dashboard/WorkOrderListItem.tsx:17-39)
 
 **Masalah:**
 
@@ -907,7 +907,7 @@ useEffect(() => {
 **Kode Refactored:**
 
 ```typescript
-// components/dashboard/WorkOrderListItem.tsx
+// components/organisms/dashboard/WorkOrderListItem.tsx
 
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
@@ -1348,8 +1348,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { DashboardHeader } from "../../components/dashboard/Header";
-import { PerformanceStats } from "../../components/dashboard/PerformanceStats";
+import { DashboardHeader } from "../../components/organisms/dashboard/DashboardHeader";
+import { PerformanceStats } from "../../components/organisms/dashboard/PerformanceStats";
 import { QuickMenu } from "../../components/dashboard/QuickMenu";
 import { WorkOrderCard } from "../../components/dashboard/WorkOrderCard";
 import { Config } from "../../constants/Config";

@@ -5,12 +5,15 @@ export interface MixRadiusCustomer {
   member_id: string;
   username: string;
   fullname: string;
+  name?: string; // Optional alias for compatibility
   address: string;
   phonenumber: string;
   plan_name: string;
   auth_status: string;
   expired_on: string;
+  expiration?: string; // Optional alias
   owner_name: string;
+  group_name?: string; // Optional alias
   online?: boolean;
   active_session_ip?: string;
 }
@@ -66,10 +69,11 @@ export const MixRadiusService = {
     pageSize: number = 20,
     owner?: string,
     groupId?: string,
+    authStatus: string = "Disabled-Users", // Allow override
   ) => {
     try {
       const params: any = {
-        authStatus: "Disabled-Users",
+        authStatus: authStatus,
         search: search,
         searchType: "all",
         start: page * pageSize,
@@ -84,10 +88,33 @@ export const MixRadiusService = {
       }
 
       // Note: api baseURL is Config.API_URL, so we append /api/...
-      const response = await api.get<MixRadiusResponse>(
+      console.log(`[MixRadius] Requesting: /api/integrations/mixradius/customers params:`, JSON.stringify(params));
+      const response = await api.get<any>(
         "/api/integrations/mixradius/customers",
         { params },
       );
+
+      console.log(`[MixRadius] Raw response keys:`, Object.keys(response.data));
+      if (response.data?.data) {
+         console.log(`[MixRadius] response.data.data keys:`, Object.keys(response.data.data));
+         if (Array.isArray(response.data.data)) {
+             console.log(`[MixRadius] response.data.data is Array length: ${response.data.data.length}`);
+         } else {
+             console.log(`[MixRadius] response.data.data is Object`);
+             if (response.data.data.data) {
+                 console.log(`[MixRadius] response.data.data.data is Array length: ${response.data.data.data.length}`);
+             }
+         }
+      }
+
+      // Handle wrapped response { success: true, data: { ... } }
+      if (response.data?.success && response.data?.data) {
+        console.log(`[MixRadius] Returning response.data.data (wrapped)`);
+        return response.data.data;
+      }
+
+      // Handle direct response (unwrapped or different structure)
+      console.log(`[MixRadius] Returning response.data (unwrapped/other)`);
       return response.data;
     } catch (error) {
       throw error;
@@ -123,34 +150,32 @@ export const MixRadiusService = {
 
   getOwnerGroups: async () => {
     try {
-      const response = await api.get<OwnerGroup[]>(
+      const response = await api.get<any>(
         "/api/integrations/mixradius/groups",
       );
-      return response.data;
+
+      if (Array.isArray(response.data)) {
+        return response.data;
+      }
+
+      if (response.data && Array.isArray(response.data.data)) {
+        return response.data.data;
+      }
+
+      console.warn("Unexpected owner groups format:", response.data);
+      return [];
     } catch (error) {
       console.error("Failed to fetch owner groups", error);
       return [];
     }
   },
 
-  requestDismantle: async (
-    customerId: string,
-    reason: string,
-    notes?: string,
-  ) => {
-    try {
-      const response = await api.post<{
-        success: boolean;
-        data: any;
-        message: string;
-      }>("/api/integrations/mixradius/dismantle", {
-        customerId,
-        reason,
-        notes,
-      });
-      return response.data;
-    } catch (error: any) {
-      throw error.response?.data || error;
-    }
+  requestDismantle: async (customerId: string, reason: string, notes?: string) => {
+    const response = await api.post("/api/integrations/mixradius/dismantle", {
+      customerId,
+      reason,
+      notes,
+    });
+    return response.data;
   },
 };

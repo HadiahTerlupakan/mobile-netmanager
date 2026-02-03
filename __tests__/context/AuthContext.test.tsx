@@ -1,7 +1,31 @@
 import { act, render, waitFor } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
 import React from 'react';
-import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { AuthContextType, AuthProvider, useAuth } from '@/context/AuthContext';
+
+// Mock expo-secure-store
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn(),
+  setItemAsync: jest.fn(),
+  deleteItemAsync: jest.fn(),
+}));
+
+// Mock react-native APIs used in AuthContext
+jest.mock('react-native', () => ({
+  DeviceEventEmitter: {
+    addListener: jest.fn(() => ({
+      remove: jest.fn(),
+    })),
+    emit: jest.fn(),
+  },
+  Alert: {
+    alert: jest.fn(),
+  },
+  Platform: {
+    OS: 'ios',
+    select: jest.fn((objs) => objs.ios),
+  },
+}));
 
 // Mock push notification service
 jest.mock('@/services/PushNotificationService', () => ({
@@ -9,8 +33,23 @@ jest.mock('@/services/PushNotificationService', () => ({
   addNotificationListeners: jest.fn(() => jest.fn()),
 }));
 
-// Mock axios
-jest.mock('axios');
+// Mock axios and the api service
+jest.mock('axios', () => {
+  const mockAxios: any = {
+    create: jest.fn(() => mockAxios),
+    interceptors: {
+      request: { use: jest.fn(), eject: jest.fn() },
+      response: { use: jest.fn(), eject: jest.fn() },
+    },
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    delete: jest.fn(),
+    defaults: { headers: { common: {} } },
+    isAxiosError: jest.fn(),
+  };
+  return mockAxios;
+});
 
 // Mock Config
 jest.mock('@/constants/Config', () => ({
@@ -24,12 +63,12 @@ beforeEach(() => {
 });
 
 // Simple test component that doesn't render anything
-const TestConsumer = ({ onMount }: { onMount: (auth: ReturnType<typeof useAuth>) => void }) => {
+const TestConsumer = ({ onMount }: { onMount: (auth: AuthContextType) => void }) => {
   const auth = useAuth();
   React.useEffect(() => {
     onMount(auth);
   }, [auth, onMount]);
-  return null; // Return null instead of a View/Text component
+  return null;
 };
 
 describe('AuthContext', () => {
@@ -37,7 +76,7 @@ describe('AuthContext', () => {
     it('should start in loading state', async () => {
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
 
-      let authContext: ReturnType<typeof useAuth> | null = null;
+      let authContext: AuthContextType | undefined;
       
       render(
         <AuthProvider>
@@ -55,8 +94,8 @@ describe('AuthContext', () => {
         .mockResolvedValueOnce('stored-token')
         .mockResolvedValueOnce(JSON.stringify(storedUser));
 
-      let authContext: ReturnType<typeof useAuth> | null = null;
-      
+      let authContext: AuthContextType | undefined;
+
       render(
         <AuthProvider>
           <TestConsumer onMount={(auth) => { authContext = auth; }} />
@@ -66,7 +105,7 @@ describe('AuthContext', () => {
       await waitFor(() => {
         expect(authContext?.isLoading).toBe(false);
       });
-      
+
       expect(authContext?.token).toBe('stored-token');
       expect(authContext?.user).toEqual(storedUser);
     });
@@ -77,8 +116,8 @@ describe('AuthContext', () => {
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
       (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
 
-      let authContext: ReturnType<typeof useAuth> | null = null;
-      
+      let authContext: AuthContextType | undefined;
+
       render(
         <AuthProvider>
           <TestConsumer onMount={(auth) => { authContext = auth; }} />
@@ -90,9 +129,9 @@ describe('AuthContext', () => {
       });
 
       const newUser = { id: '2', name: 'New User', email: 'new@test.com', role: 'admin' };
-      
+
       await act(async () => {
-        await authContext!.signIn('new-token', newUser);
+        await authContext?.signIn('new-token', newUser);
       });
 
       expect(SecureStore.setItemAsync).toHaveBeenCalledWith('session_token', 'new-token');
@@ -107,8 +146,8 @@ describe('AuthContext', () => {
         .mockResolvedValueOnce(JSON.stringify(storedUser));
       (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
 
-      let authContext: ReturnType<typeof useAuth> | null = null;
-      
+      let authContext: AuthContextType | undefined;
+
       render(
         <AuthProvider>
           <TestConsumer onMount={(auth) => { authContext = auth; }} />
@@ -120,7 +159,7 @@ describe('AuthContext', () => {
       });
 
       await act(async () => {
-        await authContext!.signOut();
+        await authContext?.signOut();
       });
 
       expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('session_token');

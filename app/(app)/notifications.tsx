@@ -1,7 +1,6 @@
-import { Config } from "@/constants/Config";
+import api from "@/services/api"; // Use centralized API
 import { useAuth } from "@/context/AuthContext";
 import { useOfflineMutationCompat as useOfflineMutation, useOfflineQueryCompat as useOfflineQuery } from "@/hooks/queries";
-import axios from "axios";
 import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -14,15 +13,15 @@ import {
     Megaphone,
     Package,
 } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
     ActivityIndicator,
     RefreshControl,
-    ScrollView,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
 
@@ -38,137 +37,13 @@ interface Notification {
   createdAt: string;
 }
 
-export default function NotificationsScreen() {
-  const { token } = useAuth();
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+interface NotificationResponse {
+  success: boolean;
+  data: { notifications: Notification[]; unreadCount: number };
+}
 
-  // Offline Query for Notifications
-  const { data: notifData, refetch } = useOfflineQuery<{
-    success: boolean;
-    data: { notifications: Notification[]; unreadCount: number };
-  }>({
-    key: "notifications_list",
-    fetcher: async () => {
-      const res = await axios.get(
-        `${Config.API_URL}/api/mobile/notifications`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      return res.data;
-    },
-    enabled: !!token,
-  });
-
-  // Offline Mutation for Actions
-  const { mutate } = useOfflineMutation();
-
-  const notifications = notifData?.data?.notifications || [];
-  const unreadCount = notifData?.data?.unreadCount || 0;
-
-  useEffect(() => {
-    if (notifData) {
-      setLoading(false);
-    }
-  }, [notifData]);
-
-  useFocusEffect(
-    useCallback(() => {
-      refetch();
-    }, [refetch]),
-  );
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  };
-
-  const markAsRead = async (notificationId: string) => {
-    await mutate(
-      { action: "markRead", notificationId },
-      {
-        url: `/api/mobile/notifications`,
-        method: "POST",
-        onSuccess: () => {
-          // Optimistically handled by refetch or could update cache manually
-          // For simplicity, we just refetch
-          refetch();
-        },
-      },
-    );
-  };
-
-  const markAllAsRead = async () => {
-    await mutate(
-      { action: "markAllRead" },
-      {
-        url: `/api/mobile/notifications`,
-        method: "POST",
-        onSuccess: () => refetch(),
-      },
-    );
-  };
-
-  const markAnnouncementAsRead = async (sourceId: string) => {
-    // Track announcement read to AnnouncementRead table (use mobile endpoint)
-    await mutate(
-      { portal: "employee" },
-      {
-        url: `/api/mobile/announcements/${sourceId}/read`,
-        method: "POST",
-      },
-    );
-    console.log(
-      "[Notifications] Marked announcement as read (queued if offline):",
-      sourceId,
-    );
-  };
-
-  const handleNotificationPress = (notification: Notification) => {
-    // Mark as read
-    if (!notification.isRead) {
-      markAsRead(notification.id);
-    }
-
-    // If it's an announcement, also track to AnnouncementRead
-    if (notification.sourceType === "ANNOUNCEMENT" && notification.sourceId) {
-      markAnnouncementAsRead(notification.sourceId);
-    }
-
-    // Navigate based on sourceType and sourceId (mobile-native navigation)
-    switch (notification.sourceType) {
-      case "WORK_ORDER":
-        if (notification.sourceId) {
-          router.push(
-            `/(app)/work-order-detail/${notification.sourceId}` as any,
-          );
-        } else {
-          router.push("/(app)/work-order" as any);
-        }
-        break;
-      case "LEAVE":
-        router.push("/(app)/izin" as any);
-        break;
-      case "OVERTIME":
-        router.push("/(app)/lembur" as any);
-        break;
-      case "INVENTORY":
-        router.push("/(app)/barang" as any);
-        break;
-      case "ANNOUNCEMENT":
-        // Announcements are typically just informational
-        // Could show a modal or navigate to dashboard
-        break;
-      default:
-        // Fallback: go to dashboard
-        router.push("/(app)/dashboard" as any);
-        break;
-    }
-  };
-
+// Memoized Notification Item
+const NotificationItem = React.memo(({ item, onPress }: { item: Notification, onPress: (notif: Notification) => void }) => {
   const getIcon = (sourceType?: string) => {
     switch (sourceType) {
       case "WORK_ORDER":
@@ -197,7 +72,107 @@ export default function NotificationsScreen() {
     }
   };
 
-  if (loading) {
+  return (
+    <TouchableOpacity
+      onPress={() => onPress(item)}
+      style={tw`flex-row p-4 border-b border-gray-100 ${!item.isRead ? "bg-blue-50" : "bg-white"}`}
+    >
+      <View style={tw`w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3`}>
+        {getIcon(item.sourceType)}
+      </View>
+      <View style={tw`flex-1`}>
+        <View style={tw`flex-row items-center justify-between mb-1`}>
+          <Text style={tw`font-bold text-gray-800 flex-1`} numberOfLines={1}>
+            {item.title}
+          </Text>
+          {!item.isRead && (
+            <View style={tw`w-2 h-2 rounded-full bg-blue-500 ml-2`} />
+          )}
+        </View>
+        <Text style={tw`text-gray-600 text-sm mb-1`} numberOfLines={2}>
+          {item.message}
+        </Text>
+        <Text style={tw`text-gray-400 text-xs`}>
+          {formatTime(item.createdAt)}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+});
+NotificationItem.displayName = 'NotificationItem';
+
+export default function NotificationsScreen() {
+  const { token } = useAuth();
+  const router = useRouter();
+
+  // Offline Query for Notifications
+  const { data: notifData, refetch, isLoading } = useOfflineQuery<NotificationResponse>({
+    key: "notifications_list",
+    fetcher: async () => {
+      const res = await api.get("/api/mobile/notifications");
+      return res.data;
+    },
+    enabled: !!token,
+  });
+
+  // Offline Mutation for Actions
+  const { mutate } = useOfflineMutation();
+
+  const notifications = useMemo(() => notifData?.data?.notifications || [], [notifData]);
+  const unreadCount = notifData?.data?.unreadCount || 0;
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
+
+  const markAsRead = useCallback(async (notificationId: string) => {
+    await mutate(
+      { action: "markRead", notificationId },
+      {
+        url: `/api/mobile/notifications`,
+        method: "POST",
+        onSuccess: () => refetch(),
+      },
+    );
+  }, [mutate, refetch]);
+
+  const markAllAsRead = useCallback(async () => {
+    await mutate(
+      { action: "markAllRead" },
+      {
+        url: `/api/mobile/notifications`,
+        method: "POST",
+        onSuccess: () => refetch(),
+      },
+    );
+  }, [mutate, refetch]);
+
+  const handleNotificationPress = useCallback((notification: Notification) => {
+    if (!notification.isRead) {
+      markAsRead(notification.id);
+    }
+
+    if (notification.sourceType === "ANNOUNCEMENT" && notification.sourceId) {
+      mutate(
+        { portal: "employee" },
+        { url: `/api/mobile/announcements/${notification.sourceId}/read`, method: "POST" },
+      );
+    }
+
+    switch (notification.sourceType) {
+      case "WORK_ORDER":
+        router.push(notification.sourceId ? `/(app)/work-order-detail/${notification.sourceId}` : "/(app)/work-order");
+        break;
+      case "LEAVE": router.push("/(app)/izin"); break;
+      case "OVERTIME": router.push("/(app)/lembur"); break;
+      case "INVENTORY": router.push("/(app)/barang"); break;
+      default: router.push("/(app)/dashboard"); break;
+    }
+  }, [markAsRead, mutate, router]);
+
+  if (isLoading && notifications.length === 0) {
     return (
       <SafeAreaView style={tw`flex-1 bg-gray-50 justify-center items-center`}>
         <ActivityIndicator size="large" color="#2563eb" />
@@ -207,10 +182,7 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
-      {/* Header */}
-      <View
-        style={tw`bg-blue-600 px-4 py-4 flex-row items-center justify-between`}
-      >
+      <View style={tw`bg-blue-600 px-4 py-4 flex-row items-center justify-between`}>
         <View style={tw`flex-row items-center`}>
           <TouchableOpacity onPress={() => router.back()} style={tw`p-2 -ml-2`}>
             <ArrowLeft size={24} color="white" />
@@ -218,69 +190,36 @@ export default function NotificationsScreen() {
           <Text style={tw`text-white font-bold text-lg ml-2`}>Notifikasi</Text>
           {unreadCount > 0 && (
             <View style={tw`bg-red-500 rounded-full px-2 py-0.5 ml-2`}>
-              <Text style={tw`text-white text-xs font-bold`}>
-                {unreadCount}
-              </Text>
+              <Text style={tw`text-white text-xs font-bold`}>{unreadCount}</Text>
             </View>
           )}
         </View>
         {unreadCount > 0 && (
           <TouchableOpacity onPress={markAllAsRead}>
-            <Text style={tw`text-blue-100 text-sm font-medium`}>
-              Tandai Dibaca
-            </Text>
+            <Text style={tw`text-blue-100 text-sm font-medium`}>Tandai Dibaca</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <ScrollView
-        contentContainerStyle={tw`pb-6`}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {notifications.length === 0 ? (
-          <View style={tw`items-center justify-center py-20`}>
-            <Bell size={48} color="#d1d5db" />
-            <Text style={tw`text-gray-400 text-lg mt-4`}>
-              Belum ada notifikasi
-            </Text>
-          </View>
-        ) : (
-          notifications.map((notif) => (
-            <TouchableOpacity
-              key={notif.id}
-              onPress={() => handleNotificationPress(notif)}
-              style={tw`flex-row p-4 border-b border-gray-100 ${!notif.isRead ? "bg-blue-50" : "bg-white"}`}
-            >
-              <View
-                style={tw`w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3`}
-              >
-                {getIcon(notif.sourceType)}
-              </View>
-              <View style={tw`flex-1`}>
-                <View style={tw`flex-row items-center justify-between mb-1`}>
-                  <Text
-                    style={tw`font-bold text-gray-800 flex-1`}
-                    numberOfLines={1}
-                  >
-                    {notif.title}
-                  </Text>
-                  {!notif.isRead && (
-                    <View style={tw`w-2 h-2 rounded-full bg-blue-500 ml-2`} />
-                  )}
-                </View>
-                <Text style={tw`text-gray-600 text-sm mb-1`} numberOfLines={2}>
-                  {notif.message}
-                </Text>
-                <Text style={tw`text-gray-400 text-xs`}>
-                  {formatTime(notif.createdAt)}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
+      <View style={tw`flex-1`}>
+        <FlashList
+          data={notifications}
+          renderItem={({ item }: { item: Notification }) => (
+            <NotificationItem item={item} onPress={handleNotificationPress} />
+          )}
+          keyExtractor={(item: Notification) => item.id}
+          estimatedItemSize={80}
+          refreshControl={
+            <RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor="#2563eb" />
+          }
+          ListEmptyComponent={
+            <View style={tw`items-center justify-center py-20`}>
+              <Bell size={48} color="#d1d5db" />
+              <Text style={tw`text-gray-400 text-lg mt-4`}>Belum ada notifikasi</Text>
+            </View>
+          }
+        />
+      </View>
     </SafeAreaView>
   );
 }

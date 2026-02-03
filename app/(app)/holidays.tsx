@@ -1,6 +1,6 @@
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import axios from 'axios';
+import api from '@/services/api'; // Use centralized API
 import {
     addMonths,
     eachDayOfInterval,
@@ -49,9 +49,7 @@ export default function HolidaysScreen() {
     const fetchHolidays = async (year: number) => {
         setLoading(true);
         try {
-            const res = await axios.get(`${Config.API_URL}/api/mobile/holidays?year=${year}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get(`/api/mobile/holidays?year=${year}`);
             if (res.data.success) {
                 setHolidays(res.data.data);
             }

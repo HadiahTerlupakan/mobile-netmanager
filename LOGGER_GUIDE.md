@@ -179,7 +179,7 @@ File yang perlu di-update (opsional, tidak critical):
 - services/PushNotificationService.ts
 - hooks/useOfflineMutation.ts
 - hooks/useOfflineQuery.ts
-- components/NotificationBell.tsx
+- components/molecules/NotificationBell.tsx
 
 ## Summary
 

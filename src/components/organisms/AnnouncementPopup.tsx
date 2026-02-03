@@ -1,7 +1,8 @@
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
+import api from '@/services/api'; // Import centralized API
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+// Removed axios import
 import { formatDistanceToNow } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, Megaphone, X } from 'lucide-react-native';
@@ -41,10 +42,15 @@ export default function AnnouncementPopup() {
 
     const fetchAnnouncements = async () => {
         try {
-            const res = await axios.get(
-                `${Config.API_URL}/api/announcements?portal=employee&active=true`,
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            // Use 'api' instead of 'axios' - token is handled automatically by interceptors
+            const res = await api.get('/api/announcements', {
+                params: {
+                    portal: 'employee',
+                    active: true
+                },
+                // @ts-ignore - custom config
+                skipGlobalAuthHandler: true
+            });
 
             if (res.data && Array.isArray(res.data)) {
                 // Filter out dismissed announcements
@@ -69,7 +75,9 @@ export default function AnnouncementPopup() {
                 }
             }
         } catch (error) {
-            console.error('[Announcement] Failed to fetch:', error);
+            // Log error but don't crash app
+            // 401s are now handled globally by api.ts interceptor
+            console.log('[Announcement] Failed to fetch (silently ignored):', (error as any).message);
         } finally {
             setLoading(false);
         }
@@ -77,11 +85,10 @@ export default function AnnouncementPopup() {
 
     const markAsRead = async (announcementId: string) => {
         try {
-            await axios.post(
-                `${Config.API_URL}/api/mobile/announcements/${announcementId}/read`,
-                { portal: 'employee' },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            // Use 'api' instead of 'axios'
+            await api.post(`/api/mobile/announcements/${announcementId}/read`, {
+                portal: 'employee'
+            });
             console.log('[AnnouncementPopup] Marked as read:', announcementId);
         } catch (error) {
             console.error('[AnnouncementPopup] Failed to mark as read:', error);

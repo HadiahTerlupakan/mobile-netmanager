@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { Events } from '@/constants/Events';
 import { addNotificationListeners, registerForPushNotificationsAsync } from '@/services/PushNotificationService';
 import api from '@/services/api';
@@ -18,12 +19,12 @@ type User = {
     workingHourMode?: string | null;
 };
 
-type AuthContextType = {
+export type AuthContextType = {
     user: User | null;
     token: string | null;
     isLoading: boolean;
     signIn: (token: string, userData: User) => Promise<void>;
-    signOut: () => Promise<void>;
+    signOut: (options?: { skipApi?: boolean }) => Promise<void>;
     logout: () => Promise<void>;
     updateUser: (userData: User) => Promise<void>;
 };
@@ -45,7 +46,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setUser(JSON.parse(storedUser));
 
                 // Re-register push token on app start
-                registerForPushNotificationsAsync(storedToken).catch(logger.error);
+                // Pass storedToken explicitly
+                registerForPushNotificationsAsync(storedToken).catch(err => {
+                    // Ignore 401s here as they will trigger the unauthorized listener
+                    if (!axios.isAxiosError(err) || err.response?.status !== 401) {
+                        logger.error('Push registration failed:', err);
+                    }
+                });
             }
         } catch (e) {
             logger.error('Failed to load auth storage', e);
@@ -81,14 +88,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
-    const signOut = useCallback(async () => {
+    const signOut = useCallback(async (options?: { skipApi?: boolean }) => {
         try {
-            // Remove push token from backend
-            if (token) {
+            // Remove push token from backend only if not skipping API (e.g. not a 401 logout)
+            if (token && !options?.skipApi) {
                 try {
                     await api.delete('/api/mobile/push-token');
                 } catch (e) {
-                    logger.error('Failed to remove push token:', e);
+                    // Ignore errors during signout
+                    logger.warn('Failed to remove push token during signout:', e);
                 }
             }
 
@@ -112,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     // Alias for signOut - also memoized
-    const logout = signOut;
+    const logout = useCallback(() => signOut(), [signOut]);
 
     // Memoize context value to prevent unnecessary re-renders
     const contextValue = useMemo<AuthContextType>(() => ({
@@ -131,7 +139,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Listen for unauthorized events
         const subscription = DeviceEventEmitter.addListener(Events.AUTH_UNAUTHORIZED, () => {
             logger.warn('[Auth] Received unauthorized event, logging out...');
-            signOut();
+            // Skip API call since token is invalid
+            signOut({ skipApi: true });
         });
 
         return () => {

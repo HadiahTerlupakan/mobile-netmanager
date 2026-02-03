@@ -83,7 +83,7 @@ Audit mendalam terhadap aplikasi mobile NetManager telah dilakukan untuk mengeva
 
 **💡 Minor:** 6. **Header Too Simple**
 
-- [`DashboardHeader`](../mobile-netmanager/components/dashboard/Header.tsx:15) hanya menampilkan avatar dan title
+- [`DashboardHeader`](../mobile-netmanager/components/organisms/dashboard/DashboardHeader.tsx:15) hanya menampilkan avatar dan title
 - Tidak ada greeting yang personal
 - **Dampak:** Kurang engaging
 
@@ -97,7 +97,7 @@ Audit mendalam terhadap aplikasi mobile NetManager telah dilakukan untuk mengeva
 
 1. **Complex Card Layout**
 
-   - [`WorkOrderListItem`](../mobile-netmanager/components/dashboard/WorkOrderListItem.tsx) memiliki terlalu banyak informasi dalam satu card
+   - [`WorkOrderListItem`](../mobile-netmanager/components/organisms/dashboard/WorkOrderListItem.tsx) memiliki terlalu banyak informasi dalam satu card
    - Phone dan location buttons terlalu kecil untuk tap
    - **Dampak:** Difficult to use on mobile
 

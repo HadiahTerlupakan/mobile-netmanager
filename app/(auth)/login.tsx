@@ -1,11 +1,10 @@
-import axios from 'axios';
+import api from '@/services/api'; // Use centralized API
 import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import { Lock, Mail } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
-import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 
 export default function LoginScreen() {
@@ -25,9 +24,10 @@ export default function LoginScreen() {
             const versionCode = Constants.expoConfig?.extra?.versionCode || 53;
             // Native version for APK (e.g. 1.0.7), fallback to 1.0.0
             const versionName = Constants.expoConfig?.version || '1.0.0';
-            
-            console.log('Attempting login to:', `${Config.API_URL}/api/mobile/auth/login`, 'Version:', versionCode, versionName);
-            const res = await axios.post(`${Config.API_URL}/api/mobile/auth/login`, {
+
+            console.log('Attempting login...');
+            // Using centralized API - base URL and headers handled automatically
+            const res = await api.post('/api/mobile/auth/login', {
                 email,
                 password,
                 versionCode: versionCode.toString(),
@@ -46,12 +46,12 @@ export default function LoginScreen() {
             const status = error.response?.status;
             const data = error.response?.data;
             console.error('[LoginScreen] Login error:', status, data);
-            
+
             // Handle different error scenarios
             if (error.response) {
                 // Server responded with error - show the error message
                 let errorMessage = 'Login gagal. Silakan coba lagi.';
-                
+
                 if (status === 401) {
                     // Invalid credentials - show friendly message
                     errorMessage = data?.error || 'Email atau password salah';
@@ -62,14 +62,14 @@ export default function LoginScreen() {
                 } else if (data?.error) {
                     errorMessage = data.error;
                 }
-                
+
                 console.log('[LoginScreen] Showing alert:', errorMessage);
                 Alert.alert('Login Gagal', errorMessage);
             } else if (error.request) {
                 // No response received (network error)
                 console.log('[LoginScreen] Network error, showing alert');
                 Alert.alert(
-                    'Koneksi Gagal', 
+                    'Koneksi Gagal',
                     'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.'
                 );
             } else {

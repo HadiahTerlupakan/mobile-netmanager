@@ -1,6 +1,6 @@
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import axios from 'axios';
+import api from '@/services/api'; // Use centralized API
 import { router } from 'expo-router';
 import { ArrowLeft, Eye, EyeOff, Lock, Save } from 'lucide-react-native';
 import { useState } from 'react';
@@ -38,10 +38,9 @@ export default function ChangePassword() {
 
         setSaving(true);
         try {
-            const res = await axios.post(
-                `${Config.API_URL}/api/mobile/profile/password`,
-                { currentPassword, newPassword, confirmPassword },
-                { headers: { Authorization: `Bearer ${token}` } }
+            const res = await api.post(
+                '/api/mobile/profile/password',
+                { currentPassword, newPassword, confirmPassword }
             );
             if (res.data.success) {
                 Alert.alert('Sukses', 'Password berhasil diubah', [

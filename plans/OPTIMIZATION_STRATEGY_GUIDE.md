@@ -178,7 +178,7 @@ Meningkatkan efisiensi jaringan dan React rendering performance.
 
 ##### 2.2 Memoize WorkOrderListItem Component
 
-**File:** [`components/dashboard/WorkOrderListItem.tsx`](../components/dashboard/WorkOrderListItem.tsx)
+**File:** [`components/organisms/dashboard/WorkOrderListItem.tsx`](../components/organisms/dashboard/WorkOrderListItem.tsx)
 
 **Steps:**
 

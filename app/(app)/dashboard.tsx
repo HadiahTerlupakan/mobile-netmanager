@@ -1,17 +1,17 @@
+import { CanvasingCard } from '@/components/organisms/dashboard/CanvasingCard';
+import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
+import { PerformanceStats } from '@/components/organisms/dashboard/PerformanceStats';
+import { QuickMenu } from '@/components/organisms/dashboard/QuickMenu';
+import { WorkOrderCard } from '@/components/organisms/dashboard/WorkOrderCard';
+import { Config } from '@/constants/Config';
+import { useAuth } from '@/context/AuthContext';
 import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
-import axios from 'axios';
+import api from '@/services/api'; // Use centralized API
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { CanvasingCard } from '@/components/dashboard/CanvasingCard';
-import { DashboardHeader } from '@/components/dashboard/Header';
-import { PerformanceStats } from '@/components/dashboard/PerformanceStats';
-import { QuickMenu } from '@/components/dashboard/QuickMenu';
-import { WorkOrderCard } from '@/components/dashboard/WorkOrderCard';
-import { Config } from '@/constants/Config';
-import { useAuth } from '@/context/AuthContext';
 
 // Define stats interface
 interface DashboardStats {
@@ -53,14 +53,12 @@ export default function Dashboard() {
         const index = Math.round(event.nativeEvent.contentOffset.x / slideSize);
         setActiveIndex(index);
     };
-    
+
     // Fetch dashboard stats
     const { data: statsData, isLoading: loading, refetch } = useOfflineQuery({
         key: 'dashboard_stats',
         fetcher: async () => {
-            const res = await axios.get(`${Config.API_URL}/api/mobile/dashboard`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/api/mobile/dashboard');
             return res.data;
         },
         enabled: !!token
@@ -70,9 +68,7 @@ export default function Dashboard() {
     const { data: profileData, refetch: refetchProfile } = useOfflineQuery({
         key: 'user_profile',
         fetcher: async () => {
-            const res = await axios.get(`${Config.API_URL}/api/mobile/profile`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/api/mobile/profile');
             return res.data?.data as UserProfile;
         },
         enabled: !!token,
@@ -91,9 +87,7 @@ export default function Dashboard() {
     const { data: canvasingSummary, refetch: refetchCanvasing } = useOfflineQuery({
         key: 'canvasing_summary',
         fetcher: async () => {
-            const res = await axios.get(`${Config.API_URL}/api/marketing/canvasing/summary`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/api/marketing/canvasing/summary');
             return res.data as CanvasingSummary;
         },
         enabled: !!token
@@ -103,25 +97,25 @@ export default function Dashboard() {
     const { updateUser } = useAuth();
     useEffect(() => {
         if (profileData && user) {
-            // Check if features invalid or different to avoid loop if possible, 
+            // Check if features invalid or different to avoid loop if possible,
             // but for now just update if profileData is loaded.
             // Ideally check deep equality but JSON stringify is cheap for this size.
             const currentFeatures = JSON.stringify(user.features || []);
             const newFeatures = JSON.stringify(profileData.features || []);
-            
+
             // Ensure name is string (fallback to empty) for type safety
             const safeName = profileData.name || user.name;
             // Since AuthContext User type doesn't have image, we might need to extend it or just pass safe data
             // But updateUser expects User type.
             // Let's modify AuthContext type first or cast here.
             // Casting for now to avoid breaking AuthContext widely if not ready.
-            const updatedUser = { 
-                ...user, 
-                name: safeName, 
+            const updatedUser = {
+                ...user,
+                name: safeName,
                 features: profileData.features,
                 image: profileData.image // This might be ignored or cause error if strict
-            } as any; 
-            
+            } as any;
+
             if (currentFeatures !== newFeatures || user.name !== safeName) {
                 console.log('[Dashboard] Syncing fresh profile data to AuthContext');
                 updateUser(updatedUser);

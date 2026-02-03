@@ -1,5 +1,5 @@
-import { UpdateAvailableModal } from "@/components/UpdateAvailableModal";
-import { UpdateRequiredScreen } from "@/components/UpdateRequiredScreen";
+import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModal";
+import { UpdateRequiredScreen } from "@/components/templates/UpdateRequiredScreen";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { SocketProvider } from "@/context/SocketContext";
 import { useAppVersion } from "@/hooks/useAppVersion";

@@ -1,4 +1,5 @@
-import WorkOrderListItem from "@/components/dashboard/WorkOrderListItem";
+import AvailableWorkOrderListItem from "@/components/organisms/dashboard/AvailableWorkOrderListItem";
+import WorkOrderListItem from "@/components/organisms/dashboard/WorkOrderListItem";
 import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket, useSocketEvent } from "@/context/SocketContext";
@@ -7,22 +8,19 @@ import {
     useOfflineMutationCompat as useOfflineMutation,
     useOfflineQueryCompat as useOfflineQuery,
 } from "@/hooks/queries";
+import api from "@/services/api"; // Use centralized API
 import { SyncService } from "@/services/SyncService";
-import axios from "axios";
+import { FlashList } from "@shopify/flash-list";
 import { useRouter } from "expo-router";
 import {
     CheckCircle,
     FileText,
     Inbox,
-    MapPin,
-    Phone,
-    User,
 } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    FlatList,
     RefreshControl,
     Text,
     TouchableOpacity,
@@ -31,6 +29,29 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
 
+interface WorkOrder {
+  id: string;
+  workOrderNumber: string;
+  title: string;
+  status: string;
+  type: string;
+  priority: string;
+  contactName?: string;
+  contactPhone?: string;
+  locationAddress?: string;
+  createdAt: string;
+  scheduledDate?: string;
+  assignments?: any[];
+  pelanggan?: {
+    nama?: string;
+    noTelp?: string;
+    alamat?: string;
+  };
+  site?: {
+    name?: string;
+  };
+}
+
 type TabType = "tersedia" | "aktif" | "riwayat";
 
 export default function WorkOrderScreen() {
@@ -38,7 +59,7 @@ export default function WorkOrderScreen() {
   const { isConnected } = useSocket();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("tersedia");
-  const [workOrders, setWorkOrders] = useState<any[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
 
@@ -47,20 +68,19 @@ export default function WorkOrderScreen() {
     data: woData,
     isLoading: loadingWO,
     refetch: refetchWO,
-  } = useOfflineQuery<any[]>({
+  } = useOfflineQuery<WorkOrder[]>({
     key: `work_orders_${activeTab}`,
     fetcher: async () => {
       let endpoint = "";
       let params = {};
       if (activeTab === "tersedia") {
-        endpoint = `${Config.API_URL}/api/mobile/work-orders/available`;
+        endpoint = "/api/mobile/work-orders/available";
       } else {
-        endpoint = `${Config.API_URL}/api/mobile/work-orders`;
+        endpoint = "/api/mobile/work-orders";
         params = { type: activeTab === "aktif" ? "active" : "history" };
       }
 
-      const res = await axios.get(endpoint, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await api.get(endpoint, {
         params,
       });
       return res.data?.data || [];
@@ -70,13 +90,11 @@ export default function WorkOrderScreen() {
   });
 
   // Offline Mutation for Claim
-  const { mutate: claimMutate, isLoading: isClaiming } = useOfflineMutation();
+  const { mutate: claimMutate } = useOfflineMutation();
 
   useEffect(() => {
     if (woData) setWorkOrders(woData);
   }, [woData]);
-
-  const fetchWorkOrders = refetchWO;
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -100,7 +118,6 @@ export default function WorkOrderScreen() {
               // Optimistic Update (Offline)
               if (!isOnline) {
                 Alert.alert("Offline", "Permintaan disimpan di antrian.");
-                // Ideally update local state to remove from "Tersedia"
               }
 
               await claimMutate(
@@ -114,11 +131,9 @@ export default function WorkOrderScreen() {
                     if (isOnline) {
                       Alert.alert("Berhasil", "Tugas berhasil diambil!");
                     }
-                    // Pindah tab dulu - query akan refetch otomatis karena key berubah
-                    // dari work_orders_tersedia ke work_orders_aktif
                     setActiveTab("aktif");
                   },
-                  onError: (err) =>
+                  onError: (err: any) =>
                     Alert.alert(
                       "Error",
                       err.message || "Gagal mengambil tugas",
@@ -134,148 +149,32 @@ export default function WorkOrderScreen() {
     [claimMutate],
   );
 
-  // Extract renderItem untuk optimasi FlatList
   const renderItem = useCallback(
-    ({ item }: { item: any }) => (
-      <View>
-        {activeTab === "tersedia" ? (
-          <View>
-            <View
-              style={tw`bg-white mx-4 mt-3 p-4 rounded-xl shadow-sm border border-blue-100`}
-            >
-              {/* Header: WO Number & Status */}
-              <View style={tw`flex-row justify-between items-start mb-2`}>
-                <Text style={tw`font-bold text-gray-800`}>
-                  {item.workOrderNumber}
-                </Text>
-                <View style={tw`px-2 py-0.5 rounded-full bg-yellow-100`}>
-                  <Text style={tw`text-xs font-bold text-yellow-700`}>
-                    TERSEDIA
-                  </Text>
-                </View>
-              </View>
-
-              {/* Title */}
-              <Text
-                style={tw`text-base font-semibold text-gray-900 mb-3`}
-                numberOfLines={2}
-              >
-                {item.title}
-              </Text>
-
-              {/* Contact Info */}
-              {(item.contactName || item.pelanggan?.nama) && (
-                <View style={tw`flex-row items-center mb-2`}>
-                  <User size={14} color="#6b7280" style={tw`mr-2`} />
-                  <Text style={tw`text-sm text-gray-700 font-medium`}>
-                    {item.contactName || item.pelanggan?.nama}
-                  </Text>
-                </View>
-              )}
-
-              {/* Phone - Tappable */}
-              {(item.contactPhone || item.pelanggan?.noTelp) && (
-                <TouchableOpacity
-                  onPress={() => {
-                    const phone = item.contactPhone || item.pelanggan?.noTelp;
-                    if (phone) {
-                      const { Linking } = require("react-native");
-                      let formatPhone = phone.replace(/\D/g, "");
-                      if (formatPhone.startsWith("0"))
-                        formatPhone = "62" + formatPhone.substring(1);
-                      Linking.openURL(
-                        `whatsapp://send?phone=${formatPhone}`,
-                      ).catch(() => Linking.openURL(`tel:${phone}`));
-                    }
-                  }}
-                  style={tw`flex-row items-center mb-2`}
-                >
-                  <Phone size={14} color="#2563eb" style={tw`mr-2`} />
-                  <Text style={tw`text-sm text-blue-600 font-medium`}>
-                    {item.contactPhone || item.pelanggan?.noTelp}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Location */}
-              {(item.locationAddress ||
-                item.pelanggan?.alamat ||
-                item.site?.name) && (
-                <TouchableOpacity
-                  onPress={() => {
-                    const address =
-                      item.locationAddress ||
-                      item.pelanggan?.alamat ||
-                      item.site?.name;
-                    if (address) {
-                      const { Linking } = require("react-native");
-                      const query = encodeURIComponent(address);
-                      Linking.openURL(
-                        `https://www.google.com/maps/search/?api=1&query=${query}`,
-                      );
-                    }
-                  }}
-                  style={tw`flex-row items-start mb-3`}
-                >
-                  <MapPin size={14} color="#dc2626" style={tw`mr-2 mt-0.5`} />
-                  <Text
-                    style={tw`text-sm text-gray-600 flex-1`}
-                    numberOfLines={2}
-                  >
-                    {item.locationAddress ||
-                      item.pelanggan?.alamat ||
-                      item.site?.name}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Tags & Ambil Button */}
-              <View
-                style={tw`flex-row items-center justify-between pt-2 border-t border-gray-100`}
-              >
-                <View style={tw`flex-row gap-2`}>
-                  <View style={tw`px-2 py-0.5 rounded bg-gray-100`}>
-                    <Text style={tw`text-xs text-gray-600`}>{item.type}</Text>
-                  </View>
-                  <View
-                    style={tw`px-2 py-0.5 rounded ${item.priority === "HIGH" || item.priority === "URGENT" || item.priority === "CRITICAL" ? "bg-red-100" : "bg-blue-100"}`}
-                  >
-                    <Text
-                      style={tw`text-xs ${item.priority === "HIGH" || item.priority === "URGENT" || item.priority === "CRITICAL" ? "text-red-600" : "text-blue-600"}`}
-                    >
-                      {item.priority}
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  onPress={() => handleClaimWO(item.id)}
-                  disabled={claiming === item.id}
-                  style={tw`bg-blue-600 px-4 py-2 rounded-lg ${claiming === item.id ? "opacity-50" : ""}`}
-                >
-                  {claiming === item.id ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <Text style={tw`text-white font-bold text-sm`}>Ambil</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        ) : (
-          <TouchableOpacity
-            onPress={() => router.push(`/work-order-detail/${item.id}`)}
-          >
-            <WorkOrderListItem item={item} userId={user?.id} />
-          </TouchableOpacity>
-        )}
-      </View>
-    ),
+    ({ item }: { item: WorkOrder }) => {
+      if (activeTab === "tersedia") {
+        return (
+          <AvailableWorkOrderListItem 
+            item={item} 
+            onClaim={handleClaimWO} 
+            isClaiming={claiming === item.id} 
+          />
+        );
+      }
+      
+      return (
+        <TouchableOpacity
+          onPress={() => router.push(`/(app)/work-order-detail/${item.id}`)}
+        >
+          <WorkOrderListItem item={item} userId={user?.id} />
+        </TouchableOpacity>
+      );
+    },
     [activeTab, claiming, router, user?.id, handleClaimWO],
   );
 
   // WebSocket: Auto-refresh on WO updates
   const handleWOEvent = useCallback(
-    (data: any) => {
+    () => {
       console.log("[WS Mobile] WO Event received, refreshing list...");
       refetchWO();
     },
@@ -365,11 +264,12 @@ export default function WorkOrderScreen() {
           <ActivityIndicator size="large" color="#2563eb" />
         </View>
       ) : (
-        <FlatList
+        <FlashList
           data={workOrders}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: WorkOrder) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={tw`pb-20 pt-1 ${activeTab !== "tersedia" ? "px-4" : ""}`}
+          estimatedItemSize={200}
+          contentContainerStyle={tw`pb-20 pt-1 px-4`}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -380,12 +280,6 @@ export default function WorkOrderScreen() {
               <Text style={tw`text-gray-400 mt-4`}>{getEmptyMessage()}</Text>
             </View>
           }
-          // Performance optimizations
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={10}
-          initialNumToRender={10}
-          windowSize={5}
-          updateCellsBatchingPeriod={50}
         />
       )}
     </SafeAreaView>

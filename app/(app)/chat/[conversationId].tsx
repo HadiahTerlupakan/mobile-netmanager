@@ -1,24 +1,14 @@
+import MessageBubble from '@/components/molecules/MessageBubble';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import { ChatMessage, chatService } from '@/services/ChatService';
-import { format } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
+import { ChatMessage, chatService, ChatConversation } from '@/services/ChatService';
+import { FlashList } from '@shopify/flash-list';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Image as ImageIcon, Send, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
-} from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -26,25 +16,25 @@ export default function ConversationScreen() {
     const router = useRouter();
     const { conversationId } = useLocalSearchParams<{ conversationId: string }>();
     const { user } = useAuth();
-    
+
     const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [conversation, setConversation] = useState<any>(null);
+    const [conversation, setConversation] = useState<ChatConversation | null>(null);
     const [newMessage, setNewMessage] = useState('');
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     const [uploading, setUploading] = useState(false);
-    
-    const flatListRef = useRef<FlatList>(null);
+
+    const flashListRef = useRef<any>(null);
     const insets = useSafeAreaInsets();
 
     const loadMessages = useCallback(async (cursor?: string) => {
         if (!conversationId) return;
-        
+
         try {
             const result = await chatService.getMessages(conversationId, cursor);
             setConversation(result.conversation);
-            
+
             if (cursor) {
                 setMessages(prev => [...prev, ...result.messages]);
             } else {
@@ -59,16 +49,16 @@ export default function ConversationScreen() {
 
     useEffect(() => {
         loadMessages();
-        
+
         if (user?.id && conversationId) {
             chatService.connectSocket(user.id).then(() => {
                 chatService.joinConversation(conversationId);
             });
-            
+
             chatService.onNewMessage((message) => {
                 setMessages(prev => [...prev, message]);
                 setTimeout(() => {
-                    flatListRef.current?.scrollToEnd({ animated: true });
+                    flashListRef.current?.scrollToEnd({ animated: true });
                 }, 100);
             });
         }
@@ -89,7 +79,7 @@ export default function ConversationScreen() {
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
             quality: 0.8,
             aspect: [4, 3],
@@ -102,33 +92,33 @@ export default function ConversationScreen() {
 
     const handleSend = async () => {
         if ((!newMessage.trim() && !selectedImage) || !conversationId || sending) return;
-        
+
         const messageContent = newMessage.trim();
         const imageToSend = selectedImage;
-        
+
         setNewMessage('');
         setSelectedImage(null);
         setSending(true);
-        
+
         try {
             let imageUrl: string | undefined;
-            
+
             // Upload image first if selected
             if (imageToSend) {
                 setUploading(true);
                 imageUrl = await chatService.uploadImage(imageToSend);
                 setUploading(false);
             }
-            
+
             const sentMessage = await chatService.sendMessage(
-                conversationId, 
-                messageContent || undefined, 
+                conversationId,
+                messageContent || undefined,
                 imageUrl
             );
             setMessages(prev => [...prev, sentMessage]);
-            
+
             setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
+                flashListRef.current?.scrollToEnd({ animated: true });
             }, 100);
         } catch (error) {
             console.error('Error sending message:', error);
@@ -141,37 +131,9 @@ export default function ConversationScreen() {
         }
     };
 
-    const renderMessage = ({ item }: { item: ChatMessage }) => {
-        const isOwn = item.isOwn;
-        const time = format(new Date(item.createdAt), 'HH:mm', { locale: idLocale });
-        const hasImage = !!item.imageUrl;
-        const hasText = !!item.content;
-        
-        return (
-            <View style={tw`px-4 py-1 ${isOwn ? 'items-end' : 'items-start'}`}>
-                {!isOwn && (
-                    <Text style={tw`text-xs text-gray-500 ml-2 mb-1`}>{item.senderName}</Text>
-                )}
-                <View style={tw`max-w-[80%] ${isOwn ? 'bg-purple-500' : 'bg-white'} rounded-2xl ${hasImage && !hasText ? 'p-1' : 'px-4 py-2'} shadow-sm overflow-hidden`}>
-                    {hasImage && (
-                        <Image
-                            source={{ uri: `${Config.API_URL}${item.imageUrl}` }}
-                            style={tw`w-52 h-40 rounded-xl ${hasText ? 'mb-2' : ''}`}
-                            resizeMode="cover"
-                        />
-                    )}
-                    {hasText && (
-                        <Text style={tw`${isOwn ? 'text-white' : 'text-gray-900'}`}>
-                            {item.content}
-                        </Text>
-                    )}
-                    <Text style={tw`text-xs ${isOwn ? 'text-purple-200' : 'text-gray-400'} mt-1 text-right ${hasImage && !hasText ? 'px-2 pb-1' : ''}`}>
-                        {time}
-                    </Text>
-                </View>
-            </View>
-        );
-    };
+    const renderMessage = useCallback(({ item }: { item: ChatMessage }) => {
+        return <MessageBubble item={item} />;
+    }, []);
 
     if (loading) {
         return (
@@ -203,20 +165,21 @@ export default function ConversationScreen() {
             </View>
 
             {/* Messages */}
-            <KeyboardAvoidingView 
+            <KeyboardAvoidingView
                 style={tw`flex-1`}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
             >
-                <FlatList
-                    ref={flatListRef}
+                <FlashList
+                    ref={flashListRef}
                     data={messages}
-                    keyExtractor={item => item.id}
+                    keyExtractor={(item: ChatMessage) => item.id}
                     renderItem={renderMessage}
                     contentContainerStyle={tw`py-4`}
+                    estimatedItemSize={80}
                     onContentSizeChange={() => {
                         if (messages.length > 0) {
-                            flatListRef.current?.scrollToEnd({ animated: false });
+                            flashListRef.current?.scrollToEnd({ animated: false });
                         }
                     }}
                     ListEmptyComponent={
@@ -231,11 +194,7 @@ export default function ConversationScreen() {
                 {selectedImage && (
                     <View style={tw`bg-white px-4 py-2 border-t border-gray-200`}>
                         <View style={tw`relative`}>
-                            <Image
-                                source={{ uri: selectedImage }}
-                                style={tw`w-20 h-20 rounded-lg`}
-                                resizeMode="cover"
-                            />
+                            <Image source={{ uri: selectedImage }} style={tw`w-20 h-20 rounded-lg`} contentFit="cover" transition={1000}      />
                             <TouchableOpacity
                                 onPress={() => setSelectedImage(null)}
                                 style={tw`absolute -top-2 -right-2 bg-red-500 rounded-full p-1`}

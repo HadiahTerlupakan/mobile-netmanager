@@ -1,23 +1,16 @@
-import LoadingModal from "@/components/LoadingModal";
+import { Image } from 'expo-image';
+import LoadingModal from "@/components/molecules/LoadingModal";
 import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
 import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
-import axios from "axios"; // Still used for non-sync stuff if any?
+import api from "@/services/api"; // Use centralized API
 import { format } from "date-fns";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Camera, CheckCircle, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import {
-    Alert,
-    Image,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
 
@@ -58,12 +51,7 @@ export default function CompleteWorkOrderScreen() {
     // Better: Fetch to get real ticket number
     const fetchTicketNum = async () => {
       try {
-        const res = await axios.get(
-          `${Config.API_URL}/api/mobile/work-orders/${id}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
+        const res = await api.get(`/api/mobile/work-orders/${id}`);
         if (res.data.success) {
           const wo = res.data.data;
           setTicketNumber(
@@ -301,8 +289,8 @@ export default function CompleteWorkOrderScreen() {
               <Image
                 source={{ uri }}
                 style={tw`w-full h-full rounded-xl border border-gray-200`}
-                resizeMode="cover"
-              />
+                contentFit="cover"
+                transition={1000} />
               <TouchableOpacity
                 onPress={() => removePhoto(index)}
                 style={tw`absolute -top-2 -right-2 bg-red-500 p-1.5 rounded-full border border-white`}

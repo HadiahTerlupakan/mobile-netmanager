@@ -12,7 +12,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import api from "../../services/api";
+import api from "../../../services/api";
 
 interface DeviceCreateModalProps {
   visible: boolean;

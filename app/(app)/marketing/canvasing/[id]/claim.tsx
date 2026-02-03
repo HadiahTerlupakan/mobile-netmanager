@@ -1,23 +1,14 @@
-import LoadingModal from '@/components/LoadingModal';
+import { Image } from 'expo-image';
+import LoadingModal from '@/components/molecules/LoadingModal';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
+import api from '@/services/api'; // Use centralized API
 import { Ionicons } from '@expo/vector-icons';
-import axios from 'axios';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
-} from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 export default function ClaimPointScreen() {
@@ -116,10 +107,9 @@ export default function ClaimPointScreen() {
         } as any);
         formData.append('folder', 'marketing/point-claims');
 
-        const response = await axios.post(`${Config.API_URL}/api/mobile/upload`, formData, {
+        const response = await api.post('/api/mobile/upload', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
-                Authorization: `Bearer ${token}`
             }
         });
 
@@ -156,15 +146,12 @@ export default function ClaimPointScreen() {
                             setLoadingMessage('Mengirim claim...');
 
                             // Submit claim
-                            await axios.post(
-                                `${Config.API_URL}/api/marketing/canvasing/${id}/claim`,
+                            await api.post(
+                                `/api/marketing/canvasing/${id}/claim`,
                                 {
                                     buktiUrls: uploadedUrls,
                                     buktiMetadata,
                                     keterangan: keterangan.trim() || null,
-                                },
-                                {
-                                    headers: { Authorization: `Bearer ${token}` }
                                 }
                             );
 
@@ -282,11 +269,7 @@ export default function ClaimPointScreen() {
                         <View style={tw`flex-row flex-wrap gap-3 mb-4`}>
                             {buktiUrls.map((uri, index) => (
                                 <View key={index} style={tw`relative`}>
-                                    <Image
-                                        source={{ uri }}
-                                        style={tw`w-24 h-24 rounded-xl`}
-                                        resizeMode="cover"
-                                    />
+                                    <Image source={{ uri }} style={tw`w-24 h-24 rounded-xl`} contentFit="cover" transition={1000}  />
                                     <TouchableOpacity
                                         onPress={() => removePhoto(index)}
                                         style={tw`absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full items-center justify-center shadow`}

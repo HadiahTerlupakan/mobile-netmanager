@@ -1,6 +1,6 @@
 import { Config } from '@/constants/Config';
+import api from '@/services/api'; // Use centralized API
 import logger from '@/utils/logger';
-import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { io, Socket } from 'socket.io-client';
 
@@ -44,19 +44,12 @@ class ChatService {
     private socket: Socket | null = null;
     private token: string | null = null;
 
+    // Helper for Socket.io only (REST APIs use interceptor)
     private async getToken(): Promise<string | null> {
         if (!this.token) {
             this.token = await SecureStore.getItemAsync('session_token');
         }
         return this.token;
-    }
-
-    private async getHeaders() {
-        const token = await this.getToken();
-        return {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        };
     }
 
     // Connect to Socket.IO for real-time updates
@@ -66,7 +59,7 @@ class ChatService {
         }
 
         const token = await this.getToken();
-        
+
         this.socket = io(Config.API_URL, {
             path: '/api/socket',
             auth: {
@@ -134,11 +127,7 @@ class ChatService {
     // Get all conversations
     async getConversations(): Promise<ChatConversation[]> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(
-                `${Config.API_URL}/api/mobile/chat/conversations`,
-                { headers }
-            );
+            const response = await api.get('/api/mobile/chat/conversations');
             return response.data.data || [];
         } catch (error) {
             logger.error('[Chat] Error fetching conversations:', error);
@@ -149,11 +138,7 @@ class ChatService {
     // Get or create global chat
     async getGlobalChat(): Promise<{ id: string; name: string; participantCount: number }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.get(
-                `${Config.API_URL}/api/mobile/chat/global`,
-                { headers }
-            );
+            const response = await api.get('/api/mobile/chat/global');
             return response.data.data;
         } catch (error) {
             logger.error('[Chat] Error getting global chat:', error);
@@ -169,15 +154,11 @@ class ChatService {
         nextCursor: string | null;
     }> {
         try {
-            const headers = await this.getHeaders();
             const params = new URLSearchParams();
             if (cursor) params.append('cursor', cursor);
             params.append('limit', '50');
-            
-            const response = await axios.get(
-                `${Config.API_URL}/api/mobile/chat/conversations/${conversationId}?${params.toString()}`,
-                { headers }
-            );
+
+            const response = await api.get(`/api/mobile/chat/conversations/${conversationId}?${params.toString()}`);
             return response.data.data;
         } catch (error) {
             logger.error('[Chat] Error fetching messages:', error);
@@ -188,11 +169,9 @@ class ChatService {
     // Send a message (text and/or image)
     async sendMessage(conversationId: string, content?: string, imageUrl?: string): Promise<ChatMessage> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(
-                `${Config.API_URL}/api/mobile/chat/conversations/${conversationId}`,
-                { content, imageUrl },
-                { headers }
+            const response = await api.post(
+                `/api/mobile/chat/conversations/${conversationId}`,
+                { content, imageUrl }
             );
             return response.data.data;
         } catch (error) {
@@ -204,31 +183,28 @@ class ChatService {
     // Upload image and return URL
     async uploadImage(imageUri: string): Promise<string> {
         try {
-            const token = await this.getToken();
-            
             // Create form data
             const formData = new FormData();
             const filename = imageUri.split('/').pop() || 'image.jpg';
             const match = /\.([\w]+)$/.exec(filename);
             const type = match ? `image/${match[1]}` : 'image/jpeg';
-            
+
             formData.append('image', {
                 uri: imageUri,
                 name: filename,
                 type
             } as any);
 
-            const response = await axios.post(
-                `${Config.API_URL}/api/mobile/chat/upload`,
+            const response = await api.post(
+                '/api/mobile/chat/upload',
                 formData,
                 {
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'multipart/form-data'
                     }
                 }
             );
-            
+
             return response.data.data.imageUrl;
         } catch (error) {
             logger.error('[Chat] Error uploading image:', error);
@@ -239,12 +215,8 @@ class ChatService {
     // Get users for new chat
     async getUsers(search?: string): Promise<ChatUser[]> {
         try {
-            const headers = await this.getHeaders();
             const params = search ? `?search=${encodeURIComponent(search)}` : '';
-            const response = await axios.get(
-                `${Config.API_URL}/api/mobile/chat/users${params}`,
-                { headers }
-            );
+            const response = await api.get(`/api/mobile/chat/users${params}`);
             return response.data.data || [];
         } catch (error) {
             logger.error('[Chat] Error fetching users:', error);
@@ -255,11 +227,9 @@ class ChatService {
     // Create new conversation
     async createConversation(participantIds: string[], name?: string): Promise<{ id: string; isExisting: boolean }> {
         try {
-            const headers = await this.getHeaders();
-            const response = await axios.post(
-                `${Config.API_URL}/api/mobile/chat/conversations`,
-                { participantIds, name },
-                { headers }
+            const response = await api.post(
+                '/api/mobile/chat/conversations',
+                { participantIds, name }
             );
             return response.data.data;
         } catch (error) {

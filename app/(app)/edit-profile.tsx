@@ -1,11 +1,12 @@
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import axios from 'axios';
+import api from '@/services/api'; // Use centralized API
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { ArrowLeft, Camera, ChevronDown, ChevronUp, Eye, EyeOff, Lock, Phone, Save, User } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -43,9 +44,7 @@ export default function EditProfile() {
 
     const fetchProfile = async () => {
         try {
-            const res = await axios.get(`${Config.API_URL}/api/mobile/profile`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/api/mobile/profile');
             if (res.data.success) {
                 setProfile(res.data.data);
                 setName(res.data.data.name || '');
@@ -61,10 +60,9 @@ export default function EditProfile() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            const res = await axios.patch(
-                `${Config.API_URL}/api/mobile/profile`,
-                { name, phone },
-                { headers: { Authorization: `Bearer ${token}` } }
+            const res = await api.patch(
+                '/api/mobile/profile',
+                { name, phone }
             );
             if (res.data.success) {
                 Alert.alert('Sukses', 'Profil berhasil diperbarui');
@@ -93,10 +91,9 @@ export default function EditProfile() {
 
         setChangingPassword(true);
         try {
-            const res = await axios.post(
-                `${Config.API_URL}/api/mobile/profile/password`,
-                { currentPassword, newPassword, confirmPassword },
-                { headers: { Authorization: `Bearer ${token}` } }
+            const res = await api.post(
+                '/api/mobile/profile/password',
+                { currentPassword, newPassword, confirmPassword }
             );
             if (res.data.success) {
                 Alert.alert('Sukses', 'Password berhasil diubah');
@@ -145,12 +142,11 @@ export default function EditProfile() {
                 type,
             } as any);
 
-            const res = await axios.post(
-                `${Config.API_URL}/api/mobile/profile/photo`,
+            const res = await api.post(
+                '/api/mobile/profile/photo',
                 formData,
                 {
                     headers: {
-                        Authorization: `Bearer ${token}`,
                         'Content-Type': 'multipart/form-data',
                     },
                 }
@@ -198,7 +194,9 @@ export default function EditProfile() {
                             <Image
                                 source={{ uri: profile.image }}
                                 style={tw`w-28 h-28 rounded-full`}
-                            />
+                                contentFit="cover"
+                                transition={1000}
+                                  />
                         ) : (
                             <View style={tw`w-28 h-28 rounded-full bg-blue-100 items-center justify-center`}>
                                 <Text style={tw`text-blue-600 text-4xl font-bold`}>

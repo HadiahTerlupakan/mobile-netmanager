@@ -3,8 +3,7 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { Bell } from 'lucide-react-native';
 import tw from 'twrnc';
 import { useRouter, useFocusEffect } from 'expo-router';
-import axios from 'axios';
-import { Config } from '@/constants/Config';
+import api from '@/services/api'; // Use centralized API
 import { useAuth } from '@/context/AuthContext';
 
 interface NotificationBellProps {
@@ -19,14 +18,13 @@ export default function NotificationBell({ color = '#ffffff' }: NotificationBell
     const fetchUnreadCount = useCallback(async () => {
         if (!token) return;
         try {
-            const res = await axios.get(`${Config.API_URL}/api/mobile/notifications`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            // Use api.get instead of axios.get
+            const res = await api.get('/api/mobile/notifications');
             if (res.data.success) {
                 setUnreadCount(res.data.data.unreadCount);
             }
         } catch (error) {
-            console.error('Failed to fetch notifications', error);
+            console.log('Failed to fetch notifications (silently ignored)');
         }
     }, [token]);
 

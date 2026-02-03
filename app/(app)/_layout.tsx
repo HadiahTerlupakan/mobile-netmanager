@@ -11,7 +11,7 @@ import { Fragment, useEffect } from "react";
 import { Alert } from "react-native";
 import tw from "twrnc";
 
-import AnnouncementPopup from "@/components/AnnouncementPopup";
+import AnnouncementPopup from "@/components/organisms/AnnouncementPopup";
 import { useAuth } from "@/context/AuthContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 

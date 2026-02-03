@@ -1,10 +1,11 @@
+import { Image } from 'expo-image';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
+import api from '@/services/api'; // Use centralized API
 import { Ionicons } from '@expo/vector-icons';
-import axios from 'axios';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, Image, Linking, Platform, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 export default function CanvasingDetailScreen() {
@@ -15,9 +16,7 @@ export default function CanvasingDetailScreen() {
     const { data: item, isLoading, isOfflineData, refetch } = useOfflineQuery<any>({
         key: `marketing_canvasing_detail_${id}`,
         fetcher: async () => {
-            const res = await axios.get(`${Config.API_URL}/api/marketing/canvasing/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get(`/api/marketing/canvasing/${id}`);
             return res.data;
         },
         enabled: !!id && !!token
@@ -27,9 +26,7 @@ export default function CanvasingDetailScreen() {
     const { data: claimData } = useOfflineQuery<any>({
         key: `marketing_canvasing_claim_${id}`,
         fetcher: async () => {
-            const res = await axios.get(`${Config.API_URL}/api/marketing/canvasing/${id}/claim`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get(`/api/marketing/canvasing/${id}/claim`);
             return res.data;
         },
         enabled: !!id && !!token
@@ -372,11 +369,7 @@ function PhotoPreview({ title, uri }: any) {
         <View style={[tw`flex-1 bg-white rounded-2xl p-2 shadow-sm border border-gray-100`, { aspectRatio: 4/3, minWidth: 120 }]}>
             <View style={tw`flex-1 bg-gray-100 rounded-xl overflow-hidden relative`}>
                 {uri ? (
-                    <Image 
-                        source={{ uri: fullUri }} 
-                        style={tw`w-full h-full`} 
-                        resizeMode="cover"
-                    />
+                    <Image source={{ uri: fullUri }} style={tw`w-full h-full`} contentFit="cover" transition={1000}       />
                 ) : (
                     <View style={tw`flex-1 items-center justify-center`}>
                         <Ionicons name="image-outline" size={24} color="#d1d5db" />

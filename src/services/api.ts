@@ -29,6 +29,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Allow requests to skip global 401 handling
+    // @ts-ignore - custom config property
+    if (error.config?.skipGlobalAuthHandler) {
+      return Promise.reject(error);
+    }
+
     if (error.response && error.response.status === 401) {
       // Emit event to be handled by AuthContext
       DeviceEventEmitter.emit(Events.AUTH_UNAUTHORIZED);

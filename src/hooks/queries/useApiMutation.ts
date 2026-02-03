@@ -9,21 +9,20 @@
  * - Automatic file upload
  */
 
-import { Config } from "@/constants/Config";
 import api from "@/services/api";
+import { logger } from "@/utils/logger";
 import {
     useMutation,
     UseMutationOptions,
     useQueryClient,
 } from "@tanstack/react-query";
-import axios from "axios";
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
 import { Alert } from "react-native";
 
 type HttpMethod = "POST" | "PUT" | "PATCH" | "DELETE";
 
-interface MutationMeta {
+export interface MutationMeta {
   latitude?: number | null;
   longitude?: number | null;
   capturedAt?: string;
@@ -33,6 +32,12 @@ interface MutationMeta {
   targetField?: string;
   singleFile?: boolean;
   photoMap?: Record<string, string>;
+}
+
+// Interface standar untuk variables yang memiliki meta data
+export interface ApiMutationVariables {
+    [key: string]: any; // Allow other fields
+    meta?: MutationMeta;
 }
 
 interface ApiMutationOptions<TData, TVariables> extends Omit<
@@ -99,7 +104,7 @@ async function getCurrentLocation(
       };
     }
   } catch (error) {
-    console.warn("[useApiMutation] Failed to get location:", error);
+    logger.warn("[useApiMutation] Failed to get location:", error);
   }
 
   return { latitude: null, longitude: null };
@@ -130,7 +135,7 @@ async function retryWithBackoff<T>(
         error.code === "ECONNABORTED" || error.message === "Network Error";
 
       if (status && status >= 400 && status < 500 && !isNetworkError) {
-        console.log(
+        logger.info(
           `[retryWithBackoff] Client error (${status}), not retrying`,
         );
         throw error;
@@ -138,7 +143,7 @@ async function retryWithBackoff<T>(
 
       if (attempt < maxRetries) {
         const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
-        console.log(
+        logger.info(
           `[retryWithBackoff] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`,
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
@@ -158,7 +163,7 @@ async function uploadFile(
 ): Promise<string> {
   return retryWithBackoff(
     async () => {
-      console.log("[uploadFile] Starting upload:", {
+      logger.info("[uploadFile] Starting upload:", {
         uri: uri.substring(0, 50),
         type,
       });
@@ -175,26 +180,23 @@ async function uploadFile(
 
       formData.append("type", type);
 
-      const token = await SecureStore.getItemAsync("session_token");
-      console.log("[uploadFile] Token available:", !!token);
-      console.log(
-        "[uploadFile] Uploading to:",
-        `${Config.API_URL}/api/mobile/upload`,
-      );
+      logger.info("[uploadFile] Uploading to: /api/mobile/upload");
 
-      const response = await axios.post(
-        `${Config.API_URL}/api/mobile/upload`,
+      // Use centralized API - token is handled automatically
+      const response = await api.post(
+        "/api/mobile/upload",
         formData,
         {
           headers: {
-            Authorization: token ? `Bearer ${token}` : "",
             "Content-Type": "multipart/form-data",
           },
           timeout: 60000, // 60 second timeout for large files
+          // @ts-ignore
+          skipGlobalAuthHandler: true,
         },
       );
 
-      console.log("[uploadFile] Upload successful:", response.data);
+      logger.info("[uploadFile] Upload successful");
 
       if (response.data && response.data.url) {
         return response.data.url;
@@ -221,7 +223,7 @@ async function uploadFile(
  *
  * mutation.mutate({ title: 'New WO', description: '...' });
  */
-export function useApiMutation<TData = unknown, TVariables = unknown>(
+export function useApiMutation<TData = unknown, TVariables extends ApiMutationVariables = ApiMutationVariables>(
   options: ApiMutationOptions<TData, TVariables>,
 ) {
   const queryClient = useQueryClient();
@@ -237,8 +239,8 @@ export function useApiMutation<TData = unknown, TVariables = unknown>(
 
   return useMutation<TData, Error, TVariables>({
     ...mutationOptions,
-    mutationFn: async (variables: any) => {
-      let payload = { ...variables };
+    mutationFn: async (variables) => {
+      let payload: Record<string, any> = { ...variables };
 
       // Handle photoMap uploads
       if (payload.meta?.photoMap) {
@@ -291,7 +293,7 @@ export function useApiMutation<TData = unknown, TVariables = unknown>(
       (mutationOptions.onSuccess as any)?.(data, variables, context);
     },
     onError: (error, variables, context) => {
-      console.error("[useApiMutation] Error:", error);
+      logger.error("[useApiMutation] Error:", error);
 
       // Show error alert
       if (showErrorAlert) {
@@ -315,7 +317,7 @@ export function useOfflineMutationCompat() {
   const queryClient = useQueryClient();
 
   const mutate = async (
-    variables: any,
+    variables: ApiMutationVariables,
     options: {
       url: string;
       method: HttpMethod;
@@ -325,7 +327,7 @@ export function useOfflineMutationCompat() {
     },
   ) => {
     try {
-      let payload = { ...variables };
+      let payload: Record<string, any> = { ...variables };
 
       // Handle photoMap uploads
       if (payload.meta?.photoMap) {
@@ -346,7 +348,7 @@ export function useOfflineMutationCompat() {
               const url = await uploadFile(uri, photoType);
               uploadResults.push({ field, url });
             } catch (err) {
-              console.error(`Failed to upload ${field}:`, err);
+              logger.error(`Failed to upload ${field}:`, err);
               throw err;
             }
           },
@@ -391,7 +393,7 @@ export function useOfflineMutationCompat() {
       options.onSuccess?.(response.data, false);
       return response.data;
     } catch (error: any) {
-      console.error("[useOfflineMutationCompat] Error:", error);
+      logger.error("[useOfflineMutationCompat] Error:", error);
       options.onError?.(error);
 
       if (!options.silent) {

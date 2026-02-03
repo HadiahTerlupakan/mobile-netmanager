@@ -1,4 +1,4 @@
-import LoadingModal from "@/components/LoadingModal";
+import LoadingModal from "@/components/molecules/LoadingModal";
 import { useAuth } from "@/context/AuthContext";
 import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
 import api from "@/services/api";

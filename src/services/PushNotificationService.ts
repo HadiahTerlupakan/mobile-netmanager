@@ -2,6 +2,7 @@ import api from '@/services/api';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import axios from 'axios';
 
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -54,10 +55,16 @@ export async function registerForPushNotificationsAsync(token?: string): Promise
         // Register token with backend
         if (pushToken) {
             try {
-                await api.post('/api/mobile/push-token', { pushToken });
+                // @ts-ignore - custom config to avoid logout on registration failure
+                await api.post('/api/mobile/push-token', { pushToken }, { skipGlobalAuthHandler: true });
                 console.log('Push token registered with backend');
             } catch (error) {
-                console.error('Failed to register push token:', error);
+                // Ignore 401 (Unauthorized) as it will be handled by AuthContext
+                if (axios.isAxiosError(error) && error.response?.status === 401) {
+                    console.log('Push registration skipped (unauthorized)');
+                } else {
+                    console.error('Failed to register push token:', error);
+                }
             }
         }
     } catch (error) {

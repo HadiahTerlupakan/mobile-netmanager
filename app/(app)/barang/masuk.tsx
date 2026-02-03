@@ -1,5 +1,6 @@
-import LoadingModal from "@/components/LoadingModal";
-import SelectionModal from "@/components/SelectionModal";
+import { Image } from 'expo-image';
+import LoadingModal from "@/components/molecules/LoadingModal";
+import SelectionModal from "@/components/molecules/SelectionModal";
 import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -9,7 +10,7 @@ import {
 import { SyncService } from "@/services/SyncService";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import axios from "axios";
+import api from "@/services/api";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import * as FileSystem from "expo-file-system/legacy";
@@ -17,17 +18,7 @@ import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    useColorScheme,
-    View,
-} from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, useColorScheme, View,  } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
@@ -94,34 +85,24 @@ export default function BarangMasukScreen() {
   const { mutate, isLoading: isMutating } = useOfflineMutation();
 
   // Offline Query: Gudangs
-  const { data: gudangData } = useOfflineQuery<Gudang[]>({
-    key: "gudang_list",
+  const { data: gudangList } = useOfflineQuery<Gudang[]>({
+    key: "gudang_list_all",
     fetcher: async () => {
-      const res = await axios.get(
-        `${Config.API_URL}/api/mobile/inventory/gudang`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      return res.data?.gudangList || res.data?.data || [];
+      const res = await api.get("/api/mobile/inventory/gudang");
+      return res.data?.gudangList || [];
     },
     enabled: !!token,
   });
 
   useEffect(() => {
-    if (gudangData) setGudangs(gudangData);
-  }, [gudangData]);
+    if (gudangList) setGudangs(gudangList);
+  }, [gudangList]);
 
-  // Offline Query: Barangs - mode=masuk to get ALL master barang (GLOBAL CACHE)
+  // Offline Query: Barangs (All items for selection)
   const { data: barangData } = useOfflineQuery<Barang[]>({
-    key: `barang_list_master`,
+    key: "barang_list_masuk",
     fetcher: async () => {
-      const res = await axios.get(
-        `${Config.API_URL}/api/mobile/inventory/barang?mode=masuk`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const res = await api.get("/api/mobile/inventory/barang?mode=masuk"); // Assuming this endpoint returns reference list of all items
       return res.data?.barangList || [];
     },
     enabled: !!token,
@@ -572,10 +553,9 @@ export default function BarangMasukScreen() {
               <View style={tw`flex-row flex-wrap gap-2 mb-3`}>
                 {photos.map((photo, index) => (
                   <View key={index} style={tw`relative`}>
-                    <Image
-                      source={{ uri: photo.uri }}
+                    <Image source={{ uri: photo.uri }}
                       style={tw`w-20 h-20 rounded-lg`}
-                    />
+                     contentFit="cover" transition={1000}       />
                     <TouchableOpacity
                       style={tw`absolute -top-2 -right-2 bg-red-500 rounded-full p-1`}
                       onPress={() => removePhoto(index)}
@@ -608,11 +588,10 @@ export default function BarangMasukScreen() {
                     backgroundColor: "black",
                   }}
                 >
-                  <Image
-                    source={{ uri: photo.uri }}
+                  <Image source={{ uri: photo.uri }}
                     style={{ width: photo.width, height: photo.height }}
-                    resizeMode="contain"
-                  />
+                    contentFit="contain"
+                   transition={1000}       />
                   {/* Watermark Overlay - Dynamic Sizing */}
                   <View
                     style={[

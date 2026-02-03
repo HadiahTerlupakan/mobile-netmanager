@@ -1,29 +1,54 @@
+import { Badge } from '@/components/atoms/Badge';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { AlertCircle, Clock, MapPin, Phone } from 'lucide-react-native';
-import { Text, TouchableOpacity, View } from 'react-native';
+import React, { memo } from 'react';
+import { Text, TouchableOpacity, View, Linking } from 'react-native';
 import tw from 'twrnc';
 
-interface WorkOrderListItemProps {
-    item: any;
+export interface WorkOrderListItemProps {
+    item: {
+        id: string;
+        workOrderNumber: string;
+        status: string;
+        title: string;
+        priority: string;
+        contactPhone?: string;
+        contactName?: string;
+        locationAddress?: string;
+        scheduledDate?: string;
+        assignments?: Array<{
+            userId: string;
+            role: string;
+            status: string;
+        }>;
+        pelanggan?: {
+            noTelp?: string;
+            alamat?: string;
+            nama?: string;
+        };
+        site?: {
+            name?: string;
+        };
+    };
     userId?: string;
 }
 
-export default function WorkOrderListItem({ item, userId }: WorkOrderListItemProps) {
+const WorkOrderListItem = memo(({ item, userId }: WorkOrderListItemProps) => {
     // Check if I am a partner with PENDING status
-    const myAssignment = item.assignments?.find((a: any) => a.userId === userId);
+    const myAssignment = item.assignments?.find((a) => a.userId === userId);
     const isPendingPartner = myAssignment?.role === 'PARTNER' && myAssignment?.status === 'PENDING';
 
-    const getStatusColor = (status: string) => {
-        if (isPendingPartner) return 'bg-yellow-100 text-yellow-800'; // Override for pending partner
+    const getStatusVariant = (status: string) => {
+        if (isPendingPartner) return 'warning'; // Override for pending partner
 
         switch (status) {
-            case 'ASSIGNED': return 'bg-blue-100 text-blue-800';
-            case 'IN_PROGRESS': return 'bg-yellow-100 text-yellow-800';
-            case 'COMPLETED': return 'bg-green-100 text-green-800';
-            case 'PENDING': return 'bg-gray-100 text-gray-800';
-            case 'CANCELLED': return 'bg-red-100 text-red-800';
-            default: return 'bg-gray-100 text-gray-800';
+            case 'ASSIGNED': return 'info';
+            case 'IN_PROGRESS': return 'warning';
+            case 'COMPLETED': return 'success';
+            case 'PENDING': return 'neutral';
+            case 'CANCELLED': return 'error';
+            default: return 'neutral';
         }
     };
 
@@ -38,16 +63,38 @@ export default function WorkOrderListItem({ item, userId }: WorkOrderListItemPro
         return 'text-gray-500';
     };
 
+    const handlePhonePress = () => {
+        const phone = item.contactPhone || item.pelanggan?.noTelp;
+        if (phone) {
+            let formattedPhone = phone.replace(/\D/g, '');
+            if (formattedPhone.startsWith('0')) {
+                formattedPhone = '62' + formattedPhone.substring(1);
+            }
+
+            Linking.openURL(`whatsapp://send?phone=${formattedPhone}`)
+                .catch(() => {
+                    Linking.openURL(`tel:${phone}`);
+                });
+        }
+    };
+
+    const handleAddressPress = () => {
+        const address = item.locationAddress || item.pelanggan?.alamat || item.contactName || item.pelanggan?.nama || item.site?.name;
+        if (address) {
+            const query = encodeURIComponent(address);
+            Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+        }
+    };
+
     return (
         <View style={tw`bg-white p-4 rounded-xl shadow-sm mb-3 border ${isPendingPartner ? 'border-yellow-200 bg-yellow-50' : 'border-gray-100'}`}>
             {/* Header: Number & Status */}
             <View style={tw`flex-row justify-between items-center mb-2`}>
                 <Text style={tw`font-bold text-gray-800`}>{item.workOrderNumber}</Text>
-                <View style={tw`px-2 py-0.5 rounded-full ${getStatusColor(item.status).split(' ')[0]}`}>
-                    <Text style={tw`text-xs font-bold ${getStatusColor(item.status).split(' ')[1]}`}>
-                        {getStatusText(item.status)}
-                    </Text>
-                </View>
+                <Badge
+                    label={getStatusText(item.status)}
+                    variant={getStatusVariant(item.status)}
+                />
             </View>
 
             {/* Title & Priority */}
@@ -64,21 +111,7 @@ export default function WorkOrderListItem({ item, userId }: WorkOrderListItemPro
             {/* Phone */}
             {(item.contactPhone || item.pelanggan?.noTelp) && (
                 <TouchableOpacity
-                    onPress={() => {
-                        const phone = item.contactPhone || item.pelanggan?.noTelp;
-                        if (phone) {
-                            const { Linking } = require('react-native');
-                            let formattedPhone = phone.replace(/\D/g, '');
-                            if (formattedPhone.startsWith('0')) {
-                                formattedPhone = '62' + formattedPhone.substring(1);
-                            }
-                            
-                            Linking.openURL(`whatsapp://send?phone=${formattedPhone}`)
-                                .catch(() => {
-                                    Linking.openURL(`tel:${phone}`);
-                                });
-                        }
-                    }}
+                    onPress={handlePhonePress}
                     style={tw`flex-row items-center mb-1`}
                 >
                     <Phone size={14} color="#2563eb" style={tw`mr-1.5`} />
@@ -90,14 +123,7 @@ export default function WorkOrderListItem({ item, userId }: WorkOrderListItemPro
 
             {/* Customer & Location */}
             <TouchableOpacity
-                onPress={() => {
-                    const address = item.locationAddress || item.pelanggan?.alamat || item.contactName || item.pelanggan?.nama || item.site?.name;
-                    if (address) {
-                        const { Linking } = require('react-native');
-                        const query = encodeURIComponent(address);
-                        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
-                    }
-                }}
+                onPress={handleAddressPress}
                 style={tw`flex-row items-center mb-1`}
             >
                 <MapPin size={14} color="#6b7280" style={tw`mr-1.5`} />
@@ -125,4 +151,8 @@ export default function WorkOrderListItem({ item, userId }: WorkOrderListItemPro
             )}
         </View>
     );
-}
+});
+
+WorkOrderListItem.displayName = 'WorkOrderListItem';
+
+export default WorkOrderListItem;

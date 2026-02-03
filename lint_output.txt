@@ -1,0 +1,218 @@
+
+> mobile@1.0.0 lint
+> expo lint
+
+env: load .env
+env: export EXPO_DEBUG EXPO_DEBUG_SOCKET EXPO_USE_COLORS EXPO_DEVTOOLS_LISTEN_ADDRESS
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/_layout.tsx
+  19:9   warning  'router' is assigned a value but never used                  @typescript-eslint/no-unused-vars
+  36:11  warning  'resumeTrackingIfNeeded' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/absensi.tsx
+    2:10  warning  'Config' is defined but never used              @typescript-eslint/no-unused-vars
+   16:13  warning  'ImageManipulator' is defined but never used    @typescript-eslint/no-unused-vars
+   28:59  warning  'useMemo' is defined but never used             @typescript-eslint/no-unused-vars
+  100:9   warning  'textColor' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  311:16  warning  'e' is defined but never used                   @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/ambil-barang/[id].tsx
+   25:5   warning  'ActivityIndicator' is defined but never used          @typescript-eslint/no-unused-vars
+  167:40  warning  'loadingGudangNet' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/barang/keluar.tsx
+   66:10  warning  'loading' is assigned a value but never used     @typescript-eslint/no-unused-vars
+   66:19  warning  'setLoading' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  410:18  warning  'error' is defined but never used                @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/barang/masuk.tsx
+   63:10  warning  'loading' is assigned a value but never used     @typescript-eslint/no-unused-vars
+   63:19  warning  'setLoading' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  381:18  warning  'error' is defined but never used                @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/barang/riwayat.tsx
+  17:13  warning  'token' is assigned a value but never used                                                                       @typescript-eslint/no-unused-vars
+  32:8   warning  React Hook useEffect has a missing dependency: 'fetchRiwayat'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/change-password.tsx
+   1:10  warning  'Config' is defined but never used          @typescript-eslint/no-unused-vars
+  12:13  warning  'token' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/chat/[conversationId].tsx
+  2:10  warning  'Config' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/complete-work-order/[id].tsx
+    3:10  warning  'Config' is defined but never used                                                                     @typescript-eslint/no-unused-vars
+   20:11  warning  'token' is assigned a value but never used                                                             @typescript-eslint/no-unused-vars
+   22:10  warning  'loading' is assigned a value but never used                                                           @typescript-eslint/no-unused-vars
+   22:19  warning  'setLoading' is assigned a value but never used                                                        @typescript-eslint/no-unused-vars
+   61:16  warning  'e' is defined but never used                                                                          @typescript-eslint/no-unused-vars
+   67:6   warning  React Hook useEffect has a missing dependency: 'id'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   86:22  warning  'error' is defined but never used                                                                      @typescript-eslint/no-unused-vars
+  102:22  warning  'error' is defined but never used                                                                      @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/dashboard.tsx
+    6:10  warning  'Config' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
+   17:11  warning  'DashboardStats' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
+   78:24  warning  'updatedUser' is assigned a value but never used                                                                            @typescript-eslint/no-unused-vars
+  124:8   warning  React Hook useEffect has missing dependencies: 'updateUser' and 'user'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/edit-profile.tsx
+   1:10  warning  'Config' is defined but never used          @typescript-eslint/no-unused-vars
+  22:13  warning  'token' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/holidays.tsx
+   1:10  warning  'Config' is defined but never used                                                                                                        @typescript-eslint/no-unused-vars
+  38:13  warning  'token' is assigned a value but never used                                                                                                @typescript-eslint/no-unused-vars
+  47:8   warning  React Hook useEffect has a missing dependency: 'currentDate'. Either include it or remove the dependency array                            react-hooks/exhaustive-deps
+  47:9   warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/izin/form.tsx
+   32:1   warning  Import in body of module; reorder to top                import/first
+   83:10  warning  'showCamera' is assigned a value but never used         @typescript-eslint/no-unused-vars
+   83:22  warning  'setShowCamera' is assigned a value but never used      @typescript-eslint/no-unused-vars
+   84:10  warning  'permission' is assigned a value but never used         @typescript-eslint/no-unused-vars
+   84:22  warning  'requestPermission' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  199:14  warning  'error' is defined but never used                       @typescript-eslint/no-unused-vars
+  223:22  warning  'error' is defined but never used                       @typescript-eslint/no-unused-vars
+  239:22  warning  'error' is defined but never used                       @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/izin/index.tsx
+  1:10  warning  'Config' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/kembalikan-barang/[id].tsx
+  25:5  warning  'ActivityIndicator' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/lembur/index.tsx
+    3:10   warning  'Config' is defined but never used                               @typescript-eslint/no-unused-vars
+  200:16   warning  'e' is defined but never used                                    @typescript-eslint/no-unused-vars
+  203:14   warning  'error' is defined but never used                                @typescript-eslint/no-unused-vars
+  260:14   warning  'error' is defined but never used                                @typescript-eslint/no-unused-vars
+  388:89   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  388:111  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/marketing/canvasing/[id]/claim.tsx
+   3:10  warning  'Config' is defined but never used          @typescript-eslint/no-unused-vars
+  17:13  warning  'token' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/marketing/canvasing/[id]/index.tsx
+  16:51  warning  'refetch' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  89:11  warning  'canClaim' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/mixradius/isolir.tsx
+   52:14  warning  'e' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
+  267:6   warning  React Hook useCallback has a missing dependency: 'hasSelected'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  271:6   warning  React Hook useEffect has a missing dependency: 'loadGroups'. Either include it or remove the dependency array     react-hooks/exhaustive-deps
+  354:6   warning  React Hook useMemo has a missing dependency: 'hasSelected'. Either include it or remove the dependency array      react-hooks/exhaustive-deps
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/profile.tsx
+  1:10  warning  'Config' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/request-work-order.tsx
+  103:11  warning  'user' is assigned a value but never used                                                                              @typescript-eslint/no-unused-vars
+  103:17  warning  'token' is assigned a value but never used                                                                             @typescript-eslint/no-unused-vars
+  143:6   warning  React Hook useEffect has a missing dependency: 'departments.length'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  174:27  warning  React Hook useCallback received a function whose dependencies are unknown. Pass an inline function instead             react-hooks/exhaustive-deps
+  338:14  warning  'error' is defined but never used                                                                                      @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/topology-map.tsx
+   53:9   warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+   62:9   warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+   81:9   warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  102:14  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  111:10  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  121:15  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  137:14  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  146:11  warning  'VisibilityState' is defined but never used                  @typescript-eslint/no-unused-vars
+  701:9   warning  'centerCoordinate' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/work-order-detail/[id].tsx
+    46:9   warning  'width' is assigned a value but never used                                                                        @typescript-eslint/no-unused-vars
+   105:8   warning  React Hook useCallback has a missing dependency: 'fetchDetail'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   150:5   warning  React Hook useCallback has a missing dependency: 'fetchDetail'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   161:5   warning  React Hook useCallback has a missing dependency: 'fetchDetail'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   289:14  warning  'error' is defined but never used                                                                                 @typescript-eslint/no-unused-vars
+   343:14  warning  'e' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
+   439:5   warning  Expected an assignment or function call and instead saw an expression                                             no-unused-expressions
+   478:22  warning  'error' is defined but never used                                                                                 @typescript-eslint/no-unused-vars
+   493:22  warning  'error' is defined but never used                                                                                 @typescript-eslint/no-unused-vars
+   557:22  warning  'error' is defined but never used                                                                                 @typescript-eslint/no-unused-vars
+   717:37  warning  A `require()` style import is forbidden                                                                           @typescript-eslint/no-require-imports
+   765:41  warning  A `require()` style import is forbidden                                                                           @typescript-eslint/no-require-imports
+   941:21  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                   react/no-unescaped-entities
+   941:33  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                   react/no-unescaped-entities
+  1075:21  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                   react/no-unescaped-entities
+  1075:33  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                   react/no-unescaped-entities
+  1399:21  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                   react/no-unescaped-entities
+  1399:33  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                   react/no-unescaped-entities
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/(app)/work-order.tsx
+  3:10  warning  'Config' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/app/_layout.tsx
+   10:8  warning  Using exported name 'logger' as identifier for default import                                              import/no-named-as-default
+  171:6  warning  React Hook useEffect has a missing dependency: 'router'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  201:6  warning  React Hook useEffect has a missing dependency: 'router'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/components/molecules/LoadingModal.tsx
+  12:11  warning  'isDarkMode' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/components/molecules/NotificationBell.tsx
+  26:18  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/components/organisms/AnnouncementPopup.tsx
+  1:10  warning  'Config' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/components/organisms/dashboard/WorkOrderListItem.tsx
+  20:23  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/components/organisms/marketing/LocationPickerModal.tsx
+  50:8  warning  React Hook useEffect has a missing dependency: 'initialLocation'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  79:9  warning  React Hook React.useMemo has a missing dependency: 'center'. Either include it or remove the dependency array       react-hooks/exhaustive-deps
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/components/organisms/topology/DeviceCreateModal.tsx
+  67:6  warning  React Hook useEffect has a missing dependency: 'fetchParents'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/components/organisms/topology/FilterPanel.tsx
+  30:21  warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/context/AuthContext.tsx
+   5:8   warning  Using exported name 'logger' as identifier for default import                                                                      import/no-named-as-default
+  52:26  warning  Caution: `axios` also has a named export `isAxiosError`. Check if you meant to write `import {isAxiosError} from 'axios'` instead  import/no-named-as-default-member
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/context/SocketContext.tsx
+  6:8  warning  Using exported name 'logger' as identifier for default import  import/no-named-as-default
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/hooks/queries/useApiMutation.ts
+   20:13  warning  'SecureStore' is defined but never used           @typescript-eslint/no-unused-vars
+  317:9   warning  'queryClient' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/services/ChatService.ts
+  3:8  warning  Using exported name 'logger' as identifier for default import  import/no-named-as-default
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/services/LocationTrackingService.ts
+   16:10  warning  'Config' is defined but never used              @typescript-eslint/no-unused-vars
+   58:11  warning  'timestamp' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  326:15  warning  'timestamp' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/services/PushNotificationService.ts
+  63:21  warning  Caution: `axios` also has a named export `isAxiosError`. Check if you meant to write `import {isAxiosError} from 'axios'` instead  import/no-named-as-default-member
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/services/SyncService.ts
+   73:16  warning  'error' is defined but never used                                                                                                  @typescript-eslint/no-unused-vars
+  186:13  warning  Caution: `axios` also has a named export `isAxiosError`. Check if you meant to write `import {isAxiosError} from 'axios'` instead  import/no-named-as-default-member
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/types/flash-list.d.ts
+  1:10  warning  'FlashListProps' is defined but never used  @typescript-eslint/no-unused-vars
+  4:35  warning  'T' is defined but never used               @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/utils/clusterMarkers.ts
+  19:4   warning  Array type using 'Array<T>' is forbidden. Use 'T[]' instead  @typescript-eslint/array-type
+  34:17  warning  'key' is assigned a value but never used                     @typescript-eslint/no-unused-vars
+
+/Users/rohadimraja/Documents/mobile-netmanager/src/utils/togeojson-wrapper.ts
+  13:19  warning  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+✖ 124 problems (8 errors, 116 warnings)
+  0 errors and 11 warnings potentially fixable with the `--fix` option.
+

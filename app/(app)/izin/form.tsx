@@ -1,5 +1,6 @@
-import CustomDatePickerModal from "@/components/CustomDatePickerModal"; // Import Custom Modal
-import LoadingModal from "@/components/LoadingModal";
+import { Image } from 'expo-image';
+import CustomDatePickerModal from "@/components/molecules/CustomDatePickerModal"; // Import Custom Modal
+import LoadingModal from "@/components/molecules/LoadingModal";
 import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
 import api from "@/services/api";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -16,15 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Camera, ChevronDown, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import {
-    Alert,
-    Image,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
 
@@ -630,10 +623,9 @@ export default function LeaveFormScreen() {
               <View style={tw`flex-row flex-wrap gap-2 mb-3`}>
                 {photos.map((photo, idx) => (
                   <View key={idx} style={tw`relative`}>
-                    <Image
-                      source={{ uri: photo }}
+                    <Image source={{ uri: photo }}
                       style={tw`w-24 h-24 rounded-lg bg-gray-100`}
-                    />
+                     contentFit="cover" transition={1000}       />
                     <TouchableOpacity
                       onPress={() => removePhoto(idx)}
                       style={tw`absolute -top-2 -right-2 bg-red-500 rounded-full p-1 border border-white`}

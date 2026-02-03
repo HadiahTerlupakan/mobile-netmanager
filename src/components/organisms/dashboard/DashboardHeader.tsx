@@ -1,6 +1,7 @@
-import NotificationBell from '@/components/NotificationBell';
+import NotificationBell from '@/components/molecules/NotificationBell';
+import { Image } from 'expo-image';
 import React from 'react';
-import { Image, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import tw from 'twrnc';
 
 interface DashboardHeaderProps {
@@ -18,7 +19,9 @@ export const DashboardHeader = ({ userName, userImage }: DashboardHeaderProps) =
                 <Image
                     source={{ uri: userImage }}
                     style={tw`h-10 w-10 rounded-full`}
-                />
+                    contentFit="cover"
+                    transition={1000}
+                      />
             ) : (
                 <View style={tw`h-10 w-10 bg-blue-600 rounded-full items-center justify-center`}>
                     <Text style={tw`text-white font-bold text-lg`}>{initial}</Text>

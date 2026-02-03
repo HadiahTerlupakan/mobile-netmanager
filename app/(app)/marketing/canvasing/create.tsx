@@ -1,4 +1,5 @@
-import { LocationPickerModal } from "@/components/marketing/LocationPickerModal";
+import { Image } from 'expo-image';
+import { LocationPickerModal } from "@/components/organisms/marketing/LocationPickerModal";
 
 import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
@@ -21,19 +22,7 @@ import {
     ZapOff,
 } from "lucide-react-native";
 import React, { useRef, useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
 
@@ -668,7 +657,7 @@ function PhotoPickerField({
           <View
             style={tw`relative rounded-2xl overflow-hidden aspect-video bg-gray-200`}
           >
-            <Image source={{ uri: value }} style={tw`w-full h-full`} />
+            <Image source={{ uri: value }} style={tw`w-full h-full`}  contentFit="cover" transition={1000}       />
             <TouchableOpacity
               onPress={onRemove}
               style={tw`absolute top-3 right-3 bg-black/40 w-10 h-10 items-center justify-center rounded-full z-10`}

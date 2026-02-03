@@ -1,19 +1,14 @@
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
-import axios from 'axios';
+import api from '@/services/api'; // Use centralized API
 import Constants from 'expo-constants';
+import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { Briefcase, Building2, Calendar, Clock, Edit3, LogOut, Mail, MapPin } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Image, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-
-// ... inside component
-                    {/* App Version */}
-                    <Text style={tw`text-center text-gray-400 text-xs mt-6`}>
-                        NetManager Mobile v{Constants.expoConfig?.version || '1.0.0'} (Build {Constants.expoConfig?.extra?.versionCode || '1'})
-                    </Text>
 
 interface ProfileData {
     name: string;
@@ -40,9 +35,7 @@ export default function Profile() {
     const fetchProfile = useCallback(async () => {
         if (!token) return;
         try {
-            const res = await axios.get(`${Config.API_URL}/api/mobile/profile`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/api/mobile/profile');
             if (res.data.success) {
                 setProfileData(res.data.data);
             }
@@ -127,7 +120,9 @@ export default function Profile() {
                             <Image
                                 source={{ uri: profileData.image }}
                                 style={tw`w-24 h-24 rounded-full mb-4 border-4 border-white`}
-                            />
+                                contentFit="cover"
+                                transition={1000}
+                                  />
                         ) : (
                             <View style={tw`w-24 h-24 bg-white rounded-full items-center justify-center mb-4 shadow-lg`}>
                                 <Text style={tw`text-blue-600 text-4xl font-bold`}>{getInitials(displayName)}</Text>

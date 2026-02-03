@@ -1,37 +1,20 @@
-import { Config } from '@/constants/Config';
+import TransactionItem, { Transaction } from '@/components/molecules/TransactionItem';
+
 import { useAuth } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
-import axios from 'axios';
+import api from '@/services/api';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-
-interface Transaction {
-    id: string;
-    type: 'masuk' | 'keluar';
-    barang: {
-        kode: string;
-        nama: string;
-        satuan: string;
-    };
-    gudang: {
-        nama: string;
-    };
-    jumlah: number;
-    kondisi: string;
-    keterangan: string | null;
-    tanggal: string;
-}
 
 type FilterType = 'all' | 'masuk' | 'keluar';
 
 export default function RiwayatBarangScreen() {
     const router = useRouter();
     const { token } = useAuth();
-    const { width } = useWindowDimensions();
 
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -39,7 +22,7 @@ export default function RiwayatBarangScreen() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [hasMore, setHasMore] = useState(true);
     const [filter, setFilter] = useState<FilterType>('all');
-    
+
     // Cursor for pagination (timestamp of last item)
     const nextCursorRef = useRef<string | null>(null);
 
@@ -66,9 +49,7 @@ export default function RiwayatBarangScreen() {
                 params.append('cursor', nextCursorRef.current);
             }
 
-            const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/riwayat?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get(`/api/mobile/inventory/riwayat?${params.toString()}`);
 
             const newData = res.data?.data || [];
             const nextCursor = res.data?.nextCursor;
@@ -113,69 +94,15 @@ export default function RiwayatBarangScreen() {
         });
     }, []);
 
-    const getStatusColor = (type: string) => {
-        return type === 'masuk' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-    };
-
-    const getIcon = (type: string) => {
-        return type === 'masuk' ? 'arrow-down-circle' : 'arrow-up-circle';
-    };
-
     const filterButtons = useMemo(() => [
         { label: 'Semua', value: 'all' as const },
         { label: 'Masuk', value: 'masuk' as const },
         { label: 'Keluar', value: 'keluar' as const },
     ], []);
 
-    // Render Item Component (Memoized for performance)
+    // Render Item Component (Using memoized TransactionItem)
     const renderTransactionItem = useCallback(({ item }: { item: Transaction }) => (
-        <View style={tw`bg-white p-4 rounded-xl border border-gray-100 mb-3 shadow-sm`}>
-            <View style={tw`flex-row justify-between items-start mb-2`}>
-                <View style={tw`flex-row items-center gap-2 flex-1`}>
-                    <View style={tw`p-2 rounded-full ${item.type === 'masuk' ? 'bg-green-50' : 'bg-red-50'}`}>
-                        <Ionicons 
-                            name={getIcon(item.type)} 
-                            size={20} 
-                            color={item.type === 'masuk' ? '#16A34A' : '#DC2626'} 
-                        />
-                    </View>
-                    <View style={tw`flex-1`}>
-                        <Text style={tw`font-bold text-gray-900 text-base`} numberOfLines={1}>
-                            {item.barang.nama}
-                        </Text>
-                        <Text style={tw`text-xs text-gray-500 font-medium`}>
-                            {item.barang.kode}
-                        </Text>
-                    </View>
-                </View>
-                <View style={tw`px-2 py-1 rounded-full ${getStatusColor(item.type)}`}>
-                    <Text style={tw`text-xs font-bold capitalize`}>
-                        {item.type}
-                    </Text>
-                </View>
-            </View>
-
-            <View style={tw`flex-row justify-between items-end mt-2 pt-2 border-t border-gray-50`}>
-                <View style={tw`flex-1`}>
-                    <View style={tw`flex-row items-center gap-1 mb-1`}>
-                        <Ionicons name="business-outline" size={12} color="#6B7280" />
-                        <Text style={tw`text-xs text-gray-500`}>{item.gudang.nama}</Text>
-                    </View>
-                    <View style={tw`flex-row items-center gap-1`}>
-                        <Ionicons name="time-outline" size={12} color="#6B7280" />
-                        <Text style={tw`text-xs text-gray-500`}>{formatDate(item.tanggal)}</Text>
-                    </View>
-                </View>
-                <View style={tw`items-end`}>
-                    <Text style={tw`text-lg font-bold text-gray-900`}>
-                        {item.jumlah} <Text style={tw`text-sm font-normal text-gray-500`}>{item.barang.satuan}</Text>
-                    </Text>
-                    {item.kondisi !== 'BARU' && (
-                        <Text style={tw`text-xs text-orange-600 font-medium`}>{item.kondisi}</Text>
-                    )}
-                </View>
-            </View>
-        </View>
+        <TransactionItem item={item} formatDate={formatDate} />
     ), [formatDate]);
 
     const ListFooterComponent = useMemo(() => {
@@ -199,7 +126,7 @@ export default function RiwayatBarangScreen() {
             {/* Header */}
             <View style={tw`bg-white border-b border-gray-200 pb-2`}>
                 <View style={tw`flex-row items-center justify-between px-4 py-4`}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         onPress={() => router.back()}
                         style={tw`w-8 h-8 items-center justify-center rounded-full bg-gray-50`}
                     >
@@ -240,6 +167,7 @@ export default function RiwayatBarangScreen() {
                         refreshControl={
                             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                         }
+                        estimatedItemSize={120} // Added estimated size for performance
                         ListEmptyComponent={EmptyComponent}
                         ListFooterComponent={ListFooterComponent}
                         contentContainerStyle={tw`py-4`}

@@ -1,8 +1,8 @@
-import { Config } from '@/constants/Config';
+
 import { useAuth } from '@/context/AuthContext';
 import { useSocketEvent } from '@/context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
-import axios from 'axios';
+import api from '@/services/api';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
@@ -22,9 +22,7 @@ export default function BarangIndexScreen() {
 
     const fetchStats = async () => {
         try {
-            const res = await axios.get(`${Config.API_URL}/api/mobile/dashboard`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await api.get('/api/mobile/dashboard');
             // API returns stats directly at root level
             if (res.data) {
                 setStats({

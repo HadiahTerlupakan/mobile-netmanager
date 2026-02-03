@@ -29,14 +29,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { DeviceCreateModal } from "@/components/topology/DeviceCreateModal";
+import { DeviceCreateModal } from "@/components/organisms/topology/DeviceCreateModal";
 import {
     DeviceData,
     DeviceDetailModal,
     DeviceType,
-} from "@/components/topology/DeviceDetailModal";
-import { FilterPanel } from "@/components/topology/FilterPanel";
-import { TopologyErrorBoundary } from "@/components/TopologyErrorBoundary";
+} from "@/components/organisms/topology/DeviceDetailModal";
+import { FilterPanel } from "@/components/organisms/topology/FilterPanel";
+import { TopologyErrorBoundary } from "@/components/organisms/topology/TopologyErrorBoundary";
 
 const MARKER_COLORS: Record<DeviceType, string> = {
   otb: "#3b82f6", // blue

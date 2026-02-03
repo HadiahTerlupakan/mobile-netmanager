@@ -19,7 +19,7 @@ import {
     View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import api from "../../services/api";
+import api from "../../../services/api";
 
 export type DeviceType =
   | "otb"
@@ -365,8 +365,7 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
                     style={styles.imageScroll}
                   >
                     {device.images.map((img, idx) => (
-                      <Image
-                        key={idx}
+                      <Image key={idx}
                         source={{
                           uri: img.startsWith("http")
                             ? img
@@ -375,7 +374,7 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
                         style={styles.deviceImage}
                         contentFit="cover"
                         transition={1000}
-                      />
+                             />
                     ))}
                   </ScrollView>
                 ) : (
@@ -586,3 +585,5 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
 });
+
+DeviceDetailModal.displayName = 'DeviceDetailModal';

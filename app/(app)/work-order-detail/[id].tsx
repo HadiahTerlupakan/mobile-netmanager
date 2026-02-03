@@ -1,4 +1,5 @@
-import LoadingModal from "@/components/LoadingModal";
+import { Image } from 'expo-image';
+import LoadingModal from "@/components/molecules/LoadingModal";
 import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
 import { useSocketEvent, useSocketRoom } from "@/context/SocketContext";
@@ -7,7 +8,7 @@ import {
     useOfflineMutationCompat as useOfflineMutation,
     useOfflineQueryCompat as useOfflineQuery,
 } from "@/hooks/queries";
-import axios from "axios";
+import api from "@/services/api"; // Use centralized API
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import * as ImagePicker from "expo-image-picker";
@@ -35,19 +36,7 @@ import {
     X,
 } from "lucide-react-native";
 import { useCallback, useEffect, useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    Image,
-    Modal,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
+import { ActivityIndicator, Alert, Dimensions, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
 import {
     SafeAreaView,
     useSafeAreaInsets,
@@ -94,12 +83,7 @@ export default function WorkOrderDetailScreen() {
   } = useOfflineQuery({
     key: `work_order_${id}`,
     fetcher: async () => {
-      const res = await axios.get(
-        `${Config.API_URL}/api/mobile/work-orders/${id}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const res = await api.get(`/api/mobile/work-orders/${id}`);
       return res.data?.data;
     },
     enabled: !!id && !!token,
@@ -187,11 +171,8 @@ export default function WorkOrderDetailScreen() {
       const fetchPartners = async () => {
         setPartnerLoading(true);
         try {
-          const res = await axios.get(
-            `${Config.API_URL}/api/mobile/partners?search=${searchPartnerQuery}`,
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            },
+          const res = await api.get(
+            `/api/mobile/partners?search=${searchPartnerQuery}`
           );
           if (res.data.success) {
             setAvailablePartners(res.data.data);
@@ -391,12 +372,11 @@ export default function WorkOrderDetailScreen() {
         } as any);
         formData.append("type", "work-order-updates");
 
-        const uploadRes = await axios.post(
-          `${Config.API_URL}/api/mobile/upload`,
+        const uploadRes = await api.post(
+          "/api/mobile/upload",
           formData,
           {
             headers: {
-              Authorization: `Bearer ${token}`,
               "Content-Type": "multipart/form-data",
             },
             timeout: 60000,
@@ -538,15 +518,12 @@ export default function WorkOrderDetailScreen() {
   const handleAddPartner = async (userId: string) => {
     setPartnerLoading(true);
     try {
-      await axios.post(
-        `${Config.API_URL}/api/mobile/work-orders/${id}/partners`,
+      await api.post(
+        `/api/mobile/work-orders/${id}/partners`,
         {
           userId,
           role: "PARTNER",
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        }
       );
       setIsPartnerModalVisible(false);
       fetchDetail(); // Refresh WO data
@@ -572,11 +549,8 @@ export default function WorkOrderDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await axios.delete(
-                `${Config.API_URL}/api/mobile/work-orders/${id}/partners?assignmentId=${assignmentId}`,
-                {
-                  headers: { Authorization: `Bearer ${token}` },
-                },
+              await api.delete(
+                `/api/mobile/work-orders/${id}/partners?assignmentId=${assignmentId}`
               );
               fetchDetail();
               Alert.alert("Berhasil", "Partner dihapus");
@@ -592,14 +566,11 @@ export default function WorkOrderDetailScreen() {
   const handlePartnerResponse = async (response: "APPROVED" | "REJECTED") => {
     setPartnerResponseLoading(true);
     try {
-      const res = await axios.post(
-        `${Config.API_URL}/api/mobile/work-orders/${id}/partner-response`,
+      const res = await api.post(
+        `/api/mobile/work-orders/${id}/partner-response`,
         {
           response,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        }
       );
 
       if (res.data.success) {
@@ -967,7 +938,7 @@ export default function WorkOrderDetailScreen() {
           style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}
         >
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
-            ⚠️ Klik "Mulai Kerja" terlebih dahulu untuk mengambil barang
+            ⚠️ Klik &quot;Mulai Kerja&quot; terlebih dahulu untuk mengambil barang
           </Text>
         </View>
       )}
@@ -1101,7 +1072,7 @@ export default function WorkOrderDetailScreen() {
           style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}
         >
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
-            ⚠️ Klik "Mulai Kerja" terlebih dahulu untuk mengirim diskusi
+            ⚠️ Klik &quot;Mulai Kerja&quot; terlebih dahulu untuk mengirim diskusi
           </Text>
         </View>
       )}
@@ -1124,11 +1095,10 @@ export default function WorkOrderDetailScreen() {
 
         {photo && (
           <View style={tw`mb-3`}>
-            <Image
-              source={{ uri: photo }}
+            <Image source={{ uri: photo }}
               style={tw`w-24 h-24 rounded-lg`}
-              resizeMode="cover"
-            />
+              contentFit="cover"
+             transition={1000}        />
             <TouchableOpacity
               onPress={() => setPhoto(null)}
               style={tw`absolute top-1 right-1 bg-black/50 p-1 rounded-full`}
@@ -1251,11 +1221,10 @@ export default function WorkOrderDetailScreen() {
                         }}
                         activeOpacity={0.9}
                       >
-                        <Image
-                          source={{ uri: `${Config.API_URL}${item.filePath}` }}
+                        <Image source={{ uri: `${Config.API_URL}${item.filePath}` }}
                           style={tw`w-48 h-64 bg-gray-200 rounded-lg`}
-                          resizeMode="cover"
-                        />
+                          contentFit="cover"
+                         transition={1000}        />
                       </TouchableOpacity>
                       {item.message && (
                         <View
@@ -1400,15 +1369,12 @@ export default function WorkOrderDetailScreen() {
     setWo({ ...wo, tasks: updatedTasks });
 
     try {
-      await axios.patch(
-        `${Config.API_URL}/api/mobile/work-orders/${id}/tasks`,
+      await api.patch(
+        `/api/mobile/work-orders/${id}/tasks`,
         {
           taskId,
           isCompleted: newStatus === "COMPLETED",
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        }
       );
       // Background refresh to sync fully
       fetchDetail();
@@ -1430,7 +1396,7 @@ export default function WorkOrderDetailScreen() {
           style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}
         >
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
-            ⚠️ Klik "Mulai Kerja" terlebih dahulu untuk mencentang tugas
+            ⚠️ Klik &quot;Mulai Kerja&quot; terlebih dahulu untuk mencentang tugas
           </Text>
         </View>
       )}
