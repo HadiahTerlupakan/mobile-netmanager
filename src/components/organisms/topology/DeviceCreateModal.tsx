@@ -1,6 +1,7 @@
 import { Picker } from "@react-native-picker/picker";
 import { MapPin, X } from "lucide-react-native";
-import React, { useEffect, useState } from "react";
+import { logger } from "@/utils/logger";
+import React, { useEffect, useState, useCallback } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -49,6 +50,29 @@ export function DeviceCreateModal({
   );
   const [selectedParent, setSelectedParent] = useState<string | null>(null);
 
+  const fetchParents = useCallback(async () => {
+    setParents([]);
+    setSelectedParent(null);
+    try {
+      let endpoint = "";
+      if (deviceType === "ODP") endpoint = "/api/odcs";
+
+      if (!endpoint) return;
+
+      const res = await api.get(endpoint);
+      let items: { name: string; id: string; siteId: string }[] = [];
+      if (deviceType === "ODP" && res.data?.odcs) items = res.data.odcs;
+
+      if (selectedSite) {
+        items = items.filter((i) => i.siteId === selectedSite);
+      }
+
+      setParents(items.map((i) => ({ label: i.name, value: i.id })));
+    } catch (e) {
+      logger.error("Failed to fetch parents", e);
+    }
+  }, [deviceType, selectedSite]);
+
   useEffect(() => {
     if (visible) {
       fetchSites();
@@ -64,44 +88,21 @@ export function DeviceCreateModal({
     if (visible && selectedSite) {
       fetchParents();
     }
-  }, [visible, selectedSite, deviceType]);
+  }, [visible, selectedSite, deviceType, fetchParents]);
 
   const fetchSites = async () => {
     try {
       const res = await api.get("/api/sites");
       if (res.data?.sites) {
         setSites(
-          res.data.sites.map((s: any) => ({ label: s.name, value: s.id })),
+          res.data.sites.map((s: { name: string; id: string }) => ({ label: s.name, value: s.id })),
         );
         if (res.data.sites.length > 0) {
           setSelectedSite(res.data.sites[0].id);
         }
       }
     } catch (e) {
-      console.error("Failed to fetch sites", e);
-    }
-  };
-
-  const fetchParents = async () => {
-    setParents([]);
-    setSelectedParent(null);
-    try {
-      let endpoint = "";
-      if (deviceType === "ODP") endpoint = "/api/odcs";
-
-      if (!endpoint) return;
-
-      const res = await api.get(endpoint);
-      let items: any[] = [];
-      if (deviceType === "ODP" && res.data?.odcs) items = res.data.odcs;
-
-      if (selectedSite) {
-        items = items.filter((i: any) => i.siteId === selectedSite);
-      }
-
-      setParents(items.map((i: any) => ({ label: i.name, value: i.id })));
-    } catch (e) {
-      console.error("Failed to fetch parents", e);
+      logger.error("Failed to fetch sites", e);
     }
   };
 
@@ -114,7 +115,7 @@ export function DeviceCreateModal({
     setLoading(true);
     try {
       let endpoint = "";
-      let payload: any = {
+      const payload: Record<string, unknown> = {
         name,
         notes,
         latitude: initialLocation.latitude,
@@ -143,9 +144,10 @@ export function DeviceCreateModal({
       } else {
         Alert.alert("Error", "Tipe perangkat belum didukung sepenuhnya");
       }
-    } catch (err: any) {
-      console.error(err);
-      Alert.alert("Error", err.response?.data?.error || "Gagal menyimpan data");
+    } catch (err) {
+      logger.error(err);
+      const errorMessage = err instanceof Error ? err.message : "Gagal menyimpan data";
+      Alert.alert("Error", errorMessage);
     } finally {
       setLoading(false);
     }

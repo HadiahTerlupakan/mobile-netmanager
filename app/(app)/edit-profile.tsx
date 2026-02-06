@@ -1,34 +1,30 @@
-import { Config } from '@/constants/Config';
-import { useAuth } from '@/context/AuthContext';
-import api from '@/services/api'; // Use centralized API
-import { Image } from 'expo-image';
+import { FormSkeleton } from '@/components/molecules/FormSkeleton';
+import { useProfileSync } from '@/hooks/useProfileSync';
+import { ProfileSchema, ChangePasswordSchema, validateData, sanitizeInput } from '@/utils/validation';
+import { useApiMutation, useQueryClient } from '@/hooks/queries';
+import { uploadService } from '@/services/UploadService';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
+import LoadingModal from '@/components/molecules/LoadingModal';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import { AxiosError } from 'axios';
 import { ArrowLeft, Camera, ChevronDown, ChevronUp, Eye, EyeOff, Lock, Phone, Save, User } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-
-interface ProfileData {
-    id: string;
-    name: string | null;
-    email: string;
-    phone: string | null;
-    image: string | null;
-}
+import api from '@/services/api';
 
 export default function EditProfile() {
-    const { token } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
+    const { profileData, isLoading } = useProfileSync();
+    const queryClient = useQueryClient();
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [changingPassword, setChangingPassword] = useState(false);
-    
-    const [profile, setProfile] = useState<ProfileData | null>(null);
+
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
-    
+
     // Password section
     const [showPasswordSection, setShowPasswordSection] = useState(false);
     const [currentPassword, setCurrentPassword] = useState('');
@@ -39,53 +35,49 @@ export default function EditProfile() {
     const [showConfirm, setShowConfirm] = useState(false);
 
     useEffect(() => {
-        fetchProfile();
-    }, []);
-
-    const fetchProfile = async () => {
-        try {
-            const res = await api.get('/api/mobile/profile');
-            if (res.data.success) {
-                setProfile(res.data.data);
-                setName(res.data.data.name || '');
-                setPhone(res.data.data.phone || '');
-            }
-        } catch (error) {
-            console.error('Failed to fetch profile', error);
-        } finally {
-            setLoading(false);
+        if (profileData) {
+            setName(profileData.name || '');
+            setPhone((profileData as any).phone || '');
         }
-    };
+    }, [profileData]);
 
-    const handleSave = async () => {
-        setSaving(true);
-        try {
-            const res = await api.patch(
-                '/api/mobile/profile',
-                { name, phone }
-            );
-            if (res.data.success) {
-                Alert.alert('Sukses', 'Profil berhasil diperbarui');
-                router.back();
-            }
-        } catch (error: any) {
-            Alert.alert('Error', error.response?.data?.error || 'Gagal menyimpan');
-        } finally {
-            setSaving(false);
+    const saveMutation = useApiMutation({
+        endpoint: '/api/mobile/profile',
+        method: 'PATCH',
+        invalidateKeys: [['user_profile']],
+        successMessage: 'Profil berhasil diperbarui',
+        onSuccess: () => {
+            router.back();
         }
+    });
+
+    const handleSave = () => {
+        const rawData = {
+            name: sanitizeInput(name),
+            phone: sanitizeInput(phone)
+        };
+
+        const validation = validateData(ProfileSchema, rawData);
+
+        if (!validation.success) {
+            Alert.alert('Data Tidak Valid', validation.error);
+            return;
+        }
+
+        saveMutation.mutate(validation.data);
     };
 
     const handleChangePassword = async () => {
-        if (!currentPassword || !newPassword || !confirmPassword) {
-            Alert.alert('Error', 'Semua field password harus diisi');
-            return;
-        }
-        if (newPassword !== confirmPassword) {
-            Alert.alert('Error', 'Password baru dan konfirmasi tidak cocok');
-            return;
-        }
-        if (newPassword.length < 6) {
-            Alert.alert('Error', 'Password minimal 6 karakter');
+        const rawData = {
+            currentPassword,
+            newPassword,
+            confirmPassword
+        };
+
+        const validation = validateData(ChangePasswordSchema, rawData);
+
+        if (!validation.success) {
+            Alert.alert('Data Tidak Valid', validation.error);
             return;
         }
 
@@ -93,7 +85,7 @@ export default function EditProfile() {
         try {
             const res = await api.post(
                 '/api/mobile/profile/password',
-                { currentPassword, newPassword, confirmPassword }
+                validation.data
             );
             if (res.data.success) {
                 Alert.alert('Sukses', 'Password berhasil diubah');
@@ -102,8 +94,12 @@ export default function EditProfile() {
                 setConfirmPassword('');
                 setShowPasswordSection(false);
             }
-        } catch (error: any) {
-            Alert.alert('Error', error.response?.data?.error || 'Gagal mengubah password');
+        } catch (error) {
+            let message = 'Gagal mengubah password';
+            if (error instanceof AxiosError) {
+                message = error.response?.data?.error || error.response?.data?.message || message;
+            }
+            Alert.alert('Error', message);
         } finally {
             setChangingPassword(false);
         }
@@ -130,34 +126,26 @@ export default function EditProfile() {
 
     const uploadPhoto = async (uri: string) => {
         setUploadingPhoto(true);
+        setUploadProgress(0);
         try {
-            const formData = new FormData();
-            const filename = uri.split('/').pop() || 'photo.jpg';
-            const match = /\.(\w+)$/.exec(filename);
-            const type = match ? `image/${match[1]}` : 'image/jpeg';
-            
-            formData.append('photo', {
-                uri,
-                name: filename,
-                type,
-            } as any);
-
-            const res = await api.post(
-                '/api/mobile/profile/photo',
-                formData,
-                {
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                    },
+            const res = await uploadService.uploadCustom(uri, '/api/mobile/profile/photo', {
+                fieldName: 'photo',
+                onProgress: (progress) => {
+                    setUploadProgress(progress.percentage);
                 }
-            );
+            });
 
-            if (res.data.success) {
-                setProfile(prev => prev ? { ...prev, image: res.data.data.image } : null);
+            if (res.success) {
                 Alert.alert('Sukses', 'Foto berhasil diperbarui');
+                // Invalidate profile cache to update photo everywhere
+                queryClient.invalidateQueries({ queryKey: ['user_profile'] });
             }
-        } catch (error: any) {
-            Alert.alert('Error', error.response?.data?.error || 'Gagal upload foto');
+        } catch (error) {
+            let message = 'Gagal upload foto';
+            if (error instanceof Error) {
+                message = error.message;
+            }
+            Alert.alert('Error', message);
         } finally {
             setUploadingPhoto(false);
         }
@@ -168,12 +156,8 @@ export default function EditProfile() {
         return name.charAt(0).toUpperCase();
     };
 
-    if (loading) {
-        return (
-            <SafeAreaView style={tw`flex-1 bg-gray-50 justify-center items-center`}>
-                <ActivityIndicator size="large" color="#2563eb" />
-            </SafeAreaView>
-        );
+    if (isLoading && !profileData) {
+        return <FormSkeleton />;
     }
 
     return (
@@ -187,20 +171,22 @@ export default function EditProfile() {
             </View>
 
             <ScrollView contentContainerStyle={tw`p-4 pb-10`}>
+                <LoadingModal visible={uploadingPhoto} message="Mengupload foto..." progress={uploadProgress > 0 ? uploadProgress : undefined} />
+
                 {/* Photo Section */}
                 <View style={tw`items-center mb-6`}>
                     <View style={tw`relative`}>
-                        {profile?.image ? (
-                            <Image
-                                source={{ uri: profile.image }}
+                        {profileData?.image ? (
+                            <ImageWithCache
+                                source={profileData.image}
                                 style={tw`w-28 h-28 rounded-full`}
                                 contentFit="cover"
                                 transition={1000}
-                                  />
+                            />
                         ) : (
                             <View style={tw`w-28 h-28 rounded-full bg-blue-100 items-center justify-center`}>
                                 <Text style={tw`text-blue-600 text-4xl font-bold`}>
-                                    {getInitials(profile?.name)}
+                                    {getInitials(profileData?.name)}
                                 </Text>
                             </View>
                         )}
@@ -209,11 +195,7 @@ export default function EditProfile() {
                             disabled={uploadingPhoto}
                             style={tw`absolute bottom-0 right-0 bg-blue-600 rounded-full p-3 shadow-lg`}
                         >
-                            {uploadingPhoto ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                                <Camera size={20} color="#fff" />
-                            )}
+                            <Camera size={20} color="#fff" />
                         </TouchableOpacity>
                     </View>
                     <Text style={tw`text-gray-500 text-sm mt-2`}>Ketuk untuk mengubah foto</Text>
@@ -257,7 +239,7 @@ export default function EditProfile() {
                         <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Email</Text>
                         <View style={tw`flex-row items-center border border-gray-200 rounded-lg px-3 bg-gray-50`}>
                             <TextInput
-                                value={profile?.email || ''}
+                                value={profileData?.email || ''}
                                 editable={false}
                                 style={tw`flex-1 py-3 px-3 text-gray-500`}
                             />
@@ -268,7 +250,7 @@ export default function EditProfile() {
 
                 {/* Password Section */}
                 <View style={tw`bg-white rounded-xl shadow-sm mb-4 overflow-hidden`}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         onPress={() => setShowPasswordSection(!showPasswordSection)}
                         style={tw`flex-row items-center justify-between p-4`}
                     >
@@ -282,7 +264,7 @@ export default function EditProfile() {
                             <ChevronDown size={20} color="#6b7280" />
                         )}
                     </TouchableOpacity>
-                    
+
                     {showPasswordSection && (
                         <View style={tw`px-4 pb-4`}>
                             <View style={tw`bg-blue-50 rounded-lg p-3 mb-4`}>
@@ -360,10 +342,10 @@ export default function EditProfile() {
                 {/* Save Button */}
                 <TouchableOpacity
                     onPress={handleSave}
-                    disabled={saving}
-                    style={tw`bg-blue-600 rounded-xl py-4 flex-row items-center justify-center ${saving ? 'opacity-50' : ''}`}
+                    disabled={saveMutation.isPending}
+                    style={tw`bg-blue-600 rounded-xl py-4 flex-row items-center justify-center ${saveMutation.isPending ? 'opacity-50' : ''}`}
                 >
-                    {saving ? (
+                    {saveMutation.isPending ? (
                         <ActivityIndicator color="#fff" />
                     ) : (
                         <>

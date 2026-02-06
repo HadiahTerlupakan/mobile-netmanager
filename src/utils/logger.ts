@@ -37,60 +37,73 @@ function formatMessage(prefix: string, message: string, color: string = colors.r
   return `${color}${LOG_PREFIX} ${prefix}${colors.reset} ${message}`;
 }
 
+function safeStringify(obj: unknown): string {
+  try {
+    if (obj instanceof Error) {
+      return `${obj.message}\n${obj.stack}`;
+    }
+    if (typeof obj === 'object' && obj !== null) {
+      return JSON.stringify(obj, (key, value) =>
+        typeof value === 'bigint' ? value.toString() : value,
+        2
+      );
+    }
+    return String(obj);
+  } catch {
+    return `[Unserializable Object: ${typeof obj}]`;
+  }
+}
+
 export const logger = {
-  log: (...args: any[]) => {
+  log: (...args: unknown[]) => {
     if (!ENABLE_LOGS) return;
-    const message = args.map(arg =>
-      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-    ).join(' ');
+    const message = args.map(safeStringify).join(' ');
     console.log(formatMessage('✓', message, colors.green));
   },
 
-  warn: (...args: any[]) => {
+  warn: (...args: unknown[]) => {
     if (!ENABLE_LOGS) return;
-    const message = args.map(arg =>
-      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-    ).join(' ');
+    const message = args.map(safeStringify).join(' ');
     console.warn(formatMessage('⚠', message, colors.yellow));
   },
 
-  error: (...args: any[]) => {
+  error: (...args: unknown[]) => {
     // Error selalu ditampilkan
-    const message = args.map(arg =>
-      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-    ).join(' ');
+    const message = args.map(safeStringify).join(' ');
     console.error(formatMessage('✗', message, colors.red));
   },
 
-  info: (...args: any[]) => {
+  info: (...args: unknown[]) => {
     if (!ENABLE_LOGS) return;
-    const message = args.map(arg =>
-      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-    ).join(' ');
+    const message = args.map(safeStringify).join(' ');
     console.info(formatMessage('ℹ', message, colors.cyan));
   },
 
   // Label-specific loggers
-  auth: (...args: any[]) => {
+  auth: (...args: unknown[]) => {
     if (!ENABLE_LOGS) return;
-    console.log(formatMessage('[AUTH]', args.join(' '), colors.blue));
+    const message = args.map(safeStringify).join(' ');
+    console.log(formatMessage('[AUTH]', message, colors.blue));
   },
 
-  socket: (...args: any[]) => {
+  socket: (...args: unknown[]) => {
     if (!ENABLE_LOGS) return;
     // Socket logging sering menyebabkan corruption, disable by default
     if (process.env.EXPO_DEBUG_SOCKET !== 'true') return;
-    console.log(formatMessage('[SOCKET]', args.join(' '), colors.dim));
+    const message = args.map(safeStringify).join(' ');
+    console.log(formatMessage('[SOCKET]', message, colors.dim));
   },
 
-  sync: (...args: any[]) => {
+  sync: (...args: unknown[]) => {
     if (!ENABLE_LOGS) return;
-    console.log(formatMessage('[SYNC]', args.join(' '), colors.cyan));
+    const message = args.map(safeStringify).join(' ');
+    console.log(formatMessage('[SYNC]', message, colors.cyan));
   },
 
-  db: (...args: any[]) => {
+  db: (...args: unknown[]) => {
     if (!ENABLE_LOGS) return;
-    console.log(formatMessage('[DB]', args.join(' '), colors.dim));
+    const message = args.map(safeStringify).join(' ');
+    console.log(formatMessage('[DB]', message, colors.dim));
   },
 };
 

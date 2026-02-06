@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { Href, useRouter } from "expo-router";
 import {
     Banknote,
     Calendar,
@@ -9,7 +9,8 @@ import {
     Map,
     MessageCircle,
     PackageMinus,
-    WifiOff
+    WifiOff,
+    LucideIcon
 } from "lucide-react-native";
 import React from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
@@ -18,6 +19,17 @@ import tw from "twrnc";
 interface QuickMenuProps {
   features?: string[];
   isSales?: boolean;
+}
+
+interface MenuItem {
+  title: string;
+  subtitle: string;
+  icon: LucideIcon;
+  color: string;
+  iconColor: string;
+  route: string;
+  requiredFeatures: string[];
+  requiresSales?: boolean;
 }
 
 export const QuickMenu = ({
@@ -32,7 +44,7 @@ export const QuickMenu = ({
     return requiredFeatures.some((f) => features.includes(f));
   };
 
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     {
       title: "Request WO",
       subtitle: "Ajukan Tiket",
@@ -118,7 +130,7 @@ export const QuickMenu = ({
     },
   ];
 
-  const handleMenuPress = (item: any) => {
+  const handleMenuPress = (item: MenuItem) => {
     const enabled = hasFeature(item.requiredFeatures);
 
     if (enabled) {
@@ -131,7 +143,7 @@ export const QuickMenu = ({
         );
         return;
       }
-      router.push(item.route as any);
+      router.push(item.route as Href);
     } else {
       Alert.alert(
         "Akses Terbatas",

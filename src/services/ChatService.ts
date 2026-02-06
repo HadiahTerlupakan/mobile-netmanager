@@ -1,6 +1,7 @@
 import { Config } from '@/constants/Config';
 import api from '@/services/api'; // Use centralized API
-import logger from '@/utils/logger';
+import { uploadService } from '@/services/UploadService';
+import { logger } from '@/utils/logger';
 import * as SecureStore from 'expo-secure-store';
 import { io, Socket } from 'socket.io-client';
 
@@ -128,7 +129,8 @@ class ChatService {
     async getConversations(): Promise<ChatConversation[]> {
         try {
             const response = await api.get('/api/mobile/chat/conversations');
-            return response.data.data || [];
+            const data = response.data.data;
+            return Array.isArray(data) ? data : [];
         } catch (error) {
             logger.error('[Chat] Error fetching conversations:', error);
             throw error;
@@ -148,7 +150,7 @@ class ChatService {
 
     // Get messages for a conversation
     async getMessages(conversationId: string, cursor?: string): Promise<{
-        conversation: any;
+        conversation: ChatConversation;
         messages: ChatMessage[];
         hasMore: boolean;
         nextCursor: string | null;
@@ -183,29 +185,10 @@ class ChatService {
     // Upload image and return URL
     async uploadImage(imageUri: string): Promise<string> {
         try {
-            // Create form data
-            const formData = new FormData();
-            const filename = imageUri.split('/').pop() || 'image.jpg';
-            const match = /\.([\w]+)$/.exec(filename);
-            const type = match ? `image/${match[1]}` : 'image/jpeg';
-
-            formData.append('image', {
-                uri: imageUri,
-                name: filename,
-                type
-            } as any);
-
-            const response = await api.post(
-                '/api/mobile/chat/upload',
-                formData,
-                {
-                    headers: {
-                        'Content-Type': 'multipart/form-data'
-                    }
-                }
-            );
-
-            return response.data.data.imageUrl;
+            const response = await uploadService.uploadCustom(imageUri, '/api/mobile/chat/upload', {
+                fieldName: 'image'
+            });
+            return response.data.imageUrl;
         } catch (error) {
             logger.error('[Chat] Error uploading image:', error);
             throw error;
@@ -217,7 +200,8 @@ class ChatService {
         try {
             const params = search ? `?search=${encodeURIComponent(search)}` : '';
             const response = await api.get(`/api/mobile/chat/users${params}`);
-            return response.data.data || [];
+            const data = response.data.data;
+            return Array.isArray(data) ? data : [];
         } catch (error) {
             logger.error('[Chat] Error fetching users:', error);
             throw error;

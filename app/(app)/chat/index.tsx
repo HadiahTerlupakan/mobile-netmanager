@@ -1,11 +1,13 @@
+import { ChatSkeleton } from '@/components/molecules/ChatSkeleton';
 import { useAuth } from '@/context/AuthContext';
+import { useApiQuery } from '@/hooks/queries/useApiQuery';
+import { queryKeys } from '@/lib/queryClient';
 import { ChatConversation, chatService } from '@/services/ChatService';
-import { formatDistanceToNow } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
+import { formatTimeAgo } from '@/utils/date';
 import { useRouter } from 'expo-router';
 import { Globe, MessageCircle, Plus, Users } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo } from 'react';
+import { RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
@@ -18,9 +20,7 @@ interface GlobalChat {
 
 // Memoized Conversation Item
 const ConversationItem = React.memo(({ item, onPress }: { item: ChatConversation, onPress: (id: string) => void }) => {
-    const timeAgo = item.lastMessage?.createdAt 
-        ? formatDistanceToNow(new Date(item.lastMessage.createdAt), { addSuffix: true, locale: idLocale })
-        : '';
+    const timeAgo = formatTimeAgo(item.lastMessage?.createdAt);
 
     return (
         <TouchableOpacity
@@ -62,42 +62,57 @@ ConversationItem.displayName = 'ConversationItem';
 export default function ChatListScreen() {
     const router = useRouter();
     const { user } = useAuth();
-    const [conversations, setConversations] = useState<ChatConversation[]>([]);
-    const [globalChat, setGlobalChat] = useState<GlobalChat | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
 
-    const loadData = useCallback(async () => {
-        try {
-            const [convs, global] = await Promise.all([
-                chatService.getConversations(),
-                chatService.getGlobalChat()
-            ]);
-            setConversations(convs.filter(c => !c.isGlobal));
-            setGlobalChat(global);
-        } catch (error) {
-            console.error('Error loading chats:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
+    const {
+        data: conversationsData,
+        isLoading: loadingConversations,
+        refetch: refetchConversations,
+        isRefetching: refreshingConversations
+    } = useApiQuery<ChatConversation[]>({
+        queryKey: queryKeys.chat.list(),
+        queryFn: () => chatService.getConversations(),
+        enabled: !!user?.id,
+    });
+
+    const {
+        data: globalChatData,
+        isLoading: loadingGlobal,
+        refetch: refetchGlobal,
+        isRefetching: refreshingGlobal
+    } = useApiQuery<GlobalChat>({
+        queryKey: queryKeys.chat.global(),
+        queryFn: () => chatService.getGlobalChat(),
+        enabled: !!user?.id,
+    });
+
+    const conversations = useMemo(() => {
+        const data = conversationsData || [];
+        if (!Array.isArray(data)) {
+            console.warn('[Chat] conversationsData is not an array:', data);
+            return [];
         }
-    }, []);
+        return data.filter(c => !c.isGlobal);
+    }, [conversationsData]);
+
+    const globalChat = globalChatData;
+    const loading = loadingConversations || loadingGlobal;
+    const refreshing = refreshingConversations || refreshingGlobal;
+    const hasData = !!conversationsData && !!globalChatData;
 
     useEffect(() => {
         if (user?.id) {
-            loadData();
             chatService.connectSocket(user.id);
         }
 
         return () => {
             chatService.disconnect();
         };
-    }, [loadData, user?.id]);
+    }, [user?.id]);
 
     const onRefresh = useCallback(() => {
-        setRefreshing(true);
-        loadData();
-    }, [loadData]);
+        refetchConversations();
+        refetchGlobal();
+    }, [refetchConversations, refetchGlobal]);
 
     const handleConversationPress = useCallback((id: string) => {
         router.push(`/(app)/chat/${id}`);
@@ -130,13 +145,17 @@ export default function ChatListScreen() {
         );
     }, [globalChat, handleConversationPress]);
 
-    if (loading) {
+    if (loading && !refreshing && !hasData) {
         return (
             <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
-                <View style={tw`flex-1 items-center justify-center`}>
-                    <ActivityIndicator size="large" color="#9333ea" />
-                    <Text style={tw`mt-4 text-gray-500`}>Memuat percakapan...</Text>
+                {/* Header */}
+                <View style={tw`bg-white px-4 py-4 border-b border-gray-200`}>
+                    <View style={tw`flex-row items-center justify-between`}>
+                        <Text style={tw`text-2xl font-bold text-gray-900`}>Chat</Text>
+                        <View style={tw`h-10 w-10 rounded-full bg-gray-100`} />
+                    </View>
                 </View>
+                <ChatSkeleton />
             </SafeAreaView>
         );
     }

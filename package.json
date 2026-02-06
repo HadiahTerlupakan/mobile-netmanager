@@ -23,7 +23,8 @@
     "test:e2e:navigation": "maestro test .maestro/navigation-flow.yaml",
     "test:e2e:leave": "maestro test .maestro/leave-request-flow.yaml",
     "test:e2e:inventory": "maestro test .maestro/inventory-flow.yaml",
-    "test:e2e:notifications": "maestro test .maestro/notifications-flow.yaml"
+    "test:e2e:notifications": "maestro test .maestro/notifications-flow.yaml",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -50,8 +51,10 @@
     "expo-camera": "~17.0.10",
     "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.12",
+    "expo-crypto": "~15.0.8",
     "expo-dev-client": "~6.0.20",
     "expo-device": "~8.0.10",
+    "expo-file-system": "~19.0.21",
     "expo-font": "~14.0.10",
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
@@ -72,23 +75,22 @@
     "expo-updates": "~29.0.16",
     "expo-web-browser": "~15.0.10",
     "lucide-react-native": "^0.562.0",
-    "p-limit": "^7.2.0",
+    "p-limit": "3.1.0",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-calendars": "^1.1313.0",
     "react-native-gesture-handler": "~2.28.0",
+    "react-native-mmkv": "^4.1.2",
+    "react-native-nitro-modules": "^0.33.7",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
     "react-native-view-shot": "^4.0.3",
-    "react-native-web": "~0.21.0",
-    "react-native-worklets": "0.5.1",
     "socket.io-client": "^4.8.3",
-    "tailwind-merge": "^3.4.0",
     "togeojson": "^0.16.0",
-    "twrnc": "^4.15.0"
+    "twrnc": "^4.15.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@testing-library/jest-native": "^5.4.3",
@@ -102,6 +104,7 @@
     "eslint-import-resolver-typescript": "^4.4.4",
     "jest": "^30.2.0",
     "jest-expo": "^54.0.16",
+    "patch-package": "^8.0.1",
     "typescript": "~5.9.2"
   },
   "private": true

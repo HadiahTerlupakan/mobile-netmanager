@@ -1,4 +1,5 @@
-import { Image } from 'expo-image';
+import { WorkOrderDetailSkeleton } from '@/components/molecules/WorkOrderDetailSkeleton';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
@@ -8,9 +9,11 @@ import {
     useOfflineMutationCompat as useOfflineMutation,
     useOfflineQueryCompat as useOfflineQuery,
 } from "@/hooks/queries";
+import { uploadService } from "@/services/UploadService";
 import api from "@/services/api"; // Use centralized API
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { WorkOrder, WorkOrderAssignment, WorkOrderUpdate, UserSummary } from "@/types/work-order";
+import { formatDate } from "@/utils/date";
+import { AxiosError } from "axios";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -35,15 +38,15 @@ import {
     User,
     X,
 } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Dimensions, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Linking, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { logger } from "@/utils/logger";
 import {
     SafeAreaView,
     useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import tw from "twrnc";
-
-const { width } = Dimensions.get("window");
 
 export default function WorkOrderDetailScreen() {
   const { id } = useLocalSearchParams();
@@ -51,7 +54,7 @@ export default function WorkOrderDetailScreen() {
   const { token, user } = useAuth();
   const insets = useSafeAreaInsets();
 
-  const [wo, setWo] = useState<any>(null);
+  const [wo, setWo] = useState<WorkOrder | null>(null);
   const [activeTab, setActiveTab] = useState<
     "INFO" | "TASKS" | "TIMELINE" | "ITEMS" | "DISKUSI"
   >("INFO");
@@ -68,22 +71,30 @@ export default function WorkOrderDetailScreen() {
 
   // Partner State
   const [isPartnerModalVisible, setIsPartnerModalVisible] = useState(false);
-  const [availablePartners, setAvailablePartners] = useState<any[]>([]);
+  const [availablePartners, setAvailablePartners] = useState<UserSummary[]>([]);
   const [searchPartnerQuery, setSearchPartnerQuery] = useState("");
   const [partnerLoading, setPartnerLoading] = useState(false);
 
   const [partnerResponseLoading, setPartnerResponseLoading] = useState(false);
   const [isProcessingStatus, setIsProcessingStatus] = useState(false);
 
-  // Offline Query
+  // Image Viewer State - Removed unused
+  // const [viewerVisible, setViewerVisible] = useState(false);
+  // const [viewerImage, setViewerImage] = useState<string | null>(null);
+
+  // const openImageViewer = useCallback((imageUrl: string) => {
+  //   setViewerImage(imageUrl);
+  //   setViewerVisible(true);
+  // }, []);
+
   const {
     data: woData,
     isLoading: loading,
     refetch: fetchDetail,
-  } = useOfflineQuery({
+  } = useOfflineQuery<WorkOrder>({
     key: `work_order_${id}`,
     fetcher: async () => {
-      const res = await api.get(`/api/mobile/work-orders/${id}`);
+      const res = await api.get<{ data: WorkOrder }>(`/api/mobile/work-orders/${id}`);
       return res.data?.data;
     },
     enabled: !!id && !!token,
@@ -95,14 +106,42 @@ export default function WorkOrderDetailScreen() {
   const { mutate: updateActivity, isLoading: updateConfigLoading } =
     useOfflineMutation();
 
+  // Memoize timeline for Discussion Tab
+  const discussionTimeline = useMemo(() => {
+    if (!wo) return [];
+
+    // Merge Updates (COMMENT, NOTE) and Attachments (PHOTO)
+    const comments: (WorkOrderUpdate & { isPhoto?: boolean })[] =
+      wo.updates?.filter((u) =>
+        ["COMMENT", "NOTE"].includes(u.updateType),
+      ) || [];
+    const photos: (WorkOrderUpdate & { isPhoto?: boolean })[] =
+      wo.attachments?.map((a) => ({
+        id: a.id,
+        updateType: "PHOTO" as const,
+        createdAt: a.uploadedAt,
+        message: a.caption || "",
+        user: a.user,
+        createdBy: a.user,
+        filePath: a.filePath,
+        isPhoto: true,
+      })) || [];
+
+    // Combine and Sort
+    return [...comments, ...photos].sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+  }, [wo]);
+
   // Refresh data when screen is focused
   useFocusEffect(
     useCallback(() => {
       if (id && token) {
-        console.log("[WO Detail] Screen focused, refreshing data...");
+        logger.info("[WO Detail] Screen focused, refreshing data...");
         fetchDetail();
       }
-    }, [id, token]),
+    }, [id, token, fetchDetail]),
   );
 
   useEffect(() => {
@@ -129,8 +168,8 @@ export default function WorkOrderDetailScreen() {
         }
 
         setLocation(currentLocation);
-      } catch (error) {
-        console.warn("Location Error in WO Detail:", error);
+      } catch {
+        logger.error("Location Error in WO Detail:");
       }
     })();
   }, []);
@@ -140,25 +179,25 @@ export default function WorkOrderDetailScreen() {
 
   // Handle real-time work order updates
   const handleWOUpdate = useCallback(
-    (data: any) => {
-      console.log("[WS Mobile] WorkOrder Update received:", data);
+    (data: { id: string; workOrderId?: string }) => {
+      logger.socket("[WS Mobile] WorkOrder Update received:", data);
       // Refresh data when WO is updated
       if (data.id === id || data.workOrderId === id) {
         fetchDetail();
       }
     },
-    [id],
+    [id, fetchDetail],
   );
 
   // Handle real-time activity updates
   const handleActivityUpdate = useCallback(
     (data: WorkOrderActivityPayload) => {
-      console.log("[WS Mobile] Activity received:", data.activity.type);
+      logger.socket("[WS Mobile] Activity received:", data.activity.type);
       if (data.workOrderId === id) {
         fetchDetail();
       }
     },
-    [id],
+    [id, fetchDetail],
   );
 
   // Subscribe to WebSocket events
@@ -178,7 +217,7 @@ export default function WorkOrderDetailScreen() {
             setAvailablePartners(res.data.data);
           }
         } catch (error) {
-          console.error("Fetch Partners Error:", error);
+          logger.error("Fetch Partners Error:", error);
         } finally {
           setPartnerLoading(false);
         }
@@ -235,18 +274,18 @@ export default function WorkOrderDetailScreen() {
               if (!locationName) locationName = addr.name || addr.region || "";
             }
           } catch (geoError) {
-            console.log("Geocoding failed:", geoError);
+            logger.error("Geocoding failed:", geoError);
           }
         } else {
-          console.log("Location fetch timed out, using cached/last known");
+          logger.info("Location fetch timed out, using cached/last known");
         }
       } catch (e) {
-        console.log("Could not update location/geocode:", e);
+        logger.error("Could not update location/geocode:", e);
       }
 
       setLoadingMessage("Mengirim Data...");
 
-      const payload: any = {
+      const payload = {
         action,
         latitude: finalLocation?.coords.latitude.toString(),
         longitude: finalLocation?.coords.longitude.toString(),
@@ -286,7 +325,7 @@ export default function WorkOrderDetailScreen() {
           },
         },
       );
-    } catch (error) {
+    } catch {
       setIsProcessingStatus(false);
       Alert.alert("Error", "Terjadi kesalahan sistem");
     }
@@ -335,13 +374,13 @@ export default function WorkOrderDetailScreen() {
             if (!locationName) locationName = addr.name || addr.region || "";
           }
         } catch (geoError) {
-          console.log("Geocoding failed:", geoError);
+          logger.error("Geocoding failed:", geoError);
         }
       } else {
-        console.log("Location fetch timed out, using cached/last known");
+        logger.info("Location fetch timed out, using cached/last known");
       }
-    } catch (e) {
-      console.log("Could not update location/geocode, using cached");
+    } catch {
+      logger.error("Could not update location/geocode, using cached");
     }
 
     // Upload photo first if exists
@@ -349,47 +388,13 @@ export default function WorkOrderDetailScreen() {
     if (photo) {
       setLoadingMessage("Mengupload Foto...");
 
-      // Validate URI format
-      if (!photo.startsWith("file://") && !photo.startsWith("/")) {
-        console.error("[WO Comment] Invalid photo URI format");
-        Alert.alert("Error", "Format foto tidak valid");
-        setIsProcessingStatus(false);
-        return;
-      }
-
       try {
-        const formData = new FormData();
-        const filename = photo.split("/").pop() || "photo.jpg";
-        // Normalize URI to include file:// prefix
-        const normalizedUri = photo.startsWith("file://")
-          ? photo
-          : `file://${photo}`;
-
-        formData.append("file", {
-          uri: normalizedUri,
-          type: "image/jpeg",
-          name: filename,
-        } as any);
-        formData.append("type", "work-order-updates");
-
-        const uploadRes = await api.post(
-          "/api/mobile/upload",
-          formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-            timeout: 60000,
-          },
-        );
-
-        if (uploadRes.data?.url) {
-          uploadedPhotoUrl = uploadRes.data.url;
-          console.log("[WO Comment] Photo uploaded:", uploadedPhotoUrl);
-        }
+         // Use the shared service
+         uploadedPhotoUrl = await uploadService.uploadFile(photo, "work-order-updates");
+         logger.info("[WO Comment] Photo uploaded:", uploadedPhotoUrl);
       } catch (uploadError: any) {
-        console.error("[WO Comment] Photo upload failed:", uploadError);
-        Alert.alert("Error", "Gagal upload foto. Silakan coba lagi.");
+        logger.error("[WO Comment] Photo upload failed:", uploadError);
+        Alert.alert("Error", uploadError.message || "Gagal upload foto. Silakan coba lagi.");
         setIsProcessingStatus(false);
         return;
       }
@@ -397,7 +402,7 @@ export default function WorkOrderDetailScreen() {
 
     setLoadingMessage("Mengirim Update...");
 
-    const payload: any = {
+    const payload = {
       action: "COMMENT",
       latitude: finalLocation?.coords.latitude.toString(),
       longitude: finalLocation?.coords.longitude.toString(),
@@ -432,33 +437,6 @@ export default function WorkOrderDetailScreen() {
   // ... (rest of the file)
 
   // In render:
-  {
-    /* Loading Overlay - Full Screen with Dark Dim */
-  }
-  {
-    (isProcessingStatus || updateConfigLoading || partnerResponseLoading) && (
-      <View
-        style={tw`absolute inset-0 bg-black/60 items-center justify-center z-50`}
-      >
-        <View
-          style={tw`bg-white p-6 rounded-2xl items-center w-3/4 max-w-sm shadow-xl`}
-        >
-          <ActivityIndicator size={48} color="#2563eb" />
-          <Text style={tw`text-slate-800 font-bold mt-4 text-lg text-center`}>
-            {isProcessingStatus
-              ? loadingMessage
-              : partnerResponseLoading
-                ? "Memproses Partner..."
-                : "Memproses..."}
-          </Text>
-          <Text style={tw`text-slate-500 text-sm mt-2 text-center`}>
-            Mohon tunggu sebentar...
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
   const handleImageSelection = () => {
     Alert.alert(
       "Pilih Sumber Foto",
@@ -475,7 +453,7 @@ export default function WorkOrderDetailScreen() {
                 quality: 0.5,
               });
               if (!result.canceled) setPhoto(result.assets[0].uri);
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "Gagal membuka kamera");
             }
           },
@@ -490,7 +468,7 @@ export default function WorkOrderDetailScreen() {
                 quality: 0.5,
               });
               if (!result.canceled) setPhoto(result.assets[0].uri);
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "Gagal membuka galeri");
             }
           },
@@ -499,12 +477,8 @@ export default function WorkOrderDetailScreen() {
     );
   };
 
-  if (loading) {
-    return (
-      <View style={tw`flex-1 justify-center items-center bg-gray-50`}>
-        <ActivityIndicator size="large" color="#2563eb" />
-      </View>
-    );
+  if (loading && !wo) {
+    return <WorkOrderDetailSkeleton />;
   }
 
   if (!wo) {
@@ -528,11 +502,12 @@ export default function WorkOrderDetailScreen() {
       setIsPartnerModalVisible(false);
       fetchDetail(); // Refresh WO data
       Alert.alert("Berhasil", "Partner berhasil ditambahkan");
-    } catch (error: any) {
-      Alert.alert(
-        "Gagal",
-        error.response?.data?.error || "Gagal menambahkan partner",
-      );
+    } catch (error) {
+      let message = "Gagal menambahkan partner";
+      if (error instanceof AxiosError) {
+        message = error.response?.data?.error || message;
+      }
+      Alert.alert("Gagal", message);
     } finally {
       setPartnerLoading(false);
     }
@@ -554,7 +529,7 @@ export default function WorkOrderDetailScreen() {
               );
               fetchDetail();
               Alert.alert("Berhasil", "Partner dihapus");
-            } catch (error) {
+            } catch {
               Alert.alert("Gagal", "Gagal menghapus partner");
             }
           },
@@ -587,7 +562,7 @@ export default function WorkOrderDetailScreen() {
         }
       }
     } catch (error) {
-      console.error("Partner Response Error:", error);
+      logger.error("Partner Response Error:", error);
       Alert.alert("Error", "Gagal merespon permintaan partner");
     } finally {
       setPartnerResponseLoading(false);
@@ -641,9 +616,7 @@ export default function WorkOrderDetailScreen() {
               >
                 <Calendar size={14} color="#6b7280" style={tw`mr-1`} />
                 <Text style={tw`text-xs text-gray-700 font-medium`}>
-                  {format(new Date(wo.scheduledDate), "dd MMM yyyy, HH:mm", {
-                    locale: idLocale,
-                  })}
+                  {formatDate(wo.scheduledDate, "dd MMM yyyy, HH:mm")}
                 </Text>
               </View>
             )}
@@ -676,18 +649,10 @@ export default function WorkOrderDetailScreen() {
             <View>
               <Text style={tw`text-xs text-gray-400 mb-0.5`}>Jadwal</Text>
               <Text style={tw`text-sm font-bold text-gray-800`}>
-                {wo.scheduledDate
-                  ? format(new Date(wo.scheduledDate), "EEEE, dd MMMM yyyy", {
-                      locale: idLocale,
-                    })
-                  : "-"}
+                {formatDate(wo.scheduledDate, "EEEE, dd MMMM yyyy")}
               </Text>
               <Text style={tw`text-xs text-gray-500`}>
-                {wo.scheduledDate
-                  ? format(new Date(wo.scheduledDate), "HH.mm", {
-                      locale: idLocale,
-                    })
-                  : "-"}{" "}
+                {formatDate(wo.scheduledDate, "HH.mm")}{" "}
                 - selesai
               </Text>
             </View>
@@ -700,11 +665,7 @@ export default function WorkOrderDetailScreen() {
                   Waktu Mulai
                 </Text>
                 <Text style={tw`text-sm font-bold text-green-600`}>
-                  {format(
-                    new Date(wo.startedAt),
-                    "EEEE, dd MMMM yyyy • HH.mm",
-                    { locale: idLocale },
-                  )}
+                  {formatDate(wo.startedAt, "EEEE, dd MMMM yyyy • HH.mm")}
                 </Text>
               </View>
             </View>
@@ -714,7 +675,6 @@ export default function WorkOrderDetailScreen() {
             onPress={() => {
               const address = wo.locationAddress || wo.pelanggan?.alamat;
               if (address) {
-                const { Linking } = require("react-native");
                 const query = encodeURIComponent(address);
                 Linking.openURL(
                   `https://www.google.com/maps/search/?api=1&query=${query}`,
@@ -762,7 +722,6 @@ export default function WorkOrderDetailScreen() {
                 onPress={() => {
                   const phone = wo.contactPhone || wo.pelanggan?.noTelp;
                   if (phone) {
-                    const { Linking } = require("react-native");
                     let formattedPhone = phone.replace(/\D/g, "");
                     if (formattedPhone.startsWith("0")) {
                       formattedPhone = "62" + formattedPhone.substring(1);
@@ -829,8 +788,8 @@ export default function WorkOrderDetailScreen() {
 
           {/* Partners */}
           {wo.assignments
-            ?.filter((a: any) => a.userId !== wo.assignedToId)
-            .map((assignment: any, idx: number) => (
+            ?.filter((a) => a.userId !== wo.assignedToId)
+            .map((assignment, idx: number) => (
               <View
                 key={idx}
                 style={tw`flex-row items-center justify-between mb-2 pb-2 border-b border-gray-50 last:border-0`}
@@ -947,7 +906,7 @@ export default function WorkOrderDetailScreen() {
       {wo.usedMaterials &&
       Array.isArray(wo.usedMaterials) &&
       wo.usedMaterials.length > 0 ? (
-        wo.usedMaterials.map((item: any, idx: number) => (
+        wo.usedMaterials.map((item, idx: number) => (
           <View
             key={idx}
             style={tw`flex-row justify-between items-center py-2 border-b border-gray-100`}
@@ -974,7 +933,7 @@ export default function WorkOrderDetailScreen() {
             <Text style={tw`font-bold text-gray-800 mb-4`}>
               Barang Dikembalikan
             </Text>
-            {wo.returnedMaterials.map((item: any, idx: number) => (
+            {wo.returnedMaterials.map((item, idx: number) => (
               <View
                 key={idx}
                 style={tw`flex-row justify-between items-center py-2 border-b border-gray-100`}
@@ -1095,7 +1054,7 @@ export default function WorkOrderDetailScreen() {
 
         {photo && (
           <View style={tw`mb-3`}>
-            <Image source={{ uri: photo }}
+            <ImageWithCache source={photo}
               style={tw`w-24 h-24 rounded-lg`}
               contentFit="cover"
              transition={1000}        />
@@ -1140,44 +1099,18 @@ export default function WorkOrderDetailScreen() {
       <Text style={tw`text-xs text-gray-400 font-bold mb-4 uppercase`}>
         Diskusi
       </Text>
-      {(() => {
-        // Merge Updates (COMMENT, NOTE) and Attachments (PHOTO)
-        const comments =
-          wo.updates?.filter((u: any) =>
-            ["COMMENT", "NOTE"].includes(u.updateType),
-          ) || [];
-        const photos =
-          wo.attachments?.map((a: any) => ({
-            ...a,
-            updateType: "PHOTO",
-            createdAt: a.uploadedAt,
-            message: a.caption,
-            // Normalize user object
-            user: a.user,
-            createdBy: a.user, // Attachments have user relation, mapping to createdBy for consistency
-          })) || [];
-
-        // Combine and Sort
-        const timeline = [...comments, ...photos].sort(
-          (a, b) =>
-            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-        );
-
-        if (timeline.length === 0) {
-          return (
-            <View style={tw`items-center justify-center py-8`}>
-              <MessageSquare size={32} color="#e5e7eb" style={tw`mb-2`} />
-              <Text style={tw`text-center text-gray-400`}>
-                Belum ada diskusi
-              </Text>
-              <Text style={tw`text-center text-gray-300 text-xs`}>
-                Mulai percakapan dengan tim
-              </Text>
-            </View>
-          );
-        }
-
-        return timeline.map((item: any, index: number) => {
+      {discussionTimeline.length === 0 ? (
+        <View style={tw`items-center justify-center py-8`}>
+          <MessageSquare size={32} color="#e5e7eb" style={tw`mb-2`} />
+          <Text style={tw`text-center text-gray-400`}>
+            Belum ada diskusi
+          </Text>
+          <Text style={tw`text-center text-gray-300 text-xs`}>
+            Mulai percakapan dengan tim
+          </Text>
+        </View>
+      ) : (
+        discussionTimeline.map((item) => {
           const creator = item.user || item.createdBy;
           const isMe = creator?.id === user?.id;
           const isPhoto = item.updateType === "PHOTO";
@@ -1221,7 +1154,7 @@ export default function WorkOrderDetailScreen() {
                         }}
                         activeOpacity={0.9}
                       >
-                        <Image source={{ uri: `${Config.API_URL}${item.filePath}` }}
+                        <ImageWithCache source={`${Config.API_URL}${item.filePath}`}
                           style={tw`w-48 h-64 bg-gray-200 rounded-lg`}
                           contentFit="cover"
                          transition={1000}        />
@@ -1250,15 +1183,13 @@ export default function WorkOrderDetailScreen() {
                 <Text
                   style={tw`text-[10px] text-gray-400 mt-1 ${isMe ? "text-right" : "text-left"}`}
                 >
-                  {format(new Date(item.createdAt), "dd MMM HH:mm", {
-                    locale: idLocale,
-                  })}
+                  {formatDate(item.createdAt, "dd MMM HH:mm")}
                 </Text>
               </View>
             </View>
           );
-        });
-      })()}
+        })
+      )}
     </View>
   );
 
@@ -1270,8 +1201,8 @@ export default function WorkOrderDetailScreen() {
         Riwayat Aktivitas
       </Text>
       {wo.updates
-        ?.filter((u: any) => !["COMMENT", "NOTE"].includes(u.updateType))
-        .map((update: any, index: number, arr: any[]) => (
+        ?.filter((u) => !["COMMENT", "NOTE"].includes(u.updateType))
+        .map((update, index, arr) => (
           <View key={index} style={tw`flex-row mb-6 relative`}>
             {/* Line */}
             {index !== arr.length - 1 && (
@@ -1312,9 +1243,7 @@ export default function WorkOrderDetailScreen() {
             {/* Content */}
             <View style={tw`flex-1`}>
               <Text style={tw`text-xs text-gray-500 mb-0.5`}>
-                {format(new Date(update.createdAt), "dd MMM HH:mm", {
-                  locale: idLocale,
-                })}
+                {formatDate(update.createdAt, "dd MMM HH:mm")}
               </Text>
               <Text style={tw`font-bold text-gray-800 text-sm`}>
                 {update.updateType === "STATUS_CHANGE"
@@ -1351,7 +1280,7 @@ export default function WorkOrderDetailScreen() {
         ))}
       {(!wo.updates ||
         wo.updates.filter(
-          (u: any) => !["COMMENT", "NOTE"].includes(u.updateType),
+          (u: WorkOrderUpdate) => !["COMMENT", "NOTE"].includes(u.updateType),
         ).length === 0) && (
         <Text style={tw`text-center text-gray-400 py-4`}>
           Belum ada riwayat sistem
@@ -1361,10 +1290,11 @@ export default function WorkOrderDetailScreen() {
   );
 
   const handleToggleTask = async (taskId: string, currentStatus: string) => {
+    if (!wo) return;
     // Optimistic update
     const newStatus = currentStatus === "COMPLETED" ? "PENDING" : "COMPLETED";
-    const updatedTasks = wo.tasks.map((t: any) =>
-      t.id === taskId ? { ...t, status: newStatus } : t,
+    const updatedTasks = wo.tasks.map((t) =>
+      t.id === taskId ? { ...t, status: newStatus as "PENDING" | "COMPLETED" } : t,
     );
     setWo({ ...wo, tasks: updatedTasks });
 
@@ -1379,7 +1309,7 @@ export default function WorkOrderDetailScreen() {
       // Background refresh to sync fully
       fetchDetail();
     } catch (error) {
-      console.error("Task Toggle Error:", error);
+      logger.error("Task Toggle Error:", error);
       Alert.alert("Gagal", "Gagal mengubah status tugas");
       // Revert on error
       fetchDetail();
@@ -1406,13 +1336,13 @@ export default function WorkOrderDetailScreen() {
           Daftar Tugas
         </Text>
         <Text style={tw`text-xs text-gray-500`}>
-          {wo.tasks?.filter((t: any) => t.status === "COMPLETED").length || 0}/
+          {wo.tasks?.filter((t) => t.status === "COMPLETED").length || 0}/
           {wo.tasks?.length || 0} Selesai
         </Text>
       </View>
 
       {wo.tasks && wo.tasks.length > 0 ? (
-        wo.tasks.map((task: any, index: number) => (
+        wo.tasks.map((task, index: number) => (
           <TouchableOpacity
             key={task.id}
             style={tw`flex-row items-center py-3 border-b border-gray-50 last:border-0 ${!isWorkStarted ? "opacity-60" : ""}`}
@@ -1470,13 +1400,15 @@ export default function WorkOrderDetailScreen() {
 
       {/* Tabs */}
       <View style={tw`flex-row bg-white border-b border-gray-200 px-2`}>
-        {[
-          { key: "INFO", label: "Info", icon: FileText },
-          { key: "TASKS", label: "Tugas", icon: ListChecks },
-          { key: "ITEMS", label: "Barang", icon: Package },
-          { key: "DISKUSI", label: "Diskusi", icon: MessageSquare },
-          { key: "TIMELINE", label: "Riwayat", icon: History },
-        ].map((tab: any) => (
+        {(
+          [
+            { key: "INFO", label: "Info", icon: FileText },
+            { key: "TASKS", label: "Tugas", icon: ListChecks },
+            { key: "ITEMS", label: "Barang", icon: Package },
+            { key: "DISKUSI", label: "Diskusi", icon: MessageSquare },
+            { key: "TIMELINE", label: "Riwayat", icon: History },
+          ] as const
+        ).map((tab) => (
           <TouchableOpacity
             key={tab.key}
             onPress={() => setActiveTab(tab.key)}
@@ -1544,38 +1476,41 @@ export default function WorkOrderDetailScreen() {
                 style={tw`mt-10`}
               />
             ) : (
-              <FlatList
-                data={availablePartners}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    onPress={() => handleAddPartner(item.id)}
-                    style={tw`flex-row items-center p-3 border-b border-gray-100 active:bg-blue-50`}
-                  >
-                    <View
-                      style={tw`w-10 h-10 bg-gray-200 rounded-full items-center justify-center mr-3`}
+              <View style={tw`flex-1`}>
+                <FlashList
+                  data={availablePartners}
+                  keyExtractor={(item: any) => item.id}
+                  estimatedItemSize={70}
+                  renderItem={({ item }: { item: any }) => (
+                    <TouchableOpacity
+                      onPress={() => handleAddPartner(item.id)}
+                      style={tw`flex-row items-center p-3 border-b border-gray-100 active:bg-blue-50`}
                     >
-                      <Text style={tw`font-bold text-gray-600`}>
-                        {item.name?.charAt(0)}
-                      </Text>
-                    </View>
-                    <View>
-                      <Text style={tw`font-bold text-gray-800`}>
-                        {item.name}
-                      </Text>
-                      <Text style={tw`text-xs text-gray-500`}>
-                        {item.role?.name || "Karyawan"} •{" "}
-                        {item.site?.name || "Headquarters"}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-                ListEmptyComponent={
-                  <Text style={tw`text-center text-gray-400 mt-10`}>
-                    Tidak ada teknisi ditemukan
-                  </Text>
-                }
-              />
+                      <View
+                        style={tw`w-10 h-10 bg-gray-200 rounded-full items-center justify-center mr-3`}
+                      >
+                        <Text style={tw`font-bold text-gray-600`}>
+                          {item.name?.charAt(0)}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={tw`font-bold text-gray-800`}>
+                          {item.name}
+                        </Text>
+                        <Text style={tw`text-xs text-gray-500`}>
+                          {item.role?.name || "Karyawan"} •{" "}
+                          {item.site?.name || "Headquarters"}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  ListEmptyComponent={
+                    <Text style={tw`text-center text-gray-400 mt-10`}>
+                      Tidak ada teknisi ditemukan
+                    </Text>
+                  }
+                />
+              </View>
             )}
           </View>
         </View>
@@ -1583,10 +1518,11 @@ export default function WorkOrderDetailScreen() {
 
       {/* Bottom Actions */}
       {(() => {
+        if (!wo) return null;
         // Determine user role and permissions
         const isAssignedToMe = wo.assignedToId === user?.id;
         const myAssignment = wo.assignments?.find(
-          (a: any) => a.userId === user?.id,
+          (a) => a.userId === user?.id,
         );
         const isPendingPartner =
           myAssignment?.role === "PARTNER" &&
@@ -1597,10 +1533,10 @@ export default function WorkOrderDetailScreen() {
 
         // Check if all partners responded
         const partnerList =
-          wo.assignments?.filter((a: any) => a.role === "PARTNER") || [];
+          wo.assignments?.filter((a: WorkOrderAssignment) => a.role === "PARTNER") || [];
         const allPartnersResponded =
           partnerList.length === 0 ||
-          partnerList.every((a: any) => a.status !== "PENDING");
+          partnerList.every((a: WorkOrderAssignment) => a.status !== "PENDING");
 
         // Conditions for actions
         const canStartWork =

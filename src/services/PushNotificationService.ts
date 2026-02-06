@@ -2,25 +2,19 @@ import api from '@/services/api';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import axios from 'axios';
+import { isAxiosError } from 'axios';
+import { logger } from '@/utils/logger';
 
 // Configure how notifications are handled when app is in foreground
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-    }),
-});
+// Note: Handled globally in NotificationService.ts
+// Notifications.setNotificationHandler({ ... });
 
 export async function registerForPushNotificationsAsync(token?: string): Promise<string | null> {
     let pushToken: string | null = null;
 
     // Check if running on physical device
     // if (!Device.isDevice) {
-    //     console.log('Push notifications require a physical device');
+    //     logger.info('Push notifications require a physical device');
     //     // return null; // Allow emulator to try registration
     // }
 
@@ -35,7 +29,7 @@ export async function registerForPushNotificationsAsync(token?: string): Promise
     }
 
     if (finalStatus !== 'granted') {
-        console.log('Failed to get push token for push notification!');
+        logger.warn('Failed to get push token for push notification!');
         return null;
     }
 
@@ -44,31 +38,30 @@ export async function registerForPushNotificationsAsync(token?: string): Promise
         const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
 
         if (!projectId) {
-            console.log('Project ID not found');
+            logger.error('Project ID not found');
             return null;
         }
 
         const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
         pushToken = tokenData.data;
-        console.log('Push token:', pushToken);
+        logger.info('Push token:', pushToken);
 
         // Register token with backend
         if (pushToken) {
             try {
-                // @ts-ignore - custom config to avoid logout on registration failure
                 await api.post('/api/mobile/push-token', { pushToken }, { skipGlobalAuthHandler: true });
-                console.log('Push token registered with backend');
+                logger.info('Push token registered with backend');
             } catch (error) {
                 // Ignore 401 (Unauthorized) as it will be handled by AuthContext
-                if (axios.isAxiosError(error) && error.response?.status === 401) {
-                    console.log('Push registration skipped (unauthorized)');
+                if (isAxiosError(error) && error.response?.status === 401) {
+                    logger.info('Push registration skipped (unauthorized)');
                 } else {
-                    console.error('Failed to register push token:', error);
+                    logger.error('Failed to register push token:', error);
                 }
             }
         }
     } catch (error) {
-        console.error('Error getting push token:', error);
+        logger.error('Error getting push token:', error);
     }
 
     // Configure Android channel
@@ -91,6 +84,7 @@ export async function sendLocalNotification(title: string, body: string, data?: 
             title,
             body,
             data: data || {},
+            sound: true,
         },
         trigger: null, // immediately
     });
@@ -102,12 +96,12 @@ export function addNotificationListeners(
     onNotificationResponse?: (response: Notifications.NotificationResponse) => void
 ) {
     const receivedListener = Notifications.addNotificationReceivedListener(notification => {
-        console.log('Notification received:', notification);
+        logger.info('Notification received:', notification);
         onNotificationReceived?.(notification);
     });
 
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-        console.log('Notification response:', response);
+        logger.info('Notification response:', response);
         onNotificationResponse?.(response);
     });
 

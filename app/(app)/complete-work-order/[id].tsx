@@ -1,10 +1,11 @@
-import { Image } from 'expo-image';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { Config } from "@/constants/Config";
-import { useAuth } from "@/context/AuthContext";
 import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
+import { uploadService } from "@/services/UploadService";
+import { SyncService } from "@/services/SyncService";
 import api from "@/services/api"; // Use centralized API
-import { format } from "date-fns";
+import { CompleteWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
+import { formatDate } from "@/utils/date";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -13,13 +14,12 @@ import { useEffect, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { logger } from "@/utils/logger";
 
 export default function CompleteWorkOrderScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { token } = useAuth();
 
-  const [loading, setLoading] = useState(false);
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [photos, setPhotos] = useState<string[]>([]); // Changed to Array
   const [location, setLocation] = useState<Location.LocationObject | null>(
@@ -27,6 +27,8 @@ export default function CompleteWorkOrderScreen() {
   );
   const [ticketNumber, setTicketNumber] = useState<string>(""); // To store ticket number
   const [isProcessingComplete, setIsProcessingComplete] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("Mencari Lokasi...");
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Offline Mutation
   const { mutate, isLoading: isMutating } = useOfflineMutation();
@@ -42,7 +44,7 @@ export default function CompleteWorkOrderScreen() {
         }
         setLocation(currentLocation);
       } catch (error) {
-        console.warn("Location Error:", error);
+        logger.warn("Location Error:", error);
       }
     })();
 
@@ -58,13 +60,13 @@ export default function CompleteWorkOrderScreen() {
             wo.ticket?.ticketNumber || wo.workOrderNumber || (id as string),
           );
         }
-      } catch (e) {
+      } catch {
         // If offline, we might use ID as fallback
         setTicketNumber(id as string);
       }
     };
     fetchTicketNum();
-  }, []);
+  }, [id]);
 
   const handleImageSelection = () => {
     Alert.alert(
@@ -83,7 +85,7 @@ export default function CompleteWorkOrderScreen() {
               });
               if (!result.canceled)
                 setPhotos((prev) => [...prev, result.assets[0].uri]);
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "Gagal membuka kamera");
             }
           },
@@ -99,7 +101,7 @@ export default function CompleteWorkOrderScreen() {
               });
               if (!result.canceled)
                 setPhotos((prev) => [...prev, result.assets[0].uri]);
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "Gagal membuka galeri");
             }
           },
@@ -113,10 +115,23 @@ export default function CompleteWorkOrderScreen() {
   };
 
   const handleSubmit = async () => {
-    // VALIDATION: Mandatory Notes & Photos
-    if (!resolutionNotes.trim()) {
-      Alert.alert("Perhatian", "Mohon isi catatan pekerjaan.");
-      return;
+    // 1. Prepare & Sanitize Data
+    // Get location first to include in validation if needed, or validate base fields first
+    // For schema validation, we'll use placeholder or optional location if not yet fetched
+    // But better to fetch location inside the process.
+
+    // Validate Notes first
+    const rawData = {
+        action: "COMPLETE" as const,
+        notes: sanitizeInput(resolutionNotes),
+        // latitude/longitude will be added later
+    };
+
+    const validation = validateData(CompleteWorkOrderSchema, rawData);
+
+    if (!validation.success) {
+        Alert.alert("Data Tidak Valid", validation.error);
+        return;
     }
 
     if (photos.length === 0) {
@@ -147,7 +162,7 @@ export default function CompleteWorkOrderScreen() {
           }
         }
       } catch (e) {
-        console.log("Loc error", e);
+        logger.error("Loc error", e);
       }
 
       // Watermark Lines
@@ -159,7 +174,7 @@ export default function CompleteWorkOrderScreen() {
 
       // Note: Indexing 1/N is not supported in bulk generic sync yet, simplified watermark
       const watermarkLines = [
-        format(new Date(), "dd MMM yyyy HH:mm"),
+        formatDate(new Date(), "dd MMM yyyy HH:mm"),
         `#${ticketNumber}`,
         `Tech: ${"Teknisi"}`, // Specific user name might not be available if not in context, 'Teknisi' is generic safe
         locStr,
@@ -172,58 +187,101 @@ export default function CompleteWorkOrderScreen() {
       });
 
       const payload = {
-        action: "COMPLETE",
+        ...validation.data, // action, notes (sanitized)
         latitude: finalLocation?.coords.latitude.toString(),
         longitude: finalLocation?.coords.longitude.toString(),
         locationName,
-        notes: resolutionNotes,
         timestamp: new Date().toISOString(),
       };
 
-      await mutate(
-        {
-          ...payload,
-          meta: {
-            photoMap,
-            targetField: "photoUrls", // Backend expects photoUrls array
-            photoType: "workorder-completion",
-            watermarkLines,
-          },
-        },
-        {
-          url: `/api/mobile/work-orders/${id}/update`,
-          method: "POST",
-          onSuccess: (data, isOffline) => {
-            setIsProcessingComplete(false);
-            if (isOffline) {
-              Alert.alert("Offline", "Laporan disimpan di antrian.", [
-                {
-                  text: "OK",
-                  onPress: () => router.replace("/(app)/dashboard"),
-                },
-              ]);
-            } else {
-              Alert.alert(
-                "Berhasil",
-                "Pekerjaan telah diselesaikan dan laporan terkirim!",
-                [
-                  {
-                    text: "OK",
-                    onPress: () => router.replace("/(app)/dashboard"),
-                  },
-                ],
+      // Check online status
+      const isOnline = await SyncService.isOnline();
+
+      if (isOnline) {
+          try {
+              setLoadingMessage("Mengupload foto...");
+              setUploadProgress(0);
+
+              const uploadedUrls = await uploadService.uploadBatch(
+                  photos,
+                  "workorder-completion",
+                  (index, total, progress) => {
+                      setLoadingMessage(`Mengupload foto ${index}/${total}...`);
+                      setUploadProgress(progress.percentage);
+                  }
               );
-            }
-          },
-          onError: (err) => {
-            setIsProcessingComplete(false);
-            Alert.alert(
-              "Gagal",
-              err.message || "Gagal menyelesaikan pekerjaan",
-            );
-          },
-        },
-      );
+
+              setLoadingMessage("Mengirim laporan...");
+              setUploadProgress(0); // Indeterminate
+
+              await mutate(
+                {
+                  ...payload,
+                  photoUrls: uploadedUrls, // Send URLs directly
+                },
+                {
+                  url: `/api/mobile/work-orders/${id}/update`,
+                  method: "POST",
+                  onSuccess: () => {
+                    setIsProcessingComplete(false);
+                    Alert.alert(
+                        "Berhasil",
+                        "Pekerjaan telah diselesaikan dan laporan terkirim!",
+                        [
+                          {
+                            text: "OK",
+                            onPress: () => router.replace("/(app)/dashboard"),
+                          },
+                        ],
+                      );
+                  },
+                  onError: (err) => {
+                    setIsProcessingComplete(false);
+                    Alert.alert("Gagal", err.message || "Gagal menyelesaikan pekerjaan");
+                  }
+                }
+              );
+          } catch {
+              setIsProcessingComplete(false);
+              Alert.alert("Error", "Gagal mengupload foto atau mengirim data");
+          }
+      } else {
+          // Offline flow
+          setLoadingMessage("Menyimpan offline...");
+          await mutate(
+            {
+              ...payload,
+              meta: {
+                photoMap,
+                targetField: "photoUrls", // Backend expects photoUrls array
+                photoType: "workorder-completion",
+                watermarkLines,
+              },
+            },
+            {
+              url: `/api/mobile/work-orders/${id}/update`,
+              method: "POST",
+              onSuccess: (data, isOffline) => {
+                setIsProcessingComplete(false);
+                if (isOffline) {
+                  Alert.alert("Offline", "Laporan disimpan di antrian.", [
+                    {
+                      text: "OK",
+                      onPress: () => router.replace("/(app)/dashboard"),
+                    },
+                  ]);
+                }
+              },
+              onError: (err) => {
+                setIsProcessingComplete(false);
+                Alert.alert(
+                  "Gagal",
+                  err.message || "Gagal menyelesaikan pekerjaan",
+                );
+              },
+            },
+          );
+      }
     }, 100);
   };
 
@@ -286,8 +344,8 @@ export default function CompleteWorkOrderScreen() {
         <View style={tw`flex-row flex-wrap gap-2 mb-8`}>
           {photos.map((uri, index) => (
             <View key={index} style={tw`w-[31%] aspect-square relative`}>
-              <Image
-                source={{ uri }}
+              <ImageWithCache
+                source={uri}
                 style={tw`w-full h-full rounded-xl border border-gray-200`}
                 contentFit="cover"
                 transition={1000} />
@@ -336,7 +394,8 @@ export default function CompleteWorkOrderScreen() {
       {/* Full Screen Loading Overlay */}
       <LoadingModal
         visible={isProcessingComplete || isMutating}
-        message={isMutating ? "Mengirim Laporan..." : "Mencari Lokasi..."}
+        message={loadingMessage}
+        progress={uploadProgress > 0 ? uploadProgress : undefined}
       />
     </SafeAreaView>
   );

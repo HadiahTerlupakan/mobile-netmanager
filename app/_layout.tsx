@@ -1,3 +1,4 @@
+import { ErrorBoundary } from "@/components/atoms/ErrorBoundary";
 import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModal";
 import { UpdateRequiredScreen } from "@/components/templates/UpdateRequiredScreen";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
@@ -5,12 +6,14 @@ import { SocketProvider } from "@/context/SocketContext";
 import { useAppVersion } from "@/hooks/useAppVersion";
 import { asyncStoragePersister, queryClient } from "@/lib/queryClient";
 import { appVersionService } from "@/services/AppVersionService";
-import "@/services/LocationTrackingService"; // Register background task
+import { DatabaseService } from "@/services/DatabaseService"; // Import DatabaseService
 import { SyncService } from "@/services/SyncService";
-import logger from "@/utils/logger";
+import { eventManager } from "@/utils/EventManager";
+import { logger } from "@/utils/logger";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import Constants from "expo-constants";
-import { Slot, useRouter, useSegments } from "expo-router";
+import * as Notifications from "expo-notifications";
+import { Href, Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
@@ -45,7 +48,19 @@ function RootLayoutNav() {
   // Initialize Offline Services
   useEffect(() => {
     const initServices = async () => {
-      SyncService.startMonitoring();
+      try {
+        // Phase 1: Critical services
+        logger.info("[Init] Phase 1: Database initialization");
+        await DatabaseService.initDatabase();
+
+        // Phase 2: Non-critical services (delayed)
+        logger.info("[Init] Phase 2: Starting sync monitoring");
+        setTimeout(() => {
+          SyncService.startMonitoring();
+        }, 1000);
+      } catch (error) {
+        logger.error("[Init] Service initialization failed:", error);
+      }
     };
     initServices();
   }, []);
@@ -62,11 +77,11 @@ function RootLayoutNav() {
       }
 
       try {
-        console.log(
+        logger.info(
           `[VersionCheck] Checking for updates. Current Code: ${CURRENT_VERSION_CODE}`,
         );
         const result = await checkForUpdate(CURRENT_VERSION_CODE);
-        console.log("[VersionCheck] Result:", JSON.stringify(result, null, 2));
+        logger.info("[VersionCheck] Result:", JSON.stringify(result, null, 2));
 
         if (result.success && result.updateAvailable && !result.isForceUpdate) {
           setShowOptionalUpdate(true);
@@ -79,18 +94,32 @@ function RootLayoutNav() {
       }
     };
 
-    checkAppVersion();
+    // Delay check slightly to prioritize UI rendering
+    const timer = setTimeout(() => {
+      checkAppVersion();
+    }, 2000);
+
+    return () => clearTimeout(timer);
   }, [versionChecked, checkForUpdate]);
 
   // Report App Version
   useEffect(() => {
+    let reportTimer: ReturnType<typeof setTimeout>;
+
     if (user && token) {
-      appVersionService
-        .reportVersion(CURRENT_VERSION_CODE, CURRENT_VERSION_NAME, token)
-        .catch((e) => {
-          console.error("Failed to report version:", e);
-        });
+      // Throttle version reporting to avoid congestion on startup
+      reportTimer = setTimeout(() => {
+        appVersionService
+          .reportVersion(CURRENT_VERSION_CODE, CURRENT_VERSION_NAME, token)
+          .catch((e) => {
+            logger.error("Failed to report version:", e);
+          });
+      }, 5000);
     }
+
+    return () => {
+      if (reportTimer) clearTimeout(reportTimer);
+    };
   }, [user, token]);
 
   // Handle Push Notifications
@@ -101,13 +130,13 @@ function RootLayoutNav() {
         await import("@/services/PushNotificationService");
 
       const cleanup = addNotificationListeners(
-        (notification: any) => {
+        (notification: Notifications.Notification) => {
           // Handle foreground notification received
           logger.info("Foreground notification:", notification);
         },
-        (response: any) => {
+        (response: Notifications.NotificationResponse) => {
           // Handle notification tap
-          const data = response.notification.request.content.data;
+          const data = response.notification.request.content.data as { url?: string };
           logger.info("Notification tapped, data:", data);
 
           if (data?.url) {
@@ -126,7 +155,7 @@ function RootLayoutNav() {
                 "/holidays",
               ];
 
-              const url = data.url as string;
+              const url = data.url;
 
               // Check if it's a valid route or starts with a valid route prefix
               const isValidRoute =
@@ -140,7 +169,7 @@ function RootLayoutNav() {
                 url.startsWith("/chat/");
 
               if (isValidRoute) {
-                router.push(url as any);
+                router.push(url as Href);
               } else {
                 // Invalid route like /announcement - just go to dashboard
                 logger.warn(
@@ -149,7 +178,7 @@ function RootLayoutNav() {
                 );
                 router.replace("/(app)/dashboard");
               }
-            } catch (e: any) {
+            } catch (e) {
               logger.error("Navigation failed:", e);
               router.replace("/(app)/dashboard");
             }
@@ -157,18 +186,17 @@ function RootLayoutNav() {
         },
       );
 
-      return cleanup;
+      // Register listener with EventManager for tracking and cleanup
+      eventManager.addListener("root_notifications", null, cleanup);
     };
 
-    let cleanupFn: (() => void) | undefined;
-    setupNotifications().then((cleanup) => {
-      cleanupFn = cleanup;
-    });
+    setupNotifications();
 
     return () => {
-      if (cleanupFn) cleanupFn();
+      // Cleanup using EventManager
+      eventManager.removeAllListeners("root_notifications");
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     logger.auth(
@@ -190,15 +218,20 @@ function RootLayoutNav() {
 
     logger.auth("Status:", { user: !!user, inAuthGroup, inAppGroup, segments });
 
-    if (!user && !inAuthGroup) {
-      logger.auth("Redirecting to Login");
-      router.replace("/(auth)/login");
-    } else if (user && !inAppGroup) {
-      // Redirect to dashboard if logged in but not in (app) group (e.g. at root or login page)
-      logger.auth("Redirecting to Dashboard");
-      router.replace("/(app)/dashboard");
-    }
-  }, [user, segments, isLoading]);
+    // Debounce redirects to prevent loops during initialization
+    const redirectTimer = setTimeout(() => {
+        if (!user && !inAuthGroup) {
+          logger.auth("Redirecting to Login");
+          router.replace("/(auth)/login");
+        } else if (user && !inAppGroup) {
+          // Redirect to dashboard if logged in but not in (app) group (e.g. at root or login page)
+          logger.auth("Redirecting to Dashboard");
+          router.replace("/(app)/dashboard");
+        }
+    }, 100);
+
+    return () => clearTimeout(redirectTimer);
+  }, [user, segments, isLoading, router]);
 
   // Show loading while checking auth or version
   if (isLoading || (isCheckingVersion && !versionChecked)) {
@@ -249,13 +282,15 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={{ persister: asyncStoragePersister }}
-      >
-        <RootLayoutNav />
-      </PersistQueryClientProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{ persister: asyncStoragePersister }}
+        >
+          <RootLayoutNav />
+        </PersistQueryClientProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

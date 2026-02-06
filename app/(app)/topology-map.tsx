@@ -1,4 +1,6 @@
+import { TopologySkeleton } from "@/components/molecules/TopologySkeleton";
 import { useAuth } from "@/context/AuthContext";
+import { useApiQuery } from "@/hooks/queries";
 import api from "@/services/api";
 import toGeoJSON from "@/utils/togeojson-wrapper";
 import MapLibreGL from "@maplibre/maplibre-react-native";
@@ -28,6 +30,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { logger } from "@/utils/logger";
 
 import { DeviceCreateModal } from "@/components/organisms/topology/DeviceCreateModal";
 import {
@@ -50,7 +53,7 @@ const MARKER_COLORS: Record<DeviceType, string> = {
 
 // Types
 interface TopologyData {
-  otbs: Array<{
+  otbs: {
     id: string;
     name: string;
     location: string | null;
@@ -58,8 +61,8 @@ interface TopologyData {
     longitude: number;
     notes: string | null;
     images: string[];
-  }>;
-  odcs: Array<{
+  }[];
+  odcs: {
     id: string;
     name: string;
     location: string | null;
@@ -77,8 +80,8 @@ interface TopologyData {
         longitude: number;
       };
     };
-  }>;
-  odps: Array<{
+  }[];
+  odps: {
     id: string;
     name: string;
     location: string | null;
@@ -98,8 +101,8 @@ interface TopologyData {
     };
     site?: { name: string };
     _count?: { odpOutput: number };
-  }>;
-  joinboxes: Array<{
+  }[];
+  joinboxes: {
     id: string;
     name: string;
     location: string | null;
@@ -107,8 +110,8 @@ interface TopologyData {
     longitude: number;
     notes: string | null;
     images: string[];
-  }>;
-  poles: Array<{
+  }[];
+  poles: {
     id: string;
     name: string;
     location: string | null;
@@ -117,8 +120,8 @@ interface TopologyData {
     notes: string | null;
     images: string[];
     cableSlack: boolean;
-  }>;
-  pelanggans: Array<{
+  }[];
+  pelanggans: {
     id: string;
     idPelanggan: string;
     nama: string;
@@ -133,25 +136,17 @@ interface TopologyData {
       latitude: number;
       longitude: number;
     };
-  }>;
-  kmzFiles?: Array<{
+  }[];
+  kmzFiles?: {
     id: string;
     name: string;
     kmlPath: string;
     lineColor: string;
     isActive: boolean;
-  }>;
+  }[];
 }
 
-interface VisibilityState {
-  otb: boolean;
-  odc: boolean;
-  odp: boolean;
-  joinbox: boolean;
-  pole: boolean;
-  pelanggan: boolean;
-  kmz: boolean;
-}
+// interface VisibilityState removed (unused)
 
 // MapLibre Config
 MapLibreGL.setAccessToken(null); // Not needed for open tiles
@@ -168,9 +163,27 @@ MapLibreGL.Logger.setLogCallback((log) => {
 
 export default function TopologyMapScreen() {
   const router = useRouter();
-  const [data, setData] = useState<TopologyData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { token } = useAuth();
+
+  // Fetch topology data with useApiQuery
+  const {
+    data,
+    isLoading: loading,
+    error: queryError,
+    refetch: fetchData
+  } = useApiQuery<TopologyData>({
+    queryKey: ["topology"],
+    queryFn: async () => {
+        const res = await api.get("/api/mobile/topology");
+        // Handle wrapped response { data: ... } or direct response
+        return res.data?.data || res.data;
+    },
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+  });
+
+  const error = useMemo(() => queryError?.message || null, [queryError]);
+
   // Use refs instead of state for camera tracking to prevent re-renders
   const zoomRef = useRef(12);
   const [loadingKmz, setLoadingKmz] = useState(false); // Track KMZ loading state
@@ -191,8 +204,8 @@ export default function TopologyMapScreen() {
     kmz: true,
   });
 
-  const [kmzFeatures, setKmzFeatures] = useState<any[]>([]);
-  const kmzCache = useRef<Map<string, any[]>>(new Map()); // Cache for processed KMZ files
+  const [kmzFeatures, setKmzFeatures] = useState<GeoJSON.Feature[]>([]);
+  const kmzCache = useRef<Map<string, GeoJSON.Feature[]>>(new Map()); // Cache for processed KMZ files
   const cameraRef = useRef<any>(null);
   const shapeSourceRef = useRef<any>(null);
 
@@ -239,59 +252,23 @@ export default function TopologyMapScreen() {
   );
 
   useEffect(() => {
-    console.log("[TopologyMap] Component MOUNTED");
-    return () => console.log("[TopologyMap] Component UNMOUNTED");
+    logger.info("[TopologyMap] Component MOUNTED");
+    return () => logger.info("[TopologyMap] Component UNMOUNTED");
   }, []);
 
-  const { token } = useAuth();
-
-  // Fetch topology data
-  const fetchData = useCallback(async () => {
-    console.log("FetchData called. Token:", token ? "Present" : "Missing");
-    if (!token) {
-      console.log("No token available - aborting fetch");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      console.log("Fetching topology from /api/mobile/topology...");
-      const response = await api.get("/api/mobile/topology", {
-        params: { t: new Date().getTime() },
-      });
-      console.log("Topology Response Status:", response.status);
-      console.log("Topology Data Keys:", Object.keys(response.data));
-      console.log("OTB Count:", response.data.otbs?.length);
-      console.log("ODC Count:", response.data.odcs?.length);
-      console.log("ODP Count:", response.data.odps?.length);
-      console.log("Joinbox Count:", response.data.joinboxes?.length);
-      console.log("Pole Count:", response.data.poles?.length);
-      console.log("Pelanggan Count:", response.data.pelanggans?.length);
-      console.log("KMZ Count:", response.data.kmzFiles?.length);
-
+  useEffect(() => {
+    if (data) {
       const totalDevices =
-        (response.data.otbs?.length || 0) +
-        (response.data.odcs?.length || 0) +
-        (response.data.odps?.length || 0) +
-        (response.data.joinboxes?.length || 0) +
-        (response.data.poles?.length || 0) +
-        (response.data.pelanggans?.length || 0);
+        (data.otbs?.length || 0) +
+        (data.odcs?.length || 0) +
+        (data.odps?.length || 0) +
+        (data.joinboxes?.length || 0) +
+        (data.poles?.length || 0) +
+        (data.pelanggans?.length || 0);
 
-      console.log("[Topology] Total devices loaded:", totalDevices);
-
-      setData(response.data);
-    } catch (err: any) {
-      console.error("Error fetching topology:", err);
-      console.error("Error Details:", err.response?.data);
-      setError(err.response?.data?.error || "Gagal memuat data topologi");
-      Alert.alert(
-        "Error",
-        "Gagal memuat data topologi: " + (err.message || "Unknown error"),
-      );
-    } finally {
-      setLoading(false);
+      logger.info("[Topology] Total devices loaded:", totalDevices);
     }
-  }, [token]);
+  }, [data]);
 
   // Parse KMZ/KML files when data changes - OPTIMIZED with cache and non-blocking
   useEffect(() => {
@@ -301,10 +278,10 @@ export default function TopologyMapScreen() {
         return;
       }
 
-      console.log("Loading KMZ files:", data.kmzFiles.length);
+      logger.info("Loading KMZ files:", data.kmzFiles.length);
       setLoadingKmz(true);
 
-      const allFeatures: any[] = [];
+      const allFeatures: GeoJSON.Feature[] = [];
 
       for (const file of data.kmzFiles) {
         if (!file.kmlPath) continue;
@@ -312,7 +289,7 @@ export default function TopologyMapScreen() {
         // Check cache first
         const cacheKey = `${file.id}-${file.kmlPath}`;
         if (kmzCache.current.has(cacheKey)) {
-          console.log(`Using cached KMZ: ${file.name}`);
+          logger.info(`Using cached KMZ: ${file.name}`);
           allFeatures.push(...kmzCache.current.get(cacheKey)!);
           continue;
         }
@@ -323,7 +300,7 @@ export default function TopologyMapScreen() {
             ? file.kmlPath
             : `${api.defaults.baseURL}${file.kmlPath.startsWith("/") ? "" : "/"}${file.kmlPath}`;
 
-          console.log(`Fetching KML from: ${url}`);
+          logger.info(`Fetching KML from: ${url}`);
 
           // Use requestAnimationFrame to prevent blocking
           await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -340,7 +317,7 @@ export default function TopologyMapScreen() {
 
           if (geoJson.features) {
             // Add styling properties
-            geoJson.features.forEach((feature: any) => {
+            geoJson.features.forEach((feature: GeoJSON.Feature) => {
               if (!feature.properties) feature.properties = {};
               feature.properties.color = file.lineColor || "#6366f1";
               feature.properties.kmzId = file.id;
@@ -348,15 +325,15 @@ export default function TopologyMapScreen() {
             });
 
             // Cache the result
-            kmzCache.current.set(cacheKey, geoJson.features);
-            allFeatures.push(...geoJson.features);
+            kmzCache.current.set(cacheKey, geoJson.features as GeoJSON.Feature[]);
+            allFeatures.push(...(geoJson.features as GeoJSON.Feature[]));
           }
         } catch (e) {
-          console.error(`Error loading KML ${file.name}:`, e);
+          logger.error(`Error loading KML ${file.name}:`, e);
         }
       }
 
-      console.log(`Loaded ${allFeatures.length} KMZ features`);
+      logger.info(`Loaded ${allFeatures.length} KMZ features`);
       setKmzFeatures(allFeatures);
       setLoadingKmz(false);
     }
@@ -365,12 +342,6 @@ export default function TopologyMapScreen() {
       loadKmzData();
     }
   }, [data]);
-
-  useEffect(() => {
-    if (token) {
-      fetchData();
-    }
-  }, [fetchData, token]);
 
   const handleMarkerPress = useCallback((device: any, type: DeviceType) => {
     if (device) {
@@ -388,10 +359,10 @@ export default function TopologyMapScreen() {
   }, []);
 
   // Connection lines GeoJSON
-  const connectionLines = useMemo(() => {
+  const connectionLines = useMemo((): GeoJSON.FeatureCollection => {
     if (!data) return { type: "FeatureCollection", features: [] };
 
-    const features: any[] = [];
+    const features: GeoJSON.Feature[] = [];
 
     // ODC to OTB connections
     if (visibility.odc && visibility.otb) {
@@ -462,11 +433,11 @@ export default function TopologyMapScreen() {
   }, [visibility.kmz, kmzFeatures]);
 
   // Convert data to GeoJSON for ShapeSource
-  const devicesGeoJson = useMemo(() => {
+  const devicesGeoJson = useMemo((): GeoJSON.FeatureCollection => {
     if (!data) return { type: "FeatureCollection", features: [] };
 
-    const features: any[] = [];
-    const addFeature = (d: any, type: DeviceType, color: string) => {
+    const features: GeoJSON.Feature[] = [];
+    const addFeature = (d: { id: string; longitude: number; latitude: number; name?: string; nama?: string; idPelanggan?: string }, type: DeviceType, color: string) => {
       features.push({
         type: "Feature",
         id: type + "-" + d.id,
@@ -504,79 +475,83 @@ export default function TopologyMapScreen() {
   }, [data, visibility]);
 
   const onShapePress = useCallback(
-    async (event: any) => {
+    async (event: MapLibreGL.OnPressEvent) => {
       const { features } = event;
-      const feature = features[0];
+      const feature = features[0] as GeoJSON.Feature;
 
       if (!feature) return;
 
-      const isCluster = feature.properties.cluster;
+      const isCluster = feature.properties?.cluster;
 
       if (isCluster) {
         // Handle cluster press (Zoom in to expansion level)
-        console.log("Cluster pressed, calculating expansion zoom...");
+        logger.info("Cluster pressed, calculating expansion zoom...");
         try {
           const expansionZoom =
             await shapeSourceRef.current?.getClusterExpansionZoom(feature);
 
           if (expansionZoom) {
-            console.log("Zooming to:", expansionZoom);
+            logger.info("Zooming to:", expansionZoom);
             cameraRef.current?.setCamera({
-              centerCoordinate: feature.geometry.coordinates,
+              centerCoordinate: (feature.geometry as any).coordinates,
               zoomLevel: expansionZoom,
               animationDuration: 500,
             });
           } else {
             // Fallback if expansion zoom is not returned
             cameraRef.current?.setCamera({
-              centerCoordinate: feature.geometry.coordinates,
+              centerCoordinate: (feature.geometry as any).coordinates,
               zoomLevel: zoomRef.current + 2,
               animationDuration: 500,
             });
           }
         } catch (error) {
-          console.error("Error getting cluster expansion zoom:", error);
+          logger.error("Error getting cluster expansion zoom:", error);
           // Fallback on error
           cameraRef.current?.setCamera({
-            centerCoordinate: feature.geometry.coordinates,
+            centerCoordinate: (feature.geometry as any).coordinates,
             zoomLevel: zoomRef.current + 2,
             animationDuration: 500,
           });
         }
       } else {
         // Handle single device press
-        const { id, type } = feature.properties;
-        console.log("Device pressed:", type, id);
+        const { id, type } = feature.properties as { id: string; type: DeviceType };
+        logger.info("Device pressed:", type, id);
 
         // Find original data object
-        let deviceData = null;
+        let deviceData: DeviceData | null = null;
         if (data) {
           switch (type) {
             case "otb":
-              deviceData = data.otbs.find((d) => d.id === id);
+              const otb = data.otbs.find((d) => d.id === id);
+              if (otb) deviceData = otb as unknown as DeviceData;
               break;
             case "odc":
-              deviceData = data.odcs.find((d) => d.id === id);
+              const odc = data.odcs.find((d) => d.id === id);
+              if (odc) deviceData = odc as unknown as DeviceData;
               break;
             case "odp":
-              deviceData = data.odps.find((d) => d.id === id);
+              const odp = data.odps.find((d) => d.id === id);
+              if (odp) deviceData = odp as unknown as DeviceData;
               break;
             case "joinbox":
-              deviceData = data.joinboxes.find((d) => d.id === id);
+              const joinbox = data.joinboxes.find((d) => d.id === id);
+              if (joinbox) deviceData = joinbox as unknown as DeviceData;
               break;
             case "pole":
-              deviceData = data.poles.find((d) => d.id === id);
+              const pole = data.poles.find((d) => d.id === id);
+              if (pole) deviceData = pole as unknown as DeviceData;
               break;
             case "pelanggan":
-              deviceData = data.pelanggans.find((d) => d.id === id);
+              const pelanggan = data.pelanggans.find((d) => d.id === id);
+              if (pelanggan) deviceData = pelanggan as unknown as DeviceData;
               break;
           }
         }
 
         if (deviceData) {
-          console.log("Device selected:", type, deviceData.id);
-          // @ts-ignore
-          console.log("Images:", deviceData.images);
+          logger.info("Device selected:", type, deviceData.id);
           handleMarkerPress(deviceData, type);
         }
       }
@@ -626,14 +601,15 @@ export default function TopologyMapScreen() {
     }
 
     // Update center for picker (using ref to prevent re-renders)
-    const center = payload?.geometry?.coordinates;
+    const geometry = payload?.geometry as GeoJSON.Point;
+    const center = geometry?.coordinates as [number, number];
     if (center) {
       currentCenterRef.current = center;
       cameraCenterRef.current = center; // Keep Camera prop in sync
     }
 
     // Update viewport bounds (using ref to prevent re-renders)
-    const bounds = payload?.properties?.bounds;
+    const bounds = payload?.properties?.bounds as { ne: [number, number]; sw: [number, number] } | undefined;
     if (bounds) {
       viewportRef.current = {
         north: bounds.ne[1],
@@ -646,7 +622,7 @@ export default function TopologyMapScreen() {
 
   // Memoize style loading callback to prevent recreating on every render
   const handleStyleLoaded = useCallback(() => {
-    console.log("[TopologyMap] Style finished loading");
+    logger.info("[TopologyMap] Style finished loading");
     setMapReady(true);
   }, []);
 
@@ -686,7 +662,7 @@ export default function TopologyMapScreen() {
   // Auto-center camera to data bounds when data is loaded
   useEffect(() => {
     if (mapReady && mapBounds && cameraRef.current) {
-      console.log(
+      logger.info(
         "[TopologyMap] Auto-centering to data bounds:",
         mapBounds.center,
       );
@@ -698,22 +674,15 @@ export default function TopologyMapScreen() {
     }
   }, [mapReady, mapBounds]);
 
-  const centerCoordinate = mapBounds?.center || [106.816666, -6.2]; // Default Jakarta
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-        <Text style={styles.loadingText}>Memuat peta topologi...</Text>
-      </View>
-    );
+  if (loading && !data) {
+    return <TopologySkeleton />;
   }
 
   if (error) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchData}>
+        <TouchableOpacity style={styles.retryButton} onPress={() => fetchData()}>
           <RefreshCw size={20} color="#fff" />
           <Text style={styles.retryButtonText}>Coba Lagi</Text>
         </TouchableOpacity>
@@ -779,7 +748,7 @@ export default function TopologyMapScreen() {
           {/* Connection Lines (GeoJSON) */}
           <MapLibreGL.ShapeSource
             id="linesSource"
-            shape={connectionLines as any}
+            shape={connectionLines}
           >
             <MapLibreGL.LineLayer
               id="linesLayer"
@@ -807,7 +776,7 @@ export default function TopologyMapScreen() {
           <MapLibreGL.ShapeSource
             ref={shapeSourceRef}
             id="devicesSource"
-            shape={devicesGeoJson as any}
+            shape={devicesGeoJson}
             cluster={true}
             clusterRadius={50}
             clusterMaxZoomLevel={14}
@@ -887,7 +856,7 @@ export default function TopologyMapScreen() {
         </MapLibreGL.MapView>
 
         {/* Refresh Button */}
-        <TouchableOpacity style={styles.refreshButton} onPress={fetchData}>
+        <TouchableOpacity style={styles.refreshButton} onPress={() => fetchData()}>
           <RefreshCw size={20} color="#fff" />
         </TouchableOpacity>
 

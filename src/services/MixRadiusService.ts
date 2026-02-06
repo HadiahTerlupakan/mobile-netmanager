@@ -1,4 +1,5 @@
 import api from "./api";
+import { logger } from "@/utils/logger";
 
 export interface MixRadiusCustomer {
   id: string;
@@ -72,7 +73,7 @@ export const MixRadiusService = {
     authStatus: string = "Disabled-Users", // Allow override
   ) => {
     try {
-      const params: any = {
+      const params: Record<string, string | number> = {
         authStatus: authStatus,
         search: search,
         searchType: "all",
@@ -88,33 +89,36 @@ export const MixRadiusService = {
       }
 
       // Note: api baseURL is Config.API_URL, so we append /api/...
-      console.log(`[MixRadius] Requesting: /api/integrations/mixradius/customers params:`, JSON.stringify(params));
-      const response = await api.get<any>(
+      logger.info(`[MixRadius] Requesting: /api/integrations/mixradius/customers params:`, JSON.stringify(params));
+      const response = await api.get<{
+        success?: boolean;
+        data?: MixRadiusResponse | MixRadiusCustomer[];
+      }>(
         "/api/integrations/mixradius/customers",
         { params },
       );
 
-      console.log(`[MixRadius] Raw response keys:`, Object.keys(response.data));
+      logger.info(`[MixRadius] Raw response keys:`, Object.keys(response.data));
       if (response.data?.data) {
-         console.log(`[MixRadius] response.data.data keys:`, Object.keys(response.data.data));
+         logger.info(`[MixRadius] response.data.data keys:`, Object.keys(response.data.data));
          if (Array.isArray(response.data.data)) {
-             console.log(`[MixRadius] response.data.data is Array length: ${response.data.data.length}`);
+             logger.info(`[MixRadius] response.data.data is Array length: ${response.data.data.length}`);
          } else {
-             console.log(`[MixRadius] response.data.data is Object`);
+             logger.info(`[MixRadius] response.data.data is Object`);
              if (response.data.data.data) {
-                 console.log(`[MixRadius] response.data.data.data is Array length: ${response.data.data.data.length}`);
+                 logger.info(`[MixRadius] response.data.data.data is Array length: ${response.data.data.data.length}`);
              }
          }
       }
 
       // Handle wrapped response { success: true, data: { ... } }
       if (response.data?.success && response.data?.data) {
-        console.log(`[MixRadius] Returning response.data.data (wrapped)`);
+        logger.info(`[MixRadius] Returning response.data.data (wrapped)`);
         return response.data.data;
       }
 
       // Handle direct response (unwrapped or different structure)
-      console.log(`[MixRadius] Returning response.data (unwrapped/other)`);
+      logger.info(`[MixRadius] Returning response.data (unwrapped/other)`);
       return response.data;
     } catch (error) {
       throw error;
@@ -131,7 +135,7 @@ export const MixRadiusService = {
       }>(`/api/integrations/mixradius/customers/${customerId}`);
       return response.data.data;
     } catch (error) {
-      console.error("Failed to fetch customer detail", error);
+      logger.error("Failed to fetch customer detail", error);
       return null;
     }
   },
@@ -143,29 +147,31 @@ export const MixRadiusService = {
       );
       return response.data.data;
     } catch (error) {
-      console.error("Failed to fetch owners", error);
+      logger.error("Failed to fetch owners", error);
       return [];
     }
   },
 
-  getOwnerGroups: async () => {
+  getOwnerGroups: async (): Promise<OwnerGroup[]> => {
     try {
-      const response = await api.get<any>(
+      const response = await api.get<{
+        data?: OwnerGroup[];
+      }>(
         "/api/integrations/mixradius/groups",
       );
 
       if (Array.isArray(response.data)) {
-        return response.data;
+        return response.data as unknown as OwnerGroup[];
       }
 
       if (response.data && Array.isArray(response.data.data)) {
         return response.data.data;
       }
 
-      console.warn("Unexpected owner groups format:", response.data);
+      logger.warn("Unexpected owner groups format:", response.data);
       return [];
     } catch (error) {
-      console.error("Failed to fetch owner groups", error);
+      logger.error("Failed to fetch owner groups", error);
       return [];
     }
   },

@@ -1,8 +1,8 @@
-import { Config } from "@/constants/Config";
+import { LeaveSkeleton } from "@/components/molecules/LeaveSkeleton";
 import { useAuth } from "@/context/AuthContext";
 import { useOfflineQueryCompat as useOfflineQuery } from "@/hooks/queries";
 import api from "@/services/api"; // Use centralized API
-import { format } from "date-fns";
+import { formatDate } from "@/utils/date";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
     ArrowLeft,
@@ -13,7 +13,6 @@ import {
 } from "lucide-react-native";
 import React, { useCallback, useMemo } from "react";
 import {
-    ActivityIndicator,
     RefreshControl,
     Text,
     TouchableOpacity,
@@ -68,8 +67,8 @@ const LeaveItem = React.memo(({ item }: { item: LeaveRequest }) => {
         <View>
           <Text style={tw`font-bold text-sm text-slate-900`}>{item.type}</Text>
           <Text style={tw`text-xs text-slate-500`}>
-            {format(new Date(item.startDate), "dd MMM yyyy")} -{" "}
-            {format(new Date(item.endDate), "dd MMM yyyy")}
+            {formatDate(item.startDate, "dd MMM yyyy")} -{" "}
+            {formatDate(item.endDate, "dd MMM yyyy")}
           </Text>
         </View>
         <View style={[tw`px-2 py-1 rounded-lg flex-row items-center gap-1`, statusStyle.bg]}>
@@ -151,11 +150,7 @@ export default function IzinScreen() {
   ), [router]);
 
   if (isLoading && history.length === 0) {
-    return (
-      <SafeAreaView style={tw`flex-1 bg-gray-50 justify-center items-center`}>
-        <ActivityIndicator size="large" color="#0d9488" />
-      </SafeAreaView>
-    );
+    return <LeaveSkeleton />;
   }
 
   return (

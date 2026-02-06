@@ -1,7 +1,8 @@
+import SelectionModal from "@/components/molecules/SelectionModal";
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { useAuth } from "@/context/AuthContext";
 import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
 import api from "@/services/api";
+import { RequestWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { useRouter } from "expo-router";
 import debounce from "lodash/debounce";
 import {
@@ -10,6 +11,7 @@ import {
     Building2,
     Cable,
     ChevronDown,
+    LucideIcon,
     Search,
     Truck,
     User,
@@ -18,11 +20,10 @@ import {
     X,
     Zap,
 } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Modal,
     ScrollView,
     Text,
     TextInput,
@@ -31,9 +32,18 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { logger } from "@/utils/logger";
+
+interface QuickAction {
+  title: string;
+  type: string;
+  priority: string;
+  description: string;
+  icon?: LucideIcon;
+}
 
 // Quick Actions untuk Customer
-const CUSTOMER_QUICK_ACTIONS = [
+const CUSTOMER_QUICK_ACTIONS: QuickAction[] = [
   {
     title: "FOC / UT",
     type: "TROUBLESHOOT",
@@ -56,7 +66,7 @@ const CUSTOMER_QUICK_ACTIONS = [
 ];
 
 // Quick Actions untuk Internal FOC
-const INTERNAL_QUICK_ACTIONS = [
+const INTERNAL_QUICK_ACTIONS: QuickAction[] = [
   {
     title: "Patching ODC/ODP",
     type: "MAINTENANCE",
@@ -100,7 +110,6 @@ interface Department {
 }
 
 export default function RequestWorkOrderScreen() {
-  const { user, token } = useAuth();
   const router = useRouter();
 
   // WO Mode: Customer vs Internal
@@ -140,7 +149,7 @@ export default function RequestWorkOrderScreen() {
     if (woMode === "INTERNAL" && departments.length === 0) {
       fetchDepartments();
     }
-  }, [woMode]);
+  }, [woMode, departments.length]);
 
   const fetchDepartments = async () => {
     setLoadingDepartments(true);
@@ -148,7 +157,7 @@ export default function RequestWorkOrderScreen() {
       const res = await api.get("/api/mobile/departments");
       setDepartments(res.data?.data || []);
     } catch (error) {
-      console.error("Failed to fetch departments:", error);
+      logger.error("Failed to fetch departments:", error);
     } finally {
       setLoadingDepartments(false);
     }
@@ -171,8 +180,8 @@ export default function RequestWorkOrderScreen() {
   };
 
   // Search Customers from MixRadius
-  const searchCustomers = useCallback(
-    debounce(async (query: string) => {
+  const searchCustomers = useMemo(
+    () => debounce(async (query: string) => {
       if (!query || query.length < 2) {
         setCustomers([]);
         setShowSearchResults(false);
@@ -187,7 +196,7 @@ export default function RequestWorkOrderScreen() {
         setCustomers(data);
         setShowSearchResults(true);
       } catch (error) {
-        console.error("Search failed:", error);
+        logger.error("Search failed:", error);
         setCustomers([]);
       } finally {
         setSearching(false);
@@ -265,32 +274,38 @@ export default function RequestWorkOrderScreen() {
       }
     }
 
-    if (!title.trim()) {
-      Alert.alert("Error", "Judul wajib diisi");
-      return;
-    }
-    if (!description.trim()) {
-      Alert.alert("Error", "Deskripsi wajib diisi");
-      return;
+    // 1. Validate & Sanitize Input
+    const rawData = {
+        title: sanitizeInput(title),
+        description: sanitizeInput(description),
+        notes: sanitizeInput(notes)
+    };
+
+    const validation = validateData(RequestWorkOrderSchema, rawData);
+
+    if (!validation.success) {
+        Alert.alert("Data Tidak Valid", validation.error);
+        return;
     }
 
     setShowLoading(true);
     setLoadingMessage("Mengirim request...");
 
     try {
+      const validData = validation.data;
       const payload =
         woMode === "CUSTOMER"
           ? {
               type,
               priority,
-              title: title.trim(),
-              description: description.trim(),
+              title: validData.title,
+              description: validData.description,
               isInternal: false,
               contactName: selectedCustomer!.fullname,
               contactPhone: selectedCustomer!.phone,
               locationAddress: selectedCustomer!.address,
               notes:
-                notes.trim() ||
+                validData.notes ||
                 `Pelanggan: ${selectedCustomer!.username} (${selectedCustomer!.memberId})\nPaket: ${selectedCustomer!.planName}\nOwner: ${selectedCustomer!.ownerName}`,
               mixRadiusCustomerId: selectedCustomer!.id,
               mixRadiusMemberId: selectedCustomer!.memberId,
@@ -298,12 +313,12 @@ export default function RequestWorkOrderScreen() {
           : {
               type,
               priority,
-              title: title.trim(),
-              description: description.trim(),
+              title: validData.title,
+              description: validData.description,
               isInternal: true,
               departmentId: selectedDepartment!.id,
               contactName: selectedDepartment!.name, // Department name as contact
-              notes: notes.trim() || undefined,
+              notes: validData.notes || undefined,
             };
 
       await mutate(payload, {
@@ -335,7 +350,7 @@ export default function RequestWorkOrderScreen() {
           Alert.alert("Error", err.message || "Gagal mengirim request");
         },
       });
-    } catch (error) {
+    } catch {
       setShowLoading(false);
       Alert.alert("Error", "Terjadi kesalahan");
     }
@@ -642,8 +657,8 @@ export default function RequestWorkOrderScreen() {
                 {currentQuickActions.map((action, idx) => {
                   const isSelected = title.includes(action.title);
                   const IconComponent =
-                    woMode === "INTERNAL" && "icon" in action
-                      ? (action as any).icon
+                    woMode === "INTERNAL" && action.icon
+                      ? action.icon
                       : action.title === "FOC / UT"
                         ? Wifi
                         : action.title === "Relokasi"
@@ -772,53 +787,19 @@ export default function RequestWorkOrderScreen() {
       </ScrollView>
 
       {/* Department Picker Modal */}
-      <Modal visible={showDepartmentPicker} transparent animationType="slide">
-        <View style={tw`flex-1 bg-black/50 justify-end`}>
-          <View style={tw`bg-white rounded-t-3xl max-h-96`}>
-            <View
-              style={tw`p-4 border-b border-gray-100 flex-row justify-between items-center`}
-            >
-              <Text style={tw`text-lg font-bold text-slate-900`}>
-                Pilih Department
-              </Text>
-              <TouchableOpacity onPress={() => setShowDepartmentPicker(false)}>
-                <X size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={tw`p-4`}>
-              {departments.map((dept) => (
-                <TouchableOpacity
-                  key={dept.id}
-                  onPress={() => selectDepartment(dept)}
-                  style={[
-                    tw`p-4 rounded-xl mb-2 flex-row items-center`,
-                    selectedDepartment?.id === dept.id
-                      ? tw`bg-orange-50 border-2 border-orange-500`
-                      : tw`bg-gray-50 border border-gray-200`,
-                  ]}
-                >
-                  <Building2
-                    size={20}
-                    color={
-                      selectedDepartment?.id === dept.id ? "#f97316" : "#64748b"
-                    }
-                  />
-                  <Text
-                    style={[
-                      tw`ml-3 font-medium`,
-                      selectedDepartment?.id === dept.id
-                        ? tw`text-orange-600`
-                        : tw`text-slate-700`,
-                    ]}
-                  >
-                    {dept.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <SelectionModal
+        visible={showDepartmentPicker}
+        onClose={() => setShowDepartmentPicker(false)}
+        title="Pilih Department"
+        items={departments.map((dept) => ({
+          id: dept.id,
+          label: dept.name,
+          value: dept,
+        }))}
+        onSelect={(item) => selectDepartment(item.value as Department)}
+        selectedValue={selectedDepartment}
+        loading={loadingDepartments}
+      />
 
       {/* Loading Modal */}
       <LoadingModal visible={showLoading} message={loadingMessage} />

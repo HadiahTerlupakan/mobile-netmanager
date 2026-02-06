@@ -2,7 +2,7 @@
  * useApiQuery - TanStack Query wrapper untuk API data fetching
  *
  * Menggantikan useOfflineQuery dengan fitur:
- * - Automatic caching via AsyncStorage
+ * - Automatic caching via Secure Storage (MMKV)
  * - Stale-while-revalidate
  * - Automatic background refetching
  * - Offline support
@@ -76,7 +76,7 @@ export function useOfflineQueryCompat<T>(
     key: string;
     fetcher: () => Promise<T>;
     onSuccess?: (data: T) => void;
-    onError?: (error: any) => void;
+    onError?: (error: Error) => void;
   } & Omit<UseQueryOptions<T, Error>, "queryKey" | "queryFn">,
 ) {
   const { key, fetcher, onSuccess, onError, enabled, ...queryOptions } =

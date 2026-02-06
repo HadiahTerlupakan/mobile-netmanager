@@ -7,13 +7,13 @@
  * "android": { "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "ACCESS_BACKGROUND_LOCATION"] }
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isAxiosError } from 'axios';
+import { Storage } from '@/utils/storage';
 import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 import * as TaskManager from 'expo-task-manager';
 import { Alert, Linking } from 'react-native';
-import { Config } from '../constants/Config';
 import { logger } from '../utils/logger';
 import api from './api';
 
@@ -53,9 +53,345 @@ function deg2rad(deg: number) {
     return deg * (Math.PI / 180);
 }
 
+
+
+export class LocationTrackingService {
+    /**
+     * Start background location tracking
+     * Called after successful check-in
+     */
+    static async startTracking(): Promise<boolean> {
+        try {
+            // Check permissions
+            const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
+            if (foregroundStatus !== 'granted') {
+                logger.warn('[LocationTracking] Foreground permission denied');
+                return false;
+            }
+
+            const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
+            if (backgroundStatus !== 'granted') {
+                logger.warn('[LocationTracking] Background permission denied');
+                Alert.alert(
+                    'Izin Lokasi Diperlukan',
+                    'Aplikasi membutuhkan izin lokasi "Sepanjang Waktu" (Allow all the time) agar tracking berjalan di background. Mohon aktifkan di pengaturan.',
+                    [
+                        { text: 'Batal', style: 'cancel' },
+                        { text: 'Buka Pengaturan', onPress: () => Linking.openSettings() }
+                    ]
+                );
+            }
+
+            // Check Battery Level for Adaptive Interval
+            let batteryLevel = 1.0;
+            try {
+                batteryLevel = await Battery.getBatteryLevelAsync();
+            } catch (e) {
+                logger.warn('[LocationTracking] Battery check failed, assuming full', e);
+            }
+
+            // Dynamic Interval Logic
+            let timeInterval = 10 * 60 * 1000; // Normal: 10 mins (Audit recommendation)
+            let distanceInterval = 50; // Normal: 50m
+
+            const isLowBattery = batteryLevel < 0.20 && batteryLevel !== -1;
+            const isGoodBattery = batteryLevel > 0.50;
+
+            if (isLowBattery) {
+                // Low Battery (<20%): Less frequent (30 mins)
+                logger.info('[LocationTracking] Low Battery Mode (<20%). Reducing frequency.');
+                timeInterval = 30 * 60 * 1000;
+                distanceInterval = 200;
+            } else if (isGoodBattery) {
+                 // Good Battery (>50%): More frequent (5 mins)
+                 timeInterval = 5 * 60 * 1000;
+                 distanceInterval = 30;
+            }
+
+            if (__DEV__) {
+                logger.info('[LocationTracking] DEV MODE: Using fast intervals');
+                timeInterval = 30000;
+                distanceInterval = 10;
+            }
+
+            // Check if already tracking
+            const isTracking = await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
+            if (isTracking) {
+                try {
+                    // Update options if already running (re-registering updates options)
+                    await Location.startLocationUpdatesAsync(TASK_NAME, {
+                        accuracy: Location.Accuracy.Balanced,
+                        timeInterval,
+                        distanceInterval,
+                        deferredUpdatesInterval: 15 * 60 * 1000,
+                        foregroundService: {
+                            notificationTitle: 'Mode Absensi Aktif',
+                            notificationBody: 'Jam kerja Anda sedang berjalan',
+                            notificationColor: '#ffffff'
+                        },
+                        pausesUpdatesAutomatically: true,
+                        showsBackgroundLocationIndicator: false,
+                        activityType: Location.ActivityType.AutomotiveNavigation
+                    });
+
+                    const current = await this.getCurrentPosition();
+                    if (current) {
+                        logger.info('[LocationTracking] Tracking updated. Current loc:', current.latitude, current.longitude);
+                         await this.sendLocation(current);
+                        return true;
+                    }
+                } catch (e) {
+                    const errorMessage = (e as Error)?.message || '';
+                    if (errorMessage.toLowerCase().includes('unavailable')) {
+                        logger.warn('[LocationTracking] Location unavailable (GPS off?); Service running.');
+                        return true;
+                    }
+                    logger.warn('[LocationTracking] Ghost state detected. Restarting service...', e);
+                    await this.stopTracking();
+                }
+            }
+
+            // Start location updates with adaptive options
+            logger.info(`[LocationTracking] Starting updates with interval: ${timeInterval/60000}m, distance: ${distanceInterval}m`);
+            try {
+                await Location.startLocationUpdatesAsync(TASK_NAME, {
+                    accuracy: Location.Accuracy.Balanced,
+                    timeInterval,
+                    distanceInterval,
+                    deferredUpdatesInterval: 15 * 60 * 1000,
+                    foregroundService: {
+                        notificationTitle: 'Mode Absensi Aktif',
+                        notificationBody: 'Jam kerja Anda sedang berjalan',
+                        notificationColor: '#ffffff'
+                    },
+                    pausesUpdatesAutomatically: true,
+                    showsBackgroundLocationIndicator: false,
+                    activityType: Location.ActivityType.AutomotiveNavigation // Helps iOS optimize
+                });
+            } catch (error) {
+                if (__DEV__) {
+                    logger.warn('[LocationTracking] Background updates failed start (ignoring in DEV):', error);
+                } else {
+                    throw error;
+                }
+            }
+
+            Storage.setItem(STORAGE_KEY_TRACKING, 'true');
+            logger.info('[LocationTracking] Started background tracking');
+
+            // Initial position push
+            setTimeout(async () => {
+                try {
+                    const initialLoc = await this.getCurrentPosition();
+                    if (initialLoc) {
+                        logger.info('[LocationTracking] Initial location sent');
+                        const sent = await this.sendLocation(initialLoc);
+                        if (sent !== false) {
+                            Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(initialLoc));
+                        }
+                    }
+                } catch (e) {
+                    logger.warn('[LocationTracking] Initial location force-push failed:', e);
+                }
+            }, 1000);
+
+            return true;
+
+        } catch (error) {
+            logger.error('[LocationTracking] Failed to start:', error);
+            if (error instanceof Error && error.message.includes('foreground service')) {
+                 logger.warn('[LocationTracking] App in background? Cannot start foreground service.');
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Stop background location tracking
+     * Called after check-out
+     */
+    static async stopTracking(): Promise<void> {
+        try {
+            const isTracking = await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
+            if (isTracking) {
+                await Location.stopLocationUpdatesAsync(TASK_NAME);
+            }
+            Storage.setItem(STORAGE_KEY_TRACKING, 'false');
+            Storage.removeItem(STORAGE_KEY_LAST_SENT); // Clear session data
+            logger.info('[LocationTracking] Stopped tracking');
+        } catch (error) {
+            logger.info('[LocationTracking] Stop tracking cleanup:', error);
+        }
+    }
+
+    /**
+     * Check if tracking is currently active
+     */
+    static async isTrackingActive(): Promise<boolean> {
+        try {
+            return await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Send location to server
+     * Called by background task
+     * Returns true if sent successfully or saved to queue, false if failed/stopped
+     */
+    static async sendLocation(locationData: LocationData): Promise<boolean> {
+        try {
+            const token = await SecureStore.getItemAsync(STORAGE_KEY_TOKEN);
+            if (!token) {
+                logger.warn(`[LocationTracking] No token found, saving to pending queue`);
+                await this.savePendingLocation(locationData);
+                return true;
+            }
+
+            logger.info(`[LocationTracking] Sending to server...`);
+            // Only log summary in prod to save logs space, detailed in DEV
+            if (__DEV__) logger.info(`[LocationTracking] Data:`, JSON.stringify(locationData));
+
+            await api.post(
+                `/api/mobile/location`,
+                locationData,
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000,
+                    skipGlobalAuthHandler: true
+                }
+            );
+
+            logger.info(`[LocationTracking] ✅ Location sent successfully!`);
+            return true;
+
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : "Unknown error";
+                logger.error(`[LocationTracking] ❌ Failed to send:`, errorMessage);
+
+            if (isAxiosError(error) && error.response?.data?.shouldStopTracking) {
+                logger.info(`[LocationTracking] Server requested stop tracking`);
+                await this.stopTracking();
+                return false;
+            }
+
+            // Save to pending queue for later sync
+            await this.savePendingLocation(locationData);
+            return true; // Still counting as "handled"
+        }
+    }
+
+    /**
+     * Save location to pending queue when offline
+     */
+    static async savePendingLocation(locationData: LocationData): Promise<void> {
+        try {
+            const pending = await this.getPendingLocations();
+            pending.push(locationData);
+
+            // Keep only last 100 locations to prevent storage overflow
+            if (pending.length > 100) {
+                pending.shift();
+            }
+
+            Storage.setItem(STORAGE_KEY_PENDING, JSON.stringify(pending));
+        } catch (error) {
+            logger.error('[LocationTracking] Failed to save pending location:', error);
+        }
+    }
+
+    /**
+     * Get pending locations
+     */
+    static async getPendingLocations(): Promise<LocationData[]> {
+        try {
+            const data = Storage.getItem(STORAGE_KEY_PENDING);
+            return data ? JSON.parse(data) : [];
+        } catch {
+            return [];
+        }
+    }
+
+    /**
+     * Sync pending locations to server
+     * Called when app comes online
+     */
+    static async syncPendingLocations(): Promise<number> {
+        try {
+            const pending = await this.getPendingLocations();
+            if (pending.length === 0) return 0;
+
+            const token = await SecureStore.getItemAsync(STORAGE_KEY_TOKEN);
+            if (!token) return 0;
+
+            // Optional: Filter duplicates or optimize pending list before sending
+            // For now, send all
+            await api.post(
+                `/api/mobile/location`,
+                { locations: pending },
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 30000,
+                    skipGlobalAuthHandler: true
+                }
+            );
+
+            // Clear pending queue
+            Storage.removeItem(STORAGE_KEY_PENDING);
+            logger.info(`[LocationTracking] Synced ${pending.length} pending locations`);
+            return pending.length;
+
+        } catch (error) {
+            logger.error('[LocationTracking] Failed to sync pending locations:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Get current position manually (for immediate update)
+     */
+    static async getCurrentPosition(): Promise<LocationData | null> {
+        try {
+            const location = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced
+            });
+
+            return {
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+                accuracy: location.coords.accuracy,
+                altitude: location.coords.altitude,
+                speed: location.coords.speed,
+                heading: location.coords.heading,
+                recordedAt: new Date(location.timestamp).toISOString()
+            };
+        } catch (error) {
+            logger.warn('[LocationTracking] Failed to get current position:', error);
+
+            if (__DEV__) {
+                // Mock for emulator
+                return {
+                    latitude: -6.2088,
+                    longitude: 106.8456,
+                    accuracy: 10,
+                    altitude: 0,
+                    speed: 0,
+                    heading: 0,
+                    recordedAt: new Date().toISOString()
+                };
+            }
+            return null;
+        }
+    }
+}
+
 // Define background task
-TaskManager.defineTask(TASK_NAME, async ({ data, error }: { data: any; error: any }) => {
-    const timestamp = new Date().toISOString();
+TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManagerTaskBody<{ locations: Location.LocationObject[] }>) => {
     logger.info(`[LocationTracking] Background task triggered`);
 
     if (error) {
@@ -84,7 +420,7 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: { data: any; error: an
             let lastSent: LocationData | null = null;
 
             try {
-                const lastSentStr = await AsyncStorage.getItem(STORAGE_KEY_LAST_SENT);
+                const lastSentStr = Storage.getItem(STORAGE_KEY_LAST_SENT);
                 if (lastSentStr) {
                     lastSent = JSON.parse(lastSentStr);
                 }
@@ -139,7 +475,7 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: { data: any; error: an
 
                 // If sent (or saved to queue), update last sent reference
                 if (sent !== false) {
-                     await AsyncStorage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(locationData));
+                     Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(locationData));
                 }
             }
         }
@@ -147,330 +483,3 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: { data: any; error: an
         logger.info(`[LocationTracking] No location data in callback`);
     }
 });
-
-export class LocationTrackingService {
-    /**
-     * Start background location tracking
-     * Called after successful check-in
-     */
-    static async startTracking(): Promise<boolean> {
-        try {
-            // Check permissions
-            const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
-            if (foregroundStatus !== 'granted') {
-                logger.warn('[LocationTracking] Foreground permission denied');
-                return false;
-            }
-
-            const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
-            if (backgroundStatus !== 'granted') {
-                logger.warn('[LocationTracking] Background permission denied');
-                Alert.alert(
-                    'Izin Lokasi Diperlukan',
-                    'Aplikasi membutuhkan izin lokasi "Sepanjang Waktu" (Allow all the time) agar tracking berjalan di background. Mohon aktifkan di pengaturan.',
-                    [
-                        { text: 'Batal', style: 'cancel' },
-                        { text: 'Buka Pengaturan', onPress: () => Linking.openSettings() }
-                    ]
-                );
-            }
-
-            // Check Battery Level for Adaptive Interval
-            let batteryLevel = 1.0;
-            try {
-                batteryLevel = await Battery.getBatteryLevelAsync();
-            } catch (e) {
-                logger.warn('[LocationTracking] Battery check failed, assuming full', e);
-            }
-
-            // Dynamic Interval Logic
-            let timeInterval = 5 * 60 * 1000; // Normal: 5 mins
-            let distanceInterval = 50; // Normal: 50m
-
-            if (batteryLevel < 0.20 && batteryLevel !== -1) {
-                // Low Battery (<20%): Less frequent (30 mins)
-                logger.info('[LocationTracking] Low Battery Mode (<20%). Reducing frequency.');
-                timeInterval = 30 * 60 * 1000;
-                distanceInterval = 200;
-            } else if (batteryLevel > 0.50) {
-                 // Good Battery (>50%): More frequent (5 mins) meant for active tracking
-                 timeInterval = 5 * 60 * 1000;
-                 distanceInterval = 30;
-            } else {
-                // Medium Battery: 10 mins
-                timeInterval = 10 * 60 * 1000;
-                distanceInterval = 50;
-            }
-
-            if (__DEV__) {
-                logger.info('[LocationTracking] DEV MODE: Using fast intervals');
-                timeInterval = 30000;
-                distanceInterval = 10;
-            }
-
-            // Check if already tracking
-            const isTracking = await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
-            if (isTracking) {
-                try {
-                    const current = await this.getCurrentPosition();
-
-                    if (current) {
-                        logger.info('[LocationTracking] Tracking already active. Updating last location.');
-                         // Even if active, we might want to "refresh" options if they changed significantly,
-                         // but for safety we'll just keep running unless it's broken.
-                         // But we should update the Last Sent reference if missing
-                         await this.sendLocation(current);
-                        return true;
-                    }
-                } catch (e: any) {
-                    const errorMessage = e?.message || '';
-                    if (errorMessage.toLowerCase().includes('unavailable')) {
-                        logger.warn('[LocationTracking] Location unavailable (GPS off?); Service running.');
-                        return true;
-                    }
-                    logger.warn('[LocationTracking] Ghost state detected. Restarting service...', e);
-                    await this.stopTracking();
-                }
-            }
-
-            // Start location updates with adaptive options
-            logger.info(`[LocationTracking] Starting updates with interval: ${timeInterval/60000}m, distance: ${distanceInterval}m`);
-            try {
-                await Location.startLocationUpdatesAsync(TASK_NAME, {
-                    accuracy: Location.Accuracy.Balanced,
-                    timeInterval: timeInterval,
-                    distanceInterval: distanceInterval,
-                    deferredUpdatesInterval: __DEV__ ? 5000 : 15 * 60 * 1000,
-                    foregroundService: {
-                        notificationTitle: 'Mode Absensi Aktif',
-                        notificationBody: 'Jam kerja Anda sedang berjalan',
-                        notificationColor: '#ffffff'
-                    },
-                    pausesUpdatesAutomatically: true,
-                    showsBackgroundLocationIndicator: false,
-                    activityType: Location.ActivityType.AutomotiveNavigation // Helps iOS optimize
-                });
-            } catch (error) {
-                if (__DEV__) {
-                    logger.warn('[LocationTracking] Background updates failed start (ignoring in DEV):', error);
-                } else {
-                    throw error;
-                }
-            }
-
-            await AsyncStorage.setItem(STORAGE_KEY_TRACKING, 'true');
-            logger.info('[LocationTracking] Started background tracking');
-
-            // Initial position push
-            setTimeout(async () => {
-                try {
-                    const initialLoc = await this.getCurrentPosition();
-                    if (initialLoc) {
-                        logger.info('[LocationTracking] Initial location sent');
-                        const sent = await this.sendLocation(initialLoc);
-                        if (sent !== false) {
-                            await AsyncStorage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(initialLoc));
-                        }
-                    }
-                } catch (e) {
-                    logger.warn('[LocationTracking] Initial location force-push failed:', e);
-                }
-            }, 1000);
-
-            return true;
-
-        } catch (error: any) {
-            logger.error('[LocationTracking] Failed to start:', error);
-            if (error?.message?.includes('foreground service')) {
-                 logger.warn('[LocationTracking] App in background? Cannot start foreground service.');
-            }
-            return false;
-        }
-    }
-
-    /**
-     * Stop background location tracking
-     * Called after check-out
-     */
-    static async stopTracking(): Promise<void> {
-        try {
-            const isTracking = await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
-            if (isTracking) {
-                await Location.stopLocationUpdatesAsync(TASK_NAME);
-            }
-            await AsyncStorage.setItem(STORAGE_KEY_TRACKING, 'false');
-            await AsyncStorage.removeItem(STORAGE_KEY_LAST_SENT); // Clear session data
-            logger.info('[LocationTracking] Stopped tracking');
-        } catch (error) {
-            logger.info('[LocationTracking] Stop tracking cleanup:', error);
-        }
-    }
-
-    /**
-     * Check if tracking is currently active
-     */
-    static async isTrackingActive(): Promise<boolean> {
-        try {
-            return await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
-        } catch {
-            return false;
-        }
-    }
-
-    /**
-     * Send location to server
-     * Called by background task
-     * Returns true if sent successfully or saved to queue, false if failed/stopped
-     */
-    static async sendLocation(locationData: LocationData): Promise<boolean> {
-        const timestamp = new Date().toISOString();
-        try {
-            const token = await SecureStore.getItemAsync(STORAGE_KEY_TOKEN);
-            if (!token) {
-                logger.warn(`[LocationTracking] No token found, saving to pending queue`);
-                await this.savePendingLocation(locationData);
-                return true;
-            }
-
-            logger.info(`[LocationTracking] Sending to server...`);
-            // Only log summary in prod to save logs space, detailed in DEV
-            if (__DEV__) logger.info(`[LocationTracking] Data:`, JSON.stringify(locationData));
-
-            await api.post(
-                `/api/mobile/location`,
-                locationData,
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 10000,
-                    // @ts-ignore
-                    skipGlobalAuthHandler: true
-                }
-            );
-
-            logger.info(`[LocationTracking] ✅ Location sent successfully!`);
-            return true;
-
-        } catch (error: any) {
-            logger.error(`[LocationTracking] ❌ Failed to send:`, error?.message);
-
-            // If server says stop tracking
-            if (error?.response?.data?.shouldStopTracking) {
-                logger.info(`[LocationTracking] Server requested stop tracking`);
-                await this.stopTracking();
-                return false;
-            }
-
-            // Save to pending queue for later sync
-            await this.savePendingLocation(locationData);
-            return true; // Still counting as "handled"
-        }
-    }
-
-    /**
-     * Save location to pending queue when offline
-     */
-    static async savePendingLocation(locationData: LocationData): Promise<void> {
-        try {
-            const pending = await this.getPendingLocations();
-            pending.push(locationData);
-
-            // Keep only last 100 locations to prevent storage overflow
-            if (pending.length > 100) {
-                pending.shift();
-            }
-
-            await AsyncStorage.setItem(STORAGE_KEY_PENDING, JSON.stringify(pending));
-        } catch (error) {
-            logger.error('[LocationTracking] Failed to save pending location:', error);
-        }
-    }
-
-    /**
-     * Get pending locations
-     */
-    static async getPendingLocations(): Promise<LocationData[]> {
-        try {
-            const data = await AsyncStorage.getItem(STORAGE_KEY_PENDING);
-            return data ? JSON.parse(data) : [];
-        } catch {
-            return [];
-        }
-    }
-
-    /**
-     * Sync pending locations to server
-     * Called when app comes online
-     */
-    static async syncPendingLocations(): Promise<number> {
-        try {
-            const pending = await this.getPendingLocations();
-            if (pending.length === 0) return 0;
-
-            const token = await SecureStore.getItemAsync(STORAGE_KEY_TOKEN);
-            if (!token) return 0;
-
-            // Optional: Filter duplicates or optimize pending list before sending
-            // For now, send all
-            await api.post(
-                `/api/mobile/location`,
-                { locations: pending },
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 30000,
-                    // @ts-ignore
-                    skipGlobalAuthHandler: true
-                }
-            );
-
-            // Clear pending queue
-            await AsyncStorage.removeItem(STORAGE_KEY_PENDING);
-            logger.info(`[LocationTracking] Synced ${pending.length} pending locations`);
-            return pending.length;
-
-        } catch (error) {
-            logger.error('[LocationTracking] Failed to sync pending locations:', error);
-            return 0;
-        }
-    }
-
-    /**
-     * Get current position manually (for immediate update)
-     */
-    static async getCurrentPosition(): Promise<LocationData | null> {
-        try {
-            const location = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.Balanced
-            });
-
-            return {
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-                accuracy: location.coords.accuracy,
-                altitude: location.coords.altitude,
-                speed: location.coords.speed,
-                heading: location.coords.heading,
-                recordedAt: new Date(location.timestamp).toISOString()
-            };
-        } catch (error) {
-            logger.warn('[LocationTracking] Failed to get current position:', error);
-
-            if (__DEV__) {
-                // Mock for emulator
-                return {
-                    latitude: -6.2088,
-                    longitude: 106.8456,
-                    accuracy: 10,
-                    altitude: 0,
-                    speed: 0,
-                    heading: 0,
-                    recordedAt: new Date().toISOString()
-                };
-            }
-            return null;
-        }
-    }
-}

@@ -4,6 +4,7 @@
  */
 
 import { GeofenceStatus, GeofenceZone } from './types'
+import { logger } from '@/utils/logger'
 
 const EARTH_RADIUS_METERS = 6371000
 
@@ -62,7 +63,7 @@ export function checkGeofenceStatus(
         )
         
         if (__DEV__) {
-            console.log(`[Geofence] Distance to ${zone.siteName}: ${distance.toFixed(2)}m (radius: ${zone.radius}m)`)
+            logger.info(`[Geofence] Distance to ${zone.siteName}: ${distance.toFixed(2)}m (radius: ${zone.radius}m)`)
         }
         
         if (distance < nearestDistance) {

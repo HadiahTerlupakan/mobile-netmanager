@@ -1,8 +1,8 @@
+import { NotificationSkeleton } from "@/components/molecules/NotificationSkeleton";
 import api from "@/services/api"; // Use centralized API
 import { useAuth } from "@/context/AuthContext";
-import { useOfflineMutationCompat as useOfflineMutation, useOfflineQueryCompat as useOfflineQuery } from "@/hooks/queries";
-import { formatDistanceToNow } from "date-fns";
-import { id } from "date-fns/locale";
+import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
+import { formatTimeAgo } from "@/utils/date";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
     ArrowLeft,
@@ -24,6 +24,7 @@ import {
 import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
 interface Notification {
   id: string;
@@ -35,11 +36,6 @@ interface Notification {
   sourceType?: string;
   sourceId?: string;
   createdAt: string;
-}
-
-interface NotificationResponse {
-  success: boolean;
-  data: { notifications: Notification[]; unreadCount: number };
 }
 
 // Memoized Notification Item
@@ -62,14 +58,7 @@ const NotificationItem = React.memo(({ item, onPress }: { item: Notification, on
   };
 
   const formatTime = (dateString: string) => {
-    try {
-      return formatDistanceToNow(new Date(dateString), {
-        addSuffix: true,
-        locale: id,
-      });
-    } catch {
-      return dateString;
-    }
+    return formatTimeAgo(dateString);
   };
 
   return (
@@ -105,27 +94,53 @@ export default function NotificationsScreen() {
   const { token } = useAuth();
   const router = useRouter();
 
-  // Offline Query for Notifications
-  const { data: notifData, refetch, isLoading } = useOfflineQuery<NotificationResponse>({
-    key: "notifications_list",
-    fetcher: async () => {
-      const res = await api.get("/api/mobile/notifications");
-      return res.data;
+  // Infinite Query for Notifications
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    refetch,
+    isRefetching,
+  } = useInfiniteQuery({
+    queryKey: ["notifications_list"],
+    queryFn: async ({ pageParam = null }) => {
+      const params = new URLSearchParams();
+      params.append("limit", "15");
+      if (pageParam) {
+        params.append("cursor", pageParam as string);
+      }
+      const res = await api.get(`/api/mobile/notifications?${params.toString()}`);
+      return res.data.data; // Assuming backend structure returns { data: { notifications: [], unreadCount: 0, nextCursor: ... } } or similar
     },
+    getNextPageParam: (lastPage: any) => lastPage.nextCursor || undefined,
+    initialPageParam: null,
     enabled: !!token,
+    staleTime: 1000 * 60 * 5,
   });
 
   // Offline Mutation for Actions
   const { mutate } = useOfflineMutation();
 
-  const notifications = useMemo(() => notifData?.data?.notifications || [], [notifData]);
-  const unreadCount = notifData?.data?.unreadCount || 0;
+  const notifications = useMemo(() => {
+    return data?.pages.flatMap((page: any) => page.notifications || []) || [];
+  }, [data]);
+
+  // Get unread count from the first page (latest data)
+  const unreadCount = data?.pages[0]?.unreadCount || 0;
 
   useFocusEffect(
     useCallback(() => {
       refetch();
     }, [refetch]),
   );
+
+  const onLoadMore = () => {
+    if (hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+    }
+  };
 
   const markAsRead = useCallback(async (notificationId: string) => {
     await mutate(
@@ -174,8 +189,14 @@ export default function NotificationsScreen() {
 
   if (isLoading && notifications.length === 0) {
     return (
-      <SafeAreaView style={tw`flex-1 bg-gray-50 justify-center items-center`}>
-        <ActivityIndicator size="large" color="#2563eb" />
+      <SafeAreaView style={tw`flex-1 bg-gray-50`}>
+        <View style={tw`bg-blue-600 px-4 py-4 flex-row items-center`}>
+          <TouchableOpacity onPress={() => router.back()} style={tw`p-2 -ml-2`}>
+            <ArrowLeft size={24} color="white" />
+          </TouchableOpacity>
+          <Text style={tw`text-white font-bold text-lg ml-2`}>Notifikasi</Text>
+        </View>
+        <NotificationSkeleton />
       </SafeAreaView>
     );
   }
@@ -209,8 +230,17 @@ export default function NotificationsScreen() {
           )}
           keyExtractor={(item: Notification) => item.id}
           estimatedItemSize={80}
+          onEndReached={onLoadMore}
+          onEndReachedThreshold={0.5}
           refreshControl={
-            <RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor="#2563eb" />
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#2563eb" />
+          }
+          ListFooterComponent={
+            isFetchingNextPage ? (
+                <View style={tw`py-4`}>
+                    <ActivityIndicator size="small" color="#2563eb" />
+                </View>
+            ) : null
           }
           ListEmptyComponent={
             <View style={tw`items-center justify-center py-20`}>

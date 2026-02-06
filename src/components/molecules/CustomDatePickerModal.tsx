@@ -2,22 +2,23 @@ import { X } from 'lucide-react-native';
 import React from 'react';
 import { Modal, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
+import { MarkedDates } from 'react-native-calendars/src/types';
 import tw from 'twrnc';
 
 interface CustomDatePickerModalProps {
     visible: boolean;
     onClose: () => void;
     onSelect: (date: Date) => void;
-    markedDates?: any;
+    markedDates?: MarkedDates;
     minDate?: string;
     title?: string;
 }
 
-export default function CustomDatePickerModal({ 
-    visible, 
-    onClose, 
-    onSelect, 
-    markedDates = {}, 
+export default function CustomDatePickerModal({
+    visible,
+    onClose,
+    onSelect,
+    markedDates = {},
     minDate,
     title = 'Pilih Tanggal'
 }: CustomDatePickerModalProps) {

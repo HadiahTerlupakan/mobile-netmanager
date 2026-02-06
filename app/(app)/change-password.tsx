@@ -1,6 +1,5 @@
-import { Config } from '@/constants/Config';
-import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api'; // Use centralized API
+import { ChangePasswordSchema, validateData } from '@/utils/validation';
 import { router } from 'expo-router';
 import { ArrowLeft, Eye, EyeOff, Lock, Save } from 'lucide-react-native';
 import { useState } from 'react';
@@ -9,7 +8,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 export default function ChangePassword() {
-    const { token } = useAuth();
     const [saving, setSaving] = useState(false);
     
     const [currentPassword, setCurrentPassword] = useState('');
@@ -21,18 +19,14 @@ export default function ChangePassword() {
     const [showConfirm, setShowConfirm] = useState(false);
 
     const handleSave = async () => {
-        if (!currentPassword || !newPassword || !confirmPassword) {
-            Alert.alert('Error', 'Semua field harus diisi');
-            return;
-        }
+        const validation = validateData(ChangePasswordSchema, {
+            currentPassword,
+            newPassword,
+            confirmPassword
+        });
 
-        if (newPassword !== confirmPassword) {
-            Alert.alert('Error', 'Password baru dan konfirmasi tidak cocok');
-            return;
-        }
-
-        if (newPassword.length < 6) {
-            Alert.alert('Error', 'Password minimal 6 karakter');
+        if (!validation.success) {
+            Alert.alert('Data Tidak Valid', validation.error);
             return;
         }
 
@@ -40,15 +34,16 @@ export default function ChangePassword() {
         try {
             const res = await api.post(
                 '/api/mobile/profile/password',
-                { currentPassword, newPassword, confirmPassword }
+                validation.data
             );
             if (res.data.success) {
                 Alert.alert('Sukses', 'Password berhasil diubah', [
                     { text: 'OK', onPress: () => router.back() }
                 ]);
             }
-        } catch (error: any) {
-            Alert.alert('Error', error.response?.data?.error || 'Gagal mengubah password');
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Gagal mengubah password';
+            Alert.alert('Error', errorMessage);
         } finally {
             setSaving(false);
         }

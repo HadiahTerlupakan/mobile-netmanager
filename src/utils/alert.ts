@@ -1,10 +1,4 @@
-import { Alert } from 'react-native';
-
-type AlertButton = {
-    text: string;
-    style?: 'default' | 'cancel' | 'destructive';
-    onPress?: () => void;
-};
+import { Alert, AlertButton } from 'react-native';
 
 export const AlertService = {
     success: (title: string, message: string) => {
@@ -34,6 +28,6 @@ export const AlertService = {
     },
 
     custom: (title: string, message: string, buttons: AlertButton[]) => {
-        Alert.alert(title, message, buttons as any);
+        Alert.alert(title, message, buttons);
     }
 };

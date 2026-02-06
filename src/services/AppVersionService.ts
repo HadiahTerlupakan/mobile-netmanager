@@ -1,10 +1,12 @@
 import { Config } from '@/constants/Config';
 import { checkInstallPermission, installApkNative, openInstallSettings } from '@/native/ApkInstaller';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Crypto from 'expo-crypto';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Alert, Platform } from 'react-native';
+import { logger } from '@/utils/logger';
 
 export interface AppVersionInfo {
     id: string
@@ -14,6 +16,7 @@ export interface AppVersionInfo {
     releaseNotes: string | null
     downloadUrl: string | null
     apkSize: number | null
+    hash?: string | null
 }
 
 export interface CheckUpdateResult {
@@ -66,22 +69,23 @@ class AppVersionService {
                 currentVersion: '', // Not used by caller usually
                 latestVersion: data.latestVersion
             }
-        } catch (error: any) {
-            console.error('Check update error:', error)
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Gagal memeriksa update';
+            logger.error('Check update error:', error)
             return {
                 success: false,
                 updateAvailable: false,
                 isForceUpdate: false,
                 currentVersion: '',
                 latestVersion: null,
-                error: error.message || 'Gagal memeriksa update'
+                error: errorMessage
             }
         }
     }
 
     async reportVersion(versionCode: number, versionName: string | null = null, token?: string): Promise<void> {
         try {
-            const headers: any = {
+            const headers: Record<string, string> = {
                 'Content-Type': 'application/json'
             }
             if (token) {
@@ -94,7 +98,7 @@ class AppVersionService {
                 body: JSON.stringify({ versionCode: versionCode.toString(), versionName })
             })
         } catch (error) {
-            console.error('Report version error:', error)
+            logger.error('Report version error:', error)
         }
     }
 
@@ -102,6 +106,7 @@ class AppVersionService {
     async downloadApk(
         versionId: string,
         filename: string,
+        expectedHash?: string | null,
         onProgress?: (progress: DownloadProgress) => void
     ): Promise<string | null> {
         if (Platform.OS !== 'android') {
@@ -111,10 +116,10 @@ class AppVersionService {
         try {
             const downloadUrl = `${this.baseUrl}/api/mobile/app-version/download/${versionId}`
             const fileUri = `${FileSystem.cacheDirectory}${filename}`
-            
+
             await FileSystem.deleteAsync(fileUri, { idempotent: true })
 
-            console.log('[APK] Downloading to:', fileUri)
+            logger.info('[APK] Downloading to:', fileUri)
 
             const downloadResumable = FileSystem.createDownloadResumable(
                 downloadUrl,
@@ -133,19 +138,37 @@ class AppVersionService {
             )
 
             const result = await downloadResumable.downloadAsync()
-            
+
             if (result && result.uri) {
                 const fileInfo = await FileSystem.getInfoAsync(result.uri)
-                
+
                 if (fileInfo.exists) {
-                    console.log('[APK] Download complete:', result.uri)
+                    // Verify hash if provided
+                    if (expectedHash) {
+                        logger.info('[APK] Verifying hash...');
+                        const fileContent = await FileSystem.readAsStringAsync(result.uri, { encoding: FileSystem.EncodingType.Base64 });
+                        const hash = await Crypto.digestStringAsync(
+                            Crypto.CryptoDigestAlgorithm.SHA256,
+                            fileContent
+                        );
+
+                        if (hash.toLowerCase() !== expectedHash.toLowerCase()) {
+                            logger.error('[APK] Hash mismatch!', { got: hash, expected: expectedHash });
+                            await FileSystem.deleteAsync(result.uri, { idempotent: true });
+                            throw new Error('Verifikasi file gagal: Hash tidak cocok. Unduhan mungkin korup atau tidak aman.');
+                        }
+                        logger.info('[APK] Hash verified successfully');
+                    }
+
+                    logger.info('[APK] Download complete:', result.uri)
                     return result.uri
                 }
             }
             return null
-        } catch (error: any) {
-            console.error('[APK] Download error:', error)
-            throw new Error('Download gagal: ' + error.message)
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error('[APK] Download error:', error)
+            throw new Error('Download gagal: ' + errorMessage)
         }
     }
 
@@ -164,7 +187,7 @@ class AppVersionService {
             // Use native module which directs to specific app settings
             await openInstallSettings();
         } catch (error) {
-            console.error('[APK] Failed to open native settings, fallback to general:', error);
+            logger.error('[APK] Failed to open native settings, fallback to general:', error);
             // Fallback: open general app settings
             await Linking.openSettings();
         }
@@ -179,7 +202,7 @@ class AppVersionService {
         try {
             // 1. Cek Permission Dulu!
             const hasPermission = await this.canInstallPackages();
-            console.log('[APK] Has install permission:', hasPermission);
+            logger.info('[APK] Has install permission:', hasPermission);
 
             if (!hasPermission) {
                  // Store pending URI
@@ -205,10 +228,10 @@ class AppVersionService {
             try {
                 // Konversi file:// ke path biasa jika perlu, tapi native module handle itu
                 await installApkNative(fileUri)
-                console.log('[APK] Native install launch success')
+                logger.info('[APK] Native install launch success')
                 return true
             } catch (e) {
-                console.warn('[APK] Native install failed, trying IntentLauncher', e)
+                logger.warn('[APK] Native install failed, trying IntentLauncher', e)
                 
                 // Fallback to IntentLauncher
                 const contentUri = await FileSystem.getContentUriAsync(fileUri)
@@ -219,16 +242,17 @@ class AppVersionService {
                 })
                 return true
             }
-            
-        } catch (error: any) {
-            console.error('[APK] Install error:', error.message)
-            
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            logger.error('[APK] Install error:', errorMessage)
+
             Alert.alert(
                 'Gagal Install',
                 'Tidak dapat membuka installer. Mohon hubungi admin IT jika masalah berlanjut.',
                 [{ text: 'OK' }]
             )
-            
+
             return false
         }
     }

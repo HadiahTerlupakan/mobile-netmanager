@@ -1,19 +1,25 @@
-import { Image } from 'expo-image';
+import { CanvasingDetailSkeleton } from '@/components/molecules/CanvasingDetailSkeleton';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
 import api from '@/services/api'; // Use centralized API
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ActivityIndicator, Alert, Linking, Platform, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
+
+import { Canvasing, CanvasingClaim } from '@/types/marketing';
+import { ComponentProps } from 'react';
+
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 export default function CanvasingDetailScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
     const { token } = useAuth();
 
-    const { data: item, isLoading, isOfflineData, refetch } = useOfflineQuery<any>({
+    const { data: item, isLoading, isOfflineData } = useOfflineQuery<Canvasing>({
         key: `marketing_canvasing_detail_${id}`,
         fetcher: async () => {
             const res = await api.get(`/api/marketing/canvasing/${id}`);
@@ -22,8 +28,12 @@ export default function CanvasingDetailScreen() {
         enabled: !!id && !!token
     });
 
+    interface ClaimResponse {
+        claim: CanvasingClaim | null;
+    }
+
     // Fetch claim status
-    const { data: claimData } = useOfflineQuery<any>({
+    const { data: claimData } = useOfflineQuery<ClaimResponse>({
         key: `marketing_canvasing_claim_${id}`,
         fetcher: async () => {
             const res = await api.get(`/api/marketing/canvasing/${id}/claim`);
@@ -48,7 +58,7 @@ export default function CanvasingDetailScreen() {
              Linking.openURL(item.shareloc);
              return;
         }
-        
+
         Alert.alert('Info', 'Lokasi tidak tersedia (Map & Lat/Long kosong)');
     };
 
@@ -77,8 +87,9 @@ export default function CanvasingDetailScreen() {
                 await Share.share({
                     message: textToCopy,
                 });
-            } catch (error: any) {
-                Alert.alert('Error', error.message);
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : 'Gagal menyalin ID';
+                Alert.alert('Error', message);
             }
         } else {
              Alert.alert('Info', 'Tidak ada ID yang bisa disalin');
@@ -86,38 +97,33 @@ export default function CanvasingDetailScreen() {
     };
 
     // Check if can claim - WO must be completed
-    const canClaim = () => {
-        if (!item) return false;
-        if (claim) return false; // Already claimed
-        if (item.isLocked) return false;
-        
-        const wo = item.workOrder;
-        if (!wo) return false;
-        
-        const completedStatuses = ['COMPLETED', 'VERIFIED', 'CLOSED'];
-        return completedStatuses.includes(wo.status);
-    };
+    // const canClaim = () => {
+    //     if (!item) return false;
+    //     if (claim) return false; // Already claimed
+    //     if (item.isLocked) return false;
+    //
+    //     const wo = item.workOrder;
+    //     if (!wo) return false;
+    //
+    //     const completedStatuses = ['COMPLETED', 'VERIFIED', 'CLOSED'];
+    //     return completedStatuses.includes(wo.status);
+    // };
 
     const getClaimStatusUI = () => {
         if (!claim) return null;
-        
+
         switch (claim.status) {
             case 'APPROVED':
-                return { bg: 'bg-emerald-50', color: 'text-emerald-700', icon: 'checkmark-circle', label: 'Claim Disetujui (+2 Poin)' };
+                return { bg: 'bg-emerald-50', color: 'text-emerald-700', icon: 'checkmark-circle' as const, label: 'Claim Disetujui (+2 Poin)' };
             case 'REJECTED':
-                return { bg: 'bg-rose-50', color: 'text-rose-700', icon: 'close-circle', label: 'Claim Ditolak' };
+                return { bg: 'bg-rose-50', color: 'text-rose-700', icon: 'close-circle' as const, label: 'Claim Ditolak' };
             default:
-                return { bg: 'bg-amber-50', color: 'text-amber-700', icon: 'time', label: 'Menunggu Review Admin' };
+                return { bg: 'bg-amber-50', color: 'text-amber-700', icon: 'time' as const, label: 'Menunggu Review Admin' };
         }
     };
 
     if (isLoading && !item) {
-        return (
-            <View style={tw`flex-1 items-center justify-center bg-white`}>
-                <ActivityIndicator size="large" color="#4f46e5" />
-                <Text style={tw`mt-4 text-gray-500 font-medium`}>Memuat Detail...</Text>
-            </View>
-        );
+        return <CanvasingDetailSkeleton />;
     }
 
     if (!item) {
@@ -127,8 +133,8 @@ export default function CanvasingDetailScreen() {
                     <Ionicons name="alert-circle" size={48} color="#ef4444" />
                 </View>
                 <Text style={tw`text-xl font-bold text-gray-900 text-center`}>Data Tidak Ditemukan</Text>
-                <TouchableOpacity 
-                    onPress={() => router.back()} 
+                <TouchableOpacity
+                    onPress={() => router.back()}
                     style={tw`mt-8 bg-indigo-600 px-8 py-3 rounded-2xl shadow-sm`}
                 >
                     <Text style={tw`text-white font-bold`}>Kembali ke Daftar</Text>
@@ -145,16 +151,16 @@ export default function CanvasingDetailScreen() {
             {/* Premium Header */}
             <View style={tw`bg-indigo-700 pt-12 pb-24 px-5 shadow-xl z-0`}>
                 <View style={tw`flex-row items-center justify-between mb-6`}>
-                    <TouchableOpacity 
-                        onPress={() => router.back()} 
+                    <TouchableOpacity
+                        onPress={() => router.back()}
                         style={tw`w-10 h-10 items-center justify-center bg-white/10 rounded-full`}
                     >
                         <Ionicons name="chevron-back" size={24} color="white" />
                     </TouchableOpacity>
                     <Text style={tw`text-lg font-black text-white uppercase tracking-tighter`}>Detail Pelanggan</Text>
-                    <View style={tw`w-10`} /> 
+                    <View style={tw`w-10`} />
                 </View>
-                
+
                 {/* Hero Content */}
                 <View style={tw`flex-row items-center justify-between`}>
                     <View style={tw`flex-1 mr-4`}>
@@ -171,7 +177,7 @@ export default function CanvasingDetailScreen() {
                             </Text>
                         </View>
                     </View>
-                    
+
                     {/* Status Badge */}
                     <View style={tw`${statusUI.bg} w-16 h-16 rounded-2xl border-4 border-white/10 items-center justify-center shadow-lg`}>
                         <Ionicons name={statusUI.icon} size={28} color={statusUI.fgColor} />
@@ -179,7 +185,7 @@ export default function CanvasingDetailScreen() {
                 </View>
             </View>
 
-            <ScrollView 
+            <ScrollView
                 style={tw`flex-1 -mt-12 z-10`}
                 contentContainerStyle={tw`px-5 pb-32`}
                 showsVerticalScrollIndicator={false}
@@ -195,7 +201,7 @@ export default function CanvasingDetailScreen() {
                 {/* Claim Status Card - Show if claim exists */}
                 {claimStatusUI && (
                     <View style={tw`${claimStatusUI.bg} rounded-2xl p-4 mb-4 flex-row items-center border border-gray-100`}>
-                        <Ionicons name={claimStatusUI.icon as any} size={24} color={tw.color(claimStatusUI.color.replace('text-', ''))} />
+                        <Ionicons name={claimStatusUI.icon} size={24} color={tw.color(claimStatusUI.color.replace('text-', '')) || undefined} />
                         <View style={tw`ml-3 flex-1`}>
                             <Text style={tw`${claimStatusUI.color} font-bold`}>{claimStatusUI.label}</Text>
                             {claim?.reviewNotes && (
@@ -207,29 +213,29 @@ export default function CanvasingDetailScreen() {
 
                 {/* Quick Actions Card */}
                 <View style={tw`bg-white rounded-3xl p-5 shadow-lg shadow-indigo-900/10 mb-6 flex-row justify-between border border-gray-100`}>
-                    <QuickAction 
-                        icon="call" 
-                        label="Telepon" 
-                        color="bg-emerald-500" 
-                        onPress={callNumber} 
+                    <QuickAction
+                        icon="call"
+                        label="Telepon"
+                        color="bg-emerald-500"
+                        onPress={callNumber}
                     />
-                    <QuickAction 
-                        icon="logo-whatsapp" 
-                        label="WhatsApp" 
-                        color="bg-green-500" 
-                        onPress={openWhatsApp} 
+                    <QuickAction
+                        icon="logo-whatsapp"
+                        label="WhatsApp"
+                        color="bg-green-500"
+                        onPress={openWhatsApp}
                     />
-                    <QuickAction 
-                        icon="map" 
-                        label="Navigasi" 
-                        color="bg-blue-500" 
-                        onPress={openMaps} 
+                    <QuickAction
+                        icon="map"
+                        label="Navigasi"
+                        color="bg-blue-500"
+                        onPress={openMaps}
                     />
-                    <QuickAction 
-                        icon="copy" 
-                        label="Salin ID" 
-                        color="bg-gray-500" 
-                        onPress={copyID} 
+                    <QuickAction
+                        icon="copy"
+                        label="Salin ID"
+                        color="bg-gray-500"
+                        onPress={copyID}
                     />
                 </View>
 
@@ -326,7 +332,14 @@ function getWOStatusLabel(status: string) {
     return labels[status] || status;
 }
 
-function QuickAction({ icon, label, color, onPress }: any) {
+interface QuickActionProps {
+    icon: IoniconName;
+    label: string;
+    color: string;
+    onPress: () => void;
+}
+
+function QuickAction({ icon, label, color, onPress }: QuickActionProps) {
     return (
         <TouchableOpacity onPress={onPress} style={tw`items-center flex-1`}>
             <View style={tw`w-12 h-12 ${color} rounded-2xl items-center justify-center shadow-sm mb-2`}>
@@ -337,7 +350,13 @@ function QuickAction({ icon, label, color, onPress }: any) {
     );
 }
 
-function InfoCard({ title, icon, children }: any) {
+interface InfoCardProps {
+    title: string;
+    icon: IoniconName;
+    children: React.ReactNode;
+}
+
+function InfoCard({ title, icon, children }: InfoCardProps) {
     return (
         <View style={tw`bg-white rounded-3xl p-5 shadow-sm border border-gray-100`}>
             <View style={tw`flex-row items-center mb-4 pb-4 border-b border-gray-50`}>
@@ -353,7 +372,14 @@ function InfoCard({ title, icon, children }: any) {
     );
 }
 
-function InfoRow({ label, value, highlighted, isLast }: any) {
+interface InfoRowProps {
+    label: string;
+    value?: string | number | null;
+    highlighted?: boolean;
+    isLast?: boolean;
+}
+
+function InfoRow({ label, value, highlighted, isLast }: InfoRowProps) {
     return (
         <View style={tw`${isLast ? '' : 'mb-4'}`}>
             <Text style={tw`text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1`}>{label}</Text>
@@ -362,14 +388,19 @@ function InfoRow({ label, value, highlighted, isLast }: any) {
     );
 }
 
-function PhotoPreview({ title, uri }: any) {
+interface PhotoPreviewProps {
+    title: string;
+    uri?: string;
+}
+
+function PhotoPreview({ title, uri }: PhotoPreviewProps) {
     const fullUri = uri?.startsWith('http') ? uri : `${Config.API_URL}${uri}`;
 
     return (
         <View style={[tw`flex-1 bg-white rounded-2xl p-2 shadow-sm border border-gray-100`, { aspectRatio: 4/3, minWidth: 120 }]}>
             <View style={tw`flex-1 bg-gray-100 rounded-xl overflow-hidden relative`}>
                 {uri ? (
-                    <Image source={{ uri: fullUri }} style={tw`w-full h-full`} contentFit="cover" transition={1000}       />
+                    <ImageWithCache source={fullUri} style={tw`w-full h-full`} contentFit="cover" transition={1000}       />
                 ) : (
                     <View style={tw`flex-1 items-center justify-center`}>
                         <Ionicons name="image-outline" size={24} color="#d1d5db" />

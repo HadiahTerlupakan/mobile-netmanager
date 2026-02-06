@@ -6,6 +6,9 @@ import React, { useState } from 'react';
 import { Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 import { useAuth } from '@/context/AuthContext';
+import { logger } from '@/utils/logger';
+import { LoginSchema, validateData } from '@/utils/validation';
+import { AxiosError } from 'axios';
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
@@ -14,18 +17,20 @@ export default function LoginScreen() {
     const { signIn } = useAuth();
 
     const handleLogin = async () => {
-        if (!email || !password) {
-            Alert.alert('Error', 'Email dan Password harus diisi');
+        const validation = validateData(LoginSchema, { email, password });
+
+        if (!validation.success) {
+            Alert.alert('Data Tidak Valid', validation.error);
             return;
         }
 
         setLoading(true);
         try {
-            const versionCode = Constants.expoConfig?.extra?.versionCode || 53;
+            const versionCode = Constants.expoConfig?.extra?.versionCode || 15;
             // Native version for APK (e.g. 1.0.7), fallback to 1.0.0
             const versionName = Constants.expoConfig?.version || '1.0.0';
 
-            console.log('Attempting login...');
+            logger.auth('Attempting login...');
             // Using centralized API - base URL and headers handled automatically
             const res = await api.post('/api/mobile/auth/login', {
                 email,
@@ -35,20 +40,21 @@ export default function LoginScreen() {
             });
 
             if (res.data.success) {
-                console.log('[LoginScreen] Login success, calling signIn...');
+                logger.auth('[LoginScreen] Login success, calling signIn...');
                 await signIn(res.data.token, res.data.user);
-                console.log('[LoginScreen] signIn returned');
+                logger.auth('[LoginScreen] signIn returned');
             } else {
-                console.log('[LoginScreen] Login failed logic:', res.data);
+                logger.warn('[LoginScreen] Login failed logic:', res.data);
                 Alert.alert('Login Gagal', res.data.error || 'Terjadi kesalahan');
             }
-        } catch (error: any) {
-            const status = error.response?.status;
-            const data = error.response?.data;
-            console.error('[LoginScreen] Login error:', status, data);
+        } catch (error) {
+            const isAxiosError = error instanceof AxiosError;
+            const status = isAxiosError ? error.response?.status : undefined;
+            const data = isAxiosError ? error.response?.data as { error?: string } : undefined;
+            logger.error('[LoginScreen] Login error:', status, data);
 
             // Handle different error scenarios
-            if (error.response) {
+            if (isAxiosError && error.response) {
                 // Server responded with error - show the error message
                 let errorMessage = 'Login gagal. Silakan coba lagi.';
 
@@ -57,24 +63,24 @@ export default function LoginScreen() {
                     errorMessage = data?.error || 'Email atau password salah';
                 } else if (status === 400) {
                     errorMessage = data?.error || 'Data tidak lengkap';
-                } else if (status >= 500) {
+                } else if (status && status >= 500) {
                     errorMessage = 'Server sedang bermasalah. Coba lagi nanti.';
                 } else if (data?.error) {
                     errorMessage = data.error;
                 }
 
-                console.log('[LoginScreen] Showing alert:', errorMessage);
+                logger.info('[LoginScreen] Showing alert:', errorMessage);
                 Alert.alert('Login Gagal', errorMessage);
-            } else if (error.request) {
+            } else if (error instanceof AxiosError && error.request) {
                 // No response received (network error)
-                console.log('[LoginScreen] Network error, showing alert');
+                logger.info('[LoginScreen] Network error, showing alert');
                 Alert.alert(
                     'Koneksi Gagal',
                     'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.'
                 );
             } else {
                 // Other errors
-                console.log('[LoginScreen] Unknown error, showing alert');
+                logger.info('[LoginScreen] Unknown error, showing alert');
                 Alert.alert('Error', 'Terjadi kesalahan. Silakan coba lagi.');
             }
         } finally {

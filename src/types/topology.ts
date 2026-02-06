@@ -11,7 +11,7 @@ export interface MarkerData {
   color: string;
   title: string;
   type: DeviceType;
-  data: any; // Original device object
+  data: Record<string, unknown>; // Original device object
 }
 
 export interface Cluster {

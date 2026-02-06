@@ -1,4 +1,9 @@
+import { UserListSkeleton } from '@/components/molecules/UserListSkeleton';
+import { useApiMutation } from '@/hooks/queries/useApiMutation';
+import { useApiQuery } from '@/hooks/queries/useApiQuery';
+import { queryKeys } from '@/lib/queryClient';
 import { chatService, ChatUser } from '@/services/ChatService';
+import { CreateConversationSchema, validateData } from '@/utils/validation';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Check, Search, User } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
@@ -48,37 +53,37 @@ UserItem.displayName = 'UserItem';
 
 export default function NewChatScreen() {
     const router = useRouter();
-    
-    const [users, setUsers] = useState<ChatUser[]>([]);
+
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [creating, setCreating] = useState(false);
+    const [debouncedSearch, setDebouncedSearch] = useState('');
 
-    const loadUsers = useCallback(async (search?: string) => {
-        try {
-            setLoading(true);
-            const result = await chatService.getUsers(search);
-            setUsers(result);
-        } catch (error) {
-            console.error('Error loading users:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        loadUsers();
-    }, [loadUsers]);
-
-    // Debounced search
+    // Debounce search query
     useEffect(() => {
         const timer = setTimeout(() => {
-            loadUsers(searchQuery);
+            setDebouncedSearch(searchQuery);
         }, 300);
-        
         return () => clearTimeout(timer);
-    }, [searchQuery, loadUsers]);
+    }, [searchQuery]);
+
+    const { data: usersData, isLoading: loading } = useApiQuery<ChatUser[]>({
+        queryKey: queryKeys.chat.users(debouncedSearch),
+        queryFn: () => chatService.getUsers(debouncedSearch),
+    });
+
+    const users = usersData || [];
+
+    const createConversationMutation = useApiMutation({
+        endpoint: '/api/mobile/chat/conversations',
+        method: 'POST',
+        invalidateKeys: [queryKeys.chat.list()],
+        onSuccess: (response: any) => {
+            const data = response.data || response;
+            if (data?.id) {
+                router.replace(`/(app)/chat/${data.id}`);
+            }
+        }
+    });
 
     const toggleUser = useCallback((userId: string) => {
         setSelectedUsers(prev => {
@@ -90,17 +95,16 @@ export default function NewChatScreen() {
     }, []);
 
     const handleCreateChat = useCallback(async () => {
-        if (selectedUsers.length === 0 || creating) return;
-        
-        setCreating(true);
-        try {
-            const result = await chatService.createConversation(selectedUsers);
-            router.replace(`/(app)/chat/${result.id}`);
-        } catch (error) {
-            console.error('Error creating conversation:', error);
-            setCreating(false);
+        if (selectedUsers.length === 0 || createConversationMutation.isPending) return;
+
+        const validation = validateData(CreateConversationSchema, { participantIds: selectedUsers });
+        if (!validation.success) {
+            // Should not happen due to UI check, but good for safety
+            return;
         }
-    }, [selectedUsers, creating, router]);
+
+        createConversationMutation.mutate(validation.data);
+    }, [selectedUsers, createConversationMutation]);
 
     const ListEmpty = useMemo(() => (
         <View style={tw`flex-1 items-center justify-center py-20`}>
@@ -122,14 +126,14 @@ export default function NewChatScreen() {
                         </TouchableOpacity>
                         <Text style={tw`font-bold text-gray-900 text-lg ml-2`}>Chat Baru</Text>
                     </View>
-                    
+
                     {selectedUsers.length > 0 && (
                         <TouchableOpacity
                             onPress={handleCreateChat}
-                            disabled={creating}
-                            style={tw`px-4 py-2 bg-purple-500 rounded-full ${creating ? 'opacity-50' : ''}`}
+                            disabled={createConversationMutation.isPending}
+                            style={tw`px-4 py-2 bg-purple-500 rounded-full ${createConversationMutation.isPending ? 'opacity-50' : ''}`}
                         >
-                            {creating ? (
+                            {createConversationMutation.isPending ? (
                                 <ActivityIndicator size="small" color="white" />
                             ) : (
                                 <Text style={tw`text-white font-semibold`}>
@@ -165,20 +169,18 @@ export default function NewChatScreen() {
             )}
 
             {/* User list */}
-            {loading ? (
-                <View style={tw`flex-1 items-center justify-center`}>
-                    <ActivityIndicator size="large" color="#9333ea" />
-                </View>
+            {loading && !usersData ? (
+                <UserListSkeleton />
             ) : (
                 <View style={tw`flex-1`}>
                     <FlashList
                         data={users}
                         keyExtractor={(item: ChatUser) => item.id}
                         renderItem={({ item }: { item: ChatUser }) => (
-                            <UserItem 
-                                item={item} 
-                                isSelected={selectedUsers.includes(item.id)} 
-                                onToggle={toggleUser} 
+                            <UserItem
+                                item={item}
+                                isSelected={selectedUsers.includes(item.id)}
+                                onToggle={toggleUser}
                             />
                         )}
                         estimatedItemSize={70}

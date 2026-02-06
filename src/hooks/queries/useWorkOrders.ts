@@ -5,6 +5,7 @@
  */
 
 import { queryKeys } from "../../lib/queryClient";
+import api from "@/services/api";
 import { useApiMutation, useApiQuery, useQueryClient } from "./index";
 
 // Types
@@ -28,6 +29,7 @@ interface WorkOrdersResponse {
 }
 
 interface CreateWorkOrderPayload {
+  [key: string]: unknown;
   customerName: string;
   address: string;
   description: string;
@@ -36,6 +38,7 @@ interface CreateWorkOrderPayload {
 }
 
 interface UpdateWorkOrderPayload {
+  [key: string]: unknown;
   id: string;
   status?: WorkOrder["status"];
   notes?: string;
@@ -48,7 +51,10 @@ interface UpdateWorkOrderPayload {
 export function useWorkOrders(options?: { enabled?: boolean }) {
   return useApiQuery<WorkOrdersResponse>({
     queryKey: queryKeys.workOrders.list(),
-    endpoint: "/api/mobile/work-orders",
+    queryFn: async () => {
+      const res = await api.get("/api/mobile/work-orders");
+      return res.data;
+    },
     enabled: options?.enabled,
     staleTime: 1000 * 60 * 2, // 2 minutes for work orders
   });
@@ -60,7 +66,10 @@ export function useWorkOrders(options?: { enabled?: boolean }) {
 export function useWorkOrder(id: string) {
   return useApiQuery<{ data: WorkOrder }>({
     queryKey: queryKeys.workOrders.detail(id),
-    endpoint: `/api/mobile/work-orders/${id}`,
+    queryFn: async () => {
+      const res = await api.get(`/api/mobile/work-orders/${id}`);
+      return res.data;
+    },
     enabled: !!id,
   });
 }
@@ -102,12 +111,15 @@ export function useUpdateWorkOrder() {
 
       // Optimistically update
       if (previousWorkOrder) {
-        queryClient.setQueryData(
+        queryClient.setQueryData<{ data: WorkOrder }>(
           queryKeys.workOrders.detail(newData.id),
-          (old: any) => ({
-            ...old,
-            data: { ...old.data, ...newData },
-          }),
+          (old) => {
+            if (!old) return undefined;
+            return {
+              ...old,
+              data: { ...old.data, ...(newData as Partial<WorkOrder>) },
+            };
+          },
         );
       }
 

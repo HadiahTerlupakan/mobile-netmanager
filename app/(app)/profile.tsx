@@ -1,60 +1,25 @@
-import { Config } from '@/constants/Config';
+import { ProfileSkeleton } from '@/components/molecules/ProfileSkeleton';
 import { useAuth } from '@/context/AuthContext';
-import api from '@/services/api'; // Use centralized API
+import { useProfileSync } from '@/hooks/useProfileSync';
 import Constants from 'expo-constants';
-import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
+import { Href, router } from 'expo-router';
 import { Briefcase, Building2, Calendar, Clock, Edit3, LogOut, Mail, MapPin } from 'lucide-react-native';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-
-interface ProfileData {
-    name: string;
-    email: string;
-    phone?: string | null;
-    image?: string | null;
-    departments?: { name: string } | null;
-    sites?: { name: string } | null;
-    role?: { name: string } | null;
-    workingHourMode?: 'FIXED' | 'FLEXIBLE' | 'SHIFT';
-    startWorkTime?: string | null;
-    endWorkTime?: string | null;
-    workDays?: string | null;
-}
+import { logger } from '@/utils/logger';
 
 export default function Profile() {
-    const { user, token, logout } = useAuth();
-    const [loading, setLoading] = useState(true);
+    const { user, logout } = useAuth();
+    const { profileData, isLoading, refetch } = useProfileSync();
     const [refreshing, setRefreshing] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [profileData, setProfileData] = useState<ProfileData | null>(null);
-
-    // Fetch profile data
-    const fetchProfile = useCallback(async () => {
-        if (!token) return;
-        try {
-            const res = await api.get('/api/mobile/profile');
-            if (res.data.success) {
-                setProfileData(res.data.data);
-            }
-        } catch (error) {
-            console.error('Failed to fetch profile', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [token]);
-
-    useFocusEffect(
-        useCallback(() => {
-            fetchProfile();
-        }, [fetchProfile])
-    );
 
     const onRefresh = async () => {
         setRefreshing(true);
-        await fetchProfile();
+        await refetch();
         setRefreshing(false);
     };
 
@@ -72,7 +37,7 @@ export default function Profile() {
                         try {
                             await logout();
                         } catch (error) {
-                            console.error('Logout error', error);
+                            logger.error('Logout error', error);
                         } finally {
                             setIsLoggingOut(false);
                         }
@@ -96,12 +61,8 @@ export default function Profile() {
         return days.split(',').map(d => dayMap[d.trim()] || d).join(', ');
     };
 
-    if (loading) {
-        return (
-            <SafeAreaView style={tw`flex-1 bg-gray-50 justify-center items-center`}>
-                <ActivityIndicator size="large" color="#2563eb" />
-            </SafeAreaView>
-        );
+    if (isLoading && !profileData) {
+        return <ProfileSkeleton />;
     }
 
     const displayName = profileData?.name || user?.name || 'User';
@@ -117,12 +78,12 @@ export default function Profile() {
                 <View style={tw`bg-blue-600 px-6 pt-6 pb-16 rounded-b-[40px]`}>
                     <View style={tw`items-center`}>
                         {profileData?.image ? (
-                            <Image
-                                source={{ uri: profileData.image }}
+                            <ImageWithCache
+                                source={profileData.image}
                                 style={tw`w-24 h-24 rounded-full mb-4 border-4 border-white`}
                                 contentFit="cover"
                                 transition={1000}
-                                  />
+                            />
                         ) : (
                             <View style={tw`w-24 h-24 bg-white rounded-full items-center justify-center mb-4 shadow-lg`}>
                                 <Text style={tw`text-blue-600 text-4xl font-bold`}>{getInitials(displayName)}</Text>
@@ -216,7 +177,7 @@ export default function Profile() {
 
                     {/* Edit Profile Button */}
                     <TouchableOpacity
-                        onPress={() => router.push('/(app)/edit-profile' as any)}
+                        onPress={() => router.push('/(app)/edit-profile' as Href)}
                         style={tw`mt-6 bg-blue-50 border border-blue-100 rounded-2xl p-4 flex-row items-center justify-center`}
                     >
                         <Edit3 size={20} color="#2563eb" />

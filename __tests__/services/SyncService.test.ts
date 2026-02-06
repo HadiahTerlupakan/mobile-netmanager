@@ -4,8 +4,25 @@ import * as SecureStore from 'expo-secure-store';
 import { DatabaseService } from '@/services/DatabaseService';
 import { SyncService } from '@/services/SyncService';
 
+// Mock logger to suppress console output
+jest.mock('@/utils/logger', () => ({
+  logger: {
+    sync: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+  }
+}));
+
+// Mock UploadService to avoid expo-file-system dependencies
+jest.mock('@/services/UploadService', () => ({
+  uploadService: {
+    uploadFile: jest.fn().mockResolvedValue('https://example.com/photo.jpg'),
+  },
+}));
+
 // Mock DatabaseService
-jest.mock('../../services/DatabaseService', () => ({
+jest.mock('@/services/DatabaseService', () => ({
   DatabaseService: {
     isReady: jest.fn(() => true),
     waitForReady: jest.fn().mockResolvedValue(undefined),
@@ -18,6 +35,7 @@ jest.mock('../../services/DatabaseService', () => ({
 beforeEach(() => {
   jest.clearAllMocks();
   SyncService.isMonitoring = false;
+  SyncService.isProcessing = false;
 });
 
 describe('SyncService', () => {
@@ -113,15 +131,15 @@ describe('SyncService', () => {
         status: 'PENDING',
         meta: '{}'
       };
-      
+
       (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([mockItem]);
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('test-token');
       (axios as unknown as jest.Mock).mockRejectedValue(new Error('Network error'));
-      
+
       await SyncService.processQueue();
-      
+
       expect(DatabaseService.markAsRetry).toHaveBeenCalledWith(1);
-    });
+    }, 15000); // Increase timeout for backoff delays (2s + 4s + processing time)
 
     it('should wait for database if not ready', async () => {
       (DatabaseService.isReady as jest.Mock).mockReturnValue(false);

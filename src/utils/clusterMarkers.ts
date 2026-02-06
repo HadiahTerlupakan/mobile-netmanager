@@ -16,7 +16,7 @@ export function clusterMarkers(
   markers: MarkerData[],
   zoom: number,
   clusterRadius: number = 50
-): Array<MarkerData | Cluster> {
+): (MarkerData | Cluster)[] {
   // Don't cluster at high zoom levels (show all markers)
   if (zoom >= 14) {
     return markers;
@@ -31,7 +31,7 @@ export function clusterMarkers(
     let clustered = false;
 
     // Try to add to existing cluster
-    for (const [key, cluster] of clusters) {
+    for (const cluster of clusters.values()) {
       const distance = Math.sqrt(
         Math.pow(marker.latitude - cluster.latitude, 2) +
         Math.pow(marker.longitude - cluster.longitude, 2)

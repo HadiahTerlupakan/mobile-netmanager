@@ -1,4 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Storage } from "@/utils/storage";
+import { logger } from "@/utils/logger";
 
 const QUEUE_KEY = "NETMANAGER_SYNC_QUEUE";
 
@@ -10,11 +11,14 @@ export interface SyncQueueItem {
   status: "PENDING" | "RETRY" | "FAILED";
   createdAt: string;
   meta: string; // JSON string for extra info
+  retryCount?: number;
 }
 
 class DatabaseServiceImpl {
   private static instance: DatabaseServiceImpl;
   private isReady: boolean = false;
+  private memoryQueue: SyncQueueItem[] = [];
+  private initPromise: Promise<void> | null = null;
 
   private constructor() {}
 
@@ -30,55 +34,68 @@ class DatabaseServiceImpl {
   }
 
   public async waitForReady(): Promise<void> {
-    this.isReady = true;
-    return Promise.resolve();
+    if (this.isReady) return;
+    if (this.initPromise) return this.initPromise;
+    return this.initDatabase();
   }
 
-  /**
-   * Compatibility method - no-op for AsyncStorage
-   */
   public async initDatabase(): Promise<void> {
-    this.isReady = true;
-    return Promise.resolve();
+    if (this.isReady) return;
+    if (this.initPromise) return this.initPromise;
+
+    this.initPromise = (async () => {
+      try {
+        const json = Storage.getItem(QUEUE_KEY);
+        if (json) {
+          this.memoryQueue = JSON.parse(json);
+        }
+        this.isReady = true;
+        logger.db(`Database initialized. Queue size: ${this.memoryQueue.length}`);
+      } catch (error) {
+        logger.error("Failed to init database:", error);
+        this.memoryQueue = [];
+        this.isReady = true; // Fallback to ready empty state
+      }
+    })();
+
+    return this.initPromise;
   }
 
-  // --- OPERATIONS ---
-
-  private async getQueue(): Promise<SyncQueueItem[]> {
-    const json = await AsyncStorage.getItem(QUEUE_KEY);
-    return json ? JSON.parse(json) : [];
-  }
-
-  private async saveQueue(queue: SyncQueueItem[]): Promise<void> {
-    await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  private async persistQueue(): Promise<void> {
+    try {
+      Storage.setItem(QUEUE_KEY, JSON.stringify(this.memoryQueue));
+    } catch (error) {
+      logger.error("Failed to persist queue:", error);
+    }
   }
 
   public async addToQueue(
     url: string,
     method: string,
-    body: any,
-    meta: any = {},
+    body: unknown,
+    meta: Record<string, unknown> = {},
   ) {
-    const queue = await this.getQueue();
+    if (!this.isReady) await this.waitForReady();
 
     const newItem: SyncQueueItem = {
-      id: Date.now(), // Simple ID generation
+      id: Date.now(),
       url,
-      method: method as any,
+      method: method as SyncQueueItem["method"],
       body: JSON.stringify(body),
       status: "PENDING",
       createdAt: new Date().toISOString(),
       meta: JSON.stringify(meta),
+      retryCount: 0,
     };
 
-    queue.push(newItem);
-    await this.saveQueue(queue);
-    console.log("[Database] Added to sync queue (AsyncStorage):", url);
+    this.memoryQueue.push(newItem);
+    await this.persistQueue();
+    logger.db(`Added to sync queue: ${url}`);
   }
 
   public async getPendingQueue(): Promise<SyncQueueItem[]> {
-    const queue = await this.getQueue();
-    return queue
+    if (!this.isReady) await this.waitForReady();
+    return this.memoryQueue
       .filter((item) => item.status === "PENDING" || item.status === "RETRY")
       .sort(
         (a, b) =>
@@ -87,43 +104,31 @@ class DatabaseServiceImpl {
   }
 
   public async removeFromQueue(id: number) {
-    const queue = await this.getQueue();
-    const newQueue = queue.filter((item) => item.id !== id);
-    await this.saveQueue(newQueue);
+    if (!this.isReady) await this.waitForReady();
+    this.memoryQueue = this.memoryQueue.filter((item) => item.id !== id);
+    await this.persistQueue();
   }
 
   public async markAsRetry(id: number) {
-    const queue = await this.getQueue();
-    const index = queue.findIndex((item) => item.id === id);
-    if (index !== -1) {
-      queue[index].status = "RETRY";
-      await this.saveQueue(queue);
+    if (!this.isReady) await this.waitForReady();
+    const item = this.memoryQueue.find((item) => item.id === id);
+    if (item) {
+      item.status = "RETRY";
+      item.retryCount = (item.retryCount || 0) + 1;
+      await this.persistQueue();
     }
   }
-
-  // Legacy methods stubbed or removed as they are no longer needed for GET caching
-  // (TanStack Query handles GET caching)
 }
 
 // Export a singleton wrapper object to maintain API compatibility
-const instance = DatabaseServiceImpl.getInstance();
 
 export const DatabaseService = {
-  isReady: () => instance.isInitialized(),
-  waitForReady: () => instance.waitForReady(),
-  initDatabase: () => instance.initDatabase(),
-  addToQueue: (url: string, method: string, body: any, meta: any = {}) =>
-    instance.addToQueue(url, method, body, meta),
-  getPendingQueue: () => instance.getPendingQueue(),
-  removeFromQueue: (id: number) => instance.removeFromQueue(id),
-  markAsRetry: (id: number) => instance.markAsRetry(id),
-  // Legacy stubs to prevent crashes if old code is cached/referenced
-  saveOfflineData: async (key: string, data: any) => {
-    console.warn("[Database] saveOfflineData is deprecated");
-    return Promise.resolve();
-  },
-  getOfflineData: async (key: string) => {
-    console.warn("[Database] getOfflineData is deprecated");
-    return Promise.resolve(null);
-  },
+  isReady: () => DatabaseServiceImpl.getInstance().isInitialized(),
+  waitForReady: () => DatabaseServiceImpl.getInstance().waitForReady(),
+  initDatabase: () => DatabaseServiceImpl.getInstance().initDatabase(),
+  addToQueue: (url: string, method: string, body: unknown, meta: Record<string, unknown> = {}) =>
+    DatabaseServiceImpl.getInstance().addToQueue(url, method, body, meta),
+  getPendingQueue: () => DatabaseServiceImpl.getInstance().getPendingQueue(),
+  removeFromQueue: (id: number) => DatabaseServiceImpl.getInstance().removeFromQueue(id),
+  markAsRetry: (id: number) => DatabaseServiceImpl.getInstance().markAsRetry(id),
 };

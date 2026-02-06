@@ -1,12 +1,16 @@
-import { Image } from 'expo-image';
+import { OvertimeSkeleton } from '@/components/molecules/OvertimeSkeleton';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
 import {
     useOfflineMutationCompat as useOfflineMutation,
     useOfflineQueryCompat as useOfflineQuery,
 } from "@/hooks/queries";
 import api from "@/services/api"; // Use centralized API
+import { SyncService } from "@/services/SyncService";
+import { uploadService } from "@/services/UploadService";
+import { OvertimeRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
+import { formatDate } from "@/utils/date";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
@@ -78,7 +82,7 @@ const OvertimeItem = React.memo(({ item }: { item: Overtime }) => {
     <View style={tw`bg-white p-4 rounded-xl mb-2 flex-row justify-between items-center border border-gray-100`}>
       <View style={tw`flex-1 mr-3`}>
         <Text style={tw`font-bold text-sm text-gray-900`}>
-          {format(new Date(item.createdAt), "dd MMM yyyy")}
+          {formatDate(item.createdAt, "dd MMM yyyy")}
         </Text>
         <Text style={tw`text-xs text-gray-500`} numberOfLines={1}>
           {item.reason}
@@ -122,6 +126,7 @@ export default function LemburScreen() {
   // Loading State
   const [showLoading, setShowLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Data States
   const [history, setHistory] = useState<Overtime[]>([]);
@@ -148,7 +153,7 @@ export default function LemburScreen() {
   const [capturedTime, setCapturedTime] = useState<Date | null>(null);
 
   // Offline Query
-  const { data: overtimeData, refetch: fetchData } = useOfflineQuery<OvertimeResponse>({
+  const { data: overtimeData, refetch: fetchData, isLoading } = useOfflineQuery<OvertimeResponse>({
     key: "overtime_data",
     fetcher: async () => {
       const res = await api.get("/api/mobile/overtime");
@@ -161,21 +166,6 @@ export default function LemburScreen() {
 
   // Offline Mutation
   const { mutate } = useOfflineMutation();
-
-  useEffect(() => {
-    if (overtimeData) {
-      const historyList = overtimeData.history || [];
-      setHistory(historyList);
-      setHasCheckedOut(overtimeData.hasCheckedOut || false);
-      setHolidayInfo(overtimeData.holidayInfo || null);
-
-      const todayStr = new Date().toISOString().split("T")[0];
-      const today = historyList.find(
-        (item: Overtime) => item.createdAt.startsWith(todayStr) || item.status === "IN_PROGRESS",
-      );
-      setTodayRequest(today || null);
-    }
-  }, [overtimeData]);
 
   const getLocation = useCallback(async () => {
     try {
@@ -197,10 +187,10 @@ export default function LemburScreen() {
           const addr = reverse[0];
           setLocationName(`${addr.street || ""} ${addr.district || ""}, ${addr.city || ""}`);
         }
-      } catch (e) {
+      } catch {
         setLocationName(`${loc.coords.latitude.toFixed(6)}, ${loc.coords.longitude.toFixed(6)}`);
       }
-    } catch (error) {
+    } catch {
       setLocationName("Lokasi tidak ditemukan");
     }
   }, []);
@@ -219,23 +209,35 @@ export default function LemburScreen() {
   }, [fetchData, getLocation]);
 
   const handleSubmitRequest = useCallback(async () => {
-    if (!reason.trim()) return;
+    // 1. Validate & Sanitize
+    const rawData = {
+        date: new Date().toISOString(),
+        reason: sanitizeInput(reason)
+    };
+
+    const validation = validateData(OvertimeRequestSchema, rawData);
+
+    if (!validation.success) {
+        Alert.alert("Data Tidak Valid", validation.error);
+        return;
+    }
+
     setShowLoading(true);
     setLoadingMessage("Mengirim pengajuan...");
 
     await mutate(
-      { action: "request", date: new Date().toISOString(), reason: reason.trim() },
+      { action: "request", ...validation.data },
       {
         url: `/api/mobile/overtime`,
         method: "POST",
-        onSuccess: (data: any, isOffline: boolean) => {
+        onSuccess: (data: unknown, isOffline: boolean) => {
           setShowLoading(false);
           Alert.alert(isOffline ? "Offline" : "Sukses", isOffline ? "Pengajuan diantrikan" : "Pengajuan berhasil dikirim");
           setShowRequestModal(false);
           setReason("");
           fetchData();
         },
-        onError: (err: any) => {
+        onError: (err: Error) => {
           setShowLoading(false);
           Alert.alert("Error", err.message || "Gagal mengirim pengajuan");
         },
@@ -257,7 +259,7 @@ export default function LemburScreen() {
     try {
       const uri = await captureRef(watermarkRef, { format: "jpg", quality: 0.8 });
       return uri;
-    } catch (error) {
+    } catch {
       return photo;
     }
   }, [photo]);
@@ -265,25 +267,42 @@ export default function LemburScreen() {
   const submitAction = useCallback(async () => {
     if (!photo || !location || !todayRequest || !activeAction) return;
     setShowLoading(true);
+    setUploadProgress(0);
     try {
       setLoadingMessage("Memproses foto...");
       const watermarkedUri = await captureWatermarkedPhoto();
       if (!watermarkedUri) throw new Error("Failed to capture photo");
 
+      // Check online status
+      const isOnline = await SyncService.isOnline();
+      let photoUrl = null;
+
+      if (isOnline) {
+          setLoadingMessage("Mengupload foto...");
+          photoUrl = await uploadService.uploadFile(watermarkedUri, "employee-attendance", {
+              onProgress: (p) => setUploadProgress(p.percentage)
+          });
+      }
+
       setLoadingMessage("Mengirim data...");
+      setUploadProgress(0);
+
       await mutate(
         {
           action: activeAction,
           overtimeId: todayRequest.id,
-          photo: null,
+          photo: photoUrl, // Remote URL if online
           location: `${location.coords.latitude},${location.coords.longitude}`,
           timestamp: (capturedTime || new Date()).toISOString(),
-          meta: { photoMap: { photo: watermarkedUri }, photoType: "employee-attendance" },
+          meta: {
+              photoMap: { photo: watermarkedUri }, // Local URI for offline fallback
+              photoType: "employee-attendance"
+          },
         },
         {
           url: `/api/mobile/overtime`,
           method: "POST",
-          onSuccess: (data: any, isOffline: boolean) => {
+          onSuccess: (_data: unknown, isOffline: boolean) => {
             setShowLoading(false);
             Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Aksi diantrikan" : activeAction === "start" ? "Lembur dimulai!" : "Lembur selesai!");
             setPhoto(null);
@@ -291,15 +310,16 @@ export default function LemburScreen() {
             setActiveAction(null);
             fetchData();
           },
-          onError: (err: any) => {
+          onError: (err: Error) => {
             setShowLoading(false);
             Alert.alert("Gagal", err.message || "Terjadi kesalahan");
           },
         },
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       setShowLoading(false);
-      Alert.alert("Gagal", error.message || "Terjadi kesalahan.");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Alert.alert("Gagal", errorMessage || "Terjadi kesalahan.");
     }
   }, [photo, location, todayRequest, activeAction, capturedTime, captureWatermarkedPhoto, mutate, fetchData]);
 
@@ -332,7 +352,7 @@ export default function LemburScreen() {
               <View style={tw`items-center flex-1 border-r border-gray-100`}>
                 <Text style={tw`text-xs text-gray-400 mb-1`}>Mulai</Text>
                 <Text style={tw`text-lg font-bold text-gray-800`}>
-                  {todayRequest.startTime ? format(new Date(todayRequest.startTime), "HH:mm") : "--:--"}
+                  {todayRequest.startTime ? formatDate(todayRequest.startTime, "HH:mm") : "--:--"}
                 </Text>
               </View>
               <View style={tw`items-center flex-1`}>
@@ -345,7 +365,7 @@ export default function LemburScreen() {
           {photo && activeAction ? (
             <View style={tw`mb-4`}>
               <View ref={watermarkRef} collapsable={false} style={tw`w-full h-80 rounded-xl overflow-hidden mb-2 bg-black`}>
-                <Image source={{ uri: photo }} style={tw`w-full h-full`} contentFit="cover" transition={1000} />
+                <ImageWithCache source={photo} style={tw`w-full h-full`} contentFit="cover" transition={1000} />
                 <View style={tw`absolute bottom-0 left-0 right-0 bg-black/60 p-3`}>
                   <View style={tw`flex-row items-center mb-1`}>
                     <Clock size={12} color="#fff" />
@@ -417,6 +437,25 @@ export default function LemburScreen() {
     </View>
   ), [router, locationName, todayRequest, photo, activeAction, capturedTime, user?.name, showLoading, canStartOvertime, submitAction]);
 
+  useEffect(() => {
+    if (overtimeData) {
+      const historyList = overtimeData.history || [];
+      setHistory(historyList);
+      setHasCheckedOut(overtimeData.hasCheckedOut || false);
+      setHolidayInfo(overtimeData.holidayInfo || null);
+
+      const todayStr = new Date().toISOString().split("T")[0];
+      const today = historyList.find(
+        (item: Overtime) => item.createdAt.startsWith(todayStr) || item.status === "IN_PROGRESS",
+      );
+      setTodayRequest(today || null);
+    }
+  }, [overtimeData]);
+
+  if (isLoading && !overtimeData) {
+    return <OvertimeSkeleton />;
+  }
+
   if (showCamera) {
     if (!permission?.granted) {
       return (
@@ -429,24 +468,23 @@ export default function LemburScreen() {
 
     return (
       <View style={tw`flex-1 bg-black`}>
-        <CameraView style={tw`flex-1`} facing={facing} ref={cameraRef}>
-          <View style={tw`absolute inset-0 items-center justify-center`}>
-            <View style={[tw`w-56 h-72 border-2 border-white/60 rounded-full`, { borderStyle: "dashed" }]} />
-          </View>
-          <View style={tw`absolute bottom-0 left-0 right-0 p-6 pb-12`}>
-            <View style={tw`bg-black/50 p-3 rounded-xl mb-4`}>
-              <View style={tw`flex-row items-center`}>
-                <MapPin size={14} color="#fff" />
-                <Text style={tw`text-white text-xs ml-2 flex-1`} numberOfLines={1}>{locationName}</Text>
-              </View>
-            </View>
-            <View style={tw`flex-row justify-between items-center`}>
-              <TouchableOpacity onPress={() => { setShowCamera(false); setActiveAction(null); }} style={tw`bg-white/20 p-3 rounded-full`}><X color="white" size={24} /></TouchableOpacity>
-              <TouchableOpacity onPress={handleCapture} style={tw`h-20 w-20 bg-white rounded-full border-4 border-gray-300 items-center justify-center`}><View style={tw`h-16 w-16 bg-white rounded-full border-2 border-gray-200`} /></TouchableOpacity>
-              <TouchableOpacity onPress={() => setFacing((curr) => (curr === "back" ? "front" : "back"))} style={tw`bg-white/20 p-3 rounded-full`}><RotateCcw color="white" size={24} /></TouchableOpacity>
+        <CameraView style={tw`flex-1`} facing={facing} ref={cameraRef} />
+        <View style={tw`absolute inset-0 items-center justify-center pointer-events-none`}>
+          <View style={[tw`w-56 h-72 border-2 border-white/60 rounded-full`, { borderStyle: "dashed" }]} />
+        </View>
+        <View style={tw`absolute bottom-0 left-0 right-0 p-6 pb-12`}>
+          <View style={tw`bg-black/50 p-3 rounded-xl mb-4`}>
+            <View style={tw`flex-row items-center`}>
+              <MapPin size={14} color="#fff" />
+              <Text style={tw`text-white text-xs ml-2 flex-1`} numberOfLines={1}>{locationName}</Text>
             </View>
           </View>
-        </CameraView>
+          <View style={tw`flex-row justify-between items-center`}>
+            <TouchableOpacity onPress={() => { setShowCamera(false); setActiveAction(null); }} style={tw`bg-white/20 p-3 rounded-full`}><X color="white" size={24} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleCapture} style={tw`h-20 w-20 bg-white rounded-full border-4 border-gray-300 items-center justify-center`}><View style={tw`h-16 w-16 bg-white rounded-full border-2 border-gray-200`} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => setFacing((curr) => (curr === "back" ? "front" : "back"))} style={tw`bg-white/20 p-3 rounded-full`}><RotateCcw color="white" size={24} /></TouchableOpacity>
+          </View>
+        </View>
       </View>
     );
   }
@@ -487,7 +525,7 @@ export default function LemburScreen() {
           </View>
         </View>
       </Modal>
-      <LoadingModal visible={showLoading} message={loadingMessage} />
+      <LoadingModal visible={showLoading} message={loadingMessage} progress={uploadProgress > 0 ? uploadProgress : undefined} />
     </SafeAreaView>
   );
 }

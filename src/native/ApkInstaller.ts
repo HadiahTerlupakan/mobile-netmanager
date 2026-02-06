@@ -1,4 +1,5 @@
 import { NativeModules, Platform } from 'react-native';
+import { logger } from '@/utils/logger';
 
 interface ApkInstallerInterface {
     installApk(filePath: string): Promise<boolean>;
@@ -56,6 +57,6 @@ export async function openInstallSettings(): Promise<void> {
     try {
         await NativeApkInstaller.openInstallSettings();
     } catch (error) {
-        console.error('Failed to open install settings:', error);
+        logger.error('Failed to open install settings:', error);
     }
 }

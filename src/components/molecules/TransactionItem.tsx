@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
+import React, { ComponentProps } from 'react';
 import { Text, View } from 'react-native';
 import tw from 'twrnc';
+
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 export interface Transaction {
     id: string;
@@ -25,11 +27,11 @@ interface TransactionItemProps {
     formatDate: (dateString: string) => string;
 }
 
-const getStatusColor = (type: string) => {
+const getStatusColor = (type: 'masuk' | 'keluar') => {
     return type === 'masuk' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
 };
 
-const getIcon = (type: string) => {
+const getIcon = (type: 'masuk' | 'keluar'): IoniconName => {
     return type === 'masuk' ? 'arrow-down-circle' : 'arrow-up-circle';
 };
 
@@ -40,7 +42,7 @@ const TransactionItem = React.memo(({ item, formatDate }: TransactionItemProps) 
                 <View style={tw`flex-row items-center gap-2 flex-1`}>
                     <View style={tw`p-2 rounded-full ${item.type === 'masuk' ? 'bg-green-50' : 'bg-red-50'}`}>
                         <Ionicons
-                            name={getIcon(item.type) as any}
+                            name={getIcon(item.type)}
                             size={20}
                             color={item.type === 'masuk' ? '#16A34A' : '#DC2626'}
                         />

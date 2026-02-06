@@ -1,64 +1,73 @@
 
+import { BarangIndexSkeleton } from '@/components/molecules/BarangIndexSkeleton';
 import { useAuth } from '@/context/AuthContext';
 import { useSocketEvent } from '@/context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useOfflineQueryCompat } from '@/hooks/queries';
 import api from '@/services/api';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useCallback, useState, ComponentProps } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { logger } from '@/utils/logger';
+import { useQueryClient } from '@tanstack/react-query';
+
+type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 interface DashboardStats {
     barangMasukToday: number;
     barangKeluarToday: number;
 }
 
+interface MenuItem {
+    id: string;
+    title: string;
+    subtitle: string;
+    icon: IoniconName;
+    color: string;
+    bgColor: string;
+    route: any;
+}
+
 export default function BarangIndexScreen() {
     const router = useRouter();
     const { token } = useAuth();
-    const [stats, setStats] = useState<DashboardStats>({ barangMasukToday: 0, barangKeluarToday: 0 });
+    const queryClient = useQueryClient();
     const [refreshing, setRefreshing] = useState(false);
 
-    const fetchStats = async () => {
-        try {
+    const { data: stats, isLoading, refetch } = useOfflineQueryCompat<DashboardStats>({
+        key: 'inventory_dashboard_stats',
+        fetcher: async () => {
             const res = await api.get('/api/mobile/dashboard');
-            // API returns stats directly at root level
-            if (res.data) {
-                setStats({
-                    barangMasukToday: res.data.barangMasukToday || 0,
-                    barangKeluarToday: res.data.barangKeluarToday || 0
-                });
-            }
-        } catch (error) {
-            console.error('Failed to fetch stats:', error);
-        }
-    };
-
-    // Fetch stats when screen comes into focus
-    useFocusEffect(
-        useCallback(() => {
-            if (token) fetchStats();
-        }, [token])
-    );
+            return {
+                barangMasukToday: res.data.barangMasukToday || 0,
+                barangKeluarToday: res.data.barangKeluarToday || 0
+            };
+        },
+        enabled: !!token,
+    });
 
     // Real-time updates via WebSocket
     useSocketEvent<{ type: 'masuk' | 'keluar' }>('inventory:update', useCallback((data) => {
-        console.log('[Barang] Real-time update received:', data);
-        setStats(prev => ({
-            ...prev,
-            barangMasukToday: data.type === 'masuk' ? prev.barangMasukToday + 1 : prev.barangMasukToday,
-            barangKeluarToday: data.type === 'keluar' ? prev.barangKeluarToday + 1 : prev.barangKeluarToday
-        }));
-    }, []));
+        logger.socket('Real-time inventory update received:', data);
+        queryClient.setQueryData<DashboardStats>(['inventory_dashboard_stats'], (prev) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                barangMasukToday: data.type === 'masuk' ? prev.barangMasukToday + 1 : prev.barangMasukToday,
+                barangKeluarToday: data.type === 'keluar' ? prev.barangKeluarToday + 1 : prev.barangKeluarToday
+            };
+        });
+    }, [queryClient]));
 
     const onRefresh = async () => {
         setRefreshing(true);
-        await fetchStats();
+        await refetch();
         setRefreshing(false);
     };
 
-    const menuItems = [
+    const menuItems: MenuItem[] = [
         {
             id: 'masuk',
             title: 'Barang Masuk',
@@ -88,6 +97,10 @@ export default function BarangIndexScreen() {
         }
     ];
 
+    if (isLoading && !stats) {
+        return <BarangIndexSkeleton />;
+    }
+
     return (
         <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
             {/* Header */}
@@ -101,7 +114,7 @@ export default function BarangIndexScreen() {
                 </View>
             </View>
 
-            <ScrollView 
+            <ScrollView
                 style={tw`flex-1`}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             >
@@ -116,11 +129,11 @@ export default function BarangIndexScreen() {
                         <TouchableOpacity
                             key={item.id}
                             style={tw`bg-white rounded-xl p-4 mb-3 flex-row items-center border border-gray-100 shadow-sm`}
-                            onPress={() => router.push(item.route as any)}
+                            onPress={() => router.push(item.route)}
                             activeOpacity={0.7}
                         >
                             <View style={[tw`w-14 h-14 rounded-lg items-center justify-center`, { backgroundColor: item.bgColor }]}>
-                                <Ionicons name={item.icon as any} size={28} color={item.color} />
+                                <Ionicons name={item.icon} size={28} color={item.color} />
                             </View>
                             <View style={tw`flex-1 ml-4`}>
                                 <Text style={tw`text-base font-bold text-gray-900`}>{item.title}</Text>
@@ -136,13 +149,13 @@ export default function BarangIndexScreen() {
                         <View style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100`}>
                             <Text style={tw`text-xs text-gray-500`}>Total Masuk</Text>
                             <Text style={tw`text-xl font-bold text-green-500 mt-1`}>
-                                +{stats.barangMasukToday}
+                                +{stats?.barangMasukToday || 0}
                             </Text>
                         </View>
                         <View style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100`}>
                             <Text style={tw`text-xs text-gray-500`}>Total Keluar</Text>
                             <Text style={tw`text-xl font-bold text-red-500 mt-1`}>
-                                -{stats.barangKeluarToday}
+                                -{stats?.barangKeluarToday || 0}
                             </Text>
                         </View>
                     </View>

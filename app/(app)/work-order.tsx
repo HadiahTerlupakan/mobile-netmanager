@@ -1,23 +1,24 @@
+import { WorkOrderSkeleton } from "@/components/molecules/WorkOrderSkeleton";
 import AvailableWorkOrderListItem from "@/components/organisms/dashboard/AvailableWorkOrderListItem";
-import WorkOrderListItem from "@/components/organisms/dashboard/WorkOrderListItem";
-import { Config } from "@/constants/Config";
+import { WorkOrderListItem } from "@/components/organisms/dashboard/WorkOrderListItem";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket, useSocketEvent } from "@/context/SocketContext";
 import { SOCKET_EVENTS } from "@/context/socketTypes";
-import {
-    useOfflineMutationCompat as useOfflineMutation,
-    useOfflineQueryCompat as useOfflineQuery,
-} from "@/hooks/queries";
+import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
 import api from "@/services/api"; // Use centralized API
 import { SyncService } from "@/services/SyncService";
+import { WorkOrderAssignment } from "@/types/work-order";
 import { FlashList } from "@shopify/flash-list";
-import { useRouter } from "expo-router";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { AxiosError } from "axios";
+import { Href, useRouter } from "expo-router";
+import { logger } from "@/utils/logger";
 import {
     CheckCircle,
     FileText,
     Inbox,
 } from "lucide-react-native";
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -41,7 +42,7 @@ interface WorkOrder {
   locationAddress?: string;
   createdAt: string;
   scheduledDate?: string;
-  assignments?: any[];
+  assignments?: WorkOrderAssignment[];
   pelanggan?: {
     nama?: string;
     noTelp?: string;
@@ -54,52 +55,73 @@ interface WorkOrder {
 
 type TabType = "tersedia" | "aktif" | "riwayat";
 
+// Memoized row component for Active/History items
+const WorkOrderRow = React.memo(({ item, userId, onPress }: { item: WorkOrder, userId?: string, onPress: (id: string) => void }) => (
+  <TouchableOpacity onPress={() => onPress(item.id)}>
+    <WorkOrderListItem item={item} userId={userId} />
+  </TouchableOpacity>
+));
+WorkOrderRow.displayName = "WorkOrderRow";
+
 export default function WorkOrderScreen() {
   const { token, user } = useAuth();
   const { isConnected } = useSocket();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("tersedia");
-  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
   const [claiming, setClaiming] = useState<string | null>(null);
 
-  // Offline Query
+  // Infinite Query for Pagination
   const {
-    data: woData,
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     isLoading: loadingWO,
+    isRefetching,
     refetch: refetchWO,
-  } = useOfflineQuery<WorkOrder[]>({
-    key: `work_orders_${activeTab}`,
-    fetcher: async () => {
+  } = useInfiniteQuery({
+    queryKey: ["work_orders", activeTab],
+    queryFn: async ({ pageParam = null }) => {
       let endpoint = "";
-      let params = {};
+      const params: any = { limit: 10 }; // Default limit
+
+      if (pageParam) {
+        params.cursor = pageParam;
+      }
+
       if (activeTab === "tersedia") {
         endpoint = "/api/mobile/work-orders/available";
       } else {
         endpoint = "/api/mobile/work-orders";
-        params = { type: activeTab === "aktif" ? "active" : "history" };
+        params.type = activeTab === "aktif" ? "active" : "history";
       }
 
-      const res = await api.get(endpoint, {
-        params,
-      });
-      return res.data?.data || [];
+      const res = await api.get(endpoint, { params });
+      return res.data;
     },
+    getNextPageParam: (lastPage: any) => lastPage.nextCursor || undefined,
+    initialPageParam: null,
     enabled: !!token,
-    staleTime: 0, // Force refetch fresh data saat key berubah (pindah tab)
+    staleTime: 1000 * 60 * 1, // 1 minute stale time
   });
+
+  // Flatten data
+  const workOrders = useMemo(() => {
+    return data?.pages.flatMap((page: any) => page.data || []) || [];
+  }, [data]);
 
   // Offline Mutation for Claim
   const { mutate: claimMutate } = useOfflineMutation();
 
-  useEffect(() => {
-    if (woData) setWorkOrders(woData);
-  }, [woData]);
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    refetchWO().finally(() => setRefreshing(false));
+  const onRefresh = useCallback(async () => {
+    await refetchWO();
   }, [refetchWO]);
+
+  const onLoadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleClaimWO = useCallback(
     async (workOrderId: string) => {
@@ -133,11 +155,13 @@ export default function WorkOrderScreen() {
                     }
                     setActiveTab("aktif");
                   },
-                  onError: (err: any) =>
+                  onError: (err) => {
+                    const errorMessage = err instanceof AxiosError ? err.response?.data?.error || err.message : "Gagal mengambil tugas";
                     Alert.alert(
                       "Error",
-                      err.message || "Gagal mengambil tugas",
-                    ),
+                      errorMessage,
+                    );
+                  },
                 },
               );
               setClaiming(null);
@@ -149,33 +173,33 @@ export default function WorkOrderScreen() {
     [claimMutate],
   );
 
+  const handleDetailPress = useCallback((id: string) => {
+    router.push(`/(app)/work-order-detail/${id}` as Href);
+  }, [router]);
+
   const renderItem = useCallback(
     ({ item }: { item: WorkOrder }) => {
       if (activeTab === "tersedia") {
         return (
-          <AvailableWorkOrderListItem 
-            item={item} 
-            onClaim={handleClaimWO} 
-            isClaiming={claiming === item.id} 
+          <AvailableWorkOrderListItem
+            item={item}
+            onClaim={handleClaimWO}
+            isClaiming={claiming === item.id}
           />
         );
       }
-      
+
       return (
-        <TouchableOpacity
-          onPress={() => router.push(`/(app)/work-order-detail/${item.id}`)}
-        >
-          <WorkOrderListItem item={item} userId={user?.id} />
-        </TouchableOpacity>
+        <WorkOrderRow item={item} userId={user?.id} onPress={handleDetailPress} />
       );
     },
-    [activeTab, claiming, router, user?.id, handleClaimWO],
+    [activeTab, claiming, handleClaimWO, handleDetailPress, user?.id],
   );
 
   // WebSocket: Auto-refresh on WO updates
   const handleWOEvent = useCallback(
     () => {
-      console.log("[WS Mobile] WO Event received, refreshing list...");
+      logger.socket("WO Event received, refreshing list...");
       refetchWO();
     },
     [refetchWO],
@@ -186,15 +210,15 @@ export default function WorkOrderScreen() {
   useSocketEvent(SOCKET_EVENTS.WORKORDER_UPDATE, handleWOEvent);
   useSocketEvent(SOCKET_EVENTS.WORKORDER_ASSIGNED, handleWOEvent);
 
-  const getTabStyle = (tab: TabType) => {
+  const getTabStyle = useCallback((tab: TabType) => {
     const isActive = activeTab === tab;
     return {
       container: `flex-1 py-2.5 items-center border-b-2 ${isActive ? "border-blue-600" : "border-transparent"}`,
       text: `text-sm font-bold ${isActive ? "text-blue-600" : "text-gray-400"}`,
     };
-  };
+  }, [activeTab]);
 
-  const getEmptyMessage = () => {
+  const getEmptyMessage = useMemo(() => {
     switch (activeTab) {
       case "tersedia":
         return "Tidak ada tugas tersedia";
@@ -203,9 +227,9 @@ export default function WorkOrderScreen() {
       case "riwayat":
         return "Tidak ada riwayat tugas";
     }
-  };
+  }, [activeTab]);
 
-  const getEmptyIcon = () => {
+  const getEmptyIcon = useMemo(() => {
     switch (activeTab) {
       case "tersedia":
         return <Inbox size={48} color="#d1d5db" />;
@@ -214,7 +238,7 @@ export default function WorkOrderScreen() {
       case "riwayat":
         return <CheckCircle size={48} color="#d1d5db" />;
     }
-  };
+  }, [activeTab]);
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
@@ -238,30 +262,27 @@ export default function WorkOrderScreen() {
 
       {/* Tabs */}
       <View style={tw`flex-row px-4 bg-white border-b border-gray-100`}>
-        <TouchableOpacity
-          onPress={() => setActiveTab("tersedia")}
-          style={tw`${getTabStyle("tersedia").container}`}
-        >
-          <Text style={tw`${getTabStyle("tersedia").text}`}>Tersedia</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setActiveTab("aktif")}
-          style={tw`${getTabStyle("aktif").container}`}
-        >
-          <Text style={tw`${getTabStyle("aktif").text}`}>Aktif</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setActiveTab("riwayat")}
-          style={tw`${getTabStyle("riwayat").container}`}
-        >
-          <Text style={tw`${getTabStyle("riwayat").text}`}>Riwayat</Text>
-        </TouchableOpacity>
+        {/* Helper function to avoid repetition */}
+        {(["tersedia", "aktif", "riwayat"] as TabType[]).map((tab) => {
+            const styles = getTabStyle(tab);
+            return (
+                <TouchableOpacity
+                    key={tab}
+                    onPress={() => setActiveTab(tab)}
+                    style={tw`${styles.container}`}
+                >
+                    <Text style={tw`${styles.text}`}>
+                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </Text>
+                </TouchableOpacity>
+            );
+        })}
       </View>
 
       {/* Content */}
-      {loadingWO && !refreshing && workOrders.length === 0 ? (
-        <View style={tw`flex-1 justify-center items-center`}>
-          <ActivityIndicator size="large" color="#2563eb" />
+      {loadingWO && workOrders.length === 0 ? (
+        <View style={tw`flex-1 px-4`}>
+          <WorkOrderSkeleton />
         </View>
       ) : (
         <FlashList
@@ -269,16 +290,26 @@ export default function WorkOrderScreen() {
           keyExtractor={(item: WorkOrder) => item.id}
           renderItem={renderItem}
           estimatedItemSize={200}
+          onEndReached={onLoadMore}
+          onEndReachedThreshold={0.5}
           contentContainerStyle={tw`pb-20 pt-1 px-4`}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />
           }
+          extraData={claiming} // Ensure re-render when claiming state changes
           ListEmptyComponent={
             <View style={tw`items-center justify-center py-20`}>
-              {getEmptyIcon()}
-              <Text style={tw`text-gray-400 mt-4`}>{getEmptyMessage()}</Text>
+              {getEmptyIcon}
+              <Text style={tw`text-gray-400 mt-4`}>{getEmptyMessage}</Text>
             </View>
+          }
+          ListFooterComponent={
+            isFetchingNextPage ? (
+                <View style={tw`py-4`}>
+                    <ActivityIndicator size="small" color="#2563eb" />
+                </View>
+            ) : null
           }
         />
       )}

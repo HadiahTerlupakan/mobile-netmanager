@@ -5,6 +5,7 @@ import tw from 'twrnc';
 import { useRouter, useFocusEffect } from 'expo-router';
 import api from '@/services/api'; // Use centralized API
 import { useAuth } from '@/context/AuthContext';
+import { logger } from '@/utils/logger';
 
 interface NotificationBellProps {
     color?: string;
@@ -23,8 +24,8 @@ export default function NotificationBell({ color = '#ffffff' }: NotificationBell
             if (res.data.success) {
                 setUnreadCount(res.data.data.unreadCount);
             }
-        } catch (error) {
-            console.log('Failed to fetch notifications (silently ignored)');
+        } catch {
+            logger.info('Failed to fetch notifications (silently ignored)');
         }
     }, [token]);
 

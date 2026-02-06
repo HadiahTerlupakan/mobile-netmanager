@@ -1,3 +1,4 @@
+import { InventorySkeleton } from '@/components/molecules/InventorySkeleton';
 import TransactionItem, { Transaction } from '@/components/molecules/TransactionItem';
 
 import { useAuth } from '@/context/AuthContext';
@@ -5,81 +6,55 @@ import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import api from '@/services/api';
 import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { useInfiniteQuery } from '@tanstack/react-query';
 
 type FilterType = 'all' | 'masuk' | 'keluar';
 
 export default function RiwayatBarangScreen() {
     const router = useRouter();
     const { token } = useAuth();
-
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const [hasMore, setHasMore] = useState(true);
     const [filter, setFilter] = useState<FilterType>('all');
 
-    // Cursor for pagination (timestamp of last item)
-    const nextCursorRef = useRef<string | null>(null);
-
-    // Initial load
-    useEffect(() => {
-        fetchRiwayat(true);
-    }, [filter]); // Re-fetch when filter changes
-
-    const fetchRiwayat = async (isRefresh = false) => {
-        if (!isRefresh && (!hasMore || loadingMore)) return;
-
-        try {
-            if (isRefresh) {
-                setLoading(true);
-                nextCursorRef.current = null;
-            } else {
-                setLoadingMore(true);
-            }
-
-            // Build Query Params
+    const {
+        data,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        isLoading,
+        isRefetching,
+        refetch,
+    } = useInfiniteQuery({
+        queryKey: ['inventory_riwayat', filter],
+        queryFn: async ({ pageParam = null }) => {
             const params = new URLSearchParams();
             params.append('type', filter);
-            if (!isRefresh && nextCursorRef.current) {
-                params.append('cursor', nextCursorRef.current);
+            if (pageParam) {
+                params.append('cursor', pageParam);
             }
-
             const res = await api.get(`/api/mobile/inventory/riwayat?${params.toString()}`);
+            return res.data;
+        },
+        getNextPageParam: (lastPage: any) => lastPage.nextCursor || undefined,
+        enabled: !!token,
+        initialPageParam: null,
+    });
 
-            const newData = res.data?.data || [];
-            const nextCursor = res.data?.nextCursor;
-
-            if (isRefresh) {
-                setTransactions(newData);
-            } else {
-                setTransactions(prev => [...prev, ...newData]);
-            }
-
-            nextCursorRef.current = nextCursor || null;
-            setHasMore(!!nextCursor);
-
-        } catch (error) {
-            console.error('Failed to fetch riwayat:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-            setLoadingMore(false);
-        }
-    };
+    // Flatten data for FlashList
+    const transactions = useMemo(() => {
+        return data?.pages.flatMap((page: any) => page.data || []) || [];
+    }, [data]);
 
     const onRefresh = async () => {
-        setRefreshing(true);
-        await fetchRiwayat(true);
+        await refetch();
     };
 
     const onLoadMore = () => {
-        if (hasMore && !loadingMore && !loading) {
-            fetchRiwayat(false);
+        if (hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
         }
     };
 
@@ -106,13 +81,13 @@ export default function RiwayatBarangScreen() {
     ), [formatDate]);
 
     const ListFooterComponent = useMemo(() => {
-        if (!loadingMore) return <View style={tw`h-6`} />;
+        if (!isFetchingNextPage) return <View style={tw`h-6`} />;
         return (
             <View style={tw`py-4 items-center`}>
                 <ActivityIndicator size="small" color="#3B82F6" />
             </View>
         );
-    }, [loadingMore]);
+    }, [isFetchingNextPage]);
 
     const EmptyComponent = useMemo(() => (
         <View style={tw`py-12 items-center`}>
@@ -152,11 +127,8 @@ export default function RiwayatBarangScreen() {
                 </View>
             </View>
 
-            {loading && !refreshing ? (
-                <View style={tw`flex-1 items-center justify-center`}>
-                    <ActivityIndicator size="large" color="#3B82F6" />
-                    <Text style={tw`text-gray-500 mt-4`}>Memuat riwayat...</Text>
-                </View>
+            {isLoading && !transactions.length ? (
+                <InventorySkeleton />
             ) : (
                 <View style={tw`flex-1 px-4`}>
                     <FlashList
@@ -165,7 +137,7 @@ export default function RiwayatBarangScreen() {
                         onEndReached={onLoadMore}
                         onEndReachedThreshold={0.5}
                         refreshControl={
-                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                            <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />
                         }
                         estimatedItemSize={120} // Added estimated size for performance
                         ListEmptyComponent={EmptyComponent}

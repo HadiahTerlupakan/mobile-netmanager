@@ -1,15 +1,27 @@
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 // Polyfills for togeojson
-const globalAny: any = global;
-if (!globalAny.DOMParser) {
-  globalAny.DOMParser = DOMParser;
-}
-if (!globalAny.XMLSerializer) {
-  globalAny.XMLSerializer = XMLSerializer;
+interface GlobalWithPolyfills {
+  DOMParser?: typeof DOMParser;
+  XMLSerializer?: typeof XMLSerializer;
 }
 
-// @ts-ignore
-const toGeoJSON = require('togeojson');
+const globalWithPolyfills = global as unknown as GlobalWithPolyfills;
+
+if (!globalWithPolyfills.DOMParser) {
+  globalWithPolyfills.DOMParser = DOMParser;
+}
+if (!globalWithPolyfills.XMLSerializer) {
+  globalWithPolyfills.XMLSerializer = XMLSerializer;
+}
+
+/**
+ * @types/togeojson is not available, using require and declaring a basic type
+ */
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const toGeoJSON = require('togeojson') as {
+  kml: (doc: Document) => GeoJSON.FeatureCollection;
+  gpx: (doc: Document) => GeoJSON.FeatureCollection;
+};
 
 export default toGeoJSON;

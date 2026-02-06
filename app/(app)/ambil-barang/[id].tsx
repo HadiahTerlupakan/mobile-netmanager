@@ -1,11 +1,11 @@
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
 import {
     useOfflineMutationCompat as useOfflineMutation,
     useOfflineQueryCompat as useOfflineQuery,
 } from "@/hooks/queries";
-import axios from "axios";
+import api from "@/services/api"; // Use centralized API
+import { WorkOrderMaterialBatchSchema, validateData } from "@/utils/validation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     AlertCircle,
@@ -22,7 +22,6 @@ import {
 } from "lucide-react-native";
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
-    ActivityIndicator,
     Alert,
     Modal,
     RefreshControl,
@@ -164,12 +163,10 @@ export default function AmbilBarangScreen() {
   const [initialQuantities, setInitialQuantities] = useState<Record<string, number>>({});
   const [woDataLoaded, setWoDataLoaded] = useState(false);
 
-  const { data: gudangData, isLoading: loadingGudangNet } = useOfflineQuery({
+  const { data: gudangData } = useOfflineQuery({
     key: `gudang_list_wo_${workOrderId}`,
     fetcher: async () => {
-      const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/gudang?workOrderId=${workOrderId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/api/mobile/inventory/gudang?workOrderId=${workOrderId}`);
       return res.data;
     },
     enabled: !!token && !!workOrderId,
@@ -178,9 +175,7 @@ export default function AmbilBarangScreen() {
   const { data: woData } = useOfflineQuery({
     key: `work_order_${workOrderId}`,
     fetcher: async () => {
-      const res = await axios.get(`${Config.API_URL}/api/mobile/work-orders/${workOrderId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/api/mobile/work-orders/${workOrderId}`);
       return res.data?.data;
     },
     enabled: !!token && !!workOrderId,
@@ -189,9 +184,7 @@ export default function AmbilBarangScreen() {
   const { data: barangData, isLoading: loadingBarangNet, refetch: refetchBarang } = useOfflineQuery({
     key: `barang_list_${selectedGudang}`,
     fetcher: async () => {
-      const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/barang?gudangId=${selectedGudang}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/api/mobile/inventory/barang?gudangId=${selectedGudang}`);
       return res.data;
     },
     enabled: !!token && !!selectedGudang,
@@ -290,17 +283,27 @@ export default function AmbilBarangScreen() {
     if (warnings.length > 0) { Alert.alert("Tidak Didukung", `Pengurangan barang belum didukung.\n${warnings.join("\n")}`); return; }
     if (itemsToSend.length === 0) { Alert.alert("Info", "Tidak ada penambahan barang baru."); return; }
 
+    const validation = validateData(WorkOrderMaterialBatchSchema, { items: itemsToSend });
+    if (!validation.success) {
+        Alert.alert("Data Tidak Valid", validation.error);
+        return;
+    }
+
     setSubmitting(true);
-    await mutate({ items: itemsToSend }, {
+    await mutate({ items: validation.data.items }, {
       url: `/api/mobile/work-orders/${workOrderId}/materials`,
       method: "POST",
-      onSuccess: (data: any, isOffline: boolean) => {
+      onSuccess: (_, isOffline: boolean) => {
         setSubmitting(false);
         Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Data diantrikan" : "Barang diperbarui", [
           { text: "OK", onPress: () => router.replace(`/(app)/work-order-detail/${workOrderId}`) },
         ]);
       },
-      onError: (err: any) => { setSubmitting(false); Alert.alert("Gagal", err.message || "Gagal menyimpan"); },
+      onError: (err) => {
+        setSubmitting(false);
+        const errorMessage = err instanceof Error ? err.message : "Gagal menyimpan";
+        Alert.alert("Gagal", errorMessage);
+      },
     });
   }, [selectedItems, initialQuantities, mutate, workOrderId, router]);
 

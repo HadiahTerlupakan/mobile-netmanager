@@ -27,7 +27,7 @@ interface FilterPanelProps {
   };
 }
 
-const FILTER_ITEMS: Array<{ type: DeviceType; label: string; color: string }> = [
+const FILTER_ITEMS: { type: DeviceType; label: string; color: string }[] = [
   { type: 'otb', label: 'OTB', color: '#3b82f6' },
   { type: 'odc', label: 'ODC', color: '#10b981' },
   { type: 'odp', label: 'ODP', color: '#f97316' },

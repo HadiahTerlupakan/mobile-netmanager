@@ -6,7 +6,7 @@
  * - AsyncStorage persister untuk offline caching
  */
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Storage } from "@/utils/storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { QueryClient } from "@tanstack/react-query";
 
@@ -28,9 +28,19 @@ export const queryClient = new QueryClient({
   },
 });
 
-// AsyncStorage Persister untuk menyimpan cache ke storage
+// MMKV-based Persister untuk menyimpan cache ke storage (encrypted)
 export const asyncStoragePersister = createAsyncStoragePersister({
-  storage: AsyncStorage,
+  storage: {
+    getItem: (key) => Promise.resolve(Storage.getItem(key)),
+    setItem: (key, value) => {
+      Storage.setItem(key, value);
+      return Promise.resolve();
+    },
+    removeItem: (key) => {
+      Storage.removeItem(key);
+      return Promise.resolve();
+    },
+  },
   key: "TANSTACK_QUERY_CACHE",
   throttleTime: 1000, // Throttle writes ke 1 detik
 });
@@ -96,6 +106,8 @@ export const queryKeys = {
   chat: {
     all: ["chat"] as const,
     list: () => [...queryKeys.chat.all, "list"] as const,
+    global: () => [...queryKeys.chat.all, "global"] as const,
+    users: (search?: string) => [...queryKeys.chat.all, "users", search] as const,
     messages: (chatId: string) =>
       [...queryKeys.chat.all, "messages", chatId] as const,
   },

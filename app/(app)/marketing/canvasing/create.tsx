@@ -1,7 +1,11 @@
-import { Image } from 'expo-image';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { LocationPickerModal } from "@/components/organisms/marketing/LocationPickerModal";
+import LoadingModal from "@/components/molecules/LoadingModal"; // Import LoadingModal
 
 import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
+import { CanvasingSchema, sanitizeInput, validateData } from "@/utils/validation";
+import { SyncService } from "@/services/SyncService"; // Import SyncService
+import { uploadService } from "@/services/UploadService"; // Import UploadService
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
@@ -22,9 +26,10 @@ import {
     ZapOff,
 } from "lucide-react-native";
 import React, { useRef, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TextInputProps, TouchableOpacity, View,  } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { logger } from "@/utils/logger";
 
 export default function CreateCanvasingScreen() {
   const router = useRouter();
@@ -70,6 +75,9 @@ export default function CreateCanvasingScreen() {
   const [flash, setFlash] = useState<"off" | "on">("off");
   const cameraRef = useRef<CameraView>(null);
 
+  const [loadingMessage, setLoadingMessage] = useState("Menyimpan data...");
+  const [uploadProgress, setUploadProgress] = useState(0);
+
   const { mutate, isLoading: isMutating } = useOfflineMutation();
 
   const openCamera = async (type: "foto" | "ktp") => {
@@ -106,7 +114,7 @@ export default function CreateCanvasingScreen() {
         else setFotoKtpLocal(manipulated.uri);
       }
     } catch (error) {
-      console.error("Gallery pick error:", error);
+      logger.error("Gallery pick error:", error);
       Alert.alert("Error", "Gagal mengambil gambar dari galeri");
     }
   };
@@ -145,21 +153,34 @@ export default function CreateCanvasingScreen() {
         setShowCamera(false);
       }
     } catch (error) {
-      console.error("Capture error:", error);
+      logger.error("Capture error:", error);
       Alert.alert("Error", "Gagal mengambil foto");
     }
   };
 
   const handleSubmit = async () => {
-    if (
-      !form.nama ||
-      !form.noKtp ||
-      !form.noTelpon ||
-      !form.alamat ||
-      !form.paket
-    ) {
-      Alert.alert("Peringatan", "Mohon lengkapi data yang wajib diisi (*)");
-      return;
+    // 1. Sanitize & Prepare Data
+    const rawData = {
+        ...form,
+        kabel: form.kabel ? parseInt(form.kabel) : 0, // Convert string to number for schema
+        // Sanitize string inputs
+        nama: sanitizeInput(form.nama),
+        noKtp: sanitizeInput(form.noKtp),
+        noTelpon: sanitizeInput(form.noTelpon),
+        email: sanitizeInput(form.email),
+        alamat: sanitizeInput(form.alamat),
+        odp: sanitizeInput(form.odp),
+        paket: sanitizeInput(form.paket),
+        sn: sanitizeInput(form.sn),
+        shareloc: sanitizeInput(form.shareloc),
+    };
+
+    // 2. Validate Data
+    const validation = validateData(CanvasingSchema, rawData);
+
+    if (!validation.success) {
+        Alert.alert("Data Tidak Valid", validation.error);
+        return;
     }
 
     if (!fotoKtpLocal) {
@@ -168,42 +189,103 @@ export default function CreateCanvasingScreen() {
     }
 
     setIsLoading(true);
+    setLoadingMessage("Memproses...");
+    setUploadProgress(0);
+
     try {
-      const kabelNum = parseInt(form.kabel);
+      const validData = validation.data; // Use the validated and parsed data
 
-      // Prepare photo map for upload
-      const photoMap: Record<string, string> = {};
-      if (fotoLocal) photoMap["foto"] = fotoLocal;
-      if (fotoKtpLocal) photoMap["fotoKtp"] = fotoKtpLocal;
+      // Check connection
+      const isOnline = await SyncService.isOnline();
 
-      await mutate(
-        {
-          ...form,
-          kabel: isNaN(kabelNum) ? 0 : kabelNum,
-          meta: {
-            photoMap,
-            photoType: "marketing",
-          },
-        },
-        {
-          url: "/api/marketing/canvasing",
-          method: "POST",
-          onSuccess: () => {
-            Alert.alert("Berhasil", "Data canvasing berhasil disimpan", [
-              { text: "OK", onPress: () => router.back() },
-            ]);
-          },
-          onError: (err) => {
-            console.error("Submit error:", err);
-            Alert.alert(
-              "Gagal",
-              err.message || "Terjadi kesalahan saat menyimpan data",
-            );
-          },
-        },
-      );
+      if (isOnline) {
+          // Manual upload for progress
+          const photoMap: Record<string, string> = {};
+
+          try {
+              if (fotoLocal) {
+                  setLoadingMessage("Mengupload Foto Lokasi...");
+                  setUploadProgress(0);
+                  const url = await uploadService.uploadFile(fotoLocal, "marketing", {
+                      onProgress: (p) => setUploadProgress(p.percentage)
+                  });
+                  photoMap["foto"] = url;
+              }
+
+              if (fotoKtpLocal) {
+                  setLoadingMessage("Mengupload Foto KTP...");
+                  setUploadProgress(0);
+                  const url = await uploadService.uploadFile(fotoKtpLocal, "marketing", {
+                      onProgress: (p) => setUploadProgress(p.percentage)
+                  });
+                  photoMap["fotoKtp"] = url;
+              }
+
+              setLoadingMessage("Menyimpan data...");
+              setUploadProgress(0); // Indeterminate
+
+              await mutate(
+                {
+                  ...validData,
+                  ...photoMap, // Pass URLs directly
+                },
+                {
+                  url: "/api/marketing/canvasing",
+                  method: "POST",
+                  onSuccess: () => {
+                    Alert.alert("Berhasil", "Data canvasing berhasil disimpan", [
+                      { text: "OK", onPress: () => router.back() },
+                    ]);
+                  },
+                  onError: (err) => {
+                    logger.error("Submit error:", err);
+                    Alert.alert(
+                      "Gagal",
+                      err.message || "Terjadi kesalahan saat menyimpan data",
+                    );
+                  },
+                },
+              );
+          } catch (uploadError) {
+              logger.error("Upload error:", uploadError);
+              Alert.alert("Error", "Gagal mengupload foto");
+          }
+      } else {
+          // Offline flow
+          // Prepare photo map for upload (local URIs)
+          const photoMap: Record<string, string> = {};
+          if (fotoLocal) photoMap["foto"] = fotoLocal;
+          if (fotoKtpLocal) photoMap["fotoKtp"] = fotoKtpLocal;
+
+          setLoadingMessage("Menyimpan offline...");
+          await mutate(
+            {
+              ...validData,
+              meta: {
+                photoMap,
+                photoType: "marketing",
+              },
+            },
+            {
+              url: "/api/marketing/canvasing",
+              method: "POST",
+              onSuccess: () => {
+                Alert.alert("Berhasil", "Data canvasing berhasil disimpan (Offline)", [
+                  { text: "OK", onPress: () => router.back() },
+                ]);
+              },
+              onError: (err) => {
+                logger.error("Submit error:", err);
+                Alert.alert(
+                  "Gagal",
+                  err.message || "Terjadi kesalahan saat menyimpan data",
+                );
+              },
+            },
+          );
+      }
     } catch (error) {
-      console.error("Submit exception:", error);
+      logger.error("Submit exception:", error);
       Alert.alert("Error", "Terjadi kesalahan sistem");
     } finally {
       setIsLoading(false);
@@ -220,9 +302,9 @@ export default function CreateCanvasingScreen() {
           facing={facing}
           flash={flash}
           ref={cameraRef}
-        >
+        />
           {/* Top Controls */}
-          <View style={tw`flex-row justify-between p-6 pt-12 bg-black/30`}>
+          <View style={tw`absolute top-0 left-0 right-0 flex-row justify-between p-6 pt-12 bg-black/30 z-20`}>
             <TouchableOpacity
               onPress={() => setShowCamera(false)}
               style={tw`bg-black/40 p-2 rounded-full`}
@@ -242,7 +324,7 @@ export default function CreateCanvasingScreen() {
           </View>
 
           {/* Guide Overlay */}
-          <View style={tw`flex-1 items-center justify-center`}>
+          <View style={tw`absolute inset-0 items-center justify-center pointer-events-none z-10`}>
             {targetPhoto === "ktp" ? (
               <View style={tw`relative items-center justify-center`}>
                 {/* Dark overlay around the box - top */}
@@ -290,7 +372,7 @@ export default function CreateCanvasingScreen() {
 
           {/* Bottom Controls */}
           <View
-            style={tw`flex-row items-center justify-around pb-12 pt-6 bg-black/40`}
+            style={tw`absolute bottom-0 left-0 right-0 flex-row items-center justify-around pb-12 pt-6 bg-black/40 z-20`}
           >
             <View style={tw`w-12`} />
             <TouchableOpacity
@@ -310,7 +392,6 @@ export default function CreateCanvasingScreen() {
               <RotateCcw color="white" size={24} />
             </TouchableOpacity>
           </View>
-        </CameraView>
       </View>
     );
   }
@@ -590,12 +671,18 @@ export default function CreateCanvasingScreen() {
             setShowMapModal(false);
           }}
         />
+        <LoadingModal visible={isLoading} message={loadingMessage} progress={uploadProgress > 0 ? uploadProgress : undefined} />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function FormSectionHeader({ title, icon }: any) {
+interface FormSectionHeaderProps {
+  title: string;
+  icon: React.ReactNode;
+}
+
+function FormSectionHeader({ title, icon }: FormSectionHeaderProps) {
   return (
     <View style={tw`flex-row items-center mb-4 ml-1`}>
       <View
@@ -608,6 +695,14 @@ function FormSectionHeader({ title, icon }: any) {
   );
 }
 
+interface InputFieldProps extends TextInputProps {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  required?: boolean;
+}
+
 function InputField({
   label,
   placeholder,
@@ -615,7 +710,7 @@ function InputField({
   onChangeText,
   required,
   ...props
-}: any) {
+}: InputFieldProps) {
   return (
     <View style={tw`mb-5`}>
       <Text
@@ -635,6 +730,17 @@ function InputField({
   );
 }
 
+interface PhotoPickerFieldProps {
+  title: string;
+  value: string | null;
+  onPickCamera: () => void;
+  onPickGallery: () => void;
+  onRemove: () => void;
+  required?: boolean;
+  onScan?: () => void;
+  isScanning?: boolean;
+}
+
 function PhotoPickerField({
   title,
   value,
@@ -644,7 +750,7 @@ function PhotoPickerField({
   required,
   onScan,
   isScanning,
-}: any) {
+}: PhotoPickerFieldProps) {
   return (
     <View>
       <Text
@@ -657,7 +763,7 @@ function PhotoPickerField({
           <View
             style={tw`relative rounded-2xl overflow-hidden aspect-video bg-gray-200`}
           >
-            <Image source={{ uri: value }} style={tw`w-full h-full`}  contentFit="cover" transition={1000}       />
+            <ImageWithCache source={value} style={tw`w-full h-full`}  contentFit="cover" transition={1000}       />
             <TouchableOpacity
               onPress={onRemove}
               style={tw`absolute top-3 right-3 bg-black/40 w-10 h-10 items-center justify-center rounded-full z-10`}

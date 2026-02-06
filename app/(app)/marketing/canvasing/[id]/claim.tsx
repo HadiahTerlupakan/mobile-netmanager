@@ -1,8 +1,8 @@
-import { Image } from 'expo-image';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from '@/components/molecules/LoadingModal';
-import { Config } from '@/constants/Config';
-import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api'; // Use centralized API
+import { uploadService } from '@/services/UploadService';
+import { ClaimPointSchema, sanitizeInput, validateData } from '@/utils/validation';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,14 +10,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
+import { logger } from '@/utils/logger';
 
 export default function ClaimPointScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
-    const { token } = useAuth();
 
     const [buktiUrls, setBuktiUrls] = useState<string[]>([]);
-    const [buktiMetadata, setBuktiMetadata] = useState<any[]>([]);
+    const [buktiMetadata, setBuktiMetadata] = useState<{ width: number; height: number; type: string }[]>([]);
     const [keterangan, setKeterangan] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showLoading, setShowLoading] = useState(false);
@@ -59,7 +59,7 @@ export default function ClaimPointScreen() {
                 setShowCamera(false);
             }
         } catch (error) {
-            console.error('Camera capture error:', error);
+            logger.error('Camera capture error:', error);
             Alert.alert('Error', 'Gagal mengambil foto');
         }
     };
@@ -84,7 +84,7 @@ export default function ClaimPointScreen() {
                 setBuktiMetadata(prev => [...prev, ...newMeta]);
             }
         } catch (error) {
-            console.error('Gallery pick error:', error);
+            logger.error('Gallery pick error:', error);
             Alert.alert('Error', 'Gagal memilih foto');
         }
     };
@@ -94,31 +94,19 @@ export default function ClaimPointScreen() {
         setBuktiMetadata(prev => prev.filter((_, i) => i !== index));
     };
 
-    const uploadPhoto = async (uri: string): Promise<string> => {
-        const formData = new FormData();
-        const filename = uri.split('/').pop() || 'photo.jpg';
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
+    const [loadingProgress, setLoadingProgress] = useState(0);
 
-        formData.append('file', {
-            uri,
-            name: filename,
-            type,
-        } as any);
-        formData.append('folder', 'marketing/point-claims');
-
-        const response = await api.post('/api/mobile/upload', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            }
-        });
-
-        return response.data.url;
-    };
+    // ...
 
     const handleSubmit = async () => {
         if (buktiUrls.length === 0) {
             Alert.alert('Validasi', 'Minimal upload 1 foto bukti');
+            return;
+        }
+
+        const validation = validateData(ClaimPointSchema, { keterangan: sanitizeInput(keterangan) });
+        if (!validation.success) {
+            Alert.alert('Data Tidak Valid', validation.error);
             return;
         }
 
@@ -132,18 +120,22 @@ export default function ClaimPointScreen() {
                     onPress: async () => {
                         setIsSubmitting(true);
                         setShowLoading(true);
+                        setLoadingProgress(0);
                         setLoadingMessage('Mengupload foto bukti...');
 
                         try {
-                            // Upload all photos first
-                            const uploadedUrls: string[] = [];
-                            for (let i = 0; i < buktiUrls.length; i++) {
-                                setLoadingMessage(`Mengupload foto ${i + 1}/${buktiUrls.length}...`);
-                                const url = await uploadPhoto(buktiUrls[i]);
-                                uploadedUrls.push(url);
-                            }
+                            // Upload all photos
+                            const uploadedUrls = await uploadService.uploadBatch(
+                                buktiUrls,
+                                'marketing/point-claims',
+                                (index, total, progress) => {
+                                    setLoadingMessage(`Mengupload foto ${index}/${total}...`);
+                                    setLoadingProgress(progress.percentage);
+                                }
+                            );
 
                             setLoadingMessage('Mengirim claim...');
+                            setLoadingProgress(0); // Indeterminate for API call
 
                             // Submit claim
                             await api.post(
@@ -151,7 +143,7 @@ export default function ClaimPointScreen() {
                                 {
                                     buktiUrls: uploadedUrls,
                                     buktiMetadata,
-                                    keterangan: keterangan.trim() || null,
+                                    keterangan: validation.data.keterangan || null,
                                 }
                             );
 
@@ -161,10 +153,10 @@ export default function ClaimPointScreen() {
                                 'Claim poin berhasil diajukan. Tunggu approval dari admin.',
                                 [{ text: 'OK', onPress: () => router.back() }]
                             );
-                        } catch (error: any) {
+                        } catch (error) {
                             setShowLoading(false);
-                            const message = error.response?.data?.error || error.message || 'Terjadi kesalahan';
-                            Alert.alert('Gagal', message);
+                            const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan";
+                            Alert.alert('Gagal', errorMessage);
                         } finally {
                             setIsSubmitting(false);
                         }
@@ -182,39 +174,38 @@ export default function ClaimPointScreen() {
                     ref={cameraRef}
                     style={tw`flex-1`}
                     facing={cameraFacing}
-                >
-                    <View style={tw`flex-1 justify-end pb-10`}>
-                        <View style={tw`flex-row justify-around items-center px-8`}>
-                            <TouchableOpacity
-                                onPress={() => setShowCamera(false)}
-                                style={tw`w-14 h-14 bg-white/20 rounded-full items-center justify-center`}
-                            >
-                                <Ionicons name="close" size={28} color="white" />
-                            </TouchableOpacity>
+                />
+                <View style={tw`absolute inset-0 justify-end pb-10 pointer-events-none`}>
+                    <View style={tw`flex-row justify-around items-center px-8`}>
+                        <TouchableOpacity
+                            onPress={() => setShowCamera(false)}
+                            style={tw`w-14 h-14 bg-white/20 rounded-full items-center justify-center pointer-events-auto`}
+                        >
+                            <Ionicons name="close" size={28} color="white" />
+                        </TouchableOpacity>
 
-                            <TouchableOpacity
-                                onPress={handleCapture}
-                                style={tw`w-20 h-20 bg-white rounded-full items-center justify-center border-4 border-white/50`}
-                            >
-                                <View style={tw`w-16 h-16 bg-white rounded-full`} />
-                            </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={handleCapture}
+                            style={tw`w-20 h-20 bg-white rounded-full items-center justify-center border-4 border-white/50 pointer-events-auto`}
+                        >
+                            <View style={tw`w-16 h-16 bg-white rounded-full`} />
+                        </TouchableOpacity>
 
-                            <TouchableOpacity
-                                onPress={() => setCameraFacing(f => f === 'back' ? 'front' : 'back')}
-                                style={tw`w-14 h-14 bg-white/20 rounded-full items-center justify-center`}
-                            >
-                                <Ionicons name="camera-reverse" size={24} color="white" />
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity
+                            onPress={() => setCameraFacing(f => f === 'back' ? 'front' : 'back')}
+                            style={tw`w-14 h-14 bg-white/20 rounded-full items-center justify-center pointer-events-auto`}
+                        >
+                            <Ionicons name="camera-reverse" size={24} color="white" />
+                        </TouchableOpacity>
                     </View>
-                </CameraView>
+                </View>
             </View>
         );
     }
 
     return (
         <View style={tw`flex-1 bg-gray-50`}>
-            <LoadingModal visible={showLoading} message={loadingMessage} />
+            <LoadingModal visible={showLoading} message={loadingMessage} progress={loadingProgress > 0 ? loadingProgress : undefined} />
 
             {/* Header */}
             <View style={tw`bg-indigo-700 pt-12 pb-6 px-5`}>
@@ -269,7 +260,7 @@ export default function ClaimPointScreen() {
                         <View style={tw`flex-row flex-wrap gap-3 mb-4`}>
                             {buktiUrls.map((uri, index) => (
                                 <View key={index} style={tw`relative`}>
-                                    <Image source={{ uri }} style={tw`w-24 h-24 rounded-xl`} contentFit="cover" transition={1000}  />
+                                    <ImageWithCache source={uri} style={tw`w-24 h-24 rounded-xl`} contentFit="cover" transition={1000}  />
                                     <TouchableOpacity
                                         onPress={() => removePhoto(index)}
                                         style={tw`absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full items-center justify-center shadow`}

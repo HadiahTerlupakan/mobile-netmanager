@@ -1,11 +1,11 @@
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
 import {
     useOfflineMutationCompat as useOfflineMutation,
     useOfflineQueryCompat as useOfflineQuery,
 } from "@/hooks/queries";
-import axios from "axios";
+import api from "@/services/api"; // Use centralized API
+import { WorkOrderMaterialBatchSchema, validateData } from "@/utils/validation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
     ArrowDown,
@@ -22,7 +22,6 @@ import {
 } from "lucide-react-native";
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
-    ActivityIndicator,
     Alert,
     Modal,
     RefreshControl,
@@ -140,9 +139,7 @@ export default function KembalikanBarangScreen() {
   const { data: gudangData } = useOfflineQuery({
     key: `gudang_list_wo_${workOrderId}`,
     fetcher: async () => {
-      const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/gudang?workOrderId=${workOrderId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get(`/api/mobile/inventory/gudang?workOrderId=${workOrderId}`);
       return res.data;
     },
     enabled: !!token && !!workOrderId,
@@ -151,9 +148,7 @@ export default function KembalikanBarangScreen() {
   const { data: barangData, isLoading: loadingBarangNet, refetch: refetchBarang } = useOfflineQuery({
     key: `barang_list_return_all`,
     fetcher: async () => {
-      const res = await axios.get(`${Config.API_URL}/api/mobile/inventory/barang?mode=masuk`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get("/api/mobile/inventory/barang?mode=masuk");
       return res.data;
     },
     enabled: !!token,
@@ -213,19 +208,26 @@ export default function KembalikanBarangScreen() {
       kondisi: item.kondisi,
     }));
 
+    const validation = validateData(WorkOrderMaterialBatchSchema, { items: itemsToSend });
+    if (!validation.success) {
+        Alert.alert("Data Tidak Valid", validation.error);
+        return;
+    }
+
     setSubmitting(true);
-    await mutate({ items: itemsToSend }, {
+    await mutate({ items: validation.data.items }, {
       url: `/api/mobile/work-orders/${workOrderId}/return`,
       method: "POST",
-      onSuccess: (data: any, isOffline: boolean) => {
+      onSuccess: (_, isOffline: boolean) => {
         setSubmitting(false);
         Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Data diantrikan" : "Barang berhasil dikembalikan", [
           { text: "OK", onPress: () => router.replace(`/(app)/work-order-detail/${workOrderId}`) },
         ]);
       },
-      onError: (err: any) => {
+      onError: (err) => {
         setSubmitting(false);
-        Alert.alert("Gagal", err.message || "Gagal menyimpan data");
+        const errorMessage = err instanceof Error ? err.message : "Gagal menyimpan data";
+        Alert.alert("Gagal", errorMessage);
       },
     });
   }, [selectedItems, selectedGudang, mutate, workOrderId, router]);

@@ -1,23 +1,25 @@
-import { Image } from 'expo-image';
+import { FormSkeleton } from '@/components/molecules/FormSkeleton';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
-import { Config } from "@/constants/Config";
 import { useAuth } from "@/context/AuthContext";
 import {
     useOfflineMutationCompat as useOfflineMutation,
     useOfflineQueryCompat as useOfflineQuery,
 } from "@/hooks/queries";
 import { SyncService } from "@/services/SyncService";
+import { uploadService } from "@/services/UploadService";
+import { InventoryMasukSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import api from "@/services/api";
+import { logger } from "@/utils/logger";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import * as FileSystem from "expo-file-system/legacy";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, useColorScheme, View,  } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
@@ -60,7 +62,6 @@ export default function BarangMasukScreen() {
 
   const [gudangs, setGudangs] = useState<Gudang[]>([]);
   const [barangs, setBarangs] = useState<Barang[]>([]);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Form state
@@ -78,14 +79,30 @@ export default function BarangMasukScreen() {
   // Loading state
   const [loadingMessage, setLoadingMessage] = useState("");
   const [showLoading, setShowLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Refs for watermark capture
   const watermarkRefs = useRef<(View | null)[]>([]);
 
   const { mutate, isLoading: isMutating } = useOfflineMutation();
 
+  // Memoize modal items to prevent recreation on every render
+  const gudangModalItems = useMemo(() => gudangs.map((g) => ({
+    id: g.id,
+    label: g.nama,
+    subLabel: g.kode,
+    value: g.id,
+  })), [gudangs]);
+
+  const barangModalItems = useMemo(() => barangs.map((b) => ({
+    id: b.id,
+    label: b.nama,
+    subLabel: b.kode,
+    value: b.id,
+  })), [barangs]);
+
   // Offline Query: Gudangs
-  const { data: gudangList } = useOfflineQuery<Gudang[]>({
+  const { data: gudangList, isLoading: isLoadingGudangs } = useOfflineQuery<Gudang[]>({
     key: "gudang_list_all",
     fetcher: async () => {
       const res = await api.get("/api/mobile/inventory/gudang");
@@ -99,7 +116,7 @@ export default function BarangMasukScreen() {
   }, [gudangList]);
 
   // Offline Query: Barangs (All items for selection)
-  const { data: barangData } = useOfflineQuery<Barang[]>({
+  const { data: barangData, isLoading: isLoadingBarangs } = useOfflineQuery<Barang[]>({
     key: "barang_list_masuk",
     fetcher: async () => {
       const res = await api.get("/api/mobile/inventory/barang?mode=masuk"); // Assuming this endpoint returns reference list of all items
@@ -111,6 +128,10 @@ export default function BarangMasukScreen() {
   useEffect(() => {
     if (barangData) setBarangs(barangData);
   }, [barangData]);
+
+  if (isLoadingGudangs && !gudangs.length) {
+    return <FormSkeleton />;
+  }
 
   // Helper to resize image
   const resizeImage = async (
@@ -128,7 +149,7 @@ export default function BarangMasukScreen() {
         height: manipResult.height,
       };
     } catch (error) {
-      console.error("Failed to resize image:", error);
+      logger.error("Failed to resize image:", error);
       // Fallback to original if resize fails (though unlikely)
       return { uri, width: 800, height: 600 };
     }
@@ -208,7 +229,7 @@ export default function BarangMasukScreen() {
       });
       return uri;
     } catch (error) {
-      console.error("Watermark capture error:", error);
+      logger.error("Watermark capture error:", error);
       return photos[index]?.uri || null;
     }
   };
@@ -223,87 +244,21 @@ export default function BarangMasukScreen() {
   };
 
   const uploadPhotos = async (uris: string[]): Promise<string[]> => {
-    const uploadedUrls: string[] = [];
-    console.log("[Upload] Starting upload for URIs:", uris);
-
-    for (const uri of uris) {
-      let retries = 0;
-      const maxRetries = 2;
-
-      while (retries <= maxRetries) {
-        try {
-          const filename = uri.split("/").pop() || "photo.jpg";
-          const fileType = filename.endsWith(".png")
-            ? "image/png"
-            : "image/jpeg";
-
-          console.log("[Upload] Processing Image:", {
-            uri,
-            filename,
-            fileType,
-            attempt: retries + 1,
-          });
-
-          // Use expo-file-system uploadAsync for better Android compatibility
-          const uploadResult = await FileSystem.uploadAsync(
-            `${Config.API_URL}/api/mobile/upload`,
-            uri,
-            {
-              httpMethod: "POST",
-              uploadType: 1, // FileSystemUploadType.MULTIPART = 1
-              fieldName: "file",
-              mimeType: fileType,
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-              parameters: {
-                type: "inventory-masuk",
-              },
-            },
-          );
-
-          console.log(
-            "[Upload] Result:",
-            uploadResult.status,
-            uploadResult.body,
-          );
-
-          if (uploadResult.status >= 200 && uploadResult.status < 300) {
-            try {
-              const data = JSON.parse(uploadResult.body);
-              if (data?.url) {
-                uploadedUrls.push(data.url);
-              }
-            } catch (parseError) {
-              console.error("[Upload] Failed to parse response:", parseError);
+    logger.info("[Upload] Starting upload for URIs:", uris);
+    try {
+        setUploadProgress(0);
+        return await uploadService.uploadBatch(
+            uris,
+            'inventory-masuk',
+            (index, total, progress) => {
+                setLoadingMessage(`Mengupload foto ${index}/${total}...`);
+                setUploadProgress(progress.percentage);
             }
-            break; // Success, exit retry loop
-          } else {
-            console.error(
-              "[Upload] Server Error:",
-              uploadResult.status,
-              uploadResult.body,
-            );
-            break; // Server responded with error, don't retry
-          }
-        } catch (error: any) {
-          retries++;
-          console.error(
-            `[Upload] Attempt ${retries} failed:`,
-            error.message || error,
-          );
-
-          // Network error - may retry
-          if (retries > maxRetries) {
-            console.error("[Upload] Max retries exceeded");
-          } else {
-            console.log("[Upload] Retrying in 1 second...");
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-          }
-        }
-      }
+        );
+    } catch (error) {
+        logger.error("[Upload] Batch upload failed:", error);
+        throw error; // Re-throw to be caught by handleSubmit
     }
-    return uploadedUrls;
   };
 
   const resetForm = () => {
@@ -315,15 +270,21 @@ export default function BarangMasukScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedGudang || !selectedBarang || !jumlah) {
-      Alert.alert("Error", "Gudang, Barang, dan Jumlah wajib diisi");
-      return;
-    }
+    // 1. Prepare & Sanitize Data
+    const rawData = {
+        barangId: selectedBarang,
+        gudangId: selectedGudang,
+        jumlah: parseInt(jumlah) || 0,
+        kondisi,
+        keterangan: sanitizeInput(keterangan),
+    };
 
-    const qty = parseInt(jumlah);
-    if (isNaN(qty) || qty <= 0) {
-      Alert.alert("Error", "Jumlah harus berupa angka positif");
-      return;
+    // 2. Validate
+    const validation = validateData(InventoryMasukSchema, rawData);
+
+    if (!validation.success) {
+        Alert.alert("Data Tidak Valid", validation.error);
+        return;
     }
 
     // 1. Process Photos (Capture Watermark)
@@ -336,14 +297,8 @@ export default function BarangMasukScreen() {
       // 2. Check Connection
       const isOnline = await SyncService.isOnline();
 
-      // 3. Prepare Data
-      const payload = {
-        barangId: selectedBarang,
-        gudangId: selectedGudang,
-        jumlah: qty,
-        kondisi,
-        keterangan,
-      };
+      // 3. Prepare Data from Validation
+      const payload = validation.data;
 
       if (isOnline) {
         setSubmitting(true);
@@ -378,7 +333,7 @@ export default function BarangMasukScreen() {
               },
             },
           );
-        } catch (error) {
+        } catch {
           setShowLoading(false);
           Alert.alert("Error", "Gagal upload foto atau simpan data");
         } finally {
@@ -414,7 +369,7 @@ export default function BarangMasukScreen() {
       }
     } catch (error) {
       setShowLoading(false);
-      console.error(error);
+      logger.error(error);
       Alert.alert("Error", "Terjadi kesalahan saat memproses data");
     }
   };
@@ -553,7 +508,7 @@ export default function BarangMasukScreen() {
               <View style={tw`flex-row flex-wrap gap-2 mb-3`}>
                 {photos.map((photo, index) => (
                   <View key={index} style={tw`relative`}>
-                    <Image source={{ uri: photo.uri }}
+                    <ImageWithCache source={photo.uri}
                       style={tw`w-20 h-20 rounded-lg`}
                      contentFit="cover" transition={1000}       />
                     <TouchableOpacity
@@ -588,7 +543,7 @@ export default function BarangMasukScreen() {
                     backgroundColor: "black",
                   }}
                 >
-                  <Image source={{ uri: photo.uri }}
+                  <ImageWithCache source={photo.uri}
                     style={{ width: photo.width, height: photo.height }}
                     contentFit="contain"
                    transition={1000}       />
@@ -694,14 +649,10 @@ export default function BarangMasukScreen() {
         onClose={() => setShowGudangModal(false)}
         title="Pilih Gudang"
         searchPlaceholder="Cari gudang..."
-        items={gudangs.map((g) => ({
-          id: g.id,
-          label: g.nama,
-          subLabel: g.kode,
-          value: g.id,
-        }))}
+        items={gudangModalItems}
         onSelect={(item) => setSelectedGudang(item.value)}
         selectedValue={selectedGudang}
+        loading={isLoadingGudangs}
       />
 
       <SelectionModal
@@ -709,17 +660,13 @@ export default function BarangMasukScreen() {
         onClose={() => setShowBarangModal(false)}
         title="Pilih Barang"
         searchPlaceholder="Cari barang..."
-        items={barangs.map((b) => ({
-          id: b.id,
-          label: b.nama,
-          subLabel: b.kode,
-          value: b.id,
-        }))}
+        items={barangModalItems}
         onSelect={(item) => setSelectedBarang(item.value)}
         selectedValue={selectedBarang}
+        loading={isLoadingBarangs}
       />
 
-      <LoadingModal visible={showLoading} message={loadingMessage} />
+      <LoadingModal visible={showLoading} message={loadingMessage} progress={uploadProgress > 0 ? uploadProgress : undefined} />
     </SafeAreaView>
   );
 }

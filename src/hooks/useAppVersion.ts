@@ -1,6 +1,8 @@
 import { AppVersionInfo, appVersionService, CheckUpdateResult, DownloadProgress } from '@/services/AppVersionService'
 import { useCallback, useEffect, useState } from 'react'
-import { AppState, Platform } from 'react-native'
+import { AppState, AppStateStatus, Platform } from 'react-native'
+import { logger } from '@/utils/logger'
+import { eventManager } from '@/utils/EventManager'
 
 export type DownloadStatus = 'idle' | 'downloading' | 'installing' | 'error'
 
@@ -28,13 +30,13 @@ export function useAppVersion(): UseAppVersionState {
 
     // Listen for app coming to foreground (returning from settings)
     useEffect(() => {
-        const subscription = AppState.addEventListener('change', async (nextAppState) => {
+        const handleAppStateChange = async (nextAppState: AppStateStatus) => {
             if (nextAppState === 'active') {
                 // Check if we have a pending install
                 const pendingUri = appVersionService.getPendingApkUri()
                 if (pendingUri) {
-                    console.log('[Update] Resuming pending install...', pendingUri)
-                    setDownloadStatus('installing') 
+                    logger.info('[Update] Resuming pending install...', pendingUri)
+                    setDownloadStatus('installing')
                     // Give a small delay to ensure UI is ready
                     setTimeout(async () => {
                         await appVersionService.retryPendingInstall()
@@ -44,10 +46,15 @@ export function useAppVersion(): UseAppVersionState {
                     }, 1000)
                 }
             }
-        })
+        }
+
+        const subscription = AppState.addEventListener('change', handleAppStateChange)
+
+        // Register with EventManager
+        eventManager.addListener('appVersion', handleAppStateChange, () => subscription.remove())
 
         return () => {
-            subscription.remove()
+            eventManager.removeListener('appVersion', handleAppStateChange)
         }
     }, [])
 
@@ -57,7 +64,7 @@ export function useAppVersion(): UseAppVersionState {
 
         try {
             const result = await appVersionService.checkForUpdate(currentVersionCode)
-            
+
             if (result.success) {
                 setUpdateAvailable(result.updateAvailable)
                 setIsForceUpdate(result.isForceUpdate)
@@ -67,8 +74,8 @@ export function useAppVersion(): UseAppVersionState {
             }
 
             return result
-        } catch (err: any) {
-            const errorMsg = err.message || 'Gagal cek update'
+        } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : 'Gagal cek update'
             setError(errorMsg)
             return {
                 success: false,
@@ -95,18 +102,19 @@ export function useAppVersion(): UseAppVersionState {
             return
         }
 
-        console.log('[Update] Starting update process...')
+        logger.info('[Update] Starting update process...')
         setDownloadStatus('downloading')
         setDownloadProgress(null)
         setError(null)
 
         try {
             const filename = `netmanager_v${latestVersion.version}.apk`
-            
-            console.log('[Update] Downloading APK...')
+
+            logger.info('[Update] Downloading APK...')
             const fileUri = await appVersionService.downloadApk(
                 latestVersion.id,
                 filename,
+                latestVersion.hash,
                 (progress) => {
                     setDownloadProgress(progress)
                 }
@@ -116,17 +124,18 @@ export function useAppVersion(): UseAppVersionState {
                 throw new Error('Gagal mengunduh file APK')
             }
 
-            console.log('[Update] Download complete, installing...')
+            logger.info('[Update] Download complete, installing...')
             setDownloadStatus('installing')
-            
+
             // Try to install
             await appVersionService.installApk(fileUri)
             // Note: installApk checks permissions internally and might open settings.
             // If it opens settings, the AppState listener above will catch the return.
 
-        } catch (err: any) {
-            console.error('[Update] Error:', err.message)
-            setError(err.message || 'Gagal update')
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Gagal update'
+            logger.error('[Update] Error:', errorMessage)
+            setError(errorMessage)
             setDownloadStatus('error')
             return
         }

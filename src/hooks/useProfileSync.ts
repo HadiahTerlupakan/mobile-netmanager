@@ -1,0 +1,84 @@
+import { useAuth, User } from '@/context/AuthContext';
+import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
+import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { useEffect } from 'react';
+
+interface UserProfile {
+    name: string | null;
+    email: string | null;
+    image: string | null;
+    features?: string[];
+    role?: {
+        id: string;
+        name: string;
+    } | null;
+    departments?: {
+        id: string;
+        name: string;
+    } | null;
+    sites?: {
+        id: string;
+        name: string;
+    } | null;
+    workingHourMode?: string | null;
+    startWorkTime?: string | null;
+    endWorkTime?: string | null;
+    workDays?: string | null;
+    isOnLeave?: boolean;
+}
+
+export function useProfileSync() {
+    const { user, token, updateUser } = useAuth();
+
+    const query = useOfflineQuery({
+        key: 'user_profile',
+        fetcher: async () => {
+            const res = await api.get('/api/mobile/profile');
+            return res.data?.data as UserProfile;
+        },
+        enabled: !!token
+    });
+
+    const profileData = query.data;
+
+    useEffect(() => {
+        if (profileData && user) {
+            const currentFeatures = JSON.stringify(user.features || []);
+            const newFeatures = JSON.stringify(profileData.features || []);
+            const safeName = profileData.name || user.name;
+
+            const hasNameChanged = user.name !== safeName;
+            const hasFeaturesChanged = currentFeatures !== newFeatures;
+            const hasImageChanged = user.image !== profileData.image;
+            const hasLeaveStatusChanged = user.isOnLeave !== profileData.isOnLeave;
+
+            if (hasNameChanged || hasFeaturesChanged || hasImageChanged || hasLeaveStatusChanged) {
+                logger.info('[useProfileSync] Syncing fresh profile data to AuthContext');
+
+                const updatedUser: User = {
+                    ...user,
+                    name: safeName,
+                    features: profileData.features,
+                    image: profileData.image,
+                    isOnLeave: profileData.isOnLeave
+                };
+
+                updateUser(updatedUser);
+            }
+        }
+    }, [profileData, user, updateUser]);
+
+    const hasFeature = (feature: string) => {
+        if (!user) return false;
+        if (user.role === 'SUPER_ADMIN') return true;
+        return profileData?.features?.includes(feature) ?? user.features?.includes(feature) ?? false;
+    };
+
+    return {
+        profileData,
+        isLoading: query.isLoading,
+        refetch: query.refetch,
+        hasFeature
+    };
+}

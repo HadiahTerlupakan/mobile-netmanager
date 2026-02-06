@@ -1,8 +1,7 @@
 import { Config } from '@/constants/Config';
 import { ChatMessage } from '@/services/ChatService';
-import { format } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
-import { Image } from 'expo-image';
+import { formatDate } from '@/utils/date';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import React from 'react';
 import { Text, View } from 'react-native';
 import tw from 'twrnc';
@@ -13,7 +12,9 @@ interface MessageBubbleProps {
 
 const MessageBubble = React.memo(({ item }: MessageBubbleProps) => {
     const isOwn = item.isOwn;
-    const time = format(new Date(item.createdAt), 'HH:mm', { locale: idLocale });
+
+    const time = formatDate(item.createdAt, 'HH:mm', { fallback: '' });
+
     const hasImage = !!item.imageUrl;
     const hasText = !!item.content;
 
@@ -24,8 +25,8 @@ const MessageBubble = React.memo(({ item }: MessageBubbleProps) => {
             )}
             <View style={tw`max-w-[80%] ${isOwn ? 'bg-purple-500' : 'bg-white'} rounded-2xl ${hasImage && !hasText ? 'p-1' : 'px-4 py-2'} shadow-sm overflow-hidden`}>
                 {hasImage && (
-                    <Image
-                        source={{ uri: `${Config.API_URL}${item.imageUrl}` }}
+                    <ImageWithCache
+                        source={`${Config.API_URL}${item.imageUrl}`}
                         style={tw`w-52 h-40 rounded-xl ${hasText ? "mb-2" : ""}`}
                         contentFit="cover"
                         transition={1000}

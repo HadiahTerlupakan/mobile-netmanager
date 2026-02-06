@@ -1,10 +1,9 @@
-import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api'; // Import centralized API
-import AsyncStorage from '@react-native-async-storage/async-storage';
-// Removed axios import
-import { formatDistanceToNow } from 'date-fns';
-import { id } from 'date-fns/locale';
+import { Storage } from '@/utils/storage';
+// Removed AsyncStorage import
+import { formatTimeAgo } from '@/utils/date';
+import { logger } from '@/utils/logger';
 import { ChevronLeft, ChevronRight, Megaphone, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
@@ -36,33 +35,36 @@ export default function AnnouncementPopup() {
 
     useEffect(() => {
         if (token) {
-            fetchAnnouncements();
+            // Add delay to prevent race conditions during app startup
+            const timer = setTimeout(() => {
+                fetchAnnouncements();
+            }, 1500);
+            return () => clearTimeout(timer);
         }
     }, [token]);
 
     const fetchAnnouncements = async () => {
         try {
+            logger.info('[Announcement] Fetching announcements...');
+            // Try mobile-specific endpoint first
             // Use 'api' instead of 'axios' - token is handled automatically by interceptors
-            const res = await api.get('/api/announcements', {
+            const res = await api.get<Announcement[]>('/api/mobile/announcements', {
                 params: {
-                    portal: 'employee',
                     active: true
                 },
-                // @ts-ignore - custom config
                 skipGlobalAuthHandler: true
             });
 
             if (res.data && Array.isArray(res.data)) {
                 // Filter out dismissed announcements
-                const dismissedRaw = await AsyncStorage.getItem(DISMISSED_STORAGE_KEY);
-                const dismissedIds: string[] = dismissedRaw ? JSON.parse(dismissedRaw) : [];
+                const dismissedIds = Storage.getItemJson<string[]>(DISMISSED_STORAGE_KEY) || [];
 
                 // Clean up dismissed IDs - only keep those that are still active
                 const activeIds = res.data.map((a: Announcement) => a.id);
                 const validDismissedIds = dismissedIds.filter(id => activeIds.includes(id));
 
                 if (validDismissedIds.length !== dismissedIds.length) {
-                    await AsyncStorage.setItem(DISMISSED_STORAGE_KEY, JSON.stringify(validDismissedIds));
+                    Storage.setItemJson(DISMISSED_STORAGE_KEY, validDismissedIds);
                 }
 
                 const newAnnouncements = res.data.filter(
@@ -77,7 +79,8 @@ export default function AnnouncementPopup() {
         } catch (error) {
             // Log error but don't crash app
             // 401s are now handled globally by api.ts interceptor
-            console.log('[Announcement] Failed to fetch (silently ignored):', (error as any).message);
+            const errorMessage = error instanceof Error ? error.message : "Unknown error";
+            logger.info('[Announcement] Failed to fetch (silently ignored):', errorMessage);
         } finally {
             setLoading(false);
         }
@@ -89,9 +92,9 @@ export default function AnnouncementPopup() {
             await api.post(`/api/mobile/announcements/${announcementId}/read`, {
                 portal: 'employee'
             });
-            console.log('[AnnouncementPopup] Marked as read:', announcementId);
+            logger.info('[AnnouncementPopup] Marked as read:', announcementId);
         } catch (error) {
-            console.error('[AnnouncementPopup] Failed to mark as read:', error);
+            logger.error('[AnnouncementPopup] Failed to mark as read:', error);
             // Ignore errors silently
         }
     };
@@ -100,11 +103,10 @@ export default function AnnouncementPopup() {
         const currentAnn = announcements[currentIndex];
 
         // Save to dismissed list
-        const dismissedRaw = await AsyncStorage.getItem(DISMISSED_STORAGE_KEY);
-        const dismissedIds: string[] = dismissedRaw ? JSON.parse(dismissedRaw) : [];
+        const dismissedIds = Storage.getItemJson<string[]>(DISMISSED_STORAGE_KEY) || [];
         if (!dismissedIds.includes(currentAnn.id)) {
             dismissedIds.push(currentAnn.id);
-            await AsyncStorage.setItem(DISMISSED_STORAGE_KEY, JSON.stringify(dismissedIds));
+            Storage.setItemJson(DISMISSED_STORAGE_KEY, dismissedIds);
         }
 
         // Mark as read in backend
@@ -120,7 +122,7 @@ export default function AnnouncementPopup() {
     const handleDismissAll = async () => {
         // Save all to dismissed list
         const dismissedIds = announcements.map(a => a.id);
-        await AsyncStorage.setItem(DISMISSED_STORAGE_KEY, JSON.stringify(dismissedIds));
+        Storage.setItemJson(DISMISSED_STORAGE_KEY, dismissedIds);
 
         // Mark all as read
         announcements.forEach(a => markAsRead(a.id));
@@ -129,11 +131,7 @@ export default function AnnouncementPopup() {
     };
 
     const formatTime = (dateString: string) => {
-        try {
-            return formatDistanceToNow(new Date(dateString), { addSuffix: true, locale: id });
-        } catch {
-            return '';
-        }
+        return formatTimeAgo(dateString);
     };
 
     if (loading || !isVisible || announcements.length === 0) {

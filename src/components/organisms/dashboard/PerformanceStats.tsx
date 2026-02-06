@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Text, View } from 'react-native';
 import tw from 'twrnc';
 
@@ -9,7 +9,7 @@ interface PerformanceStatsProps {
     title?: string;
 }
 
-export const PerformanceStats = ({ today, week, month, title = 'Tiket Selesai' }: PerformanceStatsProps) => {
+export const PerformanceStats = memo(({ today, week, month, title = 'Tiket Selesai' }: PerformanceStatsProps) => {
     return (
         <View style={tw`mx-4 mb-4 bg-white rounded-xl p-4 shadow-sm border border-gray-100`}>
             <Text style={tw`text-sm font-bold text-gray-900 mb-3`}>{title}</Text>
@@ -22,7 +22,8 @@ export const PerformanceStats = ({ today, week, month, title = 'Tiket Selesai' }
             </View>
         </View>
     );
-};
+});
+PerformanceStats.displayName = 'PerformanceStats';
 
 const StatBox = ({ value, label, bg, text }: { value: number, label: string, bg: string, text: string }) => (
     <View style={tw`flex-1 items-center justify-center p-3 rounded-xl ${bg}`}>

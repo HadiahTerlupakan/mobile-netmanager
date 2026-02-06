@@ -16,7 +16,7 @@ module.exports = {
     "^.+\\.(js|jsx|ts|tsx)$": "babel-jest",
   },
   transformIgnorePatterns: [
-    "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|twrnc|lucide-react-native|axios)",
+    "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|twrnc|lucide-react-native|axios|p-limit|yocto-queue)",
   ],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
@@ -27,6 +27,9 @@ module.exports = {
     "^expo-location$": "<rootDir>/__mocks__/expo-location.js",
     "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.js",
     "^expo$": "<rootDir>/__mocks__/expo.js",
+    "^expo-crypto$": "<rootDir>/__mocks__/expo-crypto.js",
+    "^expo-battery$": "<rootDir>/__mocks__/expo-battery.js",
+    "^expo-task-manager$": "<rootDir>/__mocks__/expo-task-manager.js",
     "^@/utils/logger$": "<rootDir>/__mocks__/logger.js",
   },
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],

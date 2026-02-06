@@ -1,6 +1,7 @@
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import { Crosshair, MapPin, Search } from 'lucide-react-native';
+import { logger } from '@/utils/logger';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
@@ -12,6 +13,12 @@ interface LocationPickerModalProps {
     initialLocation?: { lat: number; lng: number };
 }
 
+interface OSMSuggestion {
+    lat: string;
+    lon: string;
+    display_name: string;
+}
+
 MapLibreGL.setAccessToken(null);
 
 export function LocationPickerModal({ visible, onClose, onSelectLocation, initialLocation }: LocationPickerModalProps) {
@@ -19,12 +26,12 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
     const [center, setCenter] = useState<[number, number]>([106.816666, -6.200000]); // Default Jakarta
     const [isInitialized, setIsInitialized] = useState(false);
     const [loadingLocation, setLoadingLocation] = useState(false);
-    
+
     // Search State
     const [searchQuery, setSearchQuery] = useState('');
-    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [suggestions, setSuggestions] = useState<OSMSuggestion[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const searchTimeout = useRef<any>(null);
+    const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Initial load
     useEffect(() => {
@@ -47,7 +54,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
             }
         };
         init();
-    }, [visible]);
+    }, [visible, initialLocation]);
 
     // Memoize settings to prevent re-renders from "resetting" the map
     // We only want to set the center ONCE when the map becomes visible/initialized.
@@ -76,7 +83,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
     const cameraSettings = React.useMemo(() => ({
         centerCoordinate: center,
         zoomLevel: 15,
-    }), [isInitialized]);
+    }), [center]);
 
     const getCurrentLocation = async (isInitialId = false) => {
         try {
@@ -103,7 +110,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
 
             const newCenter: [number, number] = [location.coords.longitude, location.coords.latitude];
             setCenter(newCenter);
-            
+
             if (isInitialId) {
                 // If initial, we are ready to show map now
                 setIsInitialized(true);
@@ -118,7 +125,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                 }
             }
         } catch (error) {
-            console.error('Error getting location', error);
+            logger.error('Error getting location', error);
             if (isInitialId) {
                  // Fallback on error so user isn't stuck
                  setIsInitialized(true);
@@ -157,14 +164,14 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                 const data = await response.json();
                 setSuggestions(data);
             } catch (error) {
-                console.error('OSM Search Error:', error);
+                logger.error('OSM Search Error:', error);
             } finally {
                 setIsSearching(false);
             }
-        }, 500) as any; // Cast to any to avoid type mismatch between NodeJS.Timeout and number
+        }, 500);
     };
 
-    const handleSelectSuggestion = (item: any) => {
+    const handleSelectSuggestion = (item: OSMSuggestion) => {
         const lat = parseFloat(item.lat);
         const lng = parseFloat(item.lon);
         const newCenter: [number, number] = [lng, lat];
@@ -191,8 +198,8 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
 
     const onRegionDidChange = (e: any) => {
         const { geometry } = e;
-        if (geometry && geometry.coordinates) {
-            setCenter(geometry.coordinates);
+        if (geometry && 'coordinates' in geometry && Array.isArray(geometry.coordinates)) {
+            setCenter(geometry.coordinates as [number, number]);
         }
     };
 

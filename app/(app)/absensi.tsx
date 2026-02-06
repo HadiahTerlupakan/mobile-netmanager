@@ -1,6 +1,6 @@
+import { AttendanceSkeleton } from "@/components/molecules/AttendanceSkeleton";
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { Config } from "@/constants/Config";
-import { Image } from "expo-image";
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { useAuth } from "@/context/AuthContext";
 import {
     useOfflineMutationCompat as useOfflineMutation,
@@ -8,12 +8,12 @@ import {
 } from "@/hooks/queries";
 import { LocationTrackingService } from "@/services/LocationTrackingService";
 import { SyncService } from "@/services/SyncService";
+import { uploadService } from "@/services/UploadService";
 import api from "@/services/api"; // Use centralized API
+import { logger } from "@/utils/logger";
 import { generateSignature } from "@/utils/crypto";
-import { format } from "date-fns";
-import { id } from "date-fns/locale";
+import { formatDate } from "@/utils/date";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
-import * as ImageManipulator from "expo-image-manipulator";
 import * as Location from "expo-location";
 import {
     AlertTriangle,
@@ -25,7 +25,7 @@ import {
     RotateCcw,
     X,
 } from "lucide-react-native";
-import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
     Alert,
     Modal,
@@ -85,19 +85,25 @@ const DigitalClock = React.memo(() => {
   return (
     <View style={tw`items-center`}>
       <Text style={tw`text-white font-bold text-5xl`}>
-        {format(time, "HH:mm")}
+        {formatDate(time, "HH:mm")}
       </Text>
       <Text style={tw`text-blue-100 font-medium text-sm mt-1`}>
-        {format(time, "EEEE, d MMMM yyyy", { locale: id })}
+        {formatDate(time, "EEEE, d MMMM yyyy")}
       </Text>
     </View>
   );
 });
 DigitalClock.displayName = 'DigitalClock';
 
-const AttendanceHeader = React.memo(({ todayHoliday, isTukarLiburWorkDay, isTukarLiburLeaveDay, isOffDay }: any) => {
+interface AttendanceHeaderProps {
+  todayHoliday: { isHoliday: boolean; name: string | null };
+  isTukarLiburWorkDay: boolean;
+  isTukarLiburLeaveDay: boolean;
+  isOffDay: boolean;
+}
+
+const AttendanceHeader = React.memo(({ todayHoliday, isTukarLiburWorkDay, isTukarLiburLeaveDay, isOffDay }: AttendanceHeaderProps) => {
   const bgColor = todayHoliday.isHoliday ? "bg-red-600" : "bg-blue-600";
-  const textColor = todayHoliday.isHoliday ? "text-red-100" : "text-blue-100";
 
   return (
     <View style={tw`${bgColor} px-6 pt-6 pb-12 rounded-b-[40px]`}>
@@ -138,7 +144,12 @@ const AttendanceHeader = React.memo(({ todayHoliday, isTukarLiburWorkDay, isTuka
 });
 AttendanceHeader.displayName = 'AttendanceHeader';
 
-const LocationCard = React.memo(({ locationName, onRefresh }: any) => (
+interface LocationCardProps {
+  locationName: string;
+  onRefresh: () => void;
+}
+
+const LocationCard = React.memo(({ locationName, onRefresh }: LocationCardProps) => (
   <View style={tw`flex-row items-center bg-gray-50 p-3 rounded-xl mb-4`}>
     <View style={tw`bg-blue-100 p-2 rounded-full mr-3`}>
       <MapPin size={20} color="#2563eb" />
@@ -154,7 +165,12 @@ const LocationCard = React.memo(({ locationName, onRefresh }: any) => (
 ));
 LocationCard.displayName = 'LocationCard';
 
-const AttendanceStatusInfo = React.memo(({ checkInTime, checkOutTime }: any) => (
+interface AttendanceStatusInfoProps {
+  checkInTime: string | null;
+  checkOutTime: string | null;
+}
+
+const AttendanceStatusInfo = React.memo(({ checkInTime, checkOutTime }: AttendanceStatusInfoProps) => (
   <View style={tw`flex-row justify-between mb-6`}>
     <View style={tw`items-center flex-1 border-r border-gray-100`}>
       <Text style={tw`text-xs text-gray-400 mb-1`}>Masuk</Text>
@@ -168,7 +184,15 @@ const AttendanceStatusInfo = React.memo(({ checkInTime, checkOutTime }: any) => 
 ));
 AttendanceStatusInfo.displayName = 'AttendanceStatusInfo';
 
-const GeofenceWarning = React.memo(({ visible, onCancel, onContinue, geofenceStatus, loading }: any) => (
+interface GeofenceWarningProps {
+  visible: boolean;
+  onCancel: () => void;
+  onContinue: () => void;
+  geofenceStatus: { distance: number | null; siteName: string | null } | null;
+  loading: boolean;
+}
+
+const GeofenceWarning = React.memo(({ visible, onCancel, onContinue, geofenceStatus, loading }: GeofenceWarningProps) => (
   <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={onCancel}>
     <View style={tw`flex-1 bg-black/50 justify-center items-center px-6`}>
       <View style={tw`bg-white rounded-2xl p-6 w-full max-w-sm`}>
@@ -232,7 +256,17 @@ export default function AbsensiScreen() {
   const [isTukarLiburLeaveDay, setIsTukarLiburLeaveDay] = useState(false);
 
   // Geofence State
-  const [geofenceZones, setGeofenceZones] = useState<GeofenceZone[]>([]);
+  const { data: geofenceData } = useOfflineQuery<{ zones: GeofenceZone[] }>({
+    key: "geofence_zones",
+    fetcher: async () => {
+      const res = await api.get("/api/mobile/geofence");
+      return res.data?.data;
+    },
+    enabled: !!token,
+  });
+
+  const geofenceZones = React.useMemo(() => geofenceData?.zones || [], [geofenceData]);
+
   const [geofenceStatus, setGeofenceStatus] = useState<{
     isInside: boolean;
     distance: number | null;
@@ -241,22 +275,12 @@ export default function AbsensiScreen() {
   const [showOutsideWarning, setShowOutsideWarning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Memproses...");
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   // --- Handlers ---
 
-  const fetchGeofenceZones = useCallback(async () => {
-    try {
-      const res = await api.get("/api/mobile/geofence");
-      if (res.data?.success && res.data?.data?.zones) {
-        setGeofenceZones(res.data.data.zones);
-      }
-    } catch (error) {
-      console.log("Failed to fetch geofence zones:", error);
-    }
-  }, []);
-
   const checkGeofence = useCallback((userLat: number, userLng: number, zones: GeofenceZone[]) => {
-    if (zones.length === 0) {
+    if (!zones || zones.length === 0) {
       setGeofenceStatus({ isInside: true, distance: null, siteName: null });
       return;
     }
@@ -308,18 +332,31 @@ export default function AbsensiScreen() {
           const addr = reverse[0];
           setLocationName(`${addr.street || ""} ${addr.district || ""}, ${addr.city || ""}`);
         }
-      } catch (e) {
+      } catch {
         setLocationName(`${loc.coords.latitude}, ${loc.coords.longitude}`);
       }
     } catch (error) {
-      console.warn("Location Error:", error);
+      logger.warn("Location Error:", error);
       setLocationName("Lokasi tidak ditemukan (Cek GPS)");
     }
   }, [geofenceZones, checkGeofence]);
 
   const { mutate, isLoading: isMutating } = useOfflineMutation();
 
-  const { data: statusData, refetch: refetchStatus } = useOfflineQuery<any>({
+  const { data: statusData, refetch: refetchStatus } = useOfflineQuery<{
+    success: boolean;
+    today?: {
+      isHoliday?: boolean;
+      holidayName?: string;
+      isOffDay?: boolean;
+      isTukarLiburWorkDay?: boolean;
+      isTukarLiburLeaveDay?: boolean;
+    };
+    data: {
+      checkIn: string;
+      checkOut?: string;
+    }[];
+  }>({
     key: "attendance_status_latest",
     fetcher: async () => {
       const res = await api.get("/api/mobile/attendance/history?limit=1");
@@ -344,14 +381,14 @@ export default function AbsensiScreen() {
         const attendanceDate = new Date(lastAttendance.checkIn).toDateString();
 
         if (today === attendanceDate) {
-          setCheckInTime(format(new Date(lastAttendance.checkIn), "HH:mm"));
+          setCheckInTime(formatDate(lastAttendance.checkIn, "HH:mm"));
           if (lastAttendance.checkOut) {
             setStatus("checked-out");
-            setCheckOutTime(format(new Date(lastAttendance.checkOut), "HH:mm"));
-            LocationTrackingService.stopTracking().catch(console.error);
+            setCheckOutTime(formatDate(lastAttendance.checkOut, "HH:mm"));
+            LocationTrackingService.stopTracking().catch(err => logger.error('Stop tracking error', err));
           } else {
             setStatus("checked-in");
-            LocationTrackingService.startTracking().catch(console.error);
+            LocationTrackingService.startTracking().catch(err => logger.error('Start tracking error', err));
           }
         } else {
           setStatus("idle");
@@ -364,8 +401,7 @@ export default function AbsensiScreen() {
 
   useEffect(() => {
     getLocation();
-    if (token) fetchGeofenceZones();
-  }, [token, getLocation, fetchGeofenceZones]);
+  }, [token, getLocation]);
 
   useEffect(() => {
     if (location && geofenceZones.length > 0) {
@@ -385,37 +421,12 @@ export default function AbsensiScreen() {
     }
   }, []);
 
-  const uploadPhotos = useCallback(async (uris: string[]): Promise<string[]> => {
-    const uploadedUrls: string[] = [];
-    for (const uri of uris) {
-      try {
-        const formData = new FormData();
-        const filename = uri.split("/").pop() || "photo.jpg";
-        formData.append("file", {
-          uri: uri.startsWith("file://") ? uri : `file://${uri}`,
-          type: "image/jpeg",
-          name: filename,
-        } as any);
-        formData.append("type", "employee-attendance");
-
-        const res = await api.post("/api/mobile/upload", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-          timeout: 60000,
-        });
-        if (res.data?.url) uploadedUrls.push(res.data.url);
-      } catch (error) {
-        console.error("[Absensi] Upload error:", error);
-      }
-    }
-    return uploadedUrls;
-  }, []);
-
   const captureWatermarkedPhoto = useCallback(async (): Promise<string | null> => {
     if (!watermarkRef.current) return photo;
     try {
       return await captureRef(watermarkRef, { format: "jpg", quality: 0.8 });
     } catch (error) {
-      console.error("[Absensi] Watermark capture error:", error);
+      logger.error("[Absensi] Watermark capture error:", error);
       return photo;
     }
   }, [photo]);
@@ -448,23 +459,32 @@ export default function AbsensiScreen() {
 
     if (isOnline) {
       setLoading(true);
+      setUploadProgress(0);
       try {
         setLoadingMessage("Mengupload foto...");
-        const uploadedUrls = await uploadPhotos([processedUri]);
+        const uploadedUrls = await uploadService.uploadBatch(
+            [processedUri],
+            "employee-attendance",
+            (_, __, progress) => {
+                setUploadProgress(progress.percentage);
+            }
+        );
         const photoUrl = uploadedUrls[0];
         if (!photoUrl) throw new Error("Gagal upload foto.");
 
         setLoadingMessage("Mengirim data...");
+        setUploadProgress(0); // Indeterminate
         await mutate({ ...payload, photoUrl }, {
           url: endpoint,
           method: "POST",
-          onSuccess: async (data: any) => {
+          onSuccess: async (data) => {
             if (status === "idle") await LocationTrackingService.startTracking();
             else await LocationTrackingService.stopTracking();
 
             setIsProcessing(false);
             setLoading(false);
-            Alert.alert("Berhasil", status === "idle" ? "Check-in Berhasil!" : data?.warning ? `⚠️ ${data.warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
+            const warning = (data as { warning?: string })?.warning;
+            Alert.alert("Berhasil", status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
             refetchStatus();
             setPhoto(null);
           },
@@ -474,10 +494,11 @@ export default function AbsensiScreen() {
             Alert.alert("Gagal", e.message || "Terjadi kesalahan.");
           },
         });
-      } catch (error: any) {
+      } catch (error) {
         setIsProcessing(false);
         setLoading(false);
-        Alert.alert("Error", error.message || "Gagal Absen");
+        const errorMessage = error instanceof Error ? error.message : "Gagal Absen";
+        Alert.alert("Error", errorMessage);
       }
     } else {
       setLoadingMessage("Menyimpan offline...");
@@ -501,7 +522,7 @@ export default function AbsensiScreen() {
         },
       });
     }
-  }, [photo, location, status, isProcessing, captureWatermarkedPhoto, locationName, capturedTime, uploadPhotos, mutate, user?.id, refetchStatus]);
+  }, [photo, location, status, isProcessing, captureWatermarkedPhoto, locationName, capturedTime, mutate, user?.id, refetchStatus]);
 
   const handleSubmit = useCallback(async () => {
     if (!photo || !location) {
@@ -536,26 +557,29 @@ export default function AbsensiScreen() {
 
     return (
       <View style={tw`flex-1 bg-black`}>
-        <CameraView style={tw`flex-1`} facing={facing} ref={cameraRef}>
-          <View style={tw`absolute inset-0 items-center justify-center`}>
-            <View style={[tw`w-56 h-72 border-2 border-white/60 rounded-full`, { borderStyle: "dashed" }]} />
-          </View>
-          <View style={tw`absolute bottom-0 left-0 right-0 p-6 pb-12`}>
-            <View style={tw`bg-black/50 p-3 rounded-xl mb-4`}>
-              <View style={tw`flex-row items-center`}>
-                <MapPin size={14} color="#fff" />
-                <Text style={tw`text-white text-xs ml-2 flex-1`} numberOfLines={1}>{locationName}</Text>
-              </View>
-            </View>
-            <View style={tw`flex-row justify-between items-center`}>
-              <TouchableOpacity onPress={() => setShowCamera(false)} style={tw`bg-white/20 p-3 rounded-full`}><X color="white" size={24} /></TouchableOpacity>
-              <TouchableOpacity onPress={handleCaptureURI} style={tw`h-20 w-20 bg-white rounded-full border-4 border-gray-300 items-center justify-center`}><View style={tw`h-16 w-16 bg-white rounded-full border-2 border-gray-200`} /></TouchableOpacity>
-              <TouchableOpacity onPress={() => setFacing((curr) => (curr === "back" ? "front" : "back"))} style={tw`bg-white/20 p-3 rounded-full`}><RotateCcw color="white" size={24} /></TouchableOpacity>
+        <CameraView style={tw`flex-1`} facing={facing} ref={cameraRef} />
+        <View style={tw`absolute inset-0 items-center justify-center pointer-events-none`}>
+          <View style={[tw`w-56 h-72 border-2 border-white/60 rounded-full`, { borderStyle: "dashed" }]} />
+        </View>
+        <View style={tw`absolute bottom-0 left-0 right-0 p-6 pb-12`}>
+          <View style={tw`bg-black/50 p-3 rounded-xl mb-4`}>
+            <View style={tw`flex-row items-center`}>
+              <MapPin size={14} color="#fff" />
+              <Text style={tw`text-white text-xs ml-2 flex-1`} numberOfLines={1}>{locationName}</Text>
             </View>
           </View>
-        </CameraView>
+          <View style={tw`flex-row justify-between items-center`}>
+            <TouchableOpacity onPress={() => setShowCamera(false)} style={tw`bg-white/20 p-3 rounded-full`}><X color="white" size={24} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleCaptureURI} style={tw`h-20 w-20 bg-white rounded-full border-4 border-gray-300 items-center justify-center`}><View style={tw`h-16 w-16 bg-white rounded-full border-2 border-gray-200`} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => setFacing((curr) => (curr === "back" ? "front" : "back"))} style={tw`bg-white/20 p-3 rounded-full`}><RotateCcw color="white" size={24} /></TouchableOpacity>
+          </View>
+        </View>
       </View>
     );
+  }
+
+  if (!statusData) {
+    return <AttendanceSkeleton />;
   }
 
   return (
@@ -576,12 +600,12 @@ export default function AbsensiScreen() {
             {photo ? (
               <View style={tw`mb-4`}>
                 <View ref={watermarkRef} collapsable={false} style={tw`w-full h-80 rounded-xl overflow-hidden mb-2 bg-black`}>
-                  <Image source={{ uri: photo }} style={tw`w-full h-full`} contentFit="cover" transition={1000} />
+                  <ImageWithCache source={photo} style={tw`w-full h-full`} contentFit="cover" transition={1000} />
                   <View style={tw`absolute bottom-0 left-0 right-0 bg-black/60 p-3`}>
                     <View style={tw`flex-row items-center mb-1`}>
                       <ClockIcon size={12} color="#fff" />
                       <Text style={tw`text-white font-bold text-sm ml-2`}>
-                        {capturedTime ? format(capturedTime, "HH:mm:ss") : "--:--:--"}
+                        {capturedTime ? formatDate(capturedTime, "HH:mm:ss") : "--:--:--"}
                       </Text>
                     </View>
                     <View style={tw`flex-row items-center`}>
@@ -621,9 +645,9 @@ export default function AbsensiScreen() {
         onCancel={() => setShowOutsideWarning(false)} 
         onContinue={handleConfirmOutsideSubmit} 
         geofenceStatus={geofenceStatus} 
-        loading={isProcessing} 
+        loading={isProcessing}
       />
-      <LoadingModal visible={isProcessing} message={loadingMessage} />
+      <LoadingModal visible={isProcessing} message={loadingMessage} progress={uploadProgress > 0 ? uploadProgress : undefined} />
     </SafeAreaView>
   );
 }

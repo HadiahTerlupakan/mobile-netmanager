@@ -1,15 +1,17 @@
 import * as Notifications from 'expo-notifications';
+import { logger } from '@/utils/logger';
 
 // Configure notification handler to show alerts when app is in foreground
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    priority: Notifications.AndroidNotificationPriority.HIGH,
-  }),
+  handleNotification: async () => {
+    return {
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+    };
+  },
 });
 
 export const NotificationService = {
@@ -33,7 +35,7 @@ export const NotificationService = {
         trigger: null, // Show immediately
       });
     } catch (error) {
-      console.warn('[NotificationService] Failed to show notification:', error);
+      logger.warn('[NotificationService] Failed to show notification:', error);
     }
   }
 };

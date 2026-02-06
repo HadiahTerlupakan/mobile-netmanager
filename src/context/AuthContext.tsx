@@ -1,13 +1,14 @@
-import axios from 'axios';
 import { Events } from '@/constants/Events';
-import { addNotificationListeners, registerForPushNotificationsAsync } from '@/services/PushNotificationService';
+import { registerForPushNotificationsAsync } from '@/services/PushNotificationService';
 import api from '@/services/api';
-import logger from '@/utils/logger';
+import { eventManager } from '@/utils/EventManager';
+import { logger } from '@/utils/logger';
+import { isAxiosError } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
 
-type User = {
+export type User = {
     id: string;
     name: string;
     email: string;
@@ -17,6 +18,7 @@ type User = {
     image?: string | null;
     workDays?: string | null;
     workingHourMode?: string | null;
+    isOnLeave?: boolean;
 };
 
 export type AuthContextType = {
@@ -36,6 +38,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Refs for stable access to latest state without forcing re-renders of functions
+    const tokenRef = React.useRef(token);
+
+    useEffect(() => {
+        tokenRef.current = token;
+    }, [token]);
+
     const loadStorageData = useCallback(async () => {
         try {
             const storedToken = await SecureStore.getItemAsync('session_token');
@@ -49,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Pass storedToken explicitly
                 registerForPushNotificationsAsync(storedToken).catch(err => {
                     // Ignore 401s here as they will trigger the unauthorized listener
-                    if (!axios.isAxiosError(err) || err.response?.status !== 401) {
+                    if (!isAxiosError(err) || err.response?.status !== 401) {
                         logger.error('Push registration failed:', err);
                     }
                 });
@@ -88,10 +97,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
+    // signOut is now stable and doesn't depend on token changes
     const signOut = useCallback(async (options?: { skipApi?: boolean }) => {
         try {
+            const currentToken = tokenRef.current;
             // Remove push token from backend only if not skipping API (e.g. not a 401 logout)
-            if (token && !options?.skipApi) {
+            if (currentToken && !options?.skipApi) {
                 try {
                     await api.delete('/api/mobile/push-token');
                 } catch (e) {
@@ -107,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
             logger.error('Sign out error', error);
         }
-    }, [token]);
+    }, []);
 
     const updateUser = useCallback(async (userData: User) => {
         try {
@@ -133,36 +144,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updateUser
     }), [user, token, isLoading, signIn, signOut, logout, updateUser]);
 
+    // Initial load effect
     useEffect(() => {
         loadStorageData();
+    }, [loadStorageData]);
 
+    // Unauthorized event listener effect - depends on stable signOut
+    useEffect(() => {
         // Listen for unauthorized events
-        const subscription = DeviceEventEmitter.addListener(Events.AUTH_UNAUTHORIZED, () => {
+        const handler = () => {
             logger.warn('[Auth] Received unauthorized event, logging out...');
             // Skip API call since token is invalid
             signOut({ skipApi: true });
-        });
+        };
+
+        const subscription = DeviceEventEmitter.addListener(Events.AUTH_UNAUTHORIZED, handler);
+
+        // Register with EventManager
+        eventManager.addListener('auth', handler, () => subscription.remove());
 
         return () => {
-            subscription.remove();
+            eventManager.removeListener('auth', handler);
         };
-    }, [signOut, loadStorageData]);
-
-    // Setup notification listeners when user is logged in
-    useEffect(() => {
-        if (token) {
-            const cleanup = addNotificationListeners(
-                (notification) => {
-                    logger.info('[Push] Received:', notification.request.content.title);
-                },
-                (response) => {
-                    logger.info('[Push] Tapped:', response.notification.request.content.title);
-                    // TODO: Navigate to notification target
-                }
-            );
-            return cleanup;
-        }
-    }, [token]);
+    }, [signOut]);
 
     return (
         <AuthContext.Provider value={contextValue}>

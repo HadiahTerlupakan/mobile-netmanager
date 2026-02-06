@@ -1,9 +1,10 @@
-import { Config } from "@/constants/Config";
+import { CanvasingSkeleton } from "@/components/molecules/CanvasingSkeleton";
 import { useAuth } from "@/context/AuthContext";
 import { useOfflineQueryCompat as useOfflineQuery } from "@/hooks/queries";
+import api from "@/services/api"; // Use centralized API
 import { Ionicons } from "@expo/vector-icons";
 import { FlashList } from "@shopify/flash-list";
-import axios from "axios";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState, useCallback } from "react";
 import {
@@ -65,18 +66,25 @@ const StatBox = React.memo(({ label, value, icon }: { label: string; value: stri
 });
 StatBox.displayName = 'StatBox';
 
+interface StatusUI {
+    color: string;
+    bg: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    label: string;
+}
+
 // Memoized List Item Component
-const CanvasingItem = React.memo(({ 
-    item, 
-    onPress, 
-    getStatusUI, 
-    canClaimPoints, 
-    hasClaimPending, 
-    hasClaimApproved 
-}: { 
-    item: CanvasingRequest; 
-    onPress: (id: string) => void; 
-    getStatusUI: (status: string, woStatus?: string) => any;
+const CanvasingItem = React.memo(({
+    item,
+    onPress,
+    getStatusUI,
+    canClaimPoints,
+    hasClaimPending,
+    hasClaimApproved
+}: {
+    item: CanvasingRequest;
+    onPress: (id: string) => void;
+    getStatusUI: (status: string, woStatus?: string) => StatusUI;
     canClaimPoints: (item: CanvasingRequest) => boolean;
     hasClaimPending: (item: CanvasingRequest) => boolean;
     hasClaimApproved: (item: CanvasingRequest) => boolean;
@@ -170,29 +178,39 @@ export default function CanvasingListScreen() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const {
-    data: requests,
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     isLoading,
     refetch,
-    isOfflineData,
-  } = useOfflineQuery<CanvasingRequest[]>({
-    key: "marketing_canvasing_list",
-    fetcher: async () => {
-      const res = await axios.get(`${Config.API_URL}/api/marketing/canvasing`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    isRefetching,
+  } = useInfiniteQuery({
+    queryKey: ["marketing_canvasing_list"],
+    queryFn: async ({ pageParam = null }) => {
+      const params = new URLSearchParams();
+      params.append("limit", "10");
+      if (pageParam) {
+        params.append("cursor", pageParam as string);
+      }
+      const res = await api.get(`/api/marketing/canvasing?${params.toString()}`);
       return res.data;
     },
+    getNextPageParam: (lastPage: any) => lastPage.nextCursor || undefined,
+    initialPageParam: null,
     enabled: !!token,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
   });
 
+  const requests = useMemo(() => {
+    return data?.pages.flatMap((page: any) => page.data || []) || [];
+  }, [data]);
+
   const { data: profile, isLoading: profileLoading } = useOfflineQuery<UserProfile>({
     key: "user_profile",
     fetcher: async () => {
-      const res = await axios.get(`${Config.API_URL}/api/mobile/profile`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get("/api/mobile/profile");
       return res.data.data;
     },
     enabled: !!token,
@@ -201,10 +219,7 @@ export default function CanvasingListScreen() {
   const { data: pointSummary } = useOfflineQuery<PointSummary>({
     key: "marketing_point_summary",
     fetcher: async () => {
-      const res = await axios.get(
-        `${Config.API_URL}/api/marketing/point-claims/summary`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      const res = await api.get("/api/marketing/point-claims/summary");
       return res.data;
     },
     enabled: !!token,
@@ -242,19 +257,19 @@ export default function CanvasingListScreen() {
     );
   }, [requests, searchQuery]);
 
-  const getStatusUI = useCallback((status: string, woStatus?: string) => {
+  const getStatusUI = useCallback((status: string, woStatus?: string): StatusUI => {
     const woCompleted = woStatus && ["COMPLETED", "VERIFIED", "CLOSED"].includes(woStatus);
     if (status === "APPROVED" && woCompleted) {
-      return { color: "text-teal-700", bg: "bg-teal-50", icon: "checkmark-done" as const, label: "Selesai" };
+      return { color: "text-teal-700", bg: "bg-teal-50", icon: "checkmark-done", label: "Selesai" };
     }
     const woInProgress = woStatus && ["IN_PROGRESS", "ON_HOLD"].includes(woStatus);
     if (status === "APPROVED" && woInProgress) {
-      return { color: "text-blue-700", bg: "bg-blue-50", icon: "construct" as const, label: "Dikerjakan" };
+      return { color: "text-blue-700", bg: "bg-blue-50", icon: "construct", label: "Dikerjakan" };
     }
     switch (status) {
-      case "APPROVED": return { color: "text-emerald-700", bg: "bg-emerald-50", icon: "checkmark-circle" as const, label: "Disetujui" };
-      case "REJECTED": return { color: "text-rose-700", bg: "bg-rose-50", icon: "close-circle" as const, label: "Ditolak" };
-      default: return { color: "text-amber-700", bg: "bg-amber-50", icon: "time" as const, label: "Pending" };
+      case "APPROVED": return { color: "text-emerald-700", bg: "bg-emerald-50", icon: "checkmark-circle", label: "Disetujui" };
+      case "REJECTED": return { color: "text-rose-700", bg: "bg-rose-50", icon: "close-circle", label: "Ditolak" };
+      default: return { color: "text-amber-700", bg: "bg-amber-50", icon: "time", label: "Pending" };
     }
   }, []);
 
@@ -267,6 +282,12 @@ export default function CanvasingListScreen() {
   const hasClaimPending = useCallback((item: CanvasingRequest) => item.pointClaims?.[0]?.status === "PENDING", []);
   const hasClaimApproved = useCallback((item: CanvasingRequest) => item.pointClaims?.[0]?.status === "APPROVED", []);
 
+  const onLoadMore = () => {
+    if (hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+    }
+  };
+
   const handleItemPress = useCallback((id: string) => {
     router.push(`/(app)/marketing/canvasing/${id}`);
   }, [router]);
@@ -275,12 +296,7 @@ export default function CanvasingListScreen() {
   const progressPerc = Math.min((stats.total / targetMonthly) * 100, 100);
 
   if (profileLoading || (isLoading && !requests)) {
-    return (
-      <View style={tw`flex-1 bg-gray-50 items-center justify-center`}>
-        <ActivityIndicator size="large" color="#4f46e5" />
-        <Text style={tw`text-gray-500 mt-4`}>Memuat Data...</Text>
-      </View>
-    );
+    return <CanvasingSkeleton />;
   }
 
   if (!hasAccess) {
@@ -355,13 +371,6 @@ export default function CanvasingListScreen() {
         </View>
       </View>
 
-      {isOfflineData && (
-        <View style={tw`bg-amber-500 py-1 flex-row items-center justify-center`}>
-          <Ionicons name="cloud-offline" size={12} color="white" />
-          <Text style={tw`text-[10px] text-white ml-2 font-bold uppercase`}>Mode Offline - Sinkronisasi Tertunda</Text>
-        </View>
-      )}
-
       <View style={tw`flex-1`}>
         <FlashList
           data={filteredRequests}
@@ -378,12 +387,21 @@ export default function CanvasingListScreen() {
           keyExtractor={(item: CanvasingRequest) => item.id.toString()}
           estimatedItemSize={180}
           contentContainerStyle={tw`p-4 pb-12`}
+          onEndReached={onLoadMore}
+          onEndReachedThreshold={0.5}
           refreshControl={
             <RefreshControl
-              refreshing={isLoading}
+              refreshing={isRefetching}
               onRefresh={refetch}
               tintColor="#4338ca"
             />
+          }
+          ListFooterComponent={
+            isFetchingNextPage ? (
+                <View style={tw`py-4`}>
+                    <ActivityIndicator size="small" color="#2563eb" />
+                </View>
+            ) : null
           }
           ListEmptyComponent={
             <View style={tw`items-center justify-center py-24`}>

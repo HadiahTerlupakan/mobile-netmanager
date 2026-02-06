@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode, useMemo, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { AppState, AppStateStatus } from 'react-native';
 import { useAuth } from './AuthContext';
 import { Config } from '../constants/Config';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
+import { eventManager } from '@/utils/EventManager';
 
 interface SocketContextType {
     socket: Socket | null;
@@ -29,11 +30,39 @@ export function SocketProvider({ children }: SocketProviderProps) {
     const [isConnected, setIsConnected] = useState(false);
     const [lastError, setLastError] = useState<string | null>(null);
 
+    // Use refs for stable instances and timeouts
+    const socketRef = useRef<Socket | null>(null);
+    const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Heartbeat mechanism
+    const stopHeartbeat = useCallback(() => {
+        if (pingTimeoutRef.current) {
+            clearInterval(pingTimeoutRef.current);
+            pingTimeoutRef.current = null;
+        }
+    }, []);
+
+    const startHeartbeat = useCallback((socket: Socket) => {
+        stopHeartbeat();
+        // Ping every 25 seconds
+        pingTimeoutRef.current = setInterval(() => {
+            if (socket.connected) {
+                socket.emit('ping');
+            }
+        }, 25000);
+    }, [stopHeartbeat]);
+
     const connect = useCallback(() => {
         // Only connect if authenticated
         if (!token || !user?.id) {
             logger.socket('No token or user, skipping connection');
             return null;
+        }
+
+        // Don't reconnect if socket is already connected with same auth
+        if (socketRef.current?.connected) {
+             return socketRef.current;
         }
 
         // Parse base URL - remove trailing slash and /api if present
@@ -50,13 +79,14 @@ export function SocketProvider({ children }: SocketProviderProps) {
                 userId: user.id,
                 userRole: user.role || 'USER',
             },
-            // Reconnection settings
+            // Reconnection settings - Improved based on audit
             reconnection: true,
-            reconnectionAttempts: 10,
+            reconnectionAttempts: Infinity, // Keep trying
             reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
+            reconnectionDelayMax: 30000, // Max 30 seconds
+            randomizationFactor: 0.5, // Add randomness
             // Timeout settings
-            timeout: 20000,
+            timeout: 30000,
             // Transport settings - websocket first, then polling
             transports: ['websocket', 'polling'],
             autoConnect: true,
@@ -73,11 +103,15 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
             // Join user's personal room for notifications
             socketInstance.emit('join:room', { room: `user:${user.id}` });
+
+            // Start heartbeat check
+            startHeartbeat(socketInstance);
         });
 
         socketInstance.on('disconnect', (reason) => {
             logger.socket('Disconnected:', reason);
             setIsConnected(false);
+            stopHeartbeat();
         });
 
         socketInstance.on('connect_error', (error) => {
@@ -93,6 +127,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
             // Re-join rooms after reconnect
             socketInstance.emit('join:room', { room: `user:${user.id}` });
+            startHeartbeat(socketInstance);
         });
 
         socketInstance.on('reconnect_error', (error) => {
@@ -104,52 +139,94 @@ export function SocketProvider({ children }: SocketProviderProps) {
             setLastError('Koneksi terputus');
         });
 
+        // Custom ping/pong for application level health check
+        socketInstance.on('pong', () => {
+            // Heartbeat received, connection is alive
+        });
+
         return socketInstance;
-    }, [token, user]);
+    }, [token, user, startHeartbeat, stopHeartbeat]);
 
-    // Initialize socket connection
+    // Heartbeat mechanism functions moved up to be used in connect
+
+    // Initialize socket connection with cleanup
     useEffect(() => {
-        const socketInstance = connect();
-
-        if (socketInstance) {
-            setSocket(socketInstance);
+        // Clear any pending reconnect
+        if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = null;
         }
 
-        return () => {
-            if (socketInstance) {
-                socketInstance.disconnect();
+        // Delay connection to avoid rapid changes
+        reconnectTimeoutRef.current = setTimeout(() => {
+            // Cleanup existing socket if any
+            if (socketRef.current) {
+                socketRef.current.disconnect();
+                socketRef.current.removeAllListeners();
             }
+
+            const socketInstance = connect();
+            if (socketInstance) {
+                socketRef.current = socketInstance;
+                setSocket(socketInstance);
+            }
+        }, 500);
+
+        return () => {
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+            }
+            if (socketRef.current) {
+                logger.socket('Cleaning up socket connection');
+                socketRef.current.disconnect();
+                socketRef.current.removeAllListeners();
+                socketRef.current = null;
+            }
+            stopHeartbeat();
         };
-    }, [connect]);
+    }, [connect, stopHeartbeat]);
 
     // Reconnect function
     const reconnect = useCallback(() => {
-        if (socket) {
-            socket.disconnect();
+        if (socketRef.current) {
+            socketRef.current.disconnect();
+            socketRef.current.removeAllListeners();
         }
         const newSocket = connect();
         if (newSocket) {
+            socketRef.current = newSocket;
             setSocket(newSocket);
         }
-    }, [socket, connect]);
+    }, [connect]);
 
     // Handle app state changes (reconnect when app becomes active)
     useEffect(() => {
         const handleAppStateChange = (nextAppState: AppStateStatus) => {
-            if (nextAppState === 'active' && socket && !socket.connected) {
+            if (nextAppState === 'active' && socketRef.current && !socketRef.current.connected) {
                 logger.socket('App active, attempting reconnect...');
-                socket.connect();
+                socketRef.current.connect();
             }
         };
 
         const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+        // Register with EventManager for centralized cleanup tracking
+        eventManager.addListener('socket', handleAppStateChange, () => subscription.remove());
+
         return () => {
-            subscription.remove();
+            eventManager.removeListener('socket', handleAppStateChange);
         };
-    }, [socket]);
+    }, []);
+
+    const value = useMemo(() => ({
+        socket,
+        isConnected,
+        lastError,
+        reconnect
+    }), [socket, isConnected, lastError, reconnect]);
 
     return (
-        <SocketContext.Provider value={{ socket, isConnected, lastError, reconnect }}>
+        <SocketContext.Provider value={value}>
             {children}
         </SocketContext.Provider>
     );
@@ -171,16 +248,26 @@ export function useSocket() {
  */
 export function useSocketEvent<T>(event: string, handler: (data: T) => void) {
     const { socket, isConnected } = useSocket();
+    const handlerRef = useRef(handler);
+
+    // Update ref when handler changes
+    useEffect(() => {
+        handlerRef.current = handler;
+    }, [handler]);
 
     useEffect(() => {
         if (!socket || !isConnected) return;
 
-        socket.on(event, handler);
+        const wrappedHandler = (data: T) => {
+            handlerRef.current(data);
+        };
+
+        socket.on(event, wrappedHandler);
 
         return () => {
-            socket.off(event, handler);
+            socket.off(event, wrappedHandler);
         };
-    }, [socket, isConnected, event, handler]);
+    }, [socket, isConnected, event]);
 }
 
 /**

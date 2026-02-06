@@ -3,6 +3,21 @@ import * as SecureStore from 'expo-secure-store';
 import React from 'react';
 import { AuthContextType, AuthProvider, useAuth } from '@/context/AuthContext';
 
+// Mock logger to suppress console output
+jest.mock('@/utils/logger', () => {
+  const mockLogger = {
+    auth: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+  };
+  return {
+    __esModule: true,
+    default: mockLogger,
+    logger: mockLogger,
+  };
+});
+
 // Mock expo-secure-store
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),

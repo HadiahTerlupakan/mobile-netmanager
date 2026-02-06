@@ -1,9 +1,10 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { logger } from '@/utils/logger';
 
 interface Props {
-  children: ReactNode;
-  fallback?: ReactNode;
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
 }
 
 interface State {
@@ -11,7 +12,7 @@ interface State {
   error: Error | null;
 }
 
-export class TopologyErrorBoundary extends Component<Props, State> {
+export class TopologyErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -22,7 +23,7 @@ export class TopologyErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[TopologyErrorBoundary] Caught:', error, errorInfo);
+    logger.error('[TopologyErrorBoundary] Caught:', error, errorInfo);
   }
 
   handleReset = () => {

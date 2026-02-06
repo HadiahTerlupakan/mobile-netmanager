@@ -1,4 +1,4 @@
-import { Image } from "expo-image";
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import {
     Building2,
     Info,
@@ -45,6 +45,20 @@ export interface DeviceData {
   images?: string[];
   siteName?: string;
   odpOutputCount?: number;
+  // Specific device fields
+  otbCore?: {
+    otb?: { name: string };
+    tubeColor: string;
+    coreColor: string;
+  };
+  odcOutput?: {
+    odc?: { name: string };
+    tubeColor: string;
+    coreColor: string;
+  };
+  odp?: {
+    name: string;
+  };
 }
 
 interface DeviceDetailModalProps {
@@ -230,14 +244,14 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               )}
 
               {/* OTB Information (for ODC) */}
-              {deviceType === "odc" && (device as any).otbCore?.otb && (
+              {deviceType === "odc" && device.otbCore?.otb && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Terhubung ke OTB</Text>
                   <View style={styles.card}>
                     <View style={styles.row}>
                       <Text style={styles.label}>OTB:</Text>
                       <Text style={styles.value}>
-                        {(device as any).otbCore.otb.name}
+                        {device.otbCore.otb.name}
                       </Text>
                     </View>
                     <View style={styles.row}>
@@ -247,13 +261,13 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
                           style={[
                             styles.colorBadge,
                             {
-                              backgroundColor: (device as any).otbCore
+                              backgroundColor: device.otbCore
                                 .tubeColor,
                             },
                           ]}
                         >
                           <Text style={styles.colorText}>
-                            {(device as any).otbCore.tubeColor}
+                            {device.otbCore.tubeColor}
                           </Text>
                         </View>
                       </View>
@@ -263,13 +277,13 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
                           style={[
                             styles.colorBadge,
                             {
-                              backgroundColor: (device as any).otbCore
+                              backgroundColor: device.otbCore
                                 .coreColor,
                             },
                           ]}
                         >
                           <Text style={styles.colorText}>
-                            {(device as any).otbCore.coreColor}
+                            {device.otbCore.coreColor}
                           </Text>
                         </View>
                       </View>
@@ -279,14 +293,14 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               )}
 
               {/* ODC Information (for ODP) */}
-              {deviceType === "odp" && (device as any).odcOutput?.odc && (
+              {deviceType === "odp" && device.odcOutput?.odc && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Terhubung ke ODC</Text>
                   <View style={styles.card}>
                     <View style={styles.row}>
                       <Text style={styles.label}>ODC:</Text>
                       <Text style={styles.value}>
-                        {(device as any).odcOutput.odc.name}
+                        {device.odcOutput.odc.name}
                       </Text>
                     </View>
                     <View style={styles.row}>
@@ -296,13 +310,13 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
                           style={[
                             styles.colorBadge,
                             {
-                              backgroundColor: (device as any).odcOutput
+                              backgroundColor: device.odcOutput
                                 .tubeColor,
                             },
                           ]}
                         >
                           <Text style={styles.colorText}>
-                            {(device as any).odcOutput.tubeColor}
+                            {device.odcOutput.tubeColor}
                           </Text>
                         </View>
                       </View>
@@ -312,13 +326,13 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
                           style={[
                             styles.colorBadge,
                             {
-                              backgroundColor: (device as any).odcOutput
+                              backgroundColor: device.odcOutput
                                 .coreColor,
                             },
                           ]}
                         >
                           <Text style={styles.colorText}>
-                            {(device as any).odcOutput.coreColor}
+                            {device.odcOutput.coreColor}
                           </Text>
                         </View>
                       </View>
@@ -328,14 +342,14 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               )}
 
               {/* ODP Information (for Pelanggan) */}
-              {deviceType === "pelanggan" && (device as any).odp && (
+              {deviceType === "pelanggan" && device.odp && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Terhubung ke ODP</Text>
                   <View style={styles.card}>
                     <View style={styles.row}>
                       <Text style={styles.label}>ODP:</Text>
                       <Text style={styles.value}>
-                        {(device as any).odp.name}
+                        {device.odp.name}
                       </Text>
                     </View>
                   </View>
@@ -365,12 +379,11 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
                     style={styles.imageScroll}
                   >
                     {device.images.map((img, idx) => (
-                      <Image key={idx}
-                        source={{
-                          uri: img.startsWith("http")
+                      <ImageWithCache key={idx}
+                        source={img.startsWith("http")
                             ? img
-                            : `${api.defaults.baseURL}${img.startsWith("/") ? "" : "/"}${img}`,
-                        }}
+                            : `${api.defaults.baseURL}${img.startsWith("/") ? "" : "/"}${img}`
+                        }
                         style={styles.deviceImage}
                         contentFit="cover"
                         transition={1000}

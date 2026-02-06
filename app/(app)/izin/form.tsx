@@ -1,6 +1,10 @@
-import { Image } from 'expo-image';
+import { SyncService } from "@/services/SyncService";
+import { uploadService } from "@/services/UploadService";
+import { LeaveRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import CustomDatePickerModal from "@/components/molecules/CustomDatePickerModal"; // Import Custom Modal
 import LoadingModal from "@/components/molecules/LoadingModal";
+import { useAuth } from "@/context/AuthContext";
 import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
 import api from "@/services/api";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -12,7 +16,6 @@ import {
     isSameDay,
     startOfMonth,
 } from "date-fns";
-import { useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Camera, ChevronDown, X } from "lucide-react-native";
@@ -20,16 +23,16 @@ import { useEffect, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { logger } from "@/utils/logger";
+
+import { MarkedDates } from "react-native-calendars/src/types";
 
 const LEAVE_TYPES = [
   { value: "SAKIT", label: "Sakit" },
-  { value: "CUTI", label: "Cuti" },
   { value: "IZIN", label: "Izin" },
+  { value: "CUTI", label: "Cuti" },
   { value: "TUKAR_LIBUR", label: "Tukar Libur" },
-  { value: "LAINNYA", label: "Lainnya" },
 ];
-
-import { useAuth } from "@/context/AuthContext";
 
 export default function LeaveFormScreen() {
   const { user } = useAuth();
@@ -66,7 +69,7 @@ export default function LeaveFormScreen() {
           setLiveWorkingHourMode(data.data.workingHourMode);
         }
       } catch (error) {
-        console.log("Failed to fetch fresh profile:", error);
+        logger.error("Failed to fetch fresh profile:", error);
       }
     };
     fetchProfile();
@@ -79,16 +82,13 @@ export default function LeaveFormScreen() {
   const currentWorkDays = liveWorkDays ?? user?.workDays;
   const currentWorkingHourMode = liveWorkingHourMode ?? user?.workingHourMode;
 
-  // Camera
-  const [showCamera, setShowCamera] = useState(false);
-  const [permission, requestPermission] = useCameraPermissions();
-
   // Offline Mutation
   const { mutate } = useOfflineMutation();
 
   // Loading State
   const [showLoading, setShowLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const removePhoto = (index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
@@ -98,10 +98,23 @@ export default function LeaveFormScreen() {
 
   // Submit
   const handleSubmit = async () => {
-    if (!reason.trim()) {
-      Alert.alert("Error", "Alasan wajib diisi");
-      return;
+    // 1. Prepare & Sanitize Data
+    const rawData = {
+        type,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        reason: sanitizeInput(reason),
+        replacementDate: type === "TUKAR_LIBUR" ? replacementDate.toISOString() : undefined,
+    };
+
+    // 2. Validate Data
+    const validation = validateData(LeaveRequestSchema, rawData);
+
+    if (!validation.success) {
+        Alert.alert("Data Tidak Valid", validation.error);
+        return;
     }
+
     if (type !== "CUTI" && type !== "TUKAR_LIBUR" && photos.length === 0) {
       Alert.alert("Error", "Foto bukti wajib diupload");
       return;
@@ -163,45 +176,95 @@ export default function LeaveFormScreen() {
     setLoadingMessage(
       photos.length > 0 ? "Mengupload foto..." : "Memproses...",
     );
+    setUploadProgress(0);
 
     try {
-      await mutate(
-        {
-          type,
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          replacementDate:
-            type === "TUKAR_LIBUR" ? replacementDate.toISOString() : undefined,
-          reason: reason.trim(),
-          photos: [], // Will be populated by upload results
-          meta: {
-            photoMap: photoMap,
-            photoType: "employee-leave",
-          },
-        },
-        {
-          url: `/api/mobile/leaves`,
-          method: "POST",
-          onSuccess: (data, isOffline) => {
-            setShowLoading(false);
-            Alert.alert(
-              isOffline ? "Offline" : "Sukses",
-              isOffline ? "Pengajuan diantrikan" : "Pengajuan berhasil dikirim",
-              [{ text: "OK", onPress: () => router.back() }],
-            );
-          },
-          onError: (err) => {
-            setShowLoading(false);
-            Alert.alert("Error", err.message || "Gagal mengirim pengajuan");
-          },
-        },
-      );
-    } catch (error) {
+      const validData = validation.data;
+
+      // Check online status
+      const isOnline = await SyncService.isOnline();
+
+      if (isOnline && photos.length > 0) {
+          try {
+              setLoadingMessage("Mengupload foto...");
+              const uploadedUrls = await uploadService.uploadBatch(
+                  photos,
+                  "employee-leave",
+                  (index, total, progress) => {
+                      setLoadingMessage(`Mengupload foto ${index}/${total}...`);
+                      setUploadProgress(progress.percentage);
+                  }
+              );
+
+              setLoadingMessage("Mengirim data...");
+              setUploadProgress(0);
+
+              // Update photoMap with URLs? No, backend expects 'photos' array usually if we send it directly?
+              // Or does useOfflineMutation/backend handle it?
+              // The original logic used `photoMap` for offline sync which mapped local URI to form field.
+              // If we upload manually, we should pass the URLs.
+              // Let's assume the API endpoint `/api/mobile/leaves` accepts `photos` as array of strings (URLs).
+
+              await mutate(
+                {
+                  ...validData,
+                  photos: uploadedUrls,
+                  // No meta needed for online upload of photos
+                },
+                {
+                  url: `/api/mobile/leaves`,
+                  method: "POST",
+                  onSuccess: (_data: unknown, isOffline: boolean) => {
+                    setShowLoading(false);
+                    Alert.alert(
+                      "Sukses",
+                      "Pengajuan berhasil dikirim",
+                      [{ text: "OK", onPress: () => router.back() }],
+                    );
+                  },
+                  onError: (err: Error) => {
+                    setShowLoading(false);
+                    Alert.alert("Error", err.message || "Gagal mengirim pengajuan");
+                  },
+                }
+              );
+          } catch {
+              setShowLoading(false);
+              Alert.alert("Error", "Gagal mengupload foto");
+          }
+      } else {
+          // Offline flow or no photos
+          await mutate(
+            {
+              ...validData,
+              photos: [], // Will be populated by upload results if offline
+              meta: {
+                photoMap: photoMap,
+                photoType: "employee-leave",
+              },
+            },
+            {
+              url: `/api/mobile/leaves`,
+              method: "POST",
+              onSuccess: (_data: unknown, isOffline: boolean) => {
+                setShowLoading(false);
+                Alert.alert(
+                  isOffline ? "Offline" : "Sukses",
+                  isOffline ? "Pengajuan diantrikan" : "Pengajuan berhasil dikirim",
+                  [{ text: "OK", onPress: () => router.back() }],
+                );
+              },
+              onError: (err: Error) => {
+                setShowLoading(false);
+                Alert.alert("Error", err.message || "Gagal mengirim pengajuan");
+              },
+            },
+          );
+      }
+    } catch {
       setShowLoading(false);
     }
   };
-
-  // Camera Modal Callback - REMOVED
 
   const handleImageSelection = () => {
     Alert.alert(
@@ -220,7 +283,7 @@ export default function LeaveFormScreen() {
               });
               if (!result.canceled)
                 setPhotos((prev) => [...prev, result.assets[0].uri]);
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "Gagal membuka kamera");
             }
           },
@@ -236,7 +299,7 @@ export default function LeaveFormScreen() {
               });
               if (!result.canceled)
                 setPhotos((prev) => [...prev, result.assets[0].uri]);
-            } catch (error) {
+            } catch {
               Alert.alert("Error", "Gagal membuka galeri");
             }
           },
@@ -458,7 +521,7 @@ export default function LeaveFormScreen() {
                   ? user.workDays.split(",").map((d) => d.trim())
                   : [];
                 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-                const marks: any = {};
+                const marks: MarkedDates = {};
 
                 // Generate marks for next 3 months to be safe
                 const today = new Date();
@@ -522,7 +585,7 @@ export default function LeaveFormScreen() {
                   ? user.workDays.split(",").map((d) => d.trim())
                   : [];
                 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-                const marks: any = {};
+                const marks: MarkedDates = {};
 
                 // Generate marks for next 3 months
                 const today = new Date();
@@ -623,7 +686,7 @@ export default function LeaveFormScreen() {
               <View style={tw`flex-row flex-wrap gap-2 mb-3`}>
                 {photos.map((photo, idx) => (
                   <View key={idx} style={tw`relative`}>
-                    <Image source={{ uri: photo }}
+                    <ImageWithCache source={photo}
                       style={tw`w-24 h-24 rounded-lg bg-gray-100`}
                      contentFit="cover" transition={1000}       />
                     <TouchableOpacity
@@ -680,7 +743,7 @@ export default function LeaveFormScreen() {
       </ScrollView>
 
       {/* Loading Modal */}
-      <LoadingModal visible={showLoading} message={loadingMessage} />
+      <LoadingModal visible={showLoading} message={loadingMessage} progress={uploadProgress > 0 ? uploadProgress : undefined} />
     </SafeAreaView>
   );
 }

@@ -1,6 +1,5 @@
 import { Badge } from '@/components/atoms/Badge';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
+import { formatDate } from '@/utils/date';
 import { AlertCircle, Clock, MapPin, Phone } from 'lucide-react-native';
 import React, { memo } from 'react';
 import { Text, TouchableOpacity, View, Linking } from 'react-native';
@@ -17,11 +16,11 @@ export interface WorkOrderListItemProps {
         contactName?: string;
         locationAddress?: string;
         scheduledDate?: string;
-        assignments?: Array<{
+        assignments?: {
             userId: string;
             role: string;
             status: string;
-        }>;
+        }[];
         pelanggan?: {
             noTelp?: string;
             alamat?: string;
@@ -34,57 +33,94 @@ export interface WorkOrderListItemProps {
     userId?: string;
 }
 
+// Move helper functions outside component to prevent recreation
+const getStatusVariant = (status: string, isPendingPartner: boolean) => {
+    if (isPendingPartner) return 'warning';
+
+    switch (status) {
+        case 'ASSIGNED': return 'info';
+        case 'IN_PROGRESS': return 'warning';
+        case 'COMPLETED': return 'success';
+        case 'PENDING': return 'neutral';
+        case 'CANCELLED': return 'error';
+        default: return 'neutral';
+    }
+};
+
+const getStatusText = (status: string, isPendingPartner: boolean) => {
+    if (isPendingPartner) return 'Undangan';
+    return status;
+}
+
+const getPriorityColor = (priority: string) => {
+    if (priority === 'URGENT' || priority === 'CRITICAL') return 'text-red-600';
+    if (priority === 'HIGH') return 'text-orange-500';
+    return 'text-gray-500';
+};
+
+// Memoized sub-components to prevent re-renders
+const PhoneButton = memo(({ phone }: { phone?: string }) => {
+    if (!phone) return null;
+
+    const handlePress = () => {
+        let formattedPhone = phone.replace(/\D/g, '');
+        if (formattedPhone.startsWith('0')) {
+            formattedPhone = '62' + formattedPhone.substring(1);
+        }
+
+        Linking.openURL(`whatsapp://send?phone=${formattedPhone}`)
+            .catch(() => {
+                Linking.openURL(`tel:${phone}`);
+            });
+    };
+
+    return (
+        <TouchableOpacity
+            onPress={handlePress}
+            style={tw`flex-row items-center mb-1`}
+        >
+            <Phone size={14} color="#2563eb" style={tw`mr-1.5`} />
+            <Text style={tw`text-sm text-blue-600 flex-1`} numberOfLines={1}>
+                {phone}
+            </Text>
+        </TouchableOpacity>
+    );
+});
+PhoneButton.displayName = 'PhoneButton';
+
+const AddressButton = memo(({ address }: { address?: string }) => {
+    if (!address) return null;
+
+    const handlePress = () => {
+        const query = encodeURIComponent(address);
+        Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+    };
+
+    return (
+        <TouchableOpacity
+            onPress={handlePress}
+            style={tw`flex-row items-center mb-1`}
+        >
+            <MapPin size={14} color="#6b7280" style={tw`mr-1.5`} />
+            <Text style={tw`text-sm text-gray-600 flex-1`} numberOfLines={1}>
+                {address}
+            </Text>
+        </TouchableOpacity>
+    );
+});
+AddressButton.displayName = 'AddressButton';
+
 const WorkOrderListItem = memo(({ item, userId }: WorkOrderListItemProps) => {
     // Check if I am a partner with PENDING status
     const myAssignment = item.assignments?.find((a) => a.userId === userId);
     const isPendingPartner = myAssignment?.role === 'PARTNER' && myAssignment?.status === 'PENDING';
 
-    const getStatusVariant = (status: string) => {
-        if (isPendingPartner) return 'warning'; // Override for pending partner
+    const statusVariant = getStatusVariant(item.status, isPendingPartner);
+    const statusText = getStatusText(item.status, isPendingPartner);
+    const priorityColor = getPriorityColor(item.priority);
 
-        switch (status) {
-            case 'ASSIGNED': return 'info';
-            case 'IN_PROGRESS': return 'warning';
-            case 'COMPLETED': return 'success';
-            case 'PENDING': return 'neutral';
-            case 'CANCELLED': return 'error';
-            default: return 'neutral';
-        }
-    };
-
-    const getStatusText = (status: string) => {
-        if (isPendingPartner) return 'Undangan';
-        return status;
-    }
-
-    const getPriorityColor = (priority: string) => {
-        if (priority === 'URGENT' || priority === 'CRITICAL') return 'text-red-600';
-        if (priority === 'HIGH') return 'text-orange-500';
-        return 'text-gray-500';
-    };
-
-    const handlePhonePress = () => {
-        const phone = item.contactPhone || item.pelanggan?.noTelp;
-        if (phone) {
-            let formattedPhone = phone.replace(/\D/g, '');
-            if (formattedPhone.startsWith('0')) {
-                formattedPhone = '62' + formattedPhone.substring(1);
-            }
-
-            Linking.openURL(`whatsapp://send?phone=${formattedPhone}`)
-                .catch(() => {
-                    Linking.openURL(`tel:${phone}`);
-                });
-        }
-    };
-
-    const handleAddressPress = () => {
-        const address = item.locationAddress || item.pelanggan?.alamat || item.contactName || item.pelanggan?.nama || item.site?.name;
-        if (address) {
-            const query = encodeURIComponent(address);
-            Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
-        }
-    };
+    const contactPhone = item.contactPhone || item.pelanggan?.noTelp;
+    const address = item.locationAddress || item.pelanggan?.alamat || item.contactName || item.pelanggan?.nama || item.site?.name;
 
     return (
         <View style={tw`bg-white p-4 rounded-xl shadow-sm mb-3 border ${isPendingPartner ? 'border-yellow-200 bg-yellow-50' : 'border-gray-100'}`}>
@@ -92,8 +128,8 @@ const WorkOrderListItem = memo(({ item, userId }: WorkOrderListItemProps) => {
             <View style={tw`flex-row justify-between items-center mb-2`}>
                 <Text style={tw`font-bold text-gray-800`}>{item.workOrderNumber}</Text>
                 <Badge
-                    label={getStatusText(item.status)}
-                    variant={getStatusVariant(item.status)}
+                    label={statusText}
+                    variant={statusVariant}
                 />
             </View>
 
@@ -102,42 +138,24 @@ const WorkOrderListItem = memo(({ item, userId }: WorkOrderListItemProps) => {
                 {item.title}
             </Text>
             <View style={tw`flex-row items-center mb-3`}>
-                <AlertCircle size={12} style={tw`${getPriorityColor(item.priority)} mr-1`} />
-                <Text style={tw`text-xs ${getPriorityColor(item.priority)} font-medium`}>
+                <AlertCircle size={12} style={tw`${priorityColor} mr-1`} />
+                <Text style={tw`text-xs ${priorityColor} font-medium`}>
                     {item.priority}
                 </Text>
             </View>
 
             {/* Phone */}
-            {(item.contactPhone || item.pelanggan?.noTelp) && (
-                <TouchableOpacity
-                    onPress={handlePhonePress}
-                    style={tw`flex-row items-center mb-1`}
-                >
-                    <Phone size={14} color="#2563eb" style={tw`mr-1.5`} />
-                    <Text style={tw`text-sm text-blue-600 flex-1`} numberOfLines={1}>
-                        {item.contactPhone || item.pelanggan?.noTelp}
-                    </Text>
-                </TouchableOpacity>
-            )}
+            <PhoneButton phone={contactPhone} />
 
             {/* Customer & Location */}
-            <TouchableOpacity
-                onPress={handleAddressPress}
-                style={tw`flex-row items-center mb-1`}
-            >
-                <MapPin size={14} color="#6b7280" style={tw`mr-1.5`} />
-                <Text style={tw`text-sm text-gray-600 flex-1`} numberOfLines={1}>
-                    {item.locationAddress || item.pelanggan?.alamat || item.contactName || item.pelanggan?.nama || item.site?.name || '-'}
-                </Text>
-            </TouchableOpacity>
+            <AddressButton address={address} />
 
             {/* Date */}
             {item.scheduledDate && (
                 <View style={tw`flex-row items-center mt-1`}>
                     <Clock size={14} color="#9ca3af" style={tw`mr-1.5`} />
                     <Text style={tw`text-xs text-gray-500`}>
-                        {format(new Date(item.scheduledDate), 'd MMM yyyy, HH:mm', { locale: id })}
+                        {formatDate(item.scheduledDate, 'd MMM yyyy, HH:mm')}
                     </Text>
                 </View>
             )}
@@ -155,4 +173,5 @@ const WorkOrderListItem = memo(({ item, userId }: WorkOrderListItemProps) => {
 
 WorkOrderListItem.displayName = 'WorkOrderListItem';
 
+export { WorkOrderListItem };
 export default WorkOrderListItem;

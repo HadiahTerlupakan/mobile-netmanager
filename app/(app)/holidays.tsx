@@ -1,17 +1,15 @@
-import { Config } from '@/constants/Config';
-import { useAuth } from '@/context/AuthContext';
+import { HolidaySkeleton } from '@/components/molecules/HolidaySkeleton';
 import api from '@/services/api'; // Use centralized API
+import { formatDate } from '@/utils/date';
 import {
     addMonths,
     eachDayOfInterval,
     endOfMonth,
-    format,
     getDay,
     isSameDay,
     startOfMonth,
     subMonths
 } from 'date-fns';
-import { id as idLocale } from 'date-fns/locale';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
@@ -25,6 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { logger } from '@/utils/logger';
 
 interface Holiday {
     id: string;
@@ -35,7 +34,6 @@ interface Holiday {
 
 export default function HolidaysScreen() {
     const router = useRouter();
-    const { token } = useAuth();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [holidays, setHolidays] = useState<Holiday[]>([]);
     const [loading, setLoading] = useState(true);
@@ -44,7 +42,7 @@ export default function HolidaysScreen() {
 
     useEffect(() => {
         fetchHolidays(currentDate.getFullYear());
-    }, [currentDate.getFullYear()]);
+    }, [currentDate]);
 
     const fetchHolidays = async (year: number) => {
         setLoading(true);
@@ -54,7 +52,7 @@ export default function HolidaysScreen() {
                 setHolidays(res.data.data);
             }
         } catch (error) {
-            console.error('Fetch holidays error:', error);
+            logger.error('Fetch holidays error:', error);
         } finally {
             setLoading(false);
         }
@@ -110,6 +108,10 @@ export default function HolidaysScreen() {
     const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
     const today = new Date();
 
+    if (loading && holidays.length === 0) {
+        return <HolidaySkeleton />;
+    }
+
     return (
         <SafeAreaView style={tw`flex-1 bg-gray-50`}>
             {/* Header */}
@@ -144,7 +146,7 @@ export default function HolidaysScreen() {
                         <ChevronLeft size={24} color="#374151" />
                     </TouchableOpacity>
                     <Text style={tw`text-lg font-bold text-gray-900`}>
-                        {format(currentDate, 'MMMM yyyy', { locale: idLocale })}
+                        {formatDate(currentDate, 'MMMM yyyy')}
                     </Text>
                     <TouchableOpacity onPress={goToNextMonth} style={tw`p-2 bg-gray-100 rounded-lg`}>
                         <ChevronRight size={24} color="#374151" />
@@ -192,11 +194,11 @@ export default function HolidaysScreen() {
                                             holiday ? getHolidayBgColor(holiday) : isToday ? 'bg-blue-500' : ''
                                         }`}>
                                             <Text style={tw`font-medium ${
-                                                holiday ? 'text-white' : 
-                                                isToday ? 'text-white' : 
+                                                holiday ? 'text-white' :
+                                                isToday ? 'text-white' :
                                                 isSunday ? 'text-red-500' : 'text-gray-800'
                                             }`}>
-                                                {format(date, 'd')}
+                                                {formatDate(date, 'd')}
                                             </Text>
                                         </View>
                                         {holiday && (
@@ -212,7 +214,7 @@ export default function HolidaysScreen() {
                 {/* Upcoming Holidays List */}
                 <View style={tw`bg-white rounded-xl p-4 shadow-sm`}>
                     <Text style={tw`font-bold text-gray-900 mb-3`}>
-                        Hari Libur {format(currentDate, 'yyyy')}
+                        Hari Libur {formatDate(currentDate, 'yyyy')}
                     </Text>
                     {holidays.length === 0 ? (
                         <Text style={tw`text-gray-400 text-center py-4`}>
@@ -232,16 +234,16 @@ export default function HolidaysScreen() {
                             >
                                 <View style={tw`w-12 h-12 ${getListBgColor(holiday.isNational)} rounded-lg items-center justify-center mr-3`}>
                                     <Text style={tw`text-lg font-bold ${getListTextColor(holiday.isNational)}`}>
-                                        {format(new Date(holiday.date), 'd')}
+                                        {formatDate(holiday.date, 'd')}
                                     </Text>
                                     <Text style={tw`text-[10px] ${getListSubTextColor(holiday.isNational)} -mt-1`}>
-                                        {format(new Date(holiday.date), 'MMM', { locale: idLocale })}
+                                        {formatDate(holiday.date, 'MMM')}
                                     </Text>
                                 </View>
                                 <View style={tw`flex-1`}>
                                     <Text style={tw`font-semibold text-gray-900`}>{holiday.name}</Text>
                                     <Text style={tw`text-xs text-gray-500`}>
-                                        {holiday.isNational ? 'Libur Nasional' : 'Cuti Bersama'} • {format(new Date(holiday.date), 'EEEE', { locale: idLocale })}
+                                        {holiday.isNational ? 'Libur Nasional' : 'Cuti Bersama'} • {formatDate(holiday.date, 'EEEE')}
                                     </Text>
                                 </View>
                             </TouchableOpacity>
@@ -266,7 +268,7 @@ export default function HolidaysScreen() {
                         <View style={tw`items-center mb-4`}>
                             <View style={tw`w-16 h-16 ${selectedHoliday?.isNational ? 'bg-red-100' : 'bg-orange-100'} rounded-full items-center justify-center mb-3`}>
                                 <Text style={tw`text-2xl font-bold ${selectedHoliday?.isNational ? 'text-red-600' : 'text-orange-600'}`}>
-                                    {selectedHoliday && format(new Date(selectedHoliday.date), 'd')}
+                                    {selectedHoliday && formatDate(selectedHoliday.date, 'd')}
                                 </Text>
                             </View>
                             <View style={tw`px-3 py-1 ${selectedHoliday?.isNational ? 'bg-red-100' : 'bg-orange-100'} rounded-full mb-2`}>
@@ -278,7 +280,7 @@ export default function HolidaysScreen() {
                                 {selectedHoliday?.name}
                             </Text>
                             <Text style={tw`text-sm text-gray-500 mt-1`}>
-                                {selectedHoliday && format(new Date(selectedHoliday.date), 'EEEE, dd MMMM yyyy', { locale: idLocale })}
+                                {selectedHoliday && formatDate(selectedHoliday.date, 'EEEE, dd MMMM yyyy')}
                             </Text>
                         </View>
                         <TouchableOpacity

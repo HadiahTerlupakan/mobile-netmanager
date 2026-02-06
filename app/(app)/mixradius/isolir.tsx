@@ -1,8 +1,12 @@
+import { IsolirSkeleton } from "@/components/molecules/IsolirSkeleton";
+import SelectionModal from "@/components/molecules/SelectionModal";
+import { useApiMutation, useApiQuery } from "@/hooks/queries";
 import {
     MixRadiusCustomer,
     MixRadiusService,
     OwnerGroup,
 } from "@/services/MixRadiusService";
+import { FlashList } from "@shopify/flash-list";
 import { format } from "date-fns";
 import { Stack } from "expo-router";
 import {
@@ -16,18 +20,15 @@ import {
     X,
     Trash2,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useState, useMemo } from "react";
+import React, { useCallback, useState, useMemo, memo } from "react";
 import {
     ActivityIndicator,
     Linking,
-    Modal,
     RefreshControl,
-    ScrollView,
     Text,
     TextInput,
     TouchableOpacity,
     View,
-    FlatList,
     Platform,
     Alert
 } from "react-native";
@@ -43,13 +44,13 @@ const safeDate = (dateString?: string): Date | null => {
 };
 
 // Customer Item Component
-const CustomerItem = ({ item, onDismantle }: { item: MixRadiusCustomer, onDismantle: (c: MixRadiusCustomer) => void }) => {
+const CustomerItem = memo(({ item, onDismantle }: { item: MixRadiusCustomer, onDismantle: (c: MixRadiusCustomer) => void }) => {
   const displayDate = useMemo(() => {
     try {
       const d = safeDate(item.expired_on) || safeDate(item.expiration);
       if (!d) return "-";
       return format(d, "dd MMM yyyy");
-    } catch (e) {
+    } catch {
       return "-";
     }
   }, [item.expired_on, item.expiration]);
@@ -173,115 +174,68 @@ const CustomerItem = ({ item, onDismantle }: { item: MixRadiusCustomer, onDisman
       </View>
     </View>
   );
-};
+});
+CustomerItem.displayName = 'CustomerItem';
 
 export default function MixRadiusIsolirScreen() {
   const insets = useSafeAreaInsets();
-  const [data, setData] = useState<MixRadiusCustomer[]>([]);
-  const [totalCount, setTotalCount] = useState<number>(0);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
   const [hasSelected, setHasSelected] = useState(false);
-
-  const [groups, setGroups] = useState<OwnerGroup[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<OwnerGroup | null>(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
 
-  const loadGroups = useCallback(async () => {
-    try {
-      const result = await MixRadiusService.getOwnerGroups();
-      if (Array.isArray(result)) {
-        setGroups(result);
-      } else if (result && typeof result === 'object' && Array.isArray((result as any).data)) {
-        setGroups((result as any).data);
-      } else {
-        setGroups([]);
-        console.warn("Invalid groups data received:", result);
-      }
-    } catch (err) {
-      console.error("Failed to load groups:", err);
-      setGroups([]);
-    }
-  }, []);
+  // Load Groups
+  const { data: groups = [] } = useApiQuery<OwnerGroup[]>({
+    queryKey: ["mixradius", "groups"],
+    queryFn: async () => {
+      return await MixRadiusService.getOwnerGroups();
+    },
+  });
 
-  const loadData = useCallback(async (reset = false, groupOverride?: string | null, searchOverride?: string) => {
-    // Prevent auto-loading via onEndReached or Refresh if no group selected
-    if (groupOverride === undefined && !hasSelected) {
-        setLoading(false);
-        setRefreshing(false);
-        return;
-    }
-
-    if (loading || (!reset && !hasMore)) return;
-
-    setLoading(true);
-    const nextPage = reset ? 0 : page + 1;
-
-    let activeGroupId: string | undefined;
-    if (groupOverride === undefined) {
-        activeGroupId = selectedGroup?.id;
-    } else if (groupOverride === null) {
-        activeGroupId = undefined;
-    } else {
-        activeGroupId = groupOverride;
-    }
-
-    const activeSearch = searchOverride !== undefined ? searchOverride : search;
-
-    try {
-      console.log(`[Isolir] Fetching data: page=${nextPage}, search="${activeSearch}", group=${activeGroupId}`);
-      const result = await MixRadiusService.getIsolirCustomers(
-        activeSearch,
-        nextPage,
-        20,
+  // Load Customers
+  const {
+    data: customerData,
+    isLoading: loading,
+    refetch,
+    isRefetching: refreshing,
+  } = useApiQuery<any>({
+    queryKey: ["mixradius", "isolir", selectedGroup?.id, search],
+    queryFn: () =>
+      MixRadiusService.getIsolirCustomers(
+        search,
+        0,
+        100, // Fetch more at once since we are using useApiQuery with caching
         undefined,
-        activeGroupId
-      );
+        selectedGroup?.id
+      ),
+    enabled: hasSelected,
+  });
 
-      const count = result.data?.length || 0;
-      const filteredTotal = result.recordsFiltered !== undefined ? result.recordsFiltered : (result.recordsTotal || 0);
+  const data = useMemo(() => {
+    if (!customerData) return [];
+    if (Array.isArray(customerData)) return customerData;
+    if (customerData.data && Array.isArray(customerData.data)) return customerData.data;
+    return [];
+  }, [customerData]);
 
-      console.log(`[Isolir] Received ${count} records. Filtered Total: ${filteredTotal}`);
+  const totalCount = useMemo(() => {
+    if (!customerData) return 0;
+    return customerData.recordsFiltered ?? customerData.recordsTotal ?? (Array.isArray(customerData) ? customerData.length : 0);
+  }, [customerData]);
 
-      if (reset) {
-        setData(result.data || []);
-      } else {
-        const newItems = (result.data || []).filter((newItem: MixRadiusCustomer) =>
-          !data.some(existingItem => existingItem.username === newItem.username)
-        );
-        setData((prev) => [...prev, ...newItems]);
-      }
-
-      setTotalCount(filteredTotal);
-      setPage(nextPage);
-      setHasMore(count === 20 && (data.length + count < filteredTotal));
-    } catch (err: any) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [loading, hasMore, page, search, selectedGroup, data]);
-
-  useEffect(() => {
-    loadGroups();
-  }, []);
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    loadData(true);
-  }, [loadData]);
+  // Dismantle Mutation
+  const dismantleMutation = useApiMutation({
+    endpoint: "/api/integrations/mixradius/dismantle",
+    method: "POST",
+    successMessage: "Work Order Dismantle berhasil dibuat!",
+    invalidateKeys: [["mixradius", "isolir"]],
+  });
 
   const handleSelectGroup = useCallback((group: OwnerGroup | null) => {
     setSelectedGroup(group);
     setHasSelected(true);
     setShowGroupModal(false);
-    const groupIdToFetch = group ? group.id : null;
-    setTimeout(() => loadData(true, groupIdToFetch), 0);
-  }, [loadData]);
+  }, []);
 
   const handleDismantle = useCallback((customer: MixRadiusCustomer) => {
     Alert.alert(
@@ -292,27 +246,21 @@ export default function MixRadiusIsolirScreen() {
         {
           text: "Ya, Buat WO",
           style: "destructive",
-          onPress: async () => {
-            setLoading(true);
-            try {
-              await MixRadiusService.requestDismantle(
-                customer.id,
-                "Isolir/Tunggakan",
-                "Request otomatis dari Aplikasi Mobile (Menu Isolir)"
-              );
-              Alert.alert("Sukses", "Work Order Dismantle berhasil dibuat!");
-              loadData(true); // Refresh list
-            } catch (err: any) {
-              console.error(err);
-              Alert.alert("Gagal", err.message || "Gagal membuat Work Order.");
-            } finally {
-              setLoading(false);
-            }
+          onPress: () => {
+            dismantleMutation.mutate({
+              customerId: customer.id,
+              reason: "Isolir/Tunggakan",
+              notes: "Request otomatis dari Aplikasi Mobile (Menu Isolir)"
+            });
           }
         }
       ]
     );
-  }, [loadData]);
+  }, [dismantleMutation]);
+
+  const onRefresh = useCallback(() => {
+    refetch();
+  }, [refetch]);
 
   const ListHeader = useMemo(() => (
     <View style={tw`p-4 pb-2`}>
@@ -323,13 +271,12 @@ export default function MixRadiusIsolirScreen() {
           placeholder="Cari username atau nama..."
           value={search}
           onChangeText={setSearch}
-          onSubmitEditing={() => loadData(true, undefined, search)}
+          onSubmitEditing={() => refetch()}
           returnKeyType="search"
         />
         {search.length > 0 && (
           <TouchableOpacity onPress={() => {
             setSearch("");
-            loadData(true, undefined, "");
           }}>
             <X size={18} color="#9ca3af" />
           </TouchableOpacity>
@@ -351,29 +298,30 @@ export default function MixRadiusIsolirScreen() {
         </Text>
       </View>
     </View>
-  ), [search, selectedGroup, totalCount, data.length, loadData]);
+  ), [search, selectedGroup, totalCount, data.length, hasSelected, refetch]);
+
+  if (loading && data.length === 0 && !refreshing) {
+    return (
+      <View style={[tw`flex-1 bg-gray-50`, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <IsolirSkeleton />
+      </View>
+    );
+  }
 
   return (
     <View style={[tw`flex-1 bg-gray-50`, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <FlatList
+      <FlashList
         data={data}
-        renderItem={({ item }) => <CustomerItem item={item} onDismantle={handleDismantle} />}
-        keyExtractor={(item, index) => `${item.username}-${index}`}
+        renderItem={({ item }: { item: MixRadiusCustomer }) => <CustomerItem item={item} onDismantle={handleDismantle} />}
+        keyExtractor={(item: MixRadiusCustomer, index: number) => `${item.username}-${index}`}
         ListHeaderComponent={ListHeader}
-        onEndReached={() => {
-            if (!loading && hasMore) {
-                loadData(false);
-            }
-        }}
         onEndReachedThreshold={0.5}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563eb" />}
         contentContainerStyle={tw`pb-20`}
-        removeClippedSubviews={false}
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={5}
+        estimatedItemSize={180}
         style={tw`flex-1`}
         ListEmptyComponent={
           !loading ? (
@@ -400,25 +348,18 @@ export default function MixRadiusIsolirScreen() {
         }
       />
 
-      {/* Group Selector Modal */}
-      <Modal visible={showGroupModal} transparent animationType="slide">
-        <View style={tw`flex-1 bg-black/50 justify-end`}>
-          <View style={tw`bg-white rounded-t-3xl h-[70%]`}>
-            <View style={tw`flex-row justify-between items-center p-4 border-b border-gray-100`}>
-              <Text style={tw`text-lg font-bold text-gray-900`}>Pilih Site / Group</Text>
-              <TouchableOpacity onPress={() => setShowGroupModal(false)}><X size={24} color="#374151" /></TouchableOpacity>
-            </View>
-            <ScrollView>
-              {Array.isArray(groups) && groups.map((group) => (
-                <TouchableOpacity key={group.id} onPress={() => handleSelectGroup(group)} style={tw`p-4 border-b border-gray-50 flex-row justify-between items-center`}>
-                  <Text style={tw`${selectedGroup?.id === group.id ? "text-blue-600 font-bold" : "text-gray-700"}`}>{group.name}</Text>
-                  {selectedGroup?.id === group.id && <View style={tw`w-2 h-2 rounded-full bg-blue-600`} />}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <SelectionModal
+        visible={showGroupModal}
+        onClose={() => setShowGroupModal(false)}
+        title="Pilih Site / Group"
+        items={groups.map(g => ({
+          id: g.id,
+          label: g.name,
+          value: g
+        }))}
+        onSelect={(item) => handleSelectGroup(item.value as OwnerGroup)}
+        selectedValue={selectedGroup}
+      />
     </View>
   );
 }

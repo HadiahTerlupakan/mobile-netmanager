@@ -10,14 +10,18 @@
  */
 
 import api from "@/services/api";
+import { DatabaseService } from "@/services/DatabaseService";
+import { SyncService } from "@/services/SyncService";
+import { uploadService, UploadType } from "@/services/UploadService";
+import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import {
-    useMutation,
-    UseMutationOptions,
-    useQueryClient,
+  useMutation,
+  UseMutationOptions,
+  useQueryClient,
 } from "@tanstack/react-query";
+import { AxiosError, isAxiosError } from "axios";
 import * as Location from "expo-location";
-import * as SecureStore from "expo-secure-store";
 import { Alert } from "react-native";
 
 type HttpMethod = "POST" | "PUT" | "PATCH" | "DELETE";
@@ -36,14 +40,17 @@ export interface MutationMeta {
 
 // Interface standar untuk variables yang memiliki meta data
 export interface ApiMutationVariables {
-    [key: string]: any; // Allow other fields
-    meta?: MutationMeta;
+  [key: string]: unknown;
+  meta?: MutationMeta;
 }
 
-interface ApiMutationOptions<TData, TVariables> extends Omit<
-  UseMutationOptions<TData, Error, TVariables>,
-  "mutationFn"
-> {
+interface ApiErrorResponse {
+  error?: string;
+  message?: string;
+}
+
+interface ApiMutationOptions<TData, TVariables>
+  extends Omit<UseMutationOptions<TData, AxiosError<ApiErrorResponse>, TVariables>, "mutationFn"> {
   /**
    * API endpoint
    */
@@ -111,102 +118,13 @@ async function getCurrentLocation(
 }
 
 /**
- * Retry helper with exponential backoff
- * @param fn - Async function to retry
- * @param maxRetries - Maximum number of retries (default: 3)
- * @param baseDelay - Base delay in ms (default: 1000)
- */
-async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelay: number = 1000,
-): Promise<T> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error: any) {
-      lastError = error;
-
-      // Don't retry on client errors (4xx) except timeout/network
-      const status = error?.response?.status;
-      const isNetworkError =
-        error.code === "ECONNABORTED" || error.message === "Network Error";
-
-      if (status && status >= 400 && status < 500 && !isNetworkError) {
-        logger.info(
-          `[retryWithBackoff] Client error (${status}), not retrying`,
-        );
-        throw error;
-      }
-
-      if (attempt < maxRetries) {
-        const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
-        logger.info(
-          `[retryWithBackoff] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-  }
-
-  throw lastError;
-}
-
-/**
- * Helper to upload a single file with retry
+ * Helper to upload a single file using UploadService
  */
 async function uploadFile(
   uri: string,
   type: string = "general",
 ): Promise<string> {
-  return retryWithBackoff(
-    async () => {
-      logger.info("[uploadFile] Starting upload:", {
-        uri: uri.substring(0, 50),
-        type,
-      });
-
-      const formData = new FormData();
-      const filename = uri.split("/").pop() || `upload_${Date.now()}.jpg`;
-
-      // @ts-ignore - React Native FormData requires this structure
-      formData.append("file", {
-        uri,
-        type: "image/jpeg",
-        name: filename,
-      });
-
-      formData.append("type", type);
-
-      logger.info("[uploadFile] Uploading to: /api/mobile/upload");
-
-      // Use centralized API - token is handled automatically
-      const response = await api.post(
-        "/api/mobile/upload",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-          timeout: 60000, // 60 second timeout for large files
-          // @ts-ignore
-          skipGlobalAuthHandler: true,
-        },
-      );
-
-      logger.info("[uploadFile] Upload successful");
-
-      if (response.data && response.data.url) {
-        return response.data.url;
-      }
-
-      throw new Error("Gagal mengupload gambar - no URL returned");
-    },
-    3,
-    1000,
-  ); // 3 retries, starting with 1 second delay
+  return uploadService.uploadFile(uri, type as UploadType);
 }
 
 /**
@@ -218,14 +136,15 @@ async function uploadFile(
  *   method: 'POST',
  *   includeLocation: true,
  *   invalidateKeys: [['workOrders']],
- *   onSuccess: (data) => console.log('Created:', data),
+ *   onSuccess: (data) => logger.info('Created:', data),
  * });
  *
  * mutation.mutate({ title: 'New WO', description: '...' });
  */
-export function useApiMutation<TData = unknown, TVariables extends ApiMutationVariables = ApiMutationVariables>(
-  options: ApiMutationOptions<TData, TVariables>,
-) {
+export function useApiMutation<
+  TData = unknown,
+  TVariables extends ApiMutationVariables = ApiMutationVariables,
+>(options: ApiMutationOptions<TData, TVariables>) {
   const queryClient = useQueryClient();
   const {
     endpoint,
@@ -237,46 +156,79 @@ export function useApiMutation<TData = unknown, TVariables extends ApiMutationVa
     ...mutationOptions
   } = options;
 
-  return useMutation<TData, Error, TVariables>({
+  return useMutation<TData, AxiosError<ApiErrorResponse>, TVariables>({
     ...mutationOptions,
     mutationFn: async (variables) => {
-      let payload: Record<string, any> = { ...variables };
+      const payload: Record<string, unknown> = { ...variables };
 
-      // Handle photoMap uploads
-      if (payload.meta?.photoMap) {
-        const photoMap = payload.meta.photoMap as Record<string, string>;
-        const photoType = payload.meta.photoType || "general";
+      try {
+        // Handle photoMap uploads
+        if (variables.meta?.photoMap) {
+          const photoMap = variables.meta.photoMap;
+          const photoType = variables.meta.photoType || "general";
 
-        // Upload all photos in parallel
-        const uploadPromises = Object.entries(photoMap).map(
-          async ([field, uri]) => {
-            if (!uri || uri.startsWith("http")) return; // Skip empty or already uploaded
-            const url = await uploadFile(uri, photoType);
-            payload[field] = url; // Update payload with server URL
-          },
-        );
+          // Upload all photos in parallel
+          const uploadPromises = Object.entries(photoMap).map(
+            async ([field, uri]) => {
+              if (!uri || uri.startsWith("http")) return; // Skip empty or already uploaded
+              const url = await uploadFile(uri, photoType);
+              payload[field] = url; // Update payload with server URL
+            },
+          );
 
-        await Promise.all(uploadPromises);
+          await Promise.all(uploadPromises);
+        }
+
+        // Add location if requested
+        if (includeLocation) {
+          const { latitude, longitude } = await getCurrentLocation();
+          payload.latitude = payload.latitude ?? latitude;
+          payload.longitude = payload.longitude ?? longitude;
+        }
+
+        // Check connectivity before request
+        const isOnline = await SyncService.isOnline();
+        if (!isOnline) {
+          throw new Error("Offline");
+        }
+
+        // Make API request with updated payload
+        const response = await api.request<TData>({
+          url: endpoint,
+          method,
+          data: payload,
+          timeout: 15000, // Timeout for mobile networks
+        });
+
+        return response.data;
+      } catch (error) {
+        const isNetworkError =
+          isAxiosError(error) &&
+          (error.code === "ECONNABORTED" ||
+            error.message === "Network Error" ||
+            !error.response);
+        const isExplicitOffline =
+          error instanceof Error && error.message === "Offline";
+
+        if (isExplicitOffline || isNetworkError) {
+          logger.info(
+            `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${endpoint}`,
+          );
+
+          // Add to offline queue
+          await DatabaseService.addToQueue(
+            endpoint,
+            method,
+            payload,
+            (variables.meta as Record<string, unknown>) || {},
+          );
+
+          // Return dummy data to satisfy TData and trigger onSuccess
+          return { __offline_queued__: true } as unknown as TData;
+        }
+
+        throw error;
       }
-
-      // Add location if requested
-      if (includeLocation) {
-        const { latitude, longitude } = await getCurrentLocation();
-        payload = {
-          ...payload,
-          latitude: payload.latitude ?? latitude,
-          longitude: payload.longitude ?? longitude,
-        };
-      }
-
-      // Make API request with updated payload
-      const response = await api.request({
-        url: endpoint,
-        method,
-        data: payload,
-      });
-
-      return response.data;
     },
     onSuccess: (data, variables, context) => {
       // Invalidate related queries
@@ -284,26 +236,40 @@ export function useApiMutation<TData = unknown, TVariables extends ApiMutationVa
         queryClient.invalidateQueries({ queryKey: [...keys] });
       }
 
+      const isOffline = (data as Record<string, unknown>)?.__offline_queued__;
+
       // Show success message
       if (successMessage) {
-        Alert.alert("Sukses", successMessage);
+        if (isOffline) {
+          Alert.alert(
+            "Offline",
+            "Koneksi tidak tersedia. Data disimpan offline dan akan dikirim otomatis saat internet kembali.",
+          );
+        } else {
+          Alert.alert("Sukses", successMessage);
+        }
+      } else if (isOffline && showErrorAlert) {
+        // If no success message but we want to show alerts, notify about offline status
+        Alert.alert(
+          "Offline",
+          "Koneksi tidak tersedia. Perubahan Anda disimpan secara lokal.",
+        );
       }
 
-      // Call original onSuccess - cast to any to avoid complex type inference
-      (mutationOptions.onSuccess as any)?.(data, variables, context);
+      // Call original onSuccess
+      (mutationOptions as any).onSuccess?.(data, variables, context);
     },
     onError: (error, variables, context) => {
       logger.error("[useApiMutation] Error:", error);
 
       // Show error alert
       if (showErrorAlert) {
-        const message =
-          (error as any)?.response?.data?.error || "Gagal menyimpan data";
-        Alert.alert("Error", message);
+        const friendlyError = getUserFriendlyError(error);
+        Alert.alert(friendlyError.title, friendlyError.message);
       }
 
-      // Call original onError - cast to any to avoid complex type inference
-      (mutationOptions.onError as any)?.(error, variables, context);
+      // Call original onError
+      (mutationOptions as any).onError?.(error, variables, context);
     },
   });
 }
@@ -313,26 +279,24 @@ export function useApiMutation<TData = unknown, TVariables extends ApiMutationVa
  *
  * @deprecated Gunakan useApiMutation langsung
  */
-export function useOfflineMutationCompat() {
-  const queryClient = useQueryClient();
-
+export function useOfflineMutationCompat<TData = any>() {
   const mutate = async (
     variables: ApiMutationVariables,
     options: {
       url: string;
       method: HttpMethod;
-      onSuccess?: (data: any, isOffline: boolean) => void;
-      onError?: (error: any) => void;
+      onSuccess?: (data: TData, isOffline: boolean) => void;
+      onError?: (error: AxiosError<ApiErrorResponse>) => void;
       silent?: boolean;
     },
   ) => {
     try {
-      let payload: Record<string, any> = { ...variables };
+      const payload: Record<string, any> = { ...variables };
 
       // Handle photoMap uploads
-      if (payload.meta?.photoMap) {
-        const photoMap = payload.meta.photoMap as Record<string, string>;
-        const photoType = payload.meta.photoType || "general";
+      if (variables.meta?.photoMap) {
+        const photoMap = variables.meta.photoMap;
+        const photoType = variables.meta.photoType || "general";
 
         // Upload all photos in parallel and collect results
         const uploadResults: { field: string; url: string }[] = [];
@@ -357,7 +321,7 @@ export function useOfflineMutationCompat() {
         await Promise.all(uploadPromises);
 
         // Get target field name from meta or default based on pattern
-        const targetField = payload.meta?.targetField;
+        const targetField = (payload.meta as any)?.targetField;
 
         // Check if fields follow 'photoN' pattern (for photos array)
         const arrayPattern = uploadResults.filter((r) =>
@@ -378,26 +342,65 @@ export function useOfflineMutationCompat() {
       // Get location
       const { latitude, longitude } = await getCurrentLocation();
 
-      payload = {
-        ...payload,
-        latitude: variables.latitude ?? latitude,
-        longitude: variables.longitude ?? longitude,
-      };
+      payload.latitude = variables.latitude ?? latitude;
+      payload.longitude = variables.longitude ?? longitude;
 
-      const response = await api.request({
-        url: options.url,
-        method: options.method,
-        data: payload,
-      });
+      try {
+        // Check connectivity before request
+        const isOnline = await SyncService.isOnline();
+        if (!isOnline) {
+          throw new Error("Offline");
+        }
 
-      options.onSuccess?.(response.data, false);
-      return response.data;
-    } catch (error: any) {
+        const response = await api.request({
+          url: options.url,
+          method: options.method,
+          data: payload,
+          timeout: 15000,
+        });
+
+        options.onSuccess?.(response.data, false);
+        return response.data;
+      } catch (error) {
+        const isNetworkError =
+          isAxiosError(error) &&
+          (error.code === "ECONNABORTED" ||
+            error.message === "Network Error" ||
+            !error.response);
+        const isExplicitOffline =
+          error instanceof Error && error.message === "Offline";
+
+        if (isExplicitOffline || isNetworkError) {
+          logger.info(
+            `[useOfflineMutationCompat] Offline/Network error detected. Queuing: ${options.method} ${options.url}`,
+          );
+
+          await DatabaseService.addToQueue(
+            options.url,
+            options.method,
+            payload,
+            (variables.meta as Record<string, unknown>) || {},
+          );
+
+          const result = { __offline_queued__: true } as unknown as TData;
+          options.onSuccess?.(result, true);
+          return result;
+        }
+
+        throw error;
+      }
+    } catch (error) {
       logger.error("[useOfflineMutationCompat] Error:", error);
-      options.onError?.(error);
+      options.onError?.(error as AxiosError<ApiErrorResponse>);
 
       if (!options.silent) {
-        const message = error?.response?.data?.error || "Gagal menyimpan data";
+        let message = "Gagal menyimpan data";
+        if (error instanceof AxiosError) {
+          message =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            message;
+        }
         Alert.alert("Error", message);
       }
 

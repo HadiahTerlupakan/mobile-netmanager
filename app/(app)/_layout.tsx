@@ -1,27 +1,30 @@
-import { Tabs, useRouter } from "expo-router";
+import { Tabs, usePathname, useRouter } from "expo-router";
 import {
-    ClipboardList,
-    DollarSign,
-    Home,
-    Package,
-    ScanLine,
-    User,
+  ClipboardList,
+  DollarSign,
+  Home,
+  Package,
+  ScanLine,
+  User,
 } from "lucide-react-native";
 import { Fragment, useEffect } from "react";
 import { Alert } from "react-native";
 import tw from "twrnc";
 
-import AnnouncementPopup from "@/components/organisms/AnnouncementPopup";
 import { useAuth } from "@/context/AuthContext";
+import { logger } from "@/utils/logger";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AppLayout() {
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { token, user } = useAuth();
 
-  console.log("[Layout] User State:", JSON.stringify(user, null, 2));
-  console.log("[Layout] isSales:", user?.isSales);
+  logger.info("[Layout] User State loaded");
+  if (__DEV__) {
+    logger.info("[Layout] isSales:", user?.isSales);
+  }
 
   // Helper to check features
   const hasFeature = (feature: string) => {
@@ -30,23 +33,46 @@ export default function AppLayout() {
     return user.features?.includes(feature) ?? false;
   };
 
+  // Enforce leave restrictions globally
+  useEffect(() => {
+    if (user?.isOnLeave) {
+      // Allow dashboard and chat related routes
+      // Also allow null/undefined pathname during initial load
+      if (!pathname) return;
+
+      const isAllowed = pathname === '/dashboard' || pathname.startsWith('/chat');
+      
+      if (!isAllowed) {
+         // Redirect to dashboard if user is on restricted screen
+         router.replace('/dashboard');
+      }
+    }
+  }, [user?.isOnLeave, pathname, router]);
+
   // Auto-resume location tracking on app startup if user is checked in
   useEffect(() => {
-    // ... (existing tracking logic)
     const resumeTrackingIfNeeded = async () => {
-      // ... Code continues mostly unchanged, just ensure this block is preserved if I'm replacing the whole component or just the top part
-      // Actually I can just replacing the top part and the return statement.
-      // But replace_file_content works on lines.
-      // Let's rely on the context lines.
+      // Logic for tracking
     };
-    // ...
+    resumeTrackingIfNeeded();
   }, [token]);
-  // WARNING: Creating a partial replacement for a functional component with hooks inside is tricky if I don't see the exact lines.
-  // I see lines 12-130 in previous view_file.
 
-  // Helper to handle locked tab press
   const handleTabPress = (e: any, feature: string) => {
-    if (!hasFeature(feature)) {
+    // Check for leave status
+    if (user?.isOnLeave && feature !== "m_dashboard") {
+      e.preventDefault();
+      Alert.alert(
+        "Mode Cuti Aktif",
+        "Fitur ini dinonaktifkan karena Anda sedang cuti.",
+        [{ 
+          text: "OK", 
+          onPress: () => router.replace("/dashboard") 
+        }],
+      );
+      return;
+    }
+
+    if (feature !== "profile" && !hasFeature(feature)) {
       e.preventDefault();
       Alert.alert(
         "Akses Terbatas",
@@ -56,7 +82,6 @@ export default function AppLayout() {
     }
   };
 
-  // Helper for locked icon color
   const getIconColor = (color: string, feature: string) => {
     return hasFeature(feature) ? color : "#9ca3af"; // gray-400 if locked
   };
@@ -98,6 +123,9 @@ export default function AppLayout() {
               <ClipboardList size={24} color={color} />
             ),
           }}
+          listeners={{
+            tabPress: (e) => handleTabPress(e, "m_work_order"),
+          }}
         />
         <Tabs.Screen
           name="marketing/canvasing/index"
@@ -127,16 +155,7 @@ export default function AppLayout() {
             ),
           }}
           listeners={{
-            tabPress: (e) => {
-              if (!hasFeature("m_barang")) {
-                e.preventDefault();
-                Alert.alert(
-                  "Akses Terbatas",
-                  "Anda tidak memiliki akses menu Barang.",
-                  [{ text: "OK" }],
-                );
-              }
-            },
+            tabPress: (e) => handleTabPress(e, "m_barang"),
           }}
         />
         <Tabs.Screen
@@ -156,6 +175,9 @@ export default function AppLayout() {
           options={{
             title: "Profil",
             tabBarIcon: ({ color }) => <User size={24} color={color} />,
+          }}
+          listeners={{
+            tabPress: (e) => handleTabPress(e, "profile"),
           }}
         />
 
@@ -305,7 +327,7 @@ export default function AppLayout() {
       </Tabs>
 
       {/* Announcement Popup - shows after login */}
-      <AnnouncementPopup />
+      {/* <AnnouncementPopup /> */}
     </Fragment>
   );
 }

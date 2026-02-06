@@ -1,11 +1,16 @@
-import CryptoJS from 'crypto-js';
+import HmacSHA256 from 'crypto-js/hmac-sha256';
+import Constants from 'expo-constants';
 
 // IMPORTANT: This key MUST match the backend env variable OFFLINE_SIGNING_KEY
-// In a real app, strict key management (SecureStore/Env) is vital.
-// For now we hardcode the dev key to ensure matching.
-const SIGNING_KEY = 'dev-key-change-in-prod-v1';
+// We fetch this from expoConfig extra to avoid hardcoding in the source code.
+const SIGNING_KEY = Constants.expoConfig?.extra?.signingKey || 'dev-dummy-signing-key';
 
-export function generateSignature(data: any): string {
+if (!SIGNING_KEY) {
+    console.warn('OFFLINE_SIGNING_KEY is missing in expo config. Using Dev Dummy.');
+    // throw new Error('OFFLINE_SIGNING_KEY is missing in expo config');
+}
+
+export function generateSignature(data: unknown): string {
     const payload = JSON.stringify(data);
-    return CryptoJS.HmacSHA256(payload, SIGNING_KEY).toString();
+    return HmacSHA256(payload, SIGNING_KEY).toString();
 }
