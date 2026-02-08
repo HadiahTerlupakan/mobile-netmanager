@@ -1,7 +1,7 @@
 /**
  * useApiQuery - TanStack Query wrapper untuk API data fetching
  *
- * Menggantikan useOfflineQuery dengan fitur:
+ * Fitur:
  * - Automatic caching via Secure Storage (MMKV)
  * - Stale-while-revalidate
  * - Automatic background refetching
@@ -9,7 +9,6 @@
  */
 
 import api from "@/services/api";
-import { useNetInfo } from "@react-native-community/netinfo";
 import { useQuery, UseQueryOptions } from "@tanstack/react-query";
 
 type QueryFn<T> = () => Promise<T>;
@@ -47,6 +46,7 @@ interface ApiQueryOptions<T> extends Omit<
  *   queryFn: () => api.get(`/api/mobile/work-orders/${id}`).then(r => r.data)
  * });
  */
+
 export function useApiQuery<T>(options: ApiQueryOptions<T>) {
   const { endpoint, queryFn, ...queryOptions } = options;
 
@@ -66,46 +66,3 @@ export function useApiQuery<T>(options: ApiQueryOptions<T>) {
   });
 }
 
-/**
- * Backward-compatible wrapper untuk useOfflineQuery migration
- *
- * @deprecated Gunakan useApiQuery dengan queryKey pattern baru
- */
-export function useOfflineQueryCompat<T>(
-  options: {
-    key: string;
-    fetcher: () => Promise<T>;
-    onSuccess?: (data: T) => void;
-    onError?: (error: Error) => void;
-  } & Omit<UseQueryOptions<T, Error>, "queryKey" | "queryFn">,
-) {
-  const { key, fetcher, onSuccess, onError, enabled, ...queryOptions } =
-    options;
-
-  const result = useQuery<T, Error>({
-    queryKey: [key],
-    queryFn: fetcher,
-    enabled: enabled,
-    ...queryOptions,
-  });
-
-  // Trigger callbacks for backward compatibility
-  if (result.isSuccess && options.onSuccess) {
-    options.onSuccess(result.data);
-  }
-  if (result.isError && options.onError) {
-    options.onError(result.error);
-  }
-
-  const netInfo = useNetInfo();
-  const isOffline = netInfo.isConnected === false;
-
-  return {
-    data: result.data ?? null,
-    isLoading: result.isLoading,
-    error: result.error,
-    isOfflineData: isOffline, // Only show offline banner if actually offline
-    refetch: result.refetch,
-    isStale: result.isStale,
-  };
-}

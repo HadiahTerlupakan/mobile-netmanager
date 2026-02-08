@@ -1,6 +1,6 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
+import { useApiMutation } from "@/hooks/queries";
 import { uploadService } from "@/services/UploadService";
 import { SyncService } from "@/services/SyncService";
 import api from "@/services/api"; // Use centralized API
@@ -30,8 +30,12 @@ export default function CompleteWorkOrderScreen() {
   const [loadingMessage, setLoadingMessage] = useState("Mencari Lokasi...");
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Offline Mutation
-  const { mutate, isLoading: isMutating } = useOfflineMutation();
+  // API Mutation
+  const { mutate, isPending: isMutating } = useApiMutation({
+    endpoint: `/api/mobile/work-orders/${id}/update`,
+    method: "POST",
+    invalidateKeys: [['work_order', id], ['work_orders']], // Invalidate list too
+  });
 
   useEffect(() => {
     (async () => {
@@ -220,8 +224,6 @@ export default function CompleteWorkOrderScreen() {
                   photoUrls: uploadedUrls, // Send URLs directly
                 },
                 {
-                  url: `/api/mobile/work-orders/${id}/update`,
-                  method: "POST",
                   onSuccess: () => {
                     setIsProcessingComplete(false);
                     Alert.alert(
@@ -259,8 +261,6 @@ export default function CompleteWorkOrderScreen() {
               },
             },
             {
-              url: `/api/mobile/work-orders/${id}/update`,
-              method: "POST",
               onSuccess: (data, isOffline) => {
                 setIsProcessingComplete(false);
                 if (isOffline) {
