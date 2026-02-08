@@ -4,12 +4,14 @@ import { WorkOrderListItem } from "@/components/organisms/dashboard/WorkOrderLis
 import { useAuth } from "@/context/AuthContext";
 import { useSocket, useSocketEvent } from "@/context/SocketContext";
 import { SOCKET_EVENTS } from "@/context/socketTypes";
-import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
-import api from "@/services/api"; // Use centralized API
+import {
+  useAvailableWorkOrders,
+  useClaimWorkOrder,
+  useWorkOrders,
+} from "@/hooks/queries";
 import { SyncService } from "@/services/SyncService";
-import { WorkOrderAssignment } from "@/types/work-order";
+import { WorkOrder, WorkOrderAssignment } from "@/types/work-order";
 import { FlashList } from "@shopify/flash-list";
-import { useInfiniteQuery } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { Href, useRouter } from "expo-router";
 import { logger } from "@/utils/logger";
@@ -30,29 +32,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
 
-interface WorkOrder {
-  id: string;
-  workOrderNumber: string;
-  title: string;
-  status: string;
-  type: string;
-  priority: string;
-  contactName?: string;
-  contactPhone?: string;
-  locationAddress?: string;
-  createdAt: string;
-  scheduledDate?: string;
-  assignments?: WorkOrderAssignment[];
-  pelanggan?: {
-    nama?: string;
-    noTelp?: string;
-    alamat?: string;
-  };
-  site?: {
-    name?: string;
-  };
-}
-
 type TabType = "tersedia" | "aktif" | "riwayat";
 
 // Memoized row component for Active/History items
@@ -70,58 +49,66 @@ export default function WorkOrderScreen() {
   const [activeTab, setActiveTab] = useState<TabType>("tersedia");
   const [claiming, setClaiming] = useState<string | null>(null);
 
-  // Infinite Query for Pagination
+  // Queries
   const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading: loadingWO,
-    isRefetching,
-    refetch: refetchWO,
-  } = useInfiniteQuery({
-    queryKey: ["work_orders", activeTab],
-    queryFn: async ({ pageParam = null }) => {
-      let endpoint = "";
-      const params: any = { limit: 10 }; // Default limit
-
-      if (pageParam) {
-        params.cursor = pageParam;
-      }
-
-      if (activeTab === "tersedia") {
-        endpoint = "/api/mobile/work-orders/available";
-      } else {
-        endpoint = "/api/mobile/work-orders";
-        params.type = activeTab === "aktif" ? "active" : "history";
-      }
-
-      const res = await api.get(endpoint, { params });
-      return res.data;
-    },
-    getNextPageParam: (lastPage: any) => lastPage.nextCursor || undefined,
-    initialPageParam: null,
-    enabled: !!token,
-    staleTime: 1000 * 60 * 1, // 1 minute stale time
+    data: availableData,
+    isPending: loadingAvailable,
+    refetch: refetchAvailable,
+    isRefetching: refetchingAvailable,
+  } = useAvailableWorkOrders({
+    enabled: activeTab === "tersedia" && !!token,
   });
 
-  // Flatten data
+  const {
+    data: activeData,
+    isPending: loadingActive,
+    refetch: refetchActive,
+    isRefetching: refetchingActive,
+  } = useWorkOrders(
+    { type: "active", limit: 50 },
+    { enabled: activeTab === "aktif" && !!token },
+  );
+
+  const {
+    data: historyData,
+    isPending: loadingHistory,
+    refetch: refetchHistory,
+    isRefetching: refetchingHistory,
+  } = useWorkOrders(
+    { type: "history", limit: 50 },
+    { enabled: activeTab === "riwayat" && !!token },
+  );
+
+  // Derive current list data based on tab
   const workOrders = useMemo(() => {
-    return data?.pages.flatMap((page: any) => page.data || []) || [];
-  }, [data]);
+    switch (activeTab) {
+      case "tersedia":
+        return availableData?.data || [];
+      case "aktif":
+        return activeData?.data || [];
+      case "riwayat":
+        return historyData?.data || [];
+      default:
+        return [];
+    }
+  }, [activeTab, availableData, activeData, historyData]);
+
+  const loadingWO =
+    (activeTab === "tersedia" && loadingAvailable) ||
+    (activeTab === "aktif" && loadingActive) ||
+    (activeTab === "riwayat" && loadingHistory);
+
+  const isRefetching =
+    refetchingAvailable || refetchingActive || refetchingHistory;
 
   // Offline Mutation for Claim
-  const { mutate: claimMutate } = useOfflineMutation();
+  const { mutate: claimMutate } = useClaimWorkOrder();
 
   const onRefresh = useCallback(async () => {
-    await refetchWO();
-  }, [refetchWO]);
-
-  const onLoadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) {
-        fetchNextPage();
-    }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    if (activeTab === "tersedia") await refetchAvailable();
+    else if (activeTab === "aktif") await refetchActive();
+    else await refetchHistory();
+  }, [activeTab, refetchAvailable, refetchActive, refetchHistory]);
 
   const handleClaimWO = useCallback(
     async (workOrderId: string) => {
@@ -147,15 +134,14 @@ export default function WorkOrderScreen() {
                   workOrderId,
                 },
                 {
-                  url: "/api/mobile/work-orders/available",
-                  method: "POST",
-                  onSuccess: () => {
-                    if (isOnline) {
+                  onSuccess: (data) => {
+                    const isOffline = (data as any)?.__offline_queued__;
+                    if (isOnline && !isOffline) {
                       Alert.alert("Berhasil", "Tugas berhasil diambil!");
                     }
                     setActiveTab("aktif");
                   },
-                  onError: (err) => {
+                  onError: (err: any) => {
                     const errorMessage = err instanceof AxiosError ? err.response?.data?.error || err.message : "Gagal mengambil tugas";
                     Alert.alert(
                       "Error",
@@ -200,9 +186,12 @@ export default function WorkOrderScreen() {
   const handleWOEvent = useCallback(
     () => {
       logger.socket("WO Event received, refreshing list...");
-      refetchWO();
+      // Refresh all relevant queries
+      refetchAvailable();
+      refetchActive();
+      refetchHistory();
     },
-    [refetchWO],
+    [refetchAvailable, refetchActive, refetchHistory],
   );
 
   // Subscribe to WO events for real-time updates
@@ -290,7 +279,6 @@ export default function WorkOrderScreen() {
           keyExtractor={(item: WorkOrder) => item.id}
           renderItem={renderItem}
           estimatedItemSize={200}
-          onEndReached={onLoadMore}
           onEndReachedThreshold={0.5}
           contentContainerStyle={tw`pb-20 pt-1 px-4`}
           showsVerticalScrollIndicator={false}
@@ -303,13 +291,6 @@ export default function WorkOrderScreen() {
               {getEmptyIcon}
               <Text style={tw`text-gray-400 mt-4`}>{getEmptyMessage}</Text>
             </View>
-          }
-          ListFooterComponent={
-            isFetchingNextPage ? (
-                <View style={tw`py-4`}>
-                    <ActivityIndicator size="small" color="#2563eb" />
-                </View>
-            ) : null
           }
         />
       )}

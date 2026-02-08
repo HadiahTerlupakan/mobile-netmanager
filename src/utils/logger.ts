@@ -105,6 +105,12 @@ export const logger = {
     const message = args.map(safeStringify).join(' ');
     console.log(formatMessage('[DB]', message, colors.dim));
   },
+
+  debug: (...args: unknown[]) => {
+    if (!ENABLE_LOGS) return;
+    const message = args.map(safeStringify).join(' ');
+    console.log(formatMessage('[DEBUG]', message, colors.dim));
+  },
 };
 
 // Export singleton

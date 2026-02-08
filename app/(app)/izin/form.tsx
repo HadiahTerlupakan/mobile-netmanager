@@ -1,12 +1,14 @@
-import { SyncService } from "@/services/SyncService";
-import { uploadService } from "@/services/UploadService";
-import { LeaveRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import CustomDatePickerModal from "@/components/molecules/CustomDatePickerModal"; // Import Custom Modal
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { useAuth } from "@/context/AuthContext";
-import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
+import { useApiMutation } from "@/hooks/queries";
+import { queryKeys } from "@/lib/queryClient";
 import api from "@/services/api";
+import { SyncService } from "@/services/SyncService";
+import { uploadService } from "@/services/UploadService";
+import { logger } from "@/utils/logger";
+import { LeaveRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
     addMonths,
@@ -20,10 +22,9 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Camera, ChevronDown, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
+import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { logger } from "@/utils/logger";
 
 import { MarkedDates } from "react-native-calendars/src/types";
 
@@ -83,7 +84,12 @@ export default function LeaveFormScreen() {
   const currentWorkingHourMode = liveWorkingHourMode ?? user?.workingHourMode;
 
   // Offline Mutation
-  const { mutate } = useOfflineMutation();
+  const leaveMutation = useApiMutation({
+    endpoint: "/api/mobile/leaves",
+    method: "POST",
+    invalidateKeys: [queryKeys.leave.list()],
+    showErrorAlert: false
+  });
 
   // Loading State
   const [showLoading, setShowLoading] = useState(false);
@@ -93,8 +99,6 @@ export default function LeaveFormScreen() {
   const removePhoto = (index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
-
-  // Removed pickImageFromGallery as CameraModal handles it.
 
   // Submit
   const handleSubmit = async () => {
@@ -144,23 +148,9 @@ export default function LeaveFormScreen() {
         }
 
         // 2. Replacement Date MUST be an Off Day (not in workDays)
-        // Note: We only check if it is NOT in workDays.
-        // If it IS in workDays, it's invalid UNLESS it's a Holiday (which backend checks).
-        // For stricter frontend UX, we warn if it looks like a working day.
         if (workDays.includes(replacementDayName)) {
-          // Optional: You could allow it if it matches a known holiday, but frontend doesn't have holiday data easily.
-          // For now, let's show a warning or rely on backend for the strict "Holiday" exception if user insists.
-          // Or be strict: "Replacement must be outside normal work days OR a red date".
-          // Since we can't check 'red date' easily here without API, maybe we let it pass to backend
-          // if user insists, OR we just warn.
-          // Let's rely on Backend for the "Holiday" exception to be safe,
-          // BUT we can warn if it looks like a normal work day.
-          // However, to follow the requested logic strictly:
-          // "User TIDAK BISA menawarkan PENGGANTI di hari Selasa (karena sudah jadwal kerja), KECUALI hari Selasa tersebut adalah Tanggal Merah".
-          // Since we can't check holiday here, we should probably let it submit and let backend fail if it's not a holiday.
-          // BUT, usually these are basic "Work day vs Weekend" swaps.
-          // Let's skips strict frontend blocking for replacement date to allow for the "Holiday exception".
-          // We ONLY strictly block the Start Date (must be work day).
+           // We rely on Backend for the "Holiday" exception to be safe.
+           // We ONLY strictly block the Start Date (must be work day).
         }
       }
     }
@@ -199,23 +189,16 @@ export default function LeaveFormScreen() {
               setLoadingMessage("Mengirim data...");
               setUploadProgress(0);
 
-              // Update photoMap with URLs? No, backend expects 'photos' array usually if we send it directly?
-              // Or does useOfflineMutation/backend handle it?
-              // The original logic used `photoMap` for offline sync which mapped local URI to form field.
-              // If we upload manually, we should pass the URLs.
-              // Let's assume the API endpoint `/api/mobile/leaves` accepts `photos` as array of strings (URLs).
-
-              await mutate(
+              leaveMutation.mutate(
                 {
                   ...validData,
                   photos: uploadedUrls,
                   // No meta needed for online upload of photos
                 },
                 {
-                  url: `/api/mobile/leaves`,
-                  method: "POST",
-                  onSuccess: (_data: unknown, isOffline: boolean) => {
+                  onSuccess: (data: any) => {
                     setShowLoading(false);
+                    // const isOffline = data?.__offline_queued__;
                     Alert.alert(
                       "Sukses",
                       "Pengajuan berhasil dikirim",
@@ -234,7 +217,7 @@ export default function LeaveFormScreen() {
           }
       } else {
           // Offline flow or no photos
-          await mutate(
+          leaveMutation.mutate(
             {
               ...validData,
               photos: [], // Will be populated by upload results if offline
@@ -244,10 +227,9 @@ export default function LeaveFormScreen() {
               },
             },
             {
-              url: `/api/mobile/leaves`,
-              method: "POST",
-              onSuccess: (_data: unknown, isOffline: boolean) => {
+              onSuccess: (data: any) => {
                 setShowLoading(false);
+                const isOffline = data?.__offline_queued__;
                 Alert.alert(
                   isOffline ? "Offline" : "Sukses",
                   isOffline ? "Pengajuan diantrikan" : "Pengajuan berhasil dikirim",

@@ -1,5 +1,6 @@
 import { HolidaySkeleton } from '@/components/molecules/HolidaySkeleton';
-import api from '@/services/api'; // Use centralized API
+import { useOfflineQuery } from '@/hooks/queries';
+import { queryKeys } from '@/lib/queryClient';
 import { formatDate } from '@/utils/date';
 import {
     addMonths,
@@ -35,28 +36,18 @@ interface Holiday {
 export default function HolidaysScreen() {
     const router = useRouter();
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [holidays, setHolidays] = useState<Holiday[]>([]);
-    const [loading, setLoading] = useState(true);
     const [selectedHoliday, setSelectedHoliday] = useState<Holiday | null>(null);
     const [modalVisible, setModalVisible] = useState(false);
 
-    useEffect(() => {
-        fetchHolidays(currentDate.getFullYear());
-    }, [currentDate]);
+    const year = currentDate.getFullYear();
 
-    const fetchHolidays = async (year: number) => {
-        setLoading(true);
-        try {
-            const res = await api.get(`/api/mobile/holidays?year=${year}`);
-            if (res.data.success) {
-                setHolidays(res.data.data);
-            }
-        } catch (error) {
-            logger.error('Fetch holidays error:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const { data: holidaysData, isPending: loading } = useOfflineQuery<any, Error, Holiday[]>({
+        queryKey: queryKeys.holidays.list(year),
+        endpoint: `/api/mobile/holidays?year=${year}`,
+        select: (data: any) => data?.data || [],
+    });
+
+    const holidays = holidaysData || [];
 
     const goToPrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
     const goToNextMonth = () => setCurrentDate(addMonths(currentDate, 1));

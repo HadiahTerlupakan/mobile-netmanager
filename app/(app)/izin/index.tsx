@@ -1,24 +1,24 @@
 import { LeaveSkeleton } from "@/components/molecules/LeaveSkeleton";
 import { useAuth } from "@/context/AuthContext";
-import { useOfflineQueryCompat as useOfflineQuery } from "@/hooks/queries";
-import api from "@/services/api"; // Use centralized API
+import { useApiQuery } from "@/hooks/queries";
+import { queryKeys } from "@/lib/queryClient";
 import { formatDate } from "@/utils/date";
+import { FlashList } from "@shopify/flash-list";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
-    ArrowLeft,
-    CheckCircle,
-    Clock,
-    Plus,
-    XCircle,
+  ArrowLeft,
+  CheckCircle,
+  Clock,
+  Plus,
+  XCircle,
 } from "lucide-react-native";
 import React, { useCallback, useMemo } from "react";
 import {
-    RefreshControl,
-    Text,
-    TouchableOpacity,
-    View,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
 
@@ -96,12 +96,10 @@ export default function IzinScreen() {
   const router = useRouter();
 
   // Offline Query
-  const { data: historyData, refetch: fetchHistory, isLoading } = useOfflineQuery<LeaveRequest[]>({
-    key: "leaves_history",
-    fetcher: async () => {
-      const res = await api.get("/api/mobile/leaves");
-      return res.data?.data || [];
-    },
+  const { data: historyData, refetch: fetchHistory, isPending, isRefetching } = useApiQuery<LeaveRequest[]>({
+    queryKey: queryKeys.leave.list(),
+    endpoint: "/api/mobile/leaves",
+    select: (data: any) => data?.data || [],
     enabled: !!token,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
@@ -149,7 +147,7 @@ export default function IzinScreen() {
     </View>
   ), [router]);
 
-  if (isLoading && history.length === 0) {
+  if (isPending && history.length === 0) {
     return <LeaveSkeleton />;
   }
 
@@ -163,7 +161,7 @@ export default function IzinScreen() {
         ListHeaderComponent={ListHeader}
         contentContainerStyle={tw`pb-20`}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={fetchHistory} tintColor="#0d9488" />
+          <RefreshControl refreshing={isRefetching} onRefresh={fetchHistory} tintColor="#0d9488" />
         }
         ListEmptyComponent={
           <View style={tw`px-4`}>

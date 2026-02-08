@@ -1,6 +1,6 @@
 import { ChatSkeleton } from '@/components/molecules/ChatSkeleton';
 import { useAuth } from '@/context/AuthContext';
-import { useApiQuery } from '@/hooks/queries/useApiQuery';
+import { useOfflineQuery } from '@/hooks/queries';
 import { queryKeys } from '@/lib/queryClient';
 import { ChatConversation, chatService } from '@/services/ChatService';
 import { formatTimeAgo } from '@/utils/date';
@@ -65,10 +65,10 @@ export default function ChatListScreen() {
 
     const {
         data: conversationsData,
-        isLoading: loadingConversations,
+        isPending: loadingConversations,
         refetch: refetchConversations,
         isRefetching: refreshingConversations
-    } = useApiQuery<ChatConversation[]>({
+    } = useOfflineQuery<ChatConversation[]>({
         queryKey: queryKeys.chat.list(),
         queryFn: () => chatService.getConversations(),
         enabled: !!user?.id,
@@ -76,10 +76,10 @@ export default function ChatListScreen() {
 
     const {
         data: globalChatData,
-        isLoading: loadingGlobal,
+        isPending: loadingGlobal,
         refetch: refetchGlobal,
         isRefetching: refreshingGlobal
-    } = useApiQuery<GlobalChat>({
+    } = useOfflineQuery<GlobalChat>({
         queryKey: queryKeys.chat.global(),
         queryFn: () => chatService.getGlobalChat(),
         enabled: !!user?.id,

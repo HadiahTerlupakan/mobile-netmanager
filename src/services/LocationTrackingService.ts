@@ -57,6 +57,54 @@ function deg2rad(deg: number) {
 
 export class LocationTrackingService {
     /**
+     * Get adaptive location configuration based on battery and movement
+     */
+    static getLocationConfig(batteryLevel: number, isMoving: boolean) {
+        // Critical battery (<15%): Minimal tracking
+        if (batteryLevel < 0.15 && batteryLevel !== -1) {
+            return {
+                timeInterval: 60 * 60 * 1000, // 1 hour
+                distanceInterval: 500, // 500m
+                accuracy: Location.Accuracy.Low
+            };
+        }
+
+        // Low battery (<30%): Reduced tracking
+        if (batteryLevel < 0.30 && batteryLevel !== -1) {
+            return {
+                timeInterval: 30 * 60 * 1000, // 30 minutes
+                distanceInterval: 200, // 200m
+                accuracy: Location.Accuracy.Balanced
+            };
+        }
+
+        // Medium battery (<50%): Normal tracking
+        if (batteryLevel < 0.50 && batteryLevel !== -1) {
+            return {
+                timeInterval: 15 * 60 * 1000, // 15 minutes
+                distanceInterval: 100, // 100m
+                accuracy: Location.Accuracy.Balanced
+            };
+        }
+
+        // Good battery: Active tracking when moving
+        if (isMoving) {
+            return {
+                timeInterval: 5 * 60 * 1000, // 5 minutes
+                distanceInterval: 50, // 50m
+                accuracy: Location.Accuracy.High
+            };
+        }
+
+        // Good battery but stationary: Reduced tracking
+        return {
+            timeInterval: 10 * 60 * 1000, // 10 minutes
+            distanceInterval: 100, // 100m
+            accuracy: Location.Accuracy.Balanced
+        };
+    }
+
+    /**
      * Start background location tracking
      * Called after successful check-in
      */
@@ -82,37 +130,33 @@ export class LocationTrackingService {
                 );
             }
 
-            // Check Battery Level for Adaptive Interval
+            // Check Battery & Movement for Adaptive Interval
             let batteryLevel = 1.0;
+            let isMoving = false;
+
             try {
-                batteryLevel = await Battery.getBatteryLevelAsync();
+                // Race condition protection for battery check
+                batteryLevel = await Promise.race([
+                    Battery.getBatteryLevelAsync(),
+                    new Promise<number>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                ]) as number;
+
+                // Check last known movement state
+                const lastSentStr = Storage.getItem(STORAGE_KEY_LAST_SENT);
+                if (lastSentStr) {
+                    const lastSent = JSON.parse(lastSentStr);
+                    isMoving = lastSent.isMoving || false;
+                }
             } catch (e) {
-                logger.warn('[LocationTracking] Battery check failed, assuming full', e);
+                logger.warn('[LocationTracking] Battery/movement check failed, using defaults', e);
             }
 
-            // Dynamic Interval Logic
-            let timeInterval = 10 * 60 * 1000; // Normal: 10 mins (Audit recommendation)
-            let distanceInterval = 50; // Normal: 50m
+            // Get adaptive config
+            const config = __DEV__
+                ? { timeInterval: 60000, distanceInterval: 20, accuracy: Location.Accuracy.Balanced } // DEV: 1 min
+                : this.getLocationConfig(batteryLevel, isMoving);
 
-            const isLowBattery = batteryLevel < 0.20 && batteryLevel !== -1;
-            const isGoodBattery = batteryLevel > 0.50;
-
-            if (isLowBattery) {
-                // Low Battery (<20%): Less frequent (30 mins)
-                logger.info('[LocationTracking] Low Battery Mode (<20%). Reducing frequency.');
-                timeInterval = 30 * 60 * 1000;
-                distanceInterval = 200;
-            } else if (isGoodBattery) {
-                 // Good Battery (>50%): More frequent (5 mins)
-                 timeInterval = 5 * 60 * 1000;
-                 distanceInterval = 30;
-            }
-
-            if (__DEV__) {
-                logger.info('[LocationTracking] DEV MODE: Using fast intervals');
-                timeInterval = 30000;
-                distanceInterval = 10;
-            }
+            logger.info(`[LocationTracking] Config: Battery ${(batteryLevel * 100).toFixed(0)}%, Moving: ${isMoving}, Interval: ${config.timeInterval / 60000}m`);
 
             // Check if already tracking
             const isTracking = await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
@@ -120,10 +164,10 @@ export class LocationTrackingService {
                 try {
                     // Update options if already running (re-registering updates options)
                     await Location.startLocationUpdatesAsync(TASK_NAME, {
-                        accuracy: Location.Accuracy.Balanced,
-                        timeInterval,
-                        distanceInterval,
-                        deferredUpdatesInterval: 15 * 60 * 1000,
+                        accuracy: config.accuracy,
+                        timeInterval: config.timeInterval,
+                        distanceInterval: config.distanceInterval,
+                        deferredUpdatesInterval: __DEV__ ? 30000 : 15 * 60 * 1000,
                         foregroundService: {
                             notificationTitle: 'Mode Absensi Aktif',
                             notificationBody: 'Jam kerja Anda sedang berjalan',
@@ -137,7 +181,7 @@ export class LocationTrackingService {
                     const current = await this.getCurrentPosition();
                     if (current) {
                         logger.info('[LocationTracking] Tracking updated. Current loc:', current.latitude, current.longitude);
-                         await this.sendLocation(current);
+                        await this.sendLocation(current);
                         return true;
                     }
                 } catch (e) {
@@ -152,13 +196,13 @@ export class LocationTrackingService {
             }
 
             // Start location updates with adaptive options
-            logger.info(`[LocationTracking] Starting updates with interval: ${timeInterval/60000}m, distance: ${distanceInterval}m`);
+            logger.info(`[LocationTracking] Starting updates...`);
             try {
                 await Location.startLocationUpdatesAsync(TASK_NAME, {
-                    accuracy: Location.Accuracy.Balanced,
-                    timeInterval,
-                    distanceInterval,
-                    deferredUpdatesInterval: 15 * 60 * 1000,
+                    accuracy: config.accuracy,
+                    timeInterval: config.timeInterval,
+                    distanceInterval: config.distanceInterval,
+                    deferredUpdatesInterval: __DEV__ ? 30000 : 15 * 60 * 1000,
                     foregroundService: {
                         notificationTitle: 'Mode Absensi Aktif',
                         notificationBody: 'Jam kerja Anda sedang berjalan',
@@ -166,7 +210,7 @@ export class LocationTrackingService {
                     },
                     pausesUpdatesAutomatically: true,
                     showsBackgroundLocationIndicator: false,
-                    activityType: Location.ActivityType.AutomotiveNavigation // Helps iOS optimize
+                    activityType: Location.ActivityType.AutomotiveNavigation
                 });
             } catch (error) {
                 if (__DEV__) {
@@ -193,14 +237,14 @@ export class LocationTrackingService {
                 } catch (e) {
                     logger.warn('[LocationTracking] Initial location force-push failed:', e);
                 }
-            }, 1000);
+            }, 2000);
 
             return true;
 
         } catch (error) {
             logger.error('[LocationTracking] Failed to start:', error);
             if (error instanceof Error && error.message.includes('foreground service')) {
-                 logger.warn('[LocationTracking] App in background? Cannot start foreground service.');
+                logger.warn('[LocationTracking] App in background? Cannot start foreground service.');
             }
             return false;
         }
@@ -221,6 +265,20 @@ export class LocationTrackingService {
             logger.info('[LocationTracking] Stopped tracking');
         } catch (error) {
             logger.info('[LocationTracking] Stop tracking cleanup:', error);
+        }
+    }
+
+    /**
+     * Full Cleanup - Called on Logout or when App is killed
+     */
+    static async cleanup(): Promise<void> {
+        try {
+            await this.stopTracking();
+            await Storage.removeItem(STORAGE_KEY_LAST_SENT);
+            await Storage.removeItem(STORAGE_KEY_PENDING);
+            logger.info('[LocationTracking] Cleanup complete');
+        } catch (error) {
+            logger.error('[LocationTracking] Cleanup error:', error);
         }
     }
 
@@ -392,16 +450,17 @@ export class LocationTrackingService {
 
 // Define background task
 TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManagerTaskBody<{ locations: Location.LocationObject[] }>) => {
-    logger.info(`[LocationTracking] Background task triggered`);
+    const timestamp = new Date().toISOString();
+    logger.info(`[LocationTracking][${timestamp}] Background task triggered`);
 
     if (error) {
-        logger.error(`[LocationTracking] Background task error:`, error);
+        logger.error(`[LocationTracking][${timestamp}] Background task error:`, error);
         return;
     }
 
     if (data) {
         const { locations } = data as { locations: Location.LocationObject[] };
-        logger.info(`[LocationTracking] Received ${locations?.length || 0} locations from OS`);
+        logger.info(`[LocationTracking][${timestamp}] Received ${locations?.length || 0} locations from OS`);
 
         if (locations && locations.length > 0) {
             const location = locations[0];
@@ -409,10 +468,14 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManage
             // Get battery level for monitoring
             let batteryLevel: number | undefined;
             try {
-                batteryLevel = await Battery.getBatteryLevelAsync();
-                logger.info(`[LocationTracking] Battery level: ${(batteryLevel * 100).toFixed(0)}%`);
+                // Race condition protection
+                batteryLevel = await Promise.race([
+                    Battery.getBatteryLevelAsync(),
+                    new Promise<number>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                ]) as number;
+                logger.info(`[LocationTracking][${timestamp}] Battery level: ${(batteryLevel * 100).toFixed(0)}%`);
             } catch (e) {
-                logger.warn(`[LocationTracking] Failed to get battery level:`, e);
+                logger.warn(`[LocationTracking][${timestamp}] Failed to get battery level:`, e);
             }
 
             // --- MOVEMENT CHECK LOGIC START ---
@@ -440,7 +503,7 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManage
                 const MIN_DISTANCE_METERS = 20; // 20 meters threshold
                 const HEARTBEAT_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
-                logger.info(`[LocationTracking] Distance from last: ${distance.toFixed(1)}m, Time: ${(timeSinceLast/60000).toFixed(1)}min`);
+                logger.info(`[LocationTracking] Distance from last: ${distance.toFixed(1)}m, Time: ${(timeSinceLast / 60000).toFixed(1)}min`);
 
                 if (distance < MIN_DISTANCE_METERS) {
                     // User hasn't moved enough
@@ -470,16 +533,16 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManage
                     recordedAt: new Date(location.timestamp).toISOString()
                 };
 
-                logger.info(`[LocationTracking] Sending location to server`);
+                logger.info(`[LocationTracking][${timestamp}] Sending location to server`);
                 const sent = await LocationTrackingService.sendLocation(locationData);
 
                 // If sent (or saved to queue), update last sent reference
                 if (sent !== false) {
-                     Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(locationData));
+                    Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(locationData));
                 }
             }
         }
     } else {
-        logger.info(`[LocationTracking] No location data in callback`);
+        logger.info(`[LocationTracking][${timestamp}] No location data in callback`);
     }
 });

@@ -1,26 +1,26 @@
-import { FormSkeleton } from '@/components/molecules/FormSkeleton';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
+import { FormSkeleton } from '@/components/molecules/FormSkeleton';
 import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
 import { useAuth } from "@/context/AuthContext";
 import {
-    useOfflineMutationCompat as useOfflineMutation,
-    useOfflineQueryCompat as useOfflineQuery,
+  useApiMutation,
+  useApiQuery,
 } from "@/hooks/queries";
+import { queryKeys } from "@/lib/queryClient";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
+import { logger } from "@/utils/logger";
 import { InventoryKeluarSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import api from "@/services/api";
-import { logger } from "@/utils/logger";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, useColorScheme, View,  } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, useColorScheme, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
@@ -88,50 +88,29 @@ export default function BarangKeluarScreen() {
   // Refs for watermark capture
   const watermarkRefs = useRef<(View | null)[]>([]);
 
-  const { mutate, isLoading: isMutating } = useOfflineMutation();
+  const keluarMutation = useApiMutation({
+    endpoint: "/api/mobile/inventory/keluar",
+    method: "POST",
+    invalidateKeys: [queryKeys.inventory.list(selectedGudang), queryKeys.inventory.warehouses()],
+  });
 
-  // Memoize modal items to prevent recreation on every render
-  const gudangModalItems = useMemo(() => {
-    const arr = Array.isArray(gudangs) ? gudangs : [];
-    return arr.map((g) => ({
-      id: g.id,
-      label: g.nama,
-      subLabel: undefined,
-      value: g.id,
-    }));
-  }, [gudangs]);
+  // ... existing code ...
 
-  const barangModalItems = useMemo(() => {
-    const arr = Array.isArray(barangs) ? barangs : [];
-    return arr.map((b) => ({
-      id: b.id,
-      label: b.nama,
-      subLabel: b.kode,
-      value: b.id,
-    }));
-  }, [barangs]);
-
-  // Offline Query: Gudangs
-  const { data: gudangList, isLoading: isLoadingGudangs } = useOfflineQuery<Gudang[]>({
-    key: "gudang_list_all",
-    fetcher: async () => {
-      const res = await api.get("/api/mobile/inventory/gudang");
-      return res.data?.gudangList || [];
-    },
+  // Api Query: Gudangs
+  const { data: gudangList, isPending: isLoadingGudangs } = useApiQuery<Gudang[]>({
+    queryKey: queryKeys.inventory.warehouses(),
+    endpoint: "/api/mobile/inventory/gudang",
+    select: (data: any) => data?.gudangList || [],
     enabled: !!token,
   });
 
-  useEffect(() => {
-    if (gudangList) setGudangs(gudangList);
-  }, [gudangList]);
+  // ... existing code ...
 
-  // Offline Query: Barangs
-  const { data: barangData, isLoading: isLoadingBarangs } = useOfflineQuery<Barang[]>({
-    key: `barang_list_${selectedGudang}`,
-    fetcher: async () => {
-      const res = await api.get(`/api/mobile/inventory/barang?gudangId=${selectedGudang}`);
-      return res.data?.barangList || [];
-    },
+  // Api Query: Barangs
+  const { data: barangData, isPending: isLoadingBarangs } = useApiQuery<Barang[]>({
+    queryKey: queryKeys.inventory.list(selectedGudang),
+    endpoint: `/api/mobile/inventory/barang?gudangId=${selectedGudang}`,
+    select: (data: any) => data?.barangList || [],
     enabled: !!token && !!selectedGudang,
   });
 
@@ -272,6 +251,23 @@ export default function BarangKeluarScreen() {
   const barangsArray = Array.isArray(barangs) ? barangs : [];
   const gudangsArray = Array.isArray(gudangs) ? gudangs : [];
 
+  const gudangModalItems = useMemo(() => {
+    return gudangsArray.map((g) => ({
+      id: g.id,
+      label: g.nama,
+      value: g.id,
+    }));
+  }, [gudangsArray]);
+
+  const barangModalItems = useMemo(() => {
+    return barangsArray.map((b) => ({
+      id: b.id,
+      label: `${b.kode} - ${b.nama}`,
+      value: b.id,
+      subLabel: `Stok: ${b.stokBaru} Baru | ${b.stokBekas} Bekas`,
+    }));
+  }, [barangsArray]);
+
   const selectedBarangData = barangsArray.find((b) => b.id === selectedBarang);
   const selectedBarangName = selectedBarangData
     ? `${selectedBarangData.kode} - ${selectedBarangData.nama}`
@@ -346,14 +342,12 @@ export default function BarangKeluarScreen() {
 
           // Submit via Mutate (Online)
           setLoadingMessage("Menyimpan data...");
-          await mutate(
+          keluarMutation.mutate(
             {
               ...payload,
               fotoBukti: uploadedUrls,
             },
             {
-              url: "/api/mobile/inventory/keluar",
-              method: "POST",
               onSuccess: () => {
                 setShowLoading(false);
                 resetForm();
@@ -379,7 +373,7 @@ export default function BarangKeluarScreen() {
       } else {
         // Offline - Submit to Queue with Local URIs
         setLoadingMessage("Menyimpan ke antrian offline...");
-        await mutate(
+        keluarMutation.mutate(
           {
             ...payload,
             fotoBukti: [], // Placeholder
@@ -389,10 +383,10 @@ export default function BarangKeluarScreen() {
             },
           },
           {
-            url: "/api/mobile/inventory/keluar",
-            method: "POST",
-            onSuccess: (data, isOffline) => {
+            onSuccess: (data) => {
               setShowLoading(false);
+              // Check if queued
+              const isOffline = (data as any)?.__offline_queued__;
               if (isOffline) {
                 resetForm();
                 router.back();
@@ -694,11 +688,11 @@ export default function BarangKeluarScreen() {
 
           {/* Submit Button */}
           <TouchableOpacity
-            style={tw`bg-teal-600 rounded-xl py-4 items-center ${submitting || isMutating ? "opacity-50" : ""}`}
+            style={tw`bg-teal-600 rounded-xl py-4 items-center ${submitting || keluarMutation.isPending ? "opacity-50" : ""}`}
             onPress={handleSubmit}
-            disabled={submitting || isMutating}
+            disabled={submitting || keluarMutation.isPending}
           >
-            {submitting || isMutating ? (
+            {submitting || keluarMutation.isPending ? (
               <ActivityIndicator color="white" />
             ) : (
               <Text style={tw`text-white font-bold text-base`}>Simpan</Text>

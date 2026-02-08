@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api'; // Use centralized API
 import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
@@ -5,16 +6,39 @@ import { Lock, Mail } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
-import { useAuth } from '@/context/AuthContext';
+// import { useTenant } from '@/context/TenantContext'; // Added TenantContext
 import { logger } from '@/utils/logger';
 import { LoginSchema, validateData } from '@/utils/validation';
 import { AxiosError } from 'axios';
+import { useRouter } from 'expo-router'; // Added useRouter
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const { signIn } = useAuth();
+    // const { tenantUrl, clearTenant } = useTenant(); // Get tenant info
+    const router = useRouter();
+
+    /*
+    const handleChangeServer = async () => {
+        Alert.alert(
+            'Ganti Server',
+            'Apakah Anda yakin ingin mengganti server? Anda harus memasukkan URL server baru.',
+            [
+                { text: 'Batal', style: 'cancel' },
+                {
+                    text: 'Ganti',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await clearTenant();
+                        router.replace('/tenant-selection');
+                    }
+                }
+            ]
+        );
+    };
+    */
 
     const handleLogin = async () => {
         const validation = validateData(LoginSchema, { email, password });
@@ -146,6 +170,7 @@ export default function LoginScreen() {
                         {loading ? 'Memproses...' : 'Sign In'}
                     </Text>
                 </TouchableOpacity>
+
             </View>
         </View>
     );

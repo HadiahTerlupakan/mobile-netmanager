@@ -1,9 +1,9 @@
 import { CanvasingDetailSkeleton } from '@/components/molecules/CanvasingDetailSkeleton';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { Config } from '@/constants/Config';
+import { TenantService } from '@/services/TenantService';
 import { useAuth } from '@/context/AuthContext';
-import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
-import api from '@/services/api'; // Use centralized API
+import { useApiQuery } from '@/hooks/queries';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, Linking, Platform, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
@@ -19,26 +19,22 @@ export default function CanvasingDetailScreen() {
     const router = useRouter();
     const { token } = useAuth();
 
-    const { data: item, isLoading, isOfflineData } = useOfflineQuery<Canvasing>({
-        key: `marketing_canvasing_detail_${id}`,
-        fetcher: async () => {
-            const res = await api.get(`/api/marketing/canvasing/${id}`);
-            return res.data;
-        },
+    const { data: item, isPending, fetchStatus } = useApiQuery<Canvasing>({
+        queryKey: [`marketing_canvasing_detail`, String(id)],
+        endpoint: `/api/marketing/canvasing/${id}`,
         enabled: !!id && !!token
     });
+
+    const isOffline = fetchStatus === 'paused';
 
     interface ClaimResponse {
         claim: CanvasingClaim | null;
     }
 
     // Fetch claim status
-    const { data: claimData } = useOfflineQuery<ClaimResponse>({
-        key: `marketing_canvasing_claim_${id}`,
-        fetcher: async () => {
-            const res = await api.get(`/api/marketing/canvasing/${id}/claim`);
-            return res.data;
-        },
+    const { data: claimData } = useApiQuery<ClaimResponse>({
+        queryKey: [`marketing_canvasing_claim`, String(id)],
+        endpoint: `/api/marketing/canvasing/${id}/claim`,
         enabled: !!id && !!token
     });
 
@@ -122,7 +118,7 @@ export default function CanvasingDetailScreen() {
         }
     };
 
-    if (isLoading && !item) {
+    if (isPending && !item) {
         return <CanvasingDetailSkeleton />;
     }
 
@@ -191,7 +187,7 @@ export default function CanvasingDetailScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Offline Badge */}
-                {isOfflineData && (
+                {isOffline && (
                     <View style={tw`bg-amber-100 p-2 rounded-xl mb-4 flex-row items-center justify-center shadow-sm`}>
                         <Ionicons name="cloud-offline" size={16} color="#d97706" />
                         <Text style={tw`text-xs font-bold text-amber-700 ml-2`}>Mode Offline</Text>
@@ -394,7 +390,7 @@ interface PhotoPreviewProps {
 }
 
 function PhotoPreview({ title, uri }: PhotoPreviewProps) {
-    const fullUri = uri?.startsWith('http') ? uri : `${Config.API_URL}${uri}`;
+    const fullUri = uri?.startsWith('http') ? uri : `${TenantService.getTenantUrl()}${uri}`;
 
     return (
         <View style={[tw`flex-1 bg-white rounded-2xl p-2 shadow-sm border border-gray-100`, { aspectRatio: 4/3, minWidth: 120 }]}>

@@ -3,13 +3,13 @@ import { BarangIndexSkeleton } from '@/components/molecules/BarangIndexSkeleton'
 import { useAuth } from '@/context/AuthContext';
 import { useSocketEvent } from '@/context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useOfflineQueryCompat } from '@/hooks/queries';
-import api from '@/services/api';
+import { useApiQuery } from '@/hooks/queries';
 import { useRouter } from 'expo-router';
 import { useCallback, useState, ComponentProps } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { queryKeys } from '@/lib/queryClient';
 import { logger } from '@/utils/logger';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -36,22 +36,20 @@ export default function BarangIndexScreen() {
     const queryClient = useQueryClient();
     const [refreshing, setRefreshing] = useState(false);
 
-    const { data: stats, isLoading, refetch } = useOfflineQueryCompat<DashboardStats>({
-        key: 'inventory_dashboard_stats',
-        fetcher: async () => {
-            const res = await api.get('/api/mobile/dashboard');
-            return {
-                barangMasukToday: res.data.barangMasukToday || 0,
-                barangKeluarToday: res.data.barangKeluarToday || 0
-            };
-        },
+    const { data: stats, isPending, refetch } = useApiQuery<DashboardStats>({
+        queryKey: queryKeys.inventory.stats(),
+        endpoint: '/api/mobile/dashboard',
+        select: (data: any) => ({
+            barangMasukToday: data.barangMasukToday || 0,
+            barangKeluarToday: data.barangKeluarToday || 0
+        }),
         enabled: !!token,
     });
 
     // Real-time updates via WebSocket
     useSocketEvent<{ type: 'masuk' | 'keluar' }>('inventory:update', useCallback((data) => {
         logger.socket('Real-time inventory update received:', data);
-        queryClient.setQueryData<DashboardStats>(['inventory_dashboard_stats'], (prev) => {
+        queryClient.setQueryData<DashboardStats>(queryKeys.inventory.stats(), (prev) => {
             if (!prev) return prev;
             return {
                 ...prev,
@@ -97,7 +95,7 @@ export default function BarangIndexScreen() {
         }
     ];
 
-    if (isLoading && !stats) {
+    if (isPending && !stats) {
         return <BarangIndexSkeleton />;
     }
 

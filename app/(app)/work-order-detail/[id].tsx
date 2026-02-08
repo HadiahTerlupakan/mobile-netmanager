@@ -1,13 +1,16 @@
+import { ImageViewerModal } from '@/components/molecules/ImageViewerModal';
 import { WorkOrderDetailSkeleton } from '@/components/molecules/WorkOrderDetailSkeleton';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { Config } from "@/constants/Config";
+import { TenantService } from "@/services/TenantService";
 import { useAuth } from "@/context/AuthContext";
 import { useSocketEvent, useSocketRoom } from "@/context/SocketContext";
 import { SOCKET_EVENTS, WorkOrderActivityPayload } from "@/context/socketTypes";
 import {
-    useOfflineMutationCompat as useOfflineMutation,
-    useOfflineQueryCompat as useOfflineQuery,
+    useApiMutation,
+    useWorkOrder,
+    queryKeys,
 } from "@/hooks/queries";
 import { uploadService } from "@/services/UploadService";
 import api from "@/services/api"; // Use centralized API
@@ -78,33 +81,35 @@ export default function WorkOrderDetailScreen() {
   const [partnerResponseLoading, setPartnerResponseLoading] = useState(false);
   const [isProcessingStatus, setIsProcessingStatus] = useState(false);
 
-  // Image Viewer State - Removed unused
-  // const [viewerVisible, setViewerVisible] = useState(false);
-  // const [viewerImage, setViewerImage] = useState<string | null>(null);
+  // Image Viewer State
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
 
-  // const openImageViewer = useCallback((imageUrl: string) => {
-  //   setViewerImage(imageUrl);
-  //   setViewerVisible(true);
-  // }, []);
+  const openImageViewer = useCallback((imageUrl: string) => {
+    setViewerImage(imageUrl);
+    setViewerVisible(true);
+  }, []);
 
   const {
-    data: woData,
-    isLoading: loading,
+    data: workOrderResponse,
+    isPending: loading,
     refetch: fetchDetail,
-  } = useOfflineQuery<WorkOrder>({
-    key: `work_order_${id}`,
-    fetcher: async () => {
-      const res = await api.get<{ data: WorkOrder }>(`/api/mobile/work-orders/${id}`);
-      return res.data?.data;
-    },
-    enabled: !!id && !!token,
+  } = useWorkOrder(id as string);
+
+  const woData = workOrderResponse?.data;
+
+  // API Mutations
+  const { mutate: updateStatus, isPending: actionLoading } = useApiMutation({
+    endpoint: `/api/mobile/work-orders/${id}/update`,
+    method: 'POST',
+    invalidateKeys: [queryKeys.workOrders.detail(id as string)],
   });
 
-  // Offline Mutation
-  const { mutate: updateStatus, isLoading: actionLoading } =
-    useOfflineMutation();
-  const { mutate: updateActivity, isLoading: updateConfigLoading } =
-    useOfflineMutation();
+  const { mutate: updateActivity, isPending: updateConfigLoading } = useApiMutation({
+    endpoint: `/api/mobile/work-orders/${id}/update`,
+    method: 'POST',
+    invalidateKeys: [queryKeys.workOrders.detail(id as string)],
+  });
 
   // Memoize timeline for Discussion Tab
   const discussionTimeline = useMemo(() => {
@@ -293,7 +298,7 @@ export default function WorkOrderDetailScreen() {
         timestamp: new Date().toISOString(),
       };
 
-      await updateStatus(
+      updateStatus(
         {
           ...payload,
           photoUrl: null, // Placeholder, filled by SyncService
@@ -306,10 +311,9 @@ export default function WorkOrderDetailScreen() {
           },
         },
         {
-          url: `/api/mobile/work-orders/${id}/update`,
-          method: "POST",
-          onSuccess: (data, isOffline) => {
+          onSuccess: (data: any) => {
             setLoadingMessage("Berhasil!");
+            const isOffline = data?.__offline_queued__;
             if (isOffline) {
               Alert.alert("Offline", "Update disimpan di antrian.");
             } else {
@@ -412,11 +416,10 @@ export default function WorkOrderDetailScreen() {
       timestamp: new Date().toISOString(),
     };
 
-    await updateActivity(payload, {
-      url: `/api/mobile/work-orders/${id}/update`,
-      method: "POST",
-      onSuccess: (data, isOffline) => {
+    updateActivity(payload, {
+      onSuccess: (data: any) => {
         setLoadingMessage("Berhasil!");
+        const isOffline = data?.__offline_queued__;
         if (isOffline) {
           Alert.alert("Offline", "Update disimpan di antrian.");
         } else {
@@ -1150,11 +1153,13 @@ export default function WorkOrderDetailScreen() {
                     <View>
                       <TouchableOpacity
                         onPress={() => {
-                          // TODO: Open Image Viewer
+                          if (item.filePath) {
+                             openImageViewer(`${TenantService.getTenantUrl()}${item.filePath}`);
+                          }
                         }}
                         activeOpacity={0.9}
                       >
-                        <ImageWithCache source={`${Config.API_URL}${item.filePath}`}
+                        <ImageWithCache source={`${TenantService.getTenantUrl()}${item.filePath}`}
                           style={tw`w-48 h-64 bg-gray-200 rounded-lg`}
                           contentFit="cover"
                          transition={1000}        />
@@ -1689,6 +1694,12 @@ export default function WorkOrderDetailScreen() {
               ? "Memproses Partner..."
               : "Mengirim Update..."
         }
+      />
+
+      <ImageViewerModal
+        visible={viewerVisible}
+        imageUrl={viewerImage}
+        onClose={() => setViewerVisible(false)}
       />
     </SafeAreaView>
   );

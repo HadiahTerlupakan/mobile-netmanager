@@ -1,24 +1,25 @@
 import { Href, useRouter } from "expo-router";
 import {
-    Banknote,
-    Calendar,
-    CalendarDays,
-    ClipboardPlus,
-    Clock,
-    Lock,
-    Map,
-    MessageCircle,
-    PackageMinus,
-    WifiOff,
-    LucideIcon
+  Banknote,
+  Calendar,
+  CalendarDays,
+  ClipboardPlus,
+  Clock,
+  Lock,
+  LucideIcon,
+  Map,
+  MessageCircle,
+  PackageMinus,
+  WifiOff
 } from "lucide-react-native";
-import React from "react";
+import React, { useMemo } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
 import tw from "twrnc";
 
 interface QuickMenuProps {
   features?: string[];
   isSales?: boolean;
+  role?: string;
 }
 
 interface MenuItem {
@@ -32,124 +33,123 @@ interface MenuItem {
   requiresSales?: boolean;
 }
 
+const MENU_ITEMS: MenuItem[] = [
+  {
+    title: "Request WO",
+    subtitle: "Ajukan Tiket",
+    icon: ClipboardPlus,
+    color: "bg-sky-50",
+    iconColor: "#0284c7",
+    route: "/(app)/request-work-order",
+    requiredFeatures: ["m_work_order"], // Permission validated: m_work_order
+  },
+  {
+    title: "Topology Map",
+    subtitle: "Peta Jaringan",
+    icon: Map,
+    color: "bg-cyan-50",
+    iconColor: "#0891b2",
+    route: "/(app)/topology-map",
+    requiredFeatures: ["m_topology"],
+  },
+  {
+    title: "Barang Keluar",
+    subtitle: "Ambil stok",
+    icon: PackageMinus,
+    color: "bg-orange-50",
+    iconColor: "#ea580c",
+    route: "/(app)/barang/keluar",
+    requiredFeatures: ["m_barang_keluar"],
+  },
+  {
+    title: "Izin & Cuti",
+    subtitle: "Sakit, Cuti",
+    icon: Calendar,
+    color: "bg-teal-50",
+    iconColor: "#0d9488",
+    route: "/(app)/izin",
+    requiredFeatures: ["m_izin"],
+  },
+
+  {
+    title: "Lembur",
+    subtitle: "Ajukan Lembur",
+    icon: Clock,
+    color: "bg-indigo-50",
+    iconColor: "#4f46e5",
+    route: "/(app)/lembur",
+    requiredFeatures: ["m_lembur"],
+  },
+  {
+    title: "Chat",
+    subtitle: "Pesan & Diskusi",
+    icon: MessageCircle,
+    color: "bg-purple-50",
+    iconColor: "#9333ea",
+    route: "/(app)/chat",
+    requiredFeatures: ["m_chat"],
+  },
+  {
+    title: "Kalender Libur",
+    subtitle: "Hari Libur",
+    icon: CalendarDays,
+    color: "bg-red-50",
+    iconColor: "#dc2626",
+    route: "/(app)/holidays",
+    requiredFeatures: ["m_holidays"],
+  },
+  {
+    title: "Canvasing",
+    subtitle: "Marketing",
+    icon: Banknote,
+    color: "bg-blue-50",
+    iconColor: "#2563eb",
+    route: "/(app)/marketing/canvasing",
+    requiredFeatures: ["m_canvasing"],
+    requiresSales: true,
+  },
+  {
+    title: "Isolir",
+    subtitle: "MixRadius",
+    icon: WifiOff,
+    color: "bg-red-100",
+    iconColor: "#dc2626",
+    route: "/(app)/mixradius/isolir",
+    requiredFeatures: ["m_mixradius"],
+  },
+];
+
 export const QuickMenu = ({
   features = [],
   isSales = false,
+  role,
 }: QuickMenuProps) => {
   const router = useRouter();
 
   // Check if user has a specific feature
-  const hasFeature = (requiredFeatures: string[]) => {
+  const hasFeature = React.useCallback((requiredFeatures: string[]) => {
+    if (role === "SUPER_ADMIN") return true;
     if (requiredFeatures.length === 0) return true;
     return requiredFeatures.some((f) => features.includes(f));
-  };
+  }, [role, features]);
 
-  const menuItems: MenuItem[] = [
-    {
-      title: "Request WO",
-      subtitle: "Ajukan Tiket",
-      icon: ClipboardPlus,
-      color: "bg-sky-50",
-      iconColor: "#0284c7",
-      route: "/(app)/request-work-order",
-      requiredFeatures: ["m_work_order"],
-    },
-    {
-      title: "Topology Map",
-      subtitle: "Peta Jaringan",
-      icon: Map,
-      color: "bg-cyan-50",
-      iconColor: "#0891b2",
-      route: "/(app)/topology-map",
-      requiredFeatures: ["m_topology_map"],
-    },
-    {
-      title: "Barang Keluar",
-      subtitle: "Ambil stok",
-      icon: PackageMinus,
-      color: "bg-orange-50",
-      iconColor: "#ea580c",
-      route: "/(app)/barang/keluar",
-      requiredFeatures: ["m_barang_keluar"],
-    },
-    {
-      title: "Izin & Cuti",
-      subtitle: "Sakit, Cuti",
-      icon: Calendar,
-      color: "bg-teal-50",
-      iconColor: "#0d9488",
-      route: "/(app)/izin",
-      requiredFeatures: ["m_izin"],
-    },
+  const processedMenuItems = useMemo(() => {
+    return MENU_ITEMS.map((item) => {
+      const enabled = hasFeature(item.requiredFeatures) && (!item.requiresSales || isSales);
+      return { ...item, enabled };
+    });
+  }, [hasFeature, isSales]);
 
-    {
-      title: "Lembur",
-      subtitle: "Ajukan Lembur",
-      icon: Clock,
-      color: "bg-indigo-50",
-      iconColor: "#4f46e5",
-      route: "/(app)/lembur",
-      requiredFeatures: ["m_lembur"],
-    },
-    {
-      title: "Chat",
-      subtitle: "Pesan & Diskusi",
-      icon: MessageCircle,
-      color: "bg-purple-50",
-      iconColor: "#9333ea",
-      route: "/(app)/chat",
-      requiredFeatures: ["m_chat"],
-    },
-    {
-      title: "Kalender Libur",
-      subtitle: "Hari Libur",
-      icon: CalendarDays,
-      color: "bg-red-50",
-      iconColor: "#dc2626",
-      route: "/(app)/holidays",
-      requiredFeatures: ["m_holidays"],
-    },
-    {
-      title: "Canvasing",
-      subtitle: "Marketing",
-      icon: Banknote,
-      color: "bg-blue-50",
-      iconColor: "#2563eb",
-      route: "/(app)/marketing/canvasing",
-      requiredFeatures: ["m_canvasing"],
-      requiresSales: true,
-    },
-    {
-      title: "Isolir",
-      subtitle: "MixRadius",
-      icon: WifiOff,
-      color: "bg-red-100",
-      iconColor: "#dc2626",
-      route: "/(app)/mixradius/isolir",
-      requiredFeatures: [],
-    },
-  ];
-
-  const handleMenuPress = (item: MenuItem) => {
-    const enabled = hasFeature(item.requiredFeatures);
-
-    if (enabled) {
-      // Strict Sales Check for Sales Features
-      if (item.requiresSales && !isSales) {
-        Alert.alert(
-          "Akses Terbatas",
-          "Fitur ini hanya dapat diakses oleh Sales yang aktif.",
-          [{ text: "OK" }],
-        );
-        return;
-      }
+  const handleMenuPress = (item: MenuItem & { enabled: boolean }) => {
+    if (item.enabled) {
       router.push(item.route as Href);
     } else {
-      Alert.alert(
-        "Akses Terbatas",
-        "Anda tidak memiliki izin untuk mengakses fitur ini. Hubungi administrator untuk mendapatkan akses.",
-        [{ text: "OK" }],
-      );
+       // Optional: Add specific message for sales restriction vs general permission
+       const message = item.requiresSales && !isSales
+        ? "Fitur ini hanya dapat diakses oleh Sales yang aktif."
+        : "Anda tidak memiliki izin untuk mengakses fitur ini. Hubungi administrator untuk mendapatkan akses.";
+
+      Alert.alert("Akses Terbatas", message, [{ text: "OK" }]);
     }
   };
 
@@ -159,22 +159,20 @@ export const QuickMenu = ({
         Menu Cepat
       </Text>
       <View style={tw`flex-row flex-wrap justify-between`}>
-        {menuItems.map((item, index) => {
-          const enabled = hasFeature(item.requiredFeatures);
-          return (
+        {processedMenuItems.map((item, index) => (
             <TouchableOpacity
               key={index}
               onPress={() => handleMenuPress(item)}
-              style={tw`w-[31%] mb-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm items-center ${!enabled ? "opacity-50" : ""}`}
+              style={tw`w-[31%] mb-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm items-center ${!item.enabled ? "opacity-50" : ""}`}
             >
               <View
-                style={tw`h-10 w-10 rounded-lg ${enabled ? item.color : "bg-gray-100"} items-center justify-center mb-2 relative`}
+                style={tw`h-10 w-10 rounded-lg ${item.enabled ? item.color : "bg-gray-100"} items-center justify-center mb-2 relative`}
               >
                 <item.icon
                   size={20}
-                  color={enabled ? item.iconColor : "#9ca3af"}
+                  color={item.enabled ? item.iconColor : "#9ca3af"}
                 />
-                {!enabled && (
+                {!item.enabled && (
                   <View
                     style={tw`absolute -bottom-1 -right-1 bg-gray-400 rounded-full p-0.5`}
                   >
@@ -183,20 +181,20 @@ export const QuickMenu = ({
                 )}
               </View>
               <Text
-                style={tw`font-bold ${enabled ? "text-gray-900" : "text-gray-400"} text-xs text-center`}
+                style={tw`font-bold ${item.enabled ? "text-gray-900" : "text-gray-400"} text-xs text-center`}
                 numberOfLines={1}
               >
                 {item.title}
               </Text>
               <Text
-                style={tw`text-[10px] ${enabled ? "text-gray-500" : "text-gray-300"} text-center`}
+                style={tw`text-[10px] ${item.enabled ? "text-gray-500" : "text-gray-300"} text-center`}
                 numberOfLines={1}
               >
                 {item.subtitle}
               </Text>
             </TouchableOpacity>
-          );
-        })}
+          )
+        )}
       </View>
     </View>
   );

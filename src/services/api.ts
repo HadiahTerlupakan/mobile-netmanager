@@ -1,14 +1,17 @@
 import { Config } from '@/constants/Config';
 import { Events } from '@/constants/Events';
+import { TokenService } from '@/services/TokenService';
+import { TenantService } from '@/services/TenantService';
 import { logger } from '@/utils/logger';
+import { performanceMonitor } from '@/services/PerformanceMonitor'; // Import PerformanceMonitor
 import axios, { AxiosError } from 'axios';
-import * as SecureStore from 'expo-secure-store';
 import { DeviceEventEmitter } from 'react-native';
 
 declare module "axios" {
   export interface AxiosRequestConfig {
     skipGlobalAuthHandler?: boolean;
     _retryCount?: number;
+    metadata?: { startTime: number }; // Add metadata for tracking
   }
 }
 
@@ -16,17 +19,26 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
 const api = axios.create({
-  baseURL: Config.API_URL,
+  baseURL: TenantService.getTenantUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 30000, // Default timeout 30s
 });
 
-// Request interceptor to add token
+// Request interceptor to add token and handle dynamic base URL
 api.interceptors.request.use(
   async (config) => {
-    const token = await SecureStore.getItemAsync('session_token');
+    // Start performance tracking
+    config.metadata = { startTime: performance.now() };
+    const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
+    performanceMonitor.start(metricName);
+
+    // Inject dynamic base URL
+    config.baseURL = TenantService.getTenantUrl();
+
+    // Optimization: Use in-memory token first
+    const token = TokenService.getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -36,6 +48,7 @@ api.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
 
 // Helper to check if request should be retried
 const shouldRetry = (error: any): boolean => {
@@ -60,12 +73,26 @@ const shouldRetry = (error: any): boolean => {
 
 // Response interceptor to handle retries and errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Stop performance tracking
+    const config = response.config;
+    if (config && config.url) {
+        const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
+        performanceMonitor.stop(metricName, { status: response.status });
+    }
+    return response;
+  },
   async (error: AxiosError) => {
     const config = error.config;
 
     if (!config) {
       return Promise.reject(error);
+    }
+
+    // Stop performance tracking on error
+    if (config.url) {
+        const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
+        performanceMonitor.stop(metricName, { status: error.response?.status || 'network_error' });
     }
 
     // Initialize retry count

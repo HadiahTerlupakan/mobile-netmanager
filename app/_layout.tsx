@@ -3,10 +3,12 @@ import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModa
 import { UpdateRequiredScreen } from "@/components/templates/UpdateRequiredScreen";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { SocketProvider } from "@/context/SocketContext";
+import { TenantProvider } from "@/context/TenantContext";
 import { useAppVersion } from "@/hooks/useAppVersion";
 import { asyncStoragePersister, queryClient } from "@/lib/queryClient";
 import { appVersionService } from "@/services/AppVersionService";
 import { DatabaseService } from "@/services/DatabaseService"; // Import DatabaseService
+import { performanceMonitor } from "@/services/PerformanceMonitor"; // Import PerformanceMonitor
 import { SyncService } from "@/services/SyncService";
 import { eventManager } from "@/utils/EventManager";
 import { logger } from "@/utils/logger";
@@ -16,7 +18,7 @@ import * as Notifications from "expo-notifications";
 import { Href, Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import tw from "twrnc";
 
 // Get current version from app.json
@@ -24,9 +26,23 @@ const CURRENT_VERSION_CODE = Constants.expoConfig?.extra?.versionCode || 53;
 const CURRENT_VERSION_NAME = Constants.expoConfig?.version || "1.0.0";
 
 function RootLayoutNav() {
-  const { user, token, isLoading } = useAuth();
+  const { user, token, isLoading: isAuthLoading } = useAuth();
+  // const { tenantUrl, isLoading: isTenantLoading } = useTenant(); // Multi-tenant disabled
   const segments = useSegments();
   const router = useRouter();
+
+  const isLoading = isAuthLoading; // || isTenantLoading;
+
+  // Track App Startup
+  useEffect(() => {
+    performanceMonitor.start('App Startup');
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      performanceMonitor.stop('App Startup');
+    }
+  }, [isLoading]);
 
   // App Version State
   const {
@@ -40,6 +56,7 @@ function RootLayoutNav() {
     checkForUpdate,
     startUpdate,
     dismissError,
+    ignoreUpdate,
   } = useAppVersion();
 
   const [versionChecked, setVersionChecked] = useState(false);
@@ -67,40 +84,17 @@ function RootLayoutNav() {
 
   // Check for app updates on mount (Android APK only)
   useEffect(() => {
-    const checkAppVersion = async () => {
-      if (versionChecked) return;
-
-      // Skip update check for iOS - APK updates are Android only
-      if (Platform.OS === "ios") {
-        setVersionChecked(true);
-        return;
-      }
-
-      try {
-        logger.info(
-          `[VersionCheck] Checking for updates. Current Code: ${CURRENT_VERSION_CODE}`,
-        );
-        const result = await checkForUpdate(CURRENT_VERSION_CODE);
-        logger.info("[VersionCheck] Result:", JSON.stringify(result, null, 2));
-
-        if (result.success && result.updateAvailable && !result.isForceUpdate) {
-          setShowOptionalUpdate(true);
+    const checkUpdate = async () => {
+        try {
+            await checkForUpdate(CURRENT_VERSION_CODE);
+        } catch (e) {
+            logger.error('Failed to check for updates:', e);
+        } finally {
+            setVersionChecked(true);
         }
-
-        setVersionChecked(true);
-      } catch (error) {
-        logger.error("Version check failed:", error);
-        setVersionChecked(true);
-      }
     };
-
-    // Delay check slightly to prioritize UI rendering
-    const timer = setTimeout(() => {
-      checkAppVersion();
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [versionChecked, checkForUpdate]);
+    checkUpdate();
+  }, []);
 
   // Report App Version
   useEffect(() => {
@@ -220,6 +214,15 @@ function RootLayoutNav() {
 
     // Debounce redirects to prevent loops during initialization
     const redirectTimer = setTimeout(() => {
+        // Multi-tenant disabled, skip tenant check
+        /*
+        if (!tenantUrl && !inAuthGroup && segments[0] !== 'tenant-selection') {
+          logger.auth("No tenant, redirecting to Tenant Selection");
+          router.replace("/tenant-selection");
+          return;
+        }
+        */
+
         if (!user && !inAuthGroup) {
           logger.auth("Redirecting to Login");
           router.replace("/(auth)/login");
@@ -232,6 +235,13 @@ function RootLayoutNav() {
 
     return () => clearTimeout(redirectTimer);
   }, [user, segments, isLoading, router]);
+
+  // Show update modal when available (and not forced)
+  useEffect(() => {
+      if (updateAvailable && !isForceUpdate) {
+          setShowOptionalUpdate(true);
+      }
+  }, [updateAvailable, isForceUpdate]);
 
   // Show loading while checking auth or version
   if (isLoading || (isCheckingVersion && !versionChecked)) {
@@ -272,7 +282,10 @@ function RootLayoutNav() {
           downloadProgress={downloadProgress}
           error={versionError}
           onStartUpdate={startUpdate}
-          onLater={() => setShowOptionalUpdate(false)}
+          onLater={() => {
+              ignoreUpdate();
+              setShowOptionalUpdate(false);
+          }}
           onDismissError={dismissError}
         />
       )}
@@ -283,14 +296,16 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <PersistQueryClientProvider
-          client={queryClient}
-          persistOptions={{ persister: asyncStoragePersister }}
-        >
-          <RootLayoutNav />
-        </PersistQueryClientProvider>
-      </AuthProvider>
+      <TenantProvider>
+        <AuthProvider>
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={{ persister: asyncStoragePersister }}
+          >
+            <RootLayoutNav />
+          </PersistQueryClientProvider>
+        </AuthProvider>
+      </TenantProvider>
     </ErrorBoundary>
   );
 }

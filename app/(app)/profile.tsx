@@ -1,21 +1,59 @@
-import { ProfileSkeleton } from '@/components/molecules/ProfileSkeleton';
-import { useAuth } from '@/context/AuthContext';
-import { useProfileSync } from '@/hooks/useProfileSync';
-import Constants from 'expo-constants';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
+import { ProfileSkeleton } from '@/components/molecules/ProfileSkeleton';
+import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModal";
+import { Config } from '@/constants/Config';
+import { TenantService } from '@/services/TenantService';
+import { useAuth } from '@/context/AuthContext';
+import { useAppVersion } from "@/hooks/useAppVersion";
+import { useProfileSync } from '@/hooks/useProfileSync';
+import { logger } from '@/utils/logger';
+import Constants from 'expo-constants';
 import { Href, router } from 'expo-router';
 import { Briefcase, Building2, Calendar, Clock, Edit3, LogOut, Mail, MapPin } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { logger } from '@/utils/logger';
 
 export default function Profile() {
-    const { user, logout } = useAuth();
-    const { profileData, isLoading, refetch } = useProfileSync();
+    const { user, signOut } = useAuth();
+    const { profileData, isPending, refetch } = useProfileSync();
     const [refreshing, setRefreshing] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+
+    const {
+        isChecking: isCheckingVersion,
+        downloadStatus,
+        downloadProgress,
+        latestVersion,
+        error: versionError,
+        checkForUpdate,
+        startUpdate,
+        dismissError,
+    } = useAppVersion();
+
+    const handleCheckUpdate = async () => {
+        if (Platform.OS === 'ios') {
+            Alert.alert('Info', 'Cek update hanya tersedia untuk Android APK.');
+            return;
+        }
+
+        const currentVersionCode = Constants.expoConfig?.extra?.versionCode || 53;
+
+        try {
+            const result = await checkForUpdate(currentVersionCode);
+
+            if (result.success && result.updateAvailable) {
+                setShowUpdateModal(true);
+            } else if (result.success && !result.updateAvailable) {
+                Alert.alert('Info', 'Aplikasi Anda sudah versi terbaru.');
+            }
+        } catch (error) {
+            // Error handling is managed by hook state
+            logger.error('Manual update check failed:', error);
+        }
+    };
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -35,7 +73,7 @@ export default function Profile() {
                     onPress: async () => {
                         setIsLoggingOut(true);
                         try {
-                            await logout();
+                            await signOut();
                         } catch (error) {
                             logger.error('Logout error', error);
                         } finally {
@@ -52,6 +90,17 @@ export default function Profile() {
         return name.charAt(0).toUpperCase();
     };
 
+    const getImageUrl = (path: string | null | undefined) => {
+        if (!path) return null;
+        if (path.startsWith('http')) return path;
+
+        // Ensure proper slash handling
+        const baseUrl = TenantService.getTenantUrl().replace(/\/$/, '');
+        const imagePath = path.startsWith('/') ? path : `/${path}`;
+
+        return `${baseUrl}${imagePath}`;
+    };
+
     const formatWorkDays = (days?: string | null) => {
         if (!days) return 'Sen - Jum';
         const dayMap: Record<string, string> = {
@@ -61,7 +110,7 @@ export default function Profile() {
         return days.split(',').map(d => dayMap[d.trim()] || d).join(', ');
     };
 
-    if (isLoading && !profileData) {
+    if (isPending && !profileData) {
         return <ProfileSkeleton />;
     }
 
@@ -79,7 +128,7 @@ export default function Profile() {
                     <View style={tw`items-center`}>
                         {profileData?.image ? (
                             <ImageWithCache
-                                source={profileData.image}
+                                source={getImageUrl(profileData.image)}
                                 style={tw`w-24 h-24 rounded-full mb-4 border-4 border-white`}
                                 contentFit="cover"
                                 transition={1000}
@@ -200,12 +249,37 @@ export default function Profile() {
                         )}
                     </TouchableOpacity>
 
-                    {/* App Version */}
-                    <Text style={tw`text-center text-gray-400 text-xs mt-6`}>
-                        NetManager Mobile v{Constants.expoConfig?.version || '1.0.0'} (Build {Constants.expoConfig?.extra?.versionCode || '1'})
-                    </Text>
+                    {/* App Version - Manual Check */}
+                    <TouchableOpacity
+                        onPress={handleCheckUpdate}
+                        disabled={isCheckingVersion}
+                        style={tw`mt-6 items-center`}
+                    >
+                        {isCheckingVersion ? (
+                            <ActivityIndicator size="small" color="#9ca3af" />
+                        ) : (
+                            <Text style={tw`text-center text-gray-400 text-xs`}>
+                                NetManager Mobile v{Constants.expoConfig?.version || '1.0.0'} (Build {Constants.expoConfig?.extra?.versionCode || '1'})
+                                {'\n'}Ketuk untuk cek update
+                            </Text>
+                        )}
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
+
+            {/* Update Modal */}
+            {showUpdateModal && latestVersion && (
+                <UpdateAvailableModal
+                    visible={showUpdateModal}
+                    latestVersion={latestVersion}
+                    downloadStatus={downloadStatus}
+                    downloadProgress={downloadProgress}
+                    error={versionError}
+                    onStartUpdate={startUpdate}
+                    onLater={() => setShowUpdateModal(false)}
+                    onDismissError={dismissError}
+                />
+            )}
         </SafeAreaView>
     );
 }

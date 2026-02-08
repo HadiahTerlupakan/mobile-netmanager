@@ -1,10 +1,13 @@
 import { AppVersionInfo, appVersionService, CheckUpdateResult, DownloadProgress } from '@/services/AppVersionService'
+import { eventManager } from '@/utils/EventManager'
+import { logger } from '@/utils/logger'
+import { Storage } from '@/utils/storage'
 import { useCallback, useEffect, useState } from 'react'
 import { AppState, AppStateStatus, Platform } from 'react-native'
-import { logger } from '@/utils/logger'
-import { eventManager } from '@/utils/EventManager'
 
 export type DownloadStatus = 'idle' | 'downloading' | 'installing' | 'error'
+
+const IGNORED_VERSION_KEY = 'ignored_app_version'
 
 export interface UseAppVersionState {
     isChecking: boolean
@@ -17,6 +20,7 @@ export interface UseAppVersionState {
     checkForUpdate: (currentVersionCode: number) => Promise<CheckUpdateResult>
     startUpdate: () => Promise<void>
     dismissError: () => void
+    ignoreUpdate: () => void
 }
 
 export function useAppVersion(): UseAppVersionState {
@@ -66,9 +70,22 @@ export function useAppVersion(): UseAppVersionState {
             const result = await appVersionService.checkForUpdate(currentVersionCode)
 
             if (result.success) {
-                setUpdateAvailable(result.updateAvailable)
-                setIsForceUpdate(result.isForceUpdate)
-                setLatestVersion(result.latestVersion)
+                // Check if this version is ignored
+                const ignoredVersion = Storage.getItem(IGNORED_VERSION_KEY)
+                const isIgnored = !result.isForceUpdate &&
+                    result.latestVersion?.version &&
+                    result.latestVersion.version === ignoredVersion
+
+                if (isIgnored) {
+                    logger.info('[Update] Ignoring version:', ignoredVersion)
+                    setUpdateAvailable(false)
+                    setIsForceUpdate(false)
+                    setLatestVersion(null)
+                } else {
+                    setUpdateAvailable(result.updateAvailable)
+                    setIsForceUpdate(result.isForceUpdate)
+                    setLatestVersion(result.latestVersion)
+                }
             } else {
                 setError(result.error || 'Gagal cek update')
             }
@@ -151,6 +168,14 @@ export function useAppVersion(): UseAppVersionState {
         setDownloadStatus('idle')
     }, [])
 
+    const ignoreUpdate = useCallback(() => {
+        if (latestVersion?.version) {
+            Storage.setItem(IGNORED_VERSION_KEY, latestVersion.version)
+            setUpdateAvailable(false)
+            setLatestVersion(null)
+        }
+    }, [latestVersion])
+
     return {
         isChecking,
         downloadStatus,
@@ -161,6 +186,7 @@ export function useAppVersion(): UseAppVersionState {
         error,
         checkForUpdate,
         startUpdate,
-        dismissError
+        dismissError,
+        ignoreUpdate
     }
 }

@@ -1,4 +1,5 @@
 import { Config } from '@/constants/Config';
+import { TenantService } from '@/services/TenantService';
 import { checkInstallPermission, installApkNative, openInstallSettings } from '@/native/ApkInstaller';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
@@ -39,11 +40,13 @@ class AppVersionService {
     private pendingApkUri: string | null = null
 
     constructor() {
-        this.baseUrl = Config.API_URL
+        this.baseUrl = TenantService.getTenantUrl()
     }
 
     async checkForUpdate(currentVersionCode: number): Promise<CheckUpdateResult> {
         try {
+            // Update baseUrl in case it changed
+            this.baseUrl = TenantService.getTenantUrl()
             const platform = Platform.OS === 'ios' ? 'ios' : 'android'
             const response = await fetch(
                 `${this.baseUrl}/api/mobile/app-version/check?versionCode=${currentVersionCode}&platform=${platform}`
@@ -85,6 +88,8 @@ class AppVersionService {
 
     async reportVersion(versionCode: number, versionName: string | null = null, token?: string): Promise<void> {
         try {
+            // Ensure we use the latest tenant URL
+            const baseUrl = TenantService.getTenantUrl()
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json'
             }
@@ -92,7 +97,7 @@ class AppVersionService {
                 headers['Authorization'] = `Bearer ${token}`
             }
 
-            await fetch(`${this.baseUrl}/api/mobile/app-version/report`, {
+            await fetch(`${baseUrl}/api/mobile/app-version/report`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ versionCode: versionCode.toString(), versionName })
@@ -114,7 +119,8 @@ class AppVersionService {
         }
 
         try {
-            const downloadUrl = `${this.baseUrl}/api/mobile/app-version/download/${versionId}`
+            const baseUrl = TenantService.getTenantUrl()
+            const downloadUrl = `${baseUrl}/api/mobile/app-version/download/${versionId}`
             const fileUri = `${FileSystem.cacheDirectory}${filename}`
 
             await FileSystem.deleteAsync(fileUri, { idempotent: true })
@@ -281,7 +287,8 @@ class AppVersionService {
     }
 
     async openBrowserDownload(versionId: string): Promise<void> {
-        const downloadUrl = `${this.baseUrl}/api/mobile/app-version/download/${versionId}`
+        const baseUrl = TenantService.getTenantUrl()
+        const downloadUrl = `${baseUrl}/api/mobile/app-version/download/${versionId}`
         await WebBrowser.openBrowserAsync(downloadUrl)
     }
 }

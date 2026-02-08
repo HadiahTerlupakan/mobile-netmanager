@@ -1,10 +1,22 @@
-import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+// Get the host IP dynamically for development
+const getDevApiUrl = () => {
+  // Check if we have a hostUri (available in Expo Go/Dev Client)
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    return `http://${ip}:3000`;
+  }
+
+  // Fallback for Android Emulator (10.0.2.2) or iOS Simulator (localhost)
+  // or use the hardcoded IP if needed
+  return 'http://192.168.18.41:3000';
+};
 
 export const Config = {
-  // Production Server
-  //API_URL: "https://radpro.id",
-  // Development Server
-  API_URL: `http://${DEV_HOST}:3000`,
+  // Automatically switch between Dev and Prod based on environment
+  API_URL: __DEV__
+    ? getDevApiUrl()
+    : "https://radpro.id",
 };

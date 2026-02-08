@@ -1,4 +1,5 @@
 import api from "./api";
+import { TenantService } from "./TenantService";
 import { logger } from "@/utils/logger";
 
 export interface MixRadiusCustomer {
@@ -88,7 +89,7 @@ export const MixRadiusService = {
         params.ownerName = owner;
       }
 
-      // Note: api baseURL is Config.API_URL, so we append /api/...
+      // Note: api baseURL is dynamic from TenantService, so we append /api/...
       logger.info(`[MixRadius] Requesting: /api/integrations/mixradius/customers params:`, JSON.stringify(params));
       const response = await api.get<{
         success?: boolean;

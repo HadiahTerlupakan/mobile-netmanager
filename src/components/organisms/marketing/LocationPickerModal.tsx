@@ -1,7 +1,7 @@
+import { logger } from '@/utils/logger';
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import { Crosshair, MapPin, Search } from 'lucide-react-native';
-import { logger } from '@/utils/logger';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
@@ -267,6 +267,8 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                                 ref={cameraRef}
                                 defaultSettings={cameraSettings}
                                 followUserLocation={false}
+                                minZoomLevel={5}
+                                maxZoomLevel={20}
                             />
                         </MapLibreGL.MapView>
                     )}

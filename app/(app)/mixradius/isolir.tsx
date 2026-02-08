@@ -195,7 +195,7 @@ export default function MixRadiusIsolirScreen() {
   // Load Customers
   const {
     data: customerData,
-    isLoading: loading,
+    isPending: loading,
     refetch,
     isRefetching: refreshing,
   } = useApiQuery<any>({

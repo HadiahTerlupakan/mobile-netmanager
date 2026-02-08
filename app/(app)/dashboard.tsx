@@ -4,14 +4,17 @@ import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeade
 import { PerformanceStats } from '@/components/organisms/dashboard/PerformanceStats';
 import { QuickMenu } from '@/components/organisms/dashboard/QuickMenu';
 import { WorkOrderCard } from '@/components/organisms/dashboard/WorkOrderCard';
+import { Config } from '@/constants/Config';
+import { TenantService } from '@/services/TenantService';
 import { useAuth } from '@/context/AuthContext';
-import { useOfflineQueryCompat as useOfflineQuery } from '@/hooks/queries';
+import { useOfflineQuery } from '@/hooks/queries';
 import { useProfileSync } from '@/hooks/useProfileSync';
-import api from '@/services/api'; // Use centralized API
+import { queryKeys } from '@/lib/queryClient';
+import { FlashList } from '@shopify/flash-list';
 import { Href, useRouter } from 'expo-router';
 import { Clock, MessageCircle } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, FlatList, RefreshControl, ScrollView, Text, TouchableOpacity, useWindowDimensions, View, ViewToken } from 'react-native';
+import { Alert, ListRenderItem, RefreshControl, ScrollView, Text, TouchableOpacity, useWindowDimensions, View, ViewToken } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -37,6 +40,11 @@ interface CanvasingSummary {
     rejected: number;
 }
 
+type CarouselItem =
+    | { type: 'wo'; data: { assigned: number; pending: number } }
+    | { type: 'canvasing'; data: { assigned: number; completed: number } }
+    | { type: 'empty' };
+
 export default function Dashboard() {
     const { user, token } = useAuth();
     const router = useRouter();
@@ -44,30 +52,19 @@ export default function Dashboard() {
     const [refreshing, setRefreshing] = useState(false);
     const [activeIndex, setActiveIndex] = useState(0);
 
-    const { profileData, hasFeature, refetch: refetchProfile, isLoading: loadingProfile } = useProfileSync();
-
-    // Memoize fetchers to prevent unnecessary query updates
-    const fetchStats = useCallback(async () => {
-        const res = await api.get('/api/mobile/dashboard');
-        return res.data as DashboardStats;
-    }, []);
-
-    const fetchCanvasing = useCallback(async () => {
-        const res = await api.get('/api/marketing/canvasing/summary');
-        return res.data as CanvasingSummary;
-    }, []);
+    const { profileData, hasFeature, refetch: refetchProfile, isPending: loadingProfile } = useProfileSync();
 
     // Fetch dashboard stats
-    const { data: statsData, isLoading: loadingStats, refetch: refetchStats } = useOfflineQuery({
-        key: 'dashboard_stats',
-        fetcher: fetchStats,
+    const { data: statsData, isPending: loadingStats, refetch: refetchStats } = useOfflineQuery<DashboardStats>({
+        queryKey: queryKeys.dashboard.stats(),
+        endpoint: '/api/mobile/dashboard',
         enabled: !!token
     });
 
     // Fetch canvasing summary
-    const { data: canvasingSummary, isLoading: loadingCanvasing, refetch: refetchCanvasing } = useOfflineQuery({
-        key: 'canvasing_summary',
-        fetcher: fetchCanvasing,
+    const { data: canvasingSummary, isPending: loadingCanvasing, refetch: refetchCanvasing } = useOfflineQuery<CanvasingSummary>({
+        queryKey: queryKeys.canvasing.summary(),
+        endpoint: '/api/marketing/canvasing/summary',
         enabled: !!token
     });
 
@@ -96,46 +93,64 @@ export default function Dashboard() {
         router.push('/(app)/marketing/canvasing' as Href);
     }, [user?.isSales, router]);
 
-    const carouselData = useMemo(() => {
-        const items = [];
+    const carouselData = useMemo<CarouselItem[]>(() => {
+        const items: CarouselItem[] = [];
         if (hasWorkOrder) {
             items.push({
                 type: 'wo',
-                component: (
-                    <WorkOrderCard
-                        assigned={statsData?.workOrdersAssigned || 0}
-                        pending={statsData?.workOrdersPending || 0}
-                        onPress={handleWorkOrderPress}
-                        disabled={false}
-                    />
-                )
+                data: {
+                    assigned: statsData?.workOrdersAssigned || 0,
+                    pending: statsData?.workOrdersPending || 0
+                }
             });
         }
         if (hasCanvasing) {
             items.push({
                 type: 'canvasing',
-                component: (
-                    <CanvasingCard
-                        assigned={canvasingSummary?.approved || 0}
-                        completed={canvasingSummary?.woStartedToday || 0}
-                        onPress={handleCanvasingPress}
-                        disabled={false}
-                    />
-                )
+                data: {
+                    assigned: canvasingSummary?.approved || 0,
+                    completed: canvasingSummary?.woStartedToday || 0
+                }
             });
         }
         if (items.length === 0) {
-            items.push({
-                type: 'empty',
-                component: (
-                    <View style={tw`mx-4 bg-gray-100 rounded-2xl p-6 items-center`}>
-                        <Text style={tw`text-gray-500`}>Tidak ada modul aktif</Text>
-                    </View>
-                )
-            });
+            items.push({ type: 'empty' });
         }
         return items;
-    }, [hasWorkOrder, hasCanvasing, statsData, canvasingSummary, handleWorkOrderPress, handleCanvasingPress]);
+    }, [hasWorkOrder, hasCanvasing, statsData, canvasingSummary]);
+
+    const renderCarouselItem: ListRenderItem<CarouselItem> = useCallback(({ item }) => {
+        const containerStyle = { width };
+        
+        let content;
+        if (item.type === 'wo') {
+            content = (
+                <WorkOrderCard
+                    assigned={item.data.assigned}
+                    pending={item.data.pending}
+                    onPress={handleWorkOrderPress}
+                    disabled={false}
+                />
+            );
+        } else if (item.type === 'canvasing') {
+            content = (
+                <CanvasingCard
+                    assigned={item.data.assigned}
+                    completed={item.data.completed}
+                    onPress={handleCanvasingPress}
+                    disabled={false}
+                />
+            );
+        } else {
+            content = (
+                <View style={tw`mx-4 bg-gray-100 rounded-2xl p-6 items-center`}>
+                    <Text style={tw`text-gray-500`}>Tidak ada modul aktif</Text>
+                </View>
+            );
+        }
+
+        return <View style={containerStyle}>{content}</View>;
+    }, [width, handleWorkOrderPress, handleCanvasingPress]);
 
     const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
         if (viewableItems.length > 0) {
@@ -152,10 +167,21 @@ export default function Dashboard() {
         (loadingProfile && !profileData) ||
         (hasCanvasing && loadingCanvasing && !canvasingSummary);
 
+    const getImageUrl = (path: string | null | undefined) => {
+        if (!path) return null;
+        if (path.startsWith('http')) return path;
+
+        // Ensure proper slash handling
+        const baseUrl = TenantService.getTenantUrl().replace(/\/$/, '');
+        const imagePath = path.startsWith('/') ? path : `/${path}`;
+
+        return `${baseUrl}${imagePath}`;
+    };
+
     // Memoize header props
     const headerProps = useMemo(() => ({
         userName: profileData?.name || user?.name || 'Karyawan',
-        userImage: profileData?.image
+        userImage: getImageUrl(profileData?.image)
     }), [profileData?.name, user?.name, profileData?.image]);
 
     // Memoize performance stats props to avoid re-renders when other data changes
@@ -181,7 +207,7 @@ export default function Dashboard() {
             <SafeAreaView style={tw`flex-1 bg-gray-50`}>
                 <DashboardHeader
                     userName={profileData?.name || user?.name || 'Karyawan'}
-                    userImage={profileData?.image}
+                    userImage={getImageUrl(profileData?.image)}
                 />
                 
                 <View style={tw`flex-1 items-center justify-center p-6`}>
@@ -228,14 +254,10 @@ export default function Dashboard() {
                 </View>
 
                 <View>
-                    <FlatList
+                    <FlashList
                         data={carouselData}
-                        keyExtractor={(item) => item.type}
-                        renderItem={({ item }) => (
-                            <View style={{ width: width }}>
-                                {item.component}
-                            </View>
-                        )}
+                        keyExtractor={(item: CarouselItem) => item.type}
+                        renderItem={renderCarouselItem}
                         horizontal
                         pagingEnabled
                         showsHorizontalScrollIndicator={false}
@@ -244,6 +266,7 @@ export default function Dashboard() {
                         decelerationRate="fast"
                         onViewableItemsChanged={onViewableItemsChanged}
                         viewabilityConfig={viewabilityConfig}
+                        estimatedItemSize={width}
                     />
 
                     {carouselData.length > 1 && (
@@ -279,7 +302,7 @@ export default function Dashboard() {
                     />
                 )}
 
-                <QuickMenu features={profileData?.features || user?.features || []} isSales={user?.isSales ?? false} />
+                <QuickMenu features={profileData?.features || user?.features || []} isSales={user?.isSales ?? false} role={user?.role} />
             </ScrollView>
         </SafeAreaView>
     );

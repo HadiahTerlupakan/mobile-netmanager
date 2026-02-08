@@ -118,6 +118,24 @@ class DatabaseServiceImpl {
       await this.persistQueue();
     }
   }
+
+  public async saveOfflineData(key: string, data: any): Promise<void> {
+    try {
+      Storage.setItem(`OFFLINE_${key}`, JSON.stringify(data));
+    } catch (error) {
+      logger.error("Failed to save offline data:", error);
+    }
+  }
+
+  public async getOfflineData<T>(key: string): Promise<T | null> {
+    try {
+      const json = Storage.getItem(`OFFLINE_${key}`);
+      return json ? JSON.parse(json) : null;
+    } catch (error) {
+      logger.error("Failed to get offline data:", error);
+      return null;
+    }
+  }
 }
 
 // Export a singleton wrapper object to maintain API compatibility
@@ -131,4 +149,6 @@ export const DatabaseService = {
   getPendingQueue: () => DatabaseServiceImpl.getInstance().getPendingQueue(),
   removeFromQueue: (id: number) => DatabaseServiceImpl.getInstance().removeFromQueue(id),
   markAsRetry: (id: number) => DatabaseServiceImpl.getInstance().markAsRetry(id),
+  saveOfflineData: (key: string, data: any) => DatabaseServiceImpl.getInstance().saveOfflineData(key, data),
+  getOfflineData: <T>(key: string) => DatabaseServiceImpl.getInstance().getOfflineData<T>(key),
 };

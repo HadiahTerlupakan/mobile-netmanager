@@ -1,16 +1,17 @@
-import { OvertimeSkeleton } from '@/components/molecules/OvertimeSkeleton';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from "@/components/molecules/LoadingModal";
+import { OvertimeSkeleton } from '@/components/molecules/OvertimeSkeleton';
 import { useAuth } from "@/context/AuthContext";
 import {
-    useOfflineMutationCompat as useOfflineMutation,
-    useOfflineQueryCompat as useOfflineQuery,
+    useApiMutation,
+    useApiQuery,
 } from "@/hooks/queries";
-import api from "@/services/api"; // Use centralized API
+import { queryKeys } from "@/lib/queryClient";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
-import { OvertimeRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { formatDate } from "@/utils/date";
+import { OvertimeRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
+import { FlashList } from "@shopify/flash-list";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
@@ -27,9 +28,8 @@ import {
     Timer,
     X,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Modal, RefreshControl, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
@@ -153,19 +153,21 @@ export default function LemburScreen() {
   const [capturedTime, setCapturedTime] = useState<Date | null>(null);
 
   // Offline Query
-  const { data: overtimeData, refetch: fetchData, isLoading } = useOfflineQuery<OvertimeResponse>({
-    key: "overtime_data",
-    fetcher: async () => {
-      const res = await api.get("/api/mobile/overtime");
-      return res.data;
-    },
+  const { data: overtimeData, refetch: fetchData, isPending } = useApiQuery<OvertimeResponse>({
+    queryKey: queryKeys.overtime.list(),
+    endpoint: "/api/mobile/overtime",
     enabled: !!token,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 60 * 24,
   });
 
-  // Offline Mutation
-  const { mutate } = useOfflineMutation();
+  // API Mutation
+  const overtimeMutation = useApiMutation({
+    endpoint: "/api/mobile/overtime",
+    method: "POST",
+    invalidateKeys: [queryKeys.overtime.list()],
+    showErrorAlert: false
+  });
 
   const getLocation = useCallback(async () => {
     try {
@@ -225,13 +227,12 @@ export default function LemburScreen() {
     setShowLoading(true);
     setLoadingMessage("Mengirim pengajuan...");
 
-    await mutate(
+    overtimeMutation.mutate(
       { action: "request", ...validation.data },
       {
-        url: `/api/mobile/overtime`,
-        method: "POST",
-        onSuccess: (data: unknown, isOffline: boolean) => {
+        onSuccess: (data: any) => {
           setShowLoading(false);
+          const isOffline = data?.__offline_queued__;
           Alert.alert(isOffline ? "Offline" : "Sukses", isOffline ? "Pengajuan diantrikan" : "Pengajuan berhasil dikirim");
           setShowRequestModal(false);
           setReason("");
@@ -243,7 +244,7 @@ export default function LemburScreen() {
         },
       },
     );
-  }, [reason, mutate, fetchData]);
+  }, [reason, overtimeMutation, fetchData]);
 
   const handleCapture = useCallback(async () => {
     if (cameraRef.current) {
@@ -287,7 +288,7 @@ export default function LemburScreen() {
       setLoadingMessage("Mengirim data...");
       setUploadProgress(0);
 
-      await mutate(
+      overtimeMutation.mutate(
         {
           action: activeAction,
           overtimeId: todayRequest.id,
@@ -300,10 +301,9 @@ export default function LemburScreen() {
           },
         },
         {
-          url: `/api/mobile/overtime`,
-          method: "POST",
-          onSuccess: (_data: unknown, isOffline: boolean) => {
+          onSuccess: (data: any) => {
             setShowLoading(false);
+            const isOffline = data?.__offline_queued__;
             Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Aksi diantrikan" : activeAction === "start" ? "Lembur dimulai!" : "Lembur selesai!");
             setPhoto(null);
             setCapturedTime(null);
@@ -321,7 +321,7 @@ export default function LemburScreen() {
       const errorMessage = error instanceof Error ? error.message : String(error);
       Alert.alert("Gagal", errorMessage || "Terjadi kesalahan.");
     }
-  }, [photo, location, todayRequest, activeAction, capturedTime, captureWatermarkedPhoto, mutate, fetchData]);
+  }, [photo, location, todayRequest, activeAction, capturedTime, captureWatermarkedPhoto, overtimeMutation, fetchData]);
 
   const canStartOvertime = hasCheckedOut || (holidayInfo && holidayInfo.isNational);
 
@@ -452,7 +452,7 @@ export default function LemburScreen() {
     }
   }, [overtimeData]);
 
-  if (isLoading && !overtimeData) {
+  if (isPending && !overtimeData) {
     return <OvertimeSkeleton />;
   }
 

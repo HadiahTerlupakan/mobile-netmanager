@@ -2,7 +2,7 @@ import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { LocationPickerModal } from "@/components/organisms/marketing/LocationPickerModal";
 import LoadingModal from "@/components/molecules/LoadingModal"; // Import LoadingModal
 
-import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
+import { useApiMutation } from "@/hooks/queries";
 import { CanvasingSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { SyncService } from "@/services/SyncService"; // Import SyncService
 import { uploadService } from "@/services/UploadService"; // Import UploadService
@@ -78,7 +78,11 @@ export default function CreateCanvasingScreen() {
   const [loadingMessage, setLoadingMessage] = useState("Menyimpan data...");
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const { mutate, isLoading: isMutating } = useOfflineMutation();
+  const { mutate, isPending: isMutating } = useApiMutation({
+    endpoint: "/api/marketing/canvasing",
+    method: "POST",
+    showErrorAlert: false // We handle errors manually
+  });
 
   const openCamera = async (type: "foto" | "ktp") => {
     if (!permission?.granted) {
@@ -224,20 +228,20 @@ export default function CreateCanvasingScreen() {
               setLoadingMessage("Menyimpan data...");
               setUploadProgress(0); // Indeterminate
 
-              await mutate(
+              mutate(
                 {
                   ...validData,
                   ...photoMap, // Pass URLs directly
                 },
                 {
-                  url: "/api/marketing/canvasing",
-                  method: "POST",
                   onSuccess: () => {
+                    setIsLoading(false);
                     Alert.alert("Berhasil", "Data canvasing berhasil disimpan", [
                       { text: "OK", onPress: () => router.back() },
                     ]);
                   },
                   onError: (err) => {
+                    setIsLoading(false);
                     logger.error("Submit error:", err);
                     Alert.alert(
                       "Gagal",
@@ -247,6 +251,7 @@ export default function CreateCanvasingScreen() {
                 },
               );
           } catch (uploadError) {
+              setIsLoading(false);
               logger.error("Upload error:", uploadError);
               Alert.alert("Error", "Gagal mengupload foto");
           }
@@ -258,7 +263,7 @@ export default function CreateCanvasingScreen() {
           if (fotoKtpLocal) photoMap["fotoKtp"] = fotoKtpLocal;
 
           setLoadingMessage("Menyimpan offline...");
-          await mutate(
+          mutate(
             {
               ...validData,
               meta: {
@@ -267,14 +272,15 @@ export default function CreateCanvasingScreen() {
               },
             },
             {
-              url: "/api/marketing/canvasing",
-              method: "POST",
-              onSuccess: () => {
+              onSuccess: (data: any) => {
+                setIsLoading(false);
+                // const isOffline = data?.__offline_queued__;
                 Alert.alert("Berhasil", "Data canvasing berhasil disimpan (Offline)", [
                   { text: "OK", onPress: () => router.back() },
                 ]);
               },
               onError: (err) => {
+                setIsLoading(false);
                 logger.error("Submit error:", err);
                 Alert.alert(
                   "Gagal",
@@ -285,10 +291,9 @@ export default function CreateCanvasingScreen() {
           );
       }
     } catch (error) {
+      setIsLoading(false);
       logger.error("Submit exception:", error);
       Alert.alert("Error", "Terjadi kesalahan sistem");
-    } finally {
-      setIsLoading(false);
     }
   };
 

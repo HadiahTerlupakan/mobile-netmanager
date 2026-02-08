@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, Rea
 import { io, Socket } from 'socket.io-client';
 import { AppState, AppStateStatus } from 'react-native';
 import { useAuth } from './AuthContext';
-import { Config } from '../constants/Config';
+import { useTenant } from './TenantContext';
 import { logger } from '../utils/logger';
 import { eventManager } from '@/utils/EventManager';
 
@@ -26,6 +26,7 @@ interface SocketProviderProps {
 
 export function SocketProvider({ children }: SocketProviderProps) {
     const { token, user } = useAuth();
+    const { tenantUrl } = useTenant();
     const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [lastError, setLastError] = useState<string | null>(null);
@@ -55,23 +56,18 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
     const connect = useCallback(() => {
         // Only connect if authenticated
-        if (!token || !user?.id) {
-            logger.socket('No token or user, skipping connection');
+        if (!token || !user?.id || !tenantUrl) {
+            logger.socket('No token, user, or tenant, skipping connection');
             return null;
         }
 
-        // Don't reconnect if socket is already connected with same auth
-        if (socketRef.current?.connected) {
-             return socketRef.current;
-        }
-
         // Parse base URL - remove trailing slash and /api if present
-        let baseUrl = Config.API_URL;
+        let baseUrl = tenantUrl;
         if (baseUrl.endsWith('/')) {
             baseUrl = baseUrl.slice(0, -1);
         }
 
-        logger.socket('Connecting to:', baseUrl);
+        logger.info('Connecting to socket at:', baseUrl);
 
         const socketInstance = io(baseUrl, {
             path: '/api/socket',
@@ -81,12 +77,12 @@ export function SocketProvider({ children }: SocketProviderProps) {
             },
             // Reconnection settings - Improved based on audit
             reconnection: true,
-            reconnectionAttempts: Infinity, // Keep trying
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 30000, // Max 30 seconds
-            randomizationFactor: 0.5, // Add randomness
+            reconnectionAttempts: 5, // Reduced from Infinity to prevent endless loops
+            reconnectionDelay: 2000,
+            reconnectionDelayMax: 10000,
+            randomizationFactor: 0.5,
             // Timeout settings
-            timeout: 30000,
+            timeout: 15000, // Reduced from 30000
             // Transport settings - websocket first, then polling
             transports: ['websocket', 'polling'],
             autoConnect: true,
@@ -96,7 +92,15 @@ export function SocketProvider({ children }: SocketProviderProps) {
             },
         });
 
-        socketInstance.on('connect', () => {
+        // Store all listener references for cleanup
+        const listeners: Array<{ event: string; handler: (...args: any[]) => void }> = [];
+
+        const addListener = (event: string, handler: (...args: any[]) => void) => {
+            socketInstance.on(event, handler);
+            listeners.push({ event, handler });
+        };
+
+        addListener('connect', () => {
             logger.socket('Connected:', socketInstance.id);
             setIsConnected(true);
             setLastError(null);
@@ -108,19 +112,19 @@ export function SocketProvider({ children }: SocketProviderProps) {
             startHeartbeat(socketInstance);
         });
 
-        socketInstance.on('disconnect', (reason) => {
+        addListener('disconnect', (reason) => {
             logger.socket('Disconnected:', reason);
             setIsConnected(false);
             stopHeartbeat();
         });
 
-        socketInstance.on('connect_error', (error) => {
+        addListener('connect_error', (error) => {
             logger.error('[WS] Connection error:', error.message);
             setLastError(error.message);
             setIsConnected(false);
         });
 
-        socketInstance.on('reconnect', (attemptNumber) => {
+        addListener('reconnect', (attemptNumber) => {
             logger.socket('Reconnected after', attemptNumber, 'attempts');
             setIsConnected(true);
             setLastError(null);
@@ -130,24 +134,30 @@ export function SocketProvider({ children }: SocketProviderProps) {
             startHeartbeat(socketInstance);
         });
 
-        socketInstance.on('reconnect_error', (error) => {
+        addListener('reconnect_error', (error) => {
             logger.warn('[WS] Reconnection error:', error.message);
         });
 
-        socketInstance.on('reconnect_failed', () => {
+        addListener('reconnect_failed', () => {
             logger.error('[WS] Reconnection failed after all attempts');
             setLastError('Koneksi terputus');
         });
 
         // Custom ping/pong for application level health check
-        socketInstance.on('pong', () => {
+        addListener('pong', () => {
             // Heartbeat received, connection is alive
         });
 
-        return socketInstance;
-    }, [token, user, startHeartbeat, stopHeartbeat]);
+        // Store cleanup function on socket instance
+        (socketInstance as any).cleanup = () => {
+            listeners.forEach(({ event, handler }) => {
+                socketInstance.off(event, handler);
+            });
+            stopHeartbeat();
+        };
 
-    // Heartbeat mechanism functions moved up to be used in connect
+        return socketInstance;
+    }, [token, user, startHeartbeat, stopHeartbeat, tenantUrl]);
 
     // Initialize socket connection with cleanup
     useEffect(() => {
@@ -161,7 +171,12 @@ export function SocketProvider({ children }: SocketProviderProps) {
         reconnectTimeoutRef.current = setTimeout(() => {
             // Cleanup existing socket if any
             if (socketRef.current) {
+                // Call custom cleanup before disconnect
+                if ((socketRef.current as any).cleanup) {
+                    (socketRef.current as any).cleanup();
+                }
                 socketRef.current.disconnect();
+                // Ensure all listeners are removed
                 socketRef.current.removeAllListeners();
             }
 
@@ -178,6 +193,9 @@ export function SocketProvider({ children }: SocketProviderProps) {
             }
             if (socketRef.current) {
                 logger.socket('Cleaning up socket connection');
+                if ((socketRef.current as any).cleanup) {
+                    (socketRef.current as any).cleanup();
+                }
                 socketRef.current.disconnect();
                 socketRef.current.removeAllListeners();
                 socketRef.current = null;

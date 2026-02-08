@@ -131,7 +131,10 @@ export default function AppLayout() {
           name="marketing/canvasing/index"
           options={{
             title: "Canvasing",
-            href: hasFeature("m_canvasing") ? "/marketing/canvasing" : null,
+            href:
+              hasFeature("m_canvasing") && user?.isSales
+                ? "/marketing/canvasing"
+                : null,
             tabBarIcon: ({ color }) => (
               <DollarSign
                 size={24}
@@ -206,7 +209,6 @@ export default function AppLayout() {
           name="lembur"
           options={{
             href: null,
-            tabBarStyle: { display: "none" },
           }}
         />
         <Tabs.Screen
@@ -219,7 +221,6 @@ export default function AppLayout() {
           name="notifications"
           options={{
             href: null,
-            tabBarStyle: { display: "none" },
           }}
         />
         <Tabs.Screen
@@ -321,7 +322,6 @@ export default function AppLayout() {
           name="request-work-order"
           options={{
             href: null,
-            tabBarStyle: { display: "none" },
           }}
         />
       </Tabs>

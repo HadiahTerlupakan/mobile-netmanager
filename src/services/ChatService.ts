@@ -1,6 +1,7 @@
 import { Config } from '@/constants/Config';
 import api from '@/services/api'; // Use centralized API
 import { uploadService } from '@/services/UploadService';
+import { TenantService } from '@/services/TenantService';
 import { logger } from '@/utils/logger';
 import * as SecureStore from 'expo-secure-store';
 import { io, Socket } from 'socket.io-client';
@@ -61,7 +62,7 @@ class ChatService {
 
         const token = await this.getToken();
 
-        this.socket = io(Config.API_URL, {
+        this.socket = io(TenantService.getTenantUrl(), {
             path: '/api/socket',
             auth: {
                 userId,

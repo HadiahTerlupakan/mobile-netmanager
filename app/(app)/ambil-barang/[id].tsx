@@ -1,10 +1,9 @@
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { useAuth } from "@/context/AuthContext";
 import {
-    useOfflineMutationCompat as useOfflineMutation,
-    useOfflineQueryCompat as useOfflineQuery,
+    useApiMutation,
+    useApiQuery,
 } from "@/hooks/queries";
-import api from "@/services/api"; // Use centralized API
 import { WorkOrderMaterialBatchSchema, validateData } from "@/utils/validation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -20,7 +19,7 @@ import {
     Search,
     X,
 } from "lucide-react-native";
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Alert,
     Modal,
@@ -69,10 +68,14 @@ interface UsedMaterial {
   satuan?: string;
 }
 
+interface WorkOrder {
+    usedMaterials?: UsedMaterial[];
+}
+
 // Memoized List Item
 const BarangItem = React.memo(({ item, onAdd }: { item: Barang, onAdd: (barang: Barang, kondisi: "BARU" | "BEKAS" | "RUSAK") => void }) => {
   const hasStock = item.stokBaru > 0 || item.stokBekas > 0 || item.stokRusak > 0;
-  
+
   return (
     <View style={tw`bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-3`}>
       <View style={tw`mb-3`}>
@@ -163,34 +166,31 @@ export default function AmbilBarangScreen() {
   const [initialQuantities, setInitialQuantities] = useState<Record<string, number>>({});
   const [woDataLoaded, setWoDataLoaded] = useState(false);
 
-  const { data: gudangData } = useOfflineQuery({
-    key: `gudang_list_wo_${workOrderId}`,
-    fetcher: async () => {
-      const res = await api.get(`/api/mobile/inventory/gudang?workOrderId=${workOrderId}`);
-      return res.data;
-    },
+  const { data: gudangData } = useApiQuery<{ gudangList: Gudang[] }>({
+    queryKey: ['gudang_list', workOrderId],
+    endpoint: `/api/mobile/inventory/gudang?workOrderId=${workOrderId}`,
     enabled: !!token && !!workOrderId,
   });
 
-  const { data: woData } = useOfflineQuery({
-    key: `work_order_${workOrderId}`,
-    fetcher: async () => {
-      const res = await api.get(`/api/mobile/work-orders/${workOrderId}`);
-      return res.data?.data;
-    },
+  const { data: woData } = useApiQuery<WorkOrder>({
+    queryKey: ['work_order', workOrderId],
+    endpoint: `/api/mobile/work-orders/${workOrderId}`,
+    select: (data: any) => data?.data,
     enabled: !!token && !!workOrderId,
   });
 
-  const { data: barangData, isLoading: loadingBarangNet, refetch: refetchBarang } = useOfflineQuery({
-    key: `barang_list_${selectedGudang}`,
-    fetcher: async () => {
-      const res = await api.get(`/api/mobile/inventory/barang?gudangId=${selectedGudang}`);
-      return res.data;
-    },
+  const { data: barangData, isPending: loadingBarangNet, refetch: refetchBarang } = useApiQuery<{ barangList: Barang[] }>({
+    queryKey: ['barang_list', selectedGudang],
+    endpoint: `/api/mobile/inventory/barang?gudangId=${selectedGudang}`,
     enabled: !!token && !!selectedGudang,
   });
 
-  const { mutate } = useOfflineMutation();
+  const ambilBarangMutation = useApiMutation({
+    endpoint: `/api/mobile/work-orders/${workOrderId}/materials`,
+    method: "POST",
+    invalidateKeys: [['work_order', workOrderId]],
+    showErrorAlert: true
+  });
 
   useEffect(() => {
     if (gudangData?.gudangList) {
@@ -290,22 +290,20 @@ export default function AmbilBarangScreen() {
     }
 
     setSubmitting(true);
-    await mutate({ items: validation.data.items }, {
-      url: `/api/mobile/work-orders/${workOrderId}/materials`,
-      method: "POST",
-      onSuccess: (_, isOffline: boolean) => {
+    ambilBarangMutation.mutate({ items: validation.data.items }, {
+      onSuccess: (data) => {
         setSubmitting(false);
+        const isOffline = (data as any)?.__offline_queued__;
         Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Data diantrikan" : "Barang diperbarui", [
           { text: "OK", onPress: () => router.replace(`/(app)/work-order-detail/${workOrderId}`) },
         ]);
       },
       onError: (err) => {
         setSubmitting(false);
-        const errorMessage = err instanceof Error ? err.message : "Gagal menyimpan";
-        Alert.alert("Gagal", errorMessage);
+        // Error alert is handled by useApiMutation if showErrorAlert is true
       },
     });
-  }, [selectedItems, initialQuantities, mutate, workOrderId, router]);
+  }, [selectedItems, initialQuantities, ambilBarangMutation, workOrderId, router]);
 
   const filteredBarangs = useMemo(() => {
     return barangs.filter((b) => (b.nama.toLowerCase().includes(search.toLowerCase()) || b.kode.toLowerCase().includes(search.toLowerCase())) && (showAllItems || b.isWorkOrderMaterial));

@@ -1,38 +1,38 @@
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { AttendanceSkeleton } from "@/components/molecules/AttendanceSkeleton";
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { useAuth } from "@/context/AuthContext";
 import {
-    useOfflineMutationCompat as useOfflineMutation,
-    useOfflineQueryCompat as useOfflineQuery,
+  useApiMutation,
+  useApiQuery,
 } from "@/hooks/queries";
+import { queryKeys } from "@/lib/queryClient";
 import { LocationTrackingService } from "@/services/LocationTrackingService";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
-import api from "@/services/api"; // Use centralized API
-import { logger } from "@/utils/logger";
 import { generateSignature } from "@/utils/crypto";
 import { formatDate } from "@/utils/date";
+import { logger } from "@/utils/logger";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import {
-    AlertTriangle,
-    CalendarOff,
-    Camera,
-    Clock as ClockIcon,
-    MapPin,
-    RefreshCw,
-    RotateCcw,
-    X,
+  AlertTriangle,
+  CalendarOff,
+  Camera,
+  Clock as ClockIcon,
+  MapPin,
+  RefreshCw,
+  RotateCcw,
+  X,
 } from "lucide-react-native";
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Modal,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
@@ -256,12 +256,10 @@ export default function AbsensiScreen() {
   const [isTukarLiburLeaveDay, setIsTukarLiburLeaveDay] = useState(false);
 
   // Geofence State
-  const { data: geofenceData } = useOfflineQuery<{ zones: GeofenceZone[] }>({
-    key: "geofence_zones",
-    fetcher: async () => {
-      const res = await api.get("/api/mobile/geofence");
-      return res.data?.data;
-    },
+  const { data: geofenceData } = useApiQuery<{ zones: GeofenceZone[] }>({
+    queryKey: queryKeys.attendance.geofence(),
+    endpoint: "/api/mobile/geofence",
+    select: (data: any) => data?.data,
     enabled: !!token,
   });
 
@@ -341,9 +339,21 @@ export default function AbsensiScreen() {
     }
   }, [geofenceZones, checkGeofence]);
 
-  const { mutate, isLoading: isMutating } = useOfflineMutation();
+  const checkInMutation = useApiMutation({
+    endpoint: "/api/mobile/attendance/check-in",
+    method: "POST",
+    invalidateKeys: [queryKeys.attendance.status()],
+    showErrorAlert: false
+  });
 
-  const { data: statusData, refetch: refetchStatus } = useOfflineQuery<{
+  const checkOutMutation = useApiMutation({
+    endpoint: "/api/mobile/attendance/check-out",
+    method: "POST",
+    invalidateKeys: [queryKeys.attendance.status()],
+    showErrorAlert: false
+  });
+
+  const { data: statusData, refetch: refetchStatus } = useApiQuery<{
     success: boolean;
     today?: {
       isHoliday?: boolean;
@@ -357,11 +367,8 @@ export default function AbsensiScreen() {
       checkOut?: string;
     }[];
   }>({
-    key: "attendance_status_latest",
-    fetcher: async () => {
-      const res = await api.get("/api/mobile/attendance/history?limit=1");
-      return res.data;
-    },
+    queryKey: queryKeys.attendance.status(),
+    endpoint: "/api/mobile/attendance/history?limit=1",
     enabled: !!token,
   });
 
@@ -438,7 +445,7 @@ export default function AbsensiScreen() {
       return;
     }
 
-    const endpoint = status === "idle" ? "/api/mobile/attendance/check-in" : "/api/mobile/attendance/check-out";
+    const mutation = status === "idle" ? checkInMutation : checkOutMutation;
     if (!isProcessing) setIsProcessing(true);
 
     setLoadingMessage("Memproses foto...");
@@ -474,9 +481,7 @@ export default function AbsensiScreen() {
 
         setLoadingMessage("Mengirim data...");
         setUploadProgress(0); // Indeterminate
-        await mutate({ ...payload, photoUrl }, {
-          url: endpoint,
-          method: "POST",
+        await mutation.mutate({ ...payload, photoUrl }, {
           onSuccess: async (data) => {
             if (status === "idle") await LocationTrackingService.startTracking();
             else await LocationTrackingService.stopTracking();
@@ -502,7 +507,7 @@ export default function AbsensiScreen() {
       }
     } else {
       setLoadingMessage("Menyimpan offline...");
-      await mutate({
+      await mutation.mutate({
         ...payload,
         photoUrl: null,
         meta: { photos: [processedUri], targetField: "photoUrl", singleFile: true, photoType: "employee-attendance" },
@@ -511,18 +516,33 @@ export default function AbsensiScreen() {
           signature: generateSignature({ userId: user?.id, timestamp: payload.capturedAt, latitude: payload.latitude, longitude: payload.longitude }),
         },
       }, {
-        url: endpoint,
-        method: "POST",
-        onSuccess: (_, isOffline) => {
+        onSuccess: (data, variables) => {
           setIsProcessing(false);
-          if (isOffline) {
+          // Check if it was actually offline queued - useApiMutation might return result if online suddenly, but usually we check __offline_queued__ if available or just assume based on context
+          // However, useApiMutation handles this internally.
+          // The previous code checked `isOffline` arg in onSuccess.
+          // useMutation's onSuccess(data, variables, context) doesn't have isOffline.
+          // We can check if data has __offline_queued__ property if our backend/mutation wrapper sets it.
+          // Or just display "Offline" alert as fallback.
+
+          const isOfflineQueued = (data as any)?.__offline_queued__;
+          if (isOfflineQueued) {
             setPhoto(null);
             Alert.alert("Offline", "Data disimpan offline.");
+          } else {
+             // If it surprisingly succeeded online
+             setPhoto(null);
+             Alert.alert("Berhasil", "Data berhasil dikirim.");
+             refetchStatus();
           }
         },
+        onError: (e) => {
+            setIsProcessing(false);
+            Alert.alert("Gagal", e.message || "Gagal menyimpan data offline.");
+        }
       });
     }
-  }, [photo, location, status, isProcessing, captureWatermarkedPhoto, locationName, capturedTime, mutate, user?.id, refetchStatus]);
+  }, [photo, location, status, isProcessing, captureWatermarkedPhoto, locationName, capturedTime, checkInMutation, checkOutMutation, user?.id, refetchStatus]);
 
   const handleSubmit = useCallback(async () => {
     if (!photo || !location) {
@@ -618,8 +638,8 @@ export default function AbsensiScreen() {
                   <TouchableOpacity onPress={() => setPhoto(null)} style={tw`flex-1 bg-gray-100 py-3 rounded-xl items-center`}>
                     <Text style={tw`font-bold text-gray-600`}>Ulang Foto</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={handleSubmit} disabled={loading || isMutating} style={tw`flex-1 bg-blue-600 py-3 rounded-xl items-center`}>
-                    <Text style={tw`font-bold text-white`}>{loading || isMutating ? "Menyimpan..." : "Kirim Absensi"}</Text>
+                  <TouchableOpacity onPress={handleSubmit} disabled={loading || checkInMutation.isPending || checkOutMutation.isPending} style={tw`flex-1 bg-blue-600 py-3 rounded-xl items-center`}>
+                    <Text style={tw`font-bold text-white`}>{loading || checkInMutation.isPending || checkOutMutation.isPending ? "Menyimpan..." : "Kirim Absensi"}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

@@ -1,16 +1,17 @@
 import { InventorySkeleton } from '@/components/molecules/InventorySkeleton';
 import TransactionItem, { Transaction } from '@/components/molecules/TransactionItem';
+import { queryKeys } from '@/lib/queryClient';
 
 import { useAuth } from '@/context/AuthContext';
+import api from '@/services/api';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
-import api from '@/services/api';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { useInfiniteQuery } from '@tanstack/react-query';
 
 type FilterType = 'all' | 'masuk' | 'keluar';
 
@@ -24,11 +25,11 @@ export default function RiwayatBarangScreen() {
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
-        isLoading,
+        isPending,
         isRefetching,
         refetch,
     } = useInfiniteQuery({
-        queryKey: ['inventory_riwayat', filter],
+        queryKey: queryKeys.inventory.history(filter),
         queryFn: async ({ pageParam = null }) => {
             const params = new URLSearchParams();
             params.append('type', filter);
@@ -127,7 +128,7 @@ export default function RiwayatBarangScreen() {
                 </View>
             </View>
 
-            {isLoading && !transactions.length ? (
+            {isPending && !transactions.length ? (
                 <InventorySkeleton />
             ) : (
                 <View style={tw`flex-1 px-4`}>

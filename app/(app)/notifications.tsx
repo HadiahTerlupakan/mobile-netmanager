@@ -1,7 +1,8 @@
 import { NotificationSkeleton } from "@/components/molecules/NotificationSkeleton";
-import api from "@/services/api"; // Use centralized API
 import { useAuth } from "@/context/AuthContext";
-import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
+import { useApiMutation } from "@/hooks/queries";
+import { queryKeys } from "@/lib/queryClient";
+import api from "@/services/api"; // Use centralized API
 import { formatTimeAgo } from "@/utils/date";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
@@ -24,7 +25,7 @@ import {
 import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 
 interface Notification {
   id: string;
@@ -100,11 +101,11 @@ export default function NotificationsScreen() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    isLoading,
+    isPending,
     refetch,
     isRefetching,
   } = useInfiniteQuery({
-    queryKey: ["notifications_list"],
+    queryKey: queryKeys.notifications.list(),
     queryFn: async ({ pageParam = null }) => {
       const params = new URLSearchParams();
       params.append("limit", "15");
@@ -120,8 +121,21 @@ export default function NotificationsScreen() {
     staleTime: 1000 * 60 * 5,
   });
 
-  // Offline Mutation for Actions
-  const { mutate } = useOfflineMutation();
+  // API Mutation for Mark Read (Single & All)
+  const notificationMutation = useApiMutation({
+    endpoint: "/api/mobile/notifications",
+    method: "POST",
+    invalidateKeys: [queryKeys.notifications.list()],
+    showErrorAlert: false
+  });
+
+  // Standard Mutation for Announcement Read (Dynamic URL)
+  // We use standard useMutation here because useApiMutation doesn't support dynamic endpoints easily yet
+  const announcementReadMutation = useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+        return api.post(`/api/mobile/announcements/${id}/read`, { portal: "employee" });
+    }
+  });
 
   const notifications = useMemo(() => {
     return data?.pages.flatMap((page: any) => page.notifications || []) || [];
@@ -142,27 +156,13 @@ export default function NotificationsScreen() {
     }
   };
 
-  const markAsRead = useCallback(async (notificationId: string) => {
-    await mutate(
-      { action: "markRead", notificationId },
-      {
-        url: `/api/mobile/notifications`,
-        method: "POST",
-        onSuccess: () => refetch(),
-      },
-    );
-  }, [mutate, refetch]);
+  const markAsRead = useCallback((notificationId: string) => {
+    notificationMutation.mutate({ action: "markRead", notificationId });
+  }, [notificationMutation]);
 
-  const markAllAsRead = useCallback(async () => {
-    await mutate(
-      { action: "markAllRead" },
-      {
-        url: `/api/mobile/notifications`,
-        method: "POST",
-        onSuccess: () => refetch(),
-      },
-    );
-  }, [mutate, refetch]);
+  const markAllAsRead = useCallback(() => {
+    notificationMutation.mutate({ action: "markAllRead" });
+  }, [notificationMutation]);
 
   const handleNotificationPress = useCallback((notification: Notification) => {
     if (!notification.isRead) {
@@ -170,10 +170,7 @@ export default function NotificationsScreen() {
     }
 
     if (notification.sourceType === "ANNOUNCEMENT" && notification.sourceId) {
-      mutate(
-        { portal: "employee" },
-        { url: `/api/mobile/announcements/${notification.sourceId}/read`, method: "POST" },
-      );
+      announcementReadMutation.mutate({ id: notification.sourceId });
     }
 
     switch (notification.sourceType) {
@@ -185,9 +182,9 @@ export default function NotificationsScreen() {
       case "INVENTORY": router.push("/(app)/barang"); break;
       default: router.push("/(app)/dashboard"); break;
     }
-  }, [markAsRead, mutate, router]);
+  }, [markAsRead, announcementReadMutation, router]);
 
-  if (isLoading && notifications.length === 0) {
+  if (isPending && notifications.length === 0) {
     return (
       <SafeAreaView style={tw`flex-1 bg-gray-50`}>
         <View style={tw`bg-blue-600 px-4 py-4 flex-row items-center`}>

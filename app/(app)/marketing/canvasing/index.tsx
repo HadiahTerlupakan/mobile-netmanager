@@ -1,6 +1,7 @@
 import { CanvasingSkeleton } from "@/components/molecules/CanvasingSkeleton";
 import { useAuth } from "@/context/AuthContext";
-import { useOfflineQueryCompat as useOfflineQuery } from "@/hooks/queries";
+import { useApiQuery } from "@/hooks/queries";
+import { queryKeys } from "@/lib/queryClient";
 import api from "@/services/api"; // Use centralized API
 import { Ionicons } from "@expo/vector-icons";
 import { FlashList } from "@shopify/flash-list";
@@ -182,7 +183,7 @@ export default function CanvasingListScreen() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    isLoading,
+    isPending,
     refetch,
     isRefetching,
   } = useInfiniteQuery({
@@ -207,21 +208,16 @@ export default function CanvasingListScreen() {
     return data?.pages.flatMap((page: any) => page.data || []) || [];
   }, [data]);
 
-  const { data: profile, isLoading: profileLoading } = useOfflineQuery<UserProfile>({
-    key: "user_profile",
-    fetcher: async () => {
-      const res = await api.get("/api/mobile/profile");
-      return res.data.data;
-    },
+  const { data: profile, isPending: profilePending } = useApiQuery<UserProfile>({
+    queryKey: queryKeys.profile.detail(),
+    endpoint: "/api/mobile/profile",
+    select: (data: any) => data?.data || data,
     enabled: !!token,
   });
 
-  const { data: pointSummary } = useOfflineQuery<PointSummary>({
-    key: "marketing_point_summary",
-    fetcher: async () => {
-      const res = await api.get("/api/marketing/point-claims/summary");
-      return res.data;
-    },
+  const { data: pointSummary } = useApiQuery<PointSummary>({
+    queryKey: ["marketing_point_summary"],
+    endpoint: "/api/marketing/point-claims/summary",
     enabled: !!token,
   });
 
@@ -295,7 +291,7 @@ export default function CanvasingListScreen() {
   const targetMonthly = profile?.canvasingTarget || 50;
   const progressPerc = Math.min((stats.total / targetMonthly) * 100, 100);
 
-  if (profileLoading || (isLoading && !requests)) {
+  if (profilePending || (isPending && !requests)) {
     return <CanvasingSkeleton />;
   }
 

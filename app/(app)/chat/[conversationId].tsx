@@ -34,7 +34,7 @@ export default function ConversationScreen() {
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
-        isLoading: loading,
+        isPending: loading,
     } = useInfiniteQuery({
         queryKey: queryKeys.chat.messages(conversationId),
         queryFn: async ({ pageParam = null }) => {

@@ -5,33 +5,20 @@
  */
 
 import { queryKeys } from "../../lib/queryClient";
-import api from "@/services/api";
-import { useApiMutation, useApiQuery, useQueryClient } from "./index";
+import { useApiMutation, useOfflineQuery } from "./index";
+import { WorkOrder } from "@/types/work-order";
 
 // Types
-export interface WorkOrder {
-  id: string;
-  ticketNumber: string;
-  customerName: string;
-  address: string;
-  description: string;
-  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
-  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-  scheduledDate: string;
-  assignedTo?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 interface WorkOrdersResponse {
   data: WorkOrder[];
-  total: number;
+  nextCursor?: string;
+  total?: number;
 }
 
 interface CreateWorkOrderPayload {
   [key: string]: unknown;
-  customerName: string;
-  address: string;
+  customerName?: string;
+  address?: string;
   description: string;
   priority?: WorkOrder["priority"];
   scheduledDate?: string;
@@ -46,17 +33,29 @@ interface UpdateWorkOrderPayload {
 }
 
 /**
- * Fetch all work orders
+ * Fetch all work orders with optional type filtering
  */
-export function useWorkOrders(options?: { enabled?: boolean }) {
-  return useApiQuery<WorkOrdersResponse>({
-    queryKey: queryKeys.workOrders.list(),
-    queryFn: async () => {
-      const res = await api.get("/api/mobile/work-orders");
-      return res.data;
-    },
+export function useWorkOrders(params: { type?: "active" | "history"; limit?: number } = {}, options?: { enabled?: boolean }) {
+  const { type, limit = 10 } = params;
+  const endpoint = type
+    ? `/api/mobile/work-orders?type=${type}&limit=${limit}`
+    : `/api/mobile/work-orders?limit=${limit}`;
+
+  return useOfflineQuery<WorkOrdersResponse>({
+    queryKey: [...queryKeys.workOrders.list(), type, limit],
+    endpoint,
     enabled: options?.enabled,
-    staleTime: 1000 * 60 * 2, // 2 minutes for work orders
+  });
+}
+
+/**
+ * Fetch available work orders (to be claimed)
+ */
+export function useAvailableWorkOrders(options?: { enabled?: boolean }) {
+  return useOfflineQuery<WorkOrdersResponse>({
+    queryKey: [...queryKeys.workOrders.list(), "available"],
+    endpoint: "/api/mobile/work-orders/available",
+    enabled: options?.enabled,
   });
 }
 
@@ -64,76 +63,62 @@ export function useWorkOrders(options?: { enabled?: boolean }) {
  * Fetch single work order by ID
  */
 export function useWorkOrder(id: string) {
-  return useApiQuery<{ data: WorkOrder }>({
+  return useOfflineQuery<{ data: WorkOrder }>({
     queryKey: queryKeys.workOrders.detail(id),
-    queryFn: async () => {
-      const res = await api.get(`/api/mobile/work-orders/${id}`);
-      return res.data;
-    },
+    endpoint: `/api/mobile/work-orders/${id}`,
     enabled: !!id,
   });
 }
 
 /**
- * Create new work order
+ * Claim an available work order
  */
-export function useCreateWorkOrder() {
-  return useApiMutation<{ data: WorkOrder }, CreateWorkOrderPayload>({
-    endpoint: "/api/mobile/work-orders",
+export function useClaimWorkOrder(options?: any) {
+  return useApiMutation<any, { workOrderId: string }>({
+    endpoint: "/api/mobile/work-orders/available",
     method: "POST",
-    includeLocation: true,
-    invalidateKeys: [[...queryKeys.workOrders.list()]],
-    successMessage: "Work Order berhasil dibuat",
+    invalidateKeys: [queryKeys.workOrders.list()],
+    successMessage: "Tugas berhasil diambil!",
+    ...options,
   });
 }
 
 /**
- * Update work order status (with optimistic update)
+ * Create new work order request
+ */
+export function useCreateWorkOrderRequest(options?: any) {
+  return useApiMutation<{ data: WorkOrder }, any>({
+    endpoint: "/api/mobile/work-orders/request",
+    method: "POST",
+    includeLocation: true,
+    invalidateKeys: [queryKeys.workOrders.list()],
+    ...options,
+  });
+}
+
+/**
+ * Create new work order (Direct)
+ */
+export function useCreateWorkOrder(options?: any) {
+  return useApiMutation<{ data: WorkOrder }, CreateWorkOrderPayload>({
+    endpoint: "/api/mobile/work-orders",
+    method: "POST",
+    includeLocation: true,
+    invalidateKeys: [queryKeys.workOrders.list()],
+    successMessage: "Work Order berhasil dibuat",
+    ...options,
+  });
+}
+
+/**
+ * Update work order status
  */
 export function useUpdateWorkOrder() {
-  const queryClient = useQueryClient();
-
   return useApiMutation<{ data: WorkOrder }, UpdateWorkOrderPayload>({
     endpoint: "/api/mobile/work-orders",
     method: "PATCH",
     includeLocation: true,
-    invalidateKeys: [[...queryKeys.workOrders.list()]],
-    onMutate: async (newData) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({
-        queryKey: queryKeys.workOrders.detail(newData.id),
-      });
-
-      // Snapshot previous value
-      const previousWorkOrder = queryClient.getQueryData(
-        queryKeys.workOrders.detail(newData.id),
-      );
-
-      // Optimistically update
-      if (previousWorkOrder) {
-        queryClient.setQueryData<{ data: WorkOrder }>(
-          queryKeys.workOrders.detail(newData.id),
-          (old) => {
-            if (!old) return undefined;
-            return {
-              ...old,
-              data: { ...old.data, ...(newData as Partial<WorkOrder>) },
-            };
-          },
-        );
-      }
-
-      return { previousWorkOrder };
-    },
-    onError: (err, variables, context: any) => {
-      // Rollback on error
-      if (context?.previousWorkOrder) {
-        queryClient.setQueryData(
-          queryKeys.workOrders.detail(variables.id),
-          context.previousWorkOrder,
-        );
-      }
-    },
+    invalidateKeys: [queryKeys.workOrders.list()],
   });
 }
 
@@ -148,7 +133,7 @@ export function useCompleteWorkOrder() {
     endpoint: "/api/mobile/work-orders/complete",
     method: "POST",
     includeLocation: true,
-    invalidateKeys: [[...queryKeys.workOrders.list()]],
+    invalidateKeys: [queryKeys.workOrders.list()],
     successMessage: "Work Order berhasil diselesaikan",
   });
 }

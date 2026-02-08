@@ -41,12 +41,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { DeviceCreateModal } from "@/components/organisms/topology/DeviceCreateModal";
 import {
   DeviceData,
   DeviceDetailModal,
   DeviceType,
 } from "@/components/organisms/topology/DeviceDetailModal";
-import { DeviceCreateModal } from "@/components/organisms/topology/DeviceCreateModal";
 import { FilterPanel } from "@/components/organisms/topology/FilterPanel";
 import { TopologyErrorBoundary } from "@/components/organisms/topology/TopologyErrorBoundary";
 
@@ -1275,6 +1275,8 @@ export default function TopologyMapScreen() {
             <MapLibreGL.Camera
               ref={cameraRef}
               followUserLocation={false}
+              minZoomLevel={5} // Limit zoom out to avoid seeing world map
+              maxZoomLevel={20} // Limit zoom in
               defaultSettings={{
                 centerCoordinate: [106.816666, -6.2], // Jakarta, Indonesia
                 zoomLevel: 10, // Reasonable zoom to see the area

@@ -4,15 +4,15 @@ import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
 import { useAuth } from "@/context/AuthContext";
 import {
-    useOfflineMutationCompat as useOfflineMutation,
-    useOfflineQueryCompat as useOfflineQuery,
+    useApiMutation,
+    useApiQuery,
 } from "@/hooks/queries";
+import { queryKeys } from '@/lib/queryClient';
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import { InventoryMasukSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import api from "@/services/api";
 import { logger } from "@/utils/logger";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -84,7 +84,11 @@ export default function BarangMasukScreen() {
   // Refs for watermark capture
   const watermarkRefs = useRef<(View | null)[]>([]);
 
-  const { mutate, isLoading: isMutating } = useOfflineMutation();
+  const masukMutation = useApiMutation({
+    endpoint: "/api/mobile/inventory/masuk",
+    method: "POST",
+    invalidateKeys: [queryKeys.inventory.master('masuk'), queryKeys.inventory.warehouses()],
+  });
 
   // Memoize modal items to prevent recreation on every render
   const gudangModalItems = useMemo(() => gudangs.map((g) => ({
@@ -101,13 +105,11 @@ export default function BarangMasukScreen() {
     value: b.id,
   })), [barangs]);
 
-  // Offline Query: Gudangs
-  const { data: gudangList, isLoading: isLoadingGudangs } = useOfflineQuery<Gudang[]>({
-    key: "gudang_list_all",
-    fetcher: async () => {
-      const res = await api.get("/api/mobile/inventory/gudang");
-      return res.data?.gudangList || [];
-    },
+  // Api Query: Gudangs
+  const { data: gudangList, isPending: isLoadingGudangs } = useApiQuery<Gudang[]>({
+    queryKey: queryKeys.inventory.warehouses(),
+    endpoint: "/api/mobile/inventory/gudang",
+    select: (data: any) => data?.gudangList || [],
     enabled: !!token,
   });
 
@@ -115,13 +117,11 @@ export default function BarangMasukScreen() {
     if (gudangList) setGudangs(gudangList);
   }, [gudangList]);
 
-  // Offline Query: Barangs (All items for selection)
-  const { data: barangData, isLoading: isLoadingBarangs } = useOfflineQuery<Barang[]>({
-    key: "barang_list_masuk",
-    fetcher: async () => {
-      const res = await api.get("/api/mobile/inventory/barang?mode=masuk"); // Assuming this endpoint returns reference list of all items
-      return res.data?.barangList || [];
-    },
+  // Api Query: Barangs (All items for selection)
+  const { data: barangData, isPending: isLoadingBarangs } = useApiQuery<Barang[]>({
+    queryKey: queryKeys.inventory.master('masuk'),
+    endpoint: "/api/mobile/inventory/barang?mode=masuk",
+    select: (data: any) => data?.barangList || [],
     enabled: !!token,
   });
 
@@ -309,14 +309,12 @@ export default function BarangMasukScreen() {
 
           // Submit via Mutate (Online)
           setLoadingMessage("Menyimpan data...");
-          await mutate(
+          masukMutation.mutate(
             {
               ...payload,
               fotoBukti: uploadedUrls,
             },
             {
-              url: "/api/mobile/inventory/masuk",
-              method: "POST",
               onSuccess: () => {
                 setShowLoading(false);
                 resetForm();
@@ -342,7 +340,7 @@ export default function BarangMasukScreen() {
       } else {
         // Offline - Submit to Queue with Local URIs
         setLoadingMessage("Menyimpan ke antrian offline...");
-        await mutate(
+        masukMutation.mutate(
           {
             ...payload,
             fotoBukti: [], // Placeholder
@@ -352,10 +350,10 @@ export default function BarangMasukScreen() {
             },
           },
           {
-            url: "/api/mobile/inventory/masuk",
-            method: "POST",
-            onSuccess: (data, isOffline) => {
+            onSuccess: (data) => {
               setShowLoading(false);
+              // Check if queued
+              const isOffline = (data as any)?.__offline_queued__;
               if (isOffline) {
                 resetForm();
                 router.back();
@@ -630,11 +628,11 @@ export default function BarangMasukScreen() {
 
           {/* Submit Button */}
           <TouchableOpacity
-            style={tw`bg-blue-600 rounded-xl py-4 items-center ${submitting || isMutating ? "opacity-50" : ""}`}
+            style={tw`bg-blue-600 rounded-xl py-4 items-center ${submitting || masukMutation.isPending ? "opacity-50" : ""}`}
             onPress={handleSubmit}
-            disabled={submitting || isMutating}
+            disabled={submitting || masukMutation.isPending}
           >
-            {submitting || isMutating ? (
+            {submitting || masukMutation.isPending ? (
               <ActivityIndicator color="white" />
             ) : (
               <Text style={tw`text-white font-bold text-base`}>Simpan</Text>

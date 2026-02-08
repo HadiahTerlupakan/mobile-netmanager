@@ -1,38 +1,38 @@
-import SelectionModal from "@/components/molecules/SelectionModal";
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { useOfflineMutationCompat as useOfflineMutation } from "@/hooks/queries";
+import SelectionModal from "@/components/molecules/SelectionModal";
+import { useApiQuery, useCreateWorkOrderRequest } from "@/hooks/queries";
 import api from "@/services/api";
+import { logger } from "@/utils/logger";
 import { RequestWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { useRouter } from "expo-router";
 import debounce from "lodash/debounce";
 import {
-    AlertTriangle,
-    ArrowLeft,
-    Building2,
-    Cable,
-    ChevronDown,
-    LucideIcon,
-    Search,
-    Truck,
-    User,
-    Wifi,
-    Wrench,
-    X,
-    Zap,
+  AlertTriangle,
+  ArrowLeft,
+  Building2,
+  Cable,
+  ChevronDown,
+  LucideIcon,
+  Search,
+  Truck,
+  User,
+  Wifi,
+  Wrench,
+  X,
+  Zap,
 } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { logger } from "@/utils/logger";
 
 interface QuickAction {
   title: string;
@@ -123,11 +123,31 @@ export default function RequestWorkOrderScreen() {
   const [notes, setNotes] = useState("");
 
   // Internal Mode State - Department
-  const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDepartment, setSelectedDepartment] =
     useState<Department | null>(null);
   const [showDepartmentPicker, setShowDepartmentPicker] = useState(false);
-  const [loadingDepartments, setLoadingDepartments] = useState(false);
+
+  // Use useApiQuery for departments
+  const {
+    data: departmentsData,
+    isPending: loadingDepartments,
+    isError: isDepartmentsError,
+    error: departmentsError,
+  } = useApiQuery<Department[]>({
+    queryKey: ["departments"],
+    endpoint: "/api/mobile/departments",
+    enabled: woMode === "INTERNAL",
+    select: (data: any) => data?.data || [],
+  });
+
+  useEffect(() => {
+    if (isDepartmentsError && departmentsError) {
+      logger.error("Failed to fetch departments:", departmentsError);
+      Alert.alert("Error", "Gagal memuat data department");
+    }
+  }, [isDepartmentsError, departmentsError]);
+
+  const departments = departmentsData || [];
 
   // Customer Search State
   const [searchQuery, setSearchQuery] = useState("");
@@ -142,26 +162,7 @@ export default function RequestWorkOrderScreen() {
   const [loadingMessage, setLoadingMessage] = useState("");
 
   // Offline Mutation
-  const { mutate } = useOfflineMutation();
-
-  // Fetch departments when switching to Internal mode
-  useEffect(() => {
-    if (woMode === "INTERNAL" && departments.length === 0) {
-      fetchDepartments();
-    }
-  }, [woMode, departments.length]);
-
-  const fetchDepartments = async () => {
-    setLoadingDepartments(true);
-    try {
-      const res = await api.get("/api/mobile/departments");
-      setDepartments(res.data?.data || []);
-    } catch (error) {
-      logger.error("Failed to fetch departments:", error);
-    } finally {
-      setLoadingDepartments(false);
-    }
-  };
+  const { mutate } = useCreateWorkOrderRequest();
 
   // Reset form when switching mode
   const handleModeChange = (mode: "CUSTOMER" | "INTERNAL") => {
@@ -322,10 +323,10 @@ export default function RequestWorkOrderScreen() {
             };
 
       await mutate(payload, {
-        url: "/api/mobile/work-orders/request",
-        method: "POST",
-        onSuccess: (data, isOffline) => {
+        onSuccess: (data) => {
           setShowLoading(false);
+          const isOffline = (data as any)?.__offline_queued__;
+
           // Reset form
           setType("TROUBLESHOOT");
           setPriority("HIGH");
@@ -546,7 +547,7 @@ export default function RequestWorkOrderScreen() {
                       style={tw`bg-white border border-gray-200 rounded-xl mt-1 max-h-64 overflow-hidden shadow-lg`}
                     >
                       <ScrollView nestedScrollEnabled>
-                        {customers.map((customer) => (
+                        {customers.slice(0, 50).map((customer) => (
                           <TouchableOpacity
                             key={customer.id}
                             onPress={() => selectCustomer(customer)}
@@ -765,15 +766,15 @@ export default function RequestWorkOrderScreen() {
           </>
         )}
 
-        {/* Submit Button */}
-        <TouchableOpacity
-          onPress={handleSubmit}
-          disabled={showLoading || !isFormValid}
-          style={[
-            tw`py-4 rounded-xl items-center shadow-sm`,
-            !isFormValid || showLoading
-              ? tw`bg-gray-300`
-              : woMode === "INTERNAL"
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleSubmit}
+              disabled={showLoading || !isFormValid}
+              style={[
+                tw`py-4 rounded-xl items-center shadow-sm`,
+                !isFormValid || showLoading
+                  ? tw`bg-gray-300`
+                  : woMode === "INTERNAL"
                 ? tw`bg-orange-500`
                 : tw`bg-sky-600`,
           ]}

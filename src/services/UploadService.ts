@@ -1,6 +1,8 @@
 import { Config } from '@/constants/Config';
-import { logger } from '@/utils/logger';
 import { getUserFriendlyError } from '@/utils/errorHandling';
+import { logger } from '@/utils/logger';
+import { TokenService } from '@/services/TokenService';
+import { TenantService } from '@/services/TenantService';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 
@@ -39,7 +41,11 @@ class UploadService {
     } = {}
   ): Promise<string> {
     const { maxRetries = 2, params = {}, onProgress } = options;
-    const token = await SecureStore.getItemAsync('session_token');
+    // Optimization: Use in-memory token first
+    let token = TokenService.getToken();
+    if (!token) {
+        token = await SecureStore.getItemAsync('session_token');
+    }
 
     if (!token) {
       throw new Error('Authentication required for upload');
@@ -47,7 +53,7 @@ class UploadService {
 
     const filename = uri.split('/').pop() || 'photo.jpg';
     const fileType = filename.endsWith('.png') ? 'image/png' : 'image/jpeg';
-    const uploadUrl = `${Config.API_URL}/api/mobile/upload`;
+    const uploadUrl = `${TenantService.getTenantUrl()}/api/mobile/upload`;
 
     let attempt = 0;
     let lastError: any;
@@ -166,6 +172,7 @@ class UploadService {
       params?: Record<string, string>;
       headers?: Record<string, string>;
       maxRetries?: number;
+      mimeType?: string;
       onProgress?: (progress: UploadProgress) => void;
     } = {}
   ): Promise<any> {
@@ -174,10 +181,15 @@ class UploadService {
       params = {},
       headers = {},
       maxRetries = 2,
+      mimeType,
       onProgress
     } = options;
 
-    const token = await SecureStore.getItemAsync('session_token');
+    // Optimization: Use in-memory token first
+    let token = TokenService.getToken();
+    if (!token) {
+        token = await SecureStore.getItemAsync('session_token');
+    }
 
     if (!token) {
       throw new Error('Authentication required for upload');
@@ -185,12 +197,13 @@ class UploadService {
 
     const filename = uri.split('/').pop() || 'file.bin';
     const match = /\.(\w+)$/.exec(filename);
-    const fileType = match ? `image/${match[1] === 'jpg' ? 'jpeg' : match[1]}` : 'application/octet-stream';
+    const calculatedFileType = match ? `image/${match[1] === 'jpg' ? 'jpeg' : match[1]}` : 'application/octet-stream';
+    const fileType = mimeType || calculatedFileType;
 
     // Ensure endpoint has leading slash if not absolute url (assuming relative to API_URL)
     const uploadUrl = endpoint.startsWith('http')
       ? endpoint
-      : `${Config.API_URL}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+      : `${TenantService.getTenantUrl()}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
 
     let attempt = 0;
     let lastError: any;

@@ -1,22 +1,25 @@
-import { FormSkeleton } from '@/components/molecules/FormSkeleton';
-import { useProfileSync } from '@/hooks/useProfileSync';
-import { ProfileSchema, ChangePasswordSchema, validateData, sanitizeInput } from '@/utils/validation';
-import { useApiMutation, useQueryClient } from '@/hooks/queries';
-import { uploadService } from '@/services/UploadService';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
+import { FormSkeleton } from '@/components/molecules/FormSkeleton';
 import LoadingModal from '@/components/molecules/LoadingModal';
+import { Config } from '@/constants/Config';
+import { TenantService } from '@/services/TenantService';
+import { useApiMutation, useQueryClient } from '@/hooks/queries';
+import { useProfileSync } from '@/hooks/useProfileSync';
+import { queryKeys } from '@/lib/queryClient';
+import api from '@/services/api';
+import { uploadService } from '@/services/UploadService';
+import { ChangePasswordSchema, ProfileSchema, sanitizeInput, validateData } from '@/utils/validation';
+import { AxiosError } from 'axios';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { AxiosError } from 'axios';
 import { ArrowLeft, Camera, ChevronDown, ChevronUp, Eye, EyeOff, Lock, Phone, Save, User } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import api from '@/services/api';
 
 export default function EditProfile() {
-    const { profileData, isLoading } = useProfileSync();
+    const { profileData, isPending } = useProfileSync();
     const queryClient = useQueryClient();
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
@@ -44,7 +47,7 @@ export default function EditProfile() {
     const saveMutation = useApiMutation({
         endpoint: '/api/mobile/profile',
         method: 'PATCH',
-        invalidateKeys: [['user_profile']],
+        invalidateKeys: [queryKeys.profile.detail()],
         successMessage: 'Profil berhasil diperbarui',
         onSuccess: () => {
             router.back();
@@ -120,16 +123,17 @@ export default function EditProfile() {
         });
 
         if (!result.canceled && result.assets[0]) {
-            uploadPhoto(result.assets[0].uri);
+            uploadPhoto(result.assets[0].uri, result.assets[0].mimeType);
         }
     };
 
-    const uploadPhoto = async (uri: string) => {
+    const uploadPhoto = async (uri: string, mimeType?: string) => {
         setUploadingPhoto(true);
         setUploadProgress(0);
         try {
             const res = await uploadService.uploadCustom(uri, '/api/mobile/profile/photo', {
                 fieldName: 'photo',
+                mimeType: mimeType || 'image/jpeg', // Fallback to image/jpeg if mimeType is missing
                 onProgress: (progress) => {
                     setUploadProgress(progress.percentage);
                 }
@@ -138,7 +142,7 @@ export default function EditProfile() {
             if (res.success) {
                 Alert.alert('Sukses', 'Foto berhasil diperbarui');
                 // Invalidate profile cache to update photo everywhere
-                queryClient.invalidateQueries({ queryKey: ['user_profile'] });
+                queryClient.invalidateQueries({ queryKey: queryKeys.profile.detail() });
             }
         } catch (error) {
             let message = 'Gagal upload foto';
@@ -156,7 +160,18 @@ export default function EditProfile() {
         return name.charAt(0).toUpperCase();
     };
 
-    if (isLoading && !profileData) {
+    const getImageUrl = (path: string | null | undefined) => {
+        if (!path) return null;
+        if (path.startsWith('http')) return path;
+
+        // Ensure proper slash handling
+        const baseUrl = TenantService.getTenantUrl().replace(/\/$/, '');
+        const imagePath = path.startsWith('/') ? path : `/${path}`;
+
+        return `${baseUrl}${imagePath}`;
+    };
+
+    if (isPending && !profileData) {
         return <FormSkeleton />;
     }
 
@@ -178,7 +193,7 @@ export default function EditProfile() {
                     <View style={tw`relative`}>
                         {profileData?.image ? (
                             <ImageWithCache
-                                source={profileData.image}
+                                source={getImageUrl(profileData.image)}
                                 style={tw`w-28 h-28 rounded-full`}
                                 contentFit="cover"
                                 transition={1000}

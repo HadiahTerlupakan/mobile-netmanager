@@ -5,10 +5,14 @@
  */
 
 // Query wrapper
-export { useApiQuery, useOfflineQueryCompat } from "./useApiQuery";
+export { useApiQuery } from "./useApiQuery";
+export { useOfflineQuery } from "../useOfflineQuery";
 
 // Mutation wrapper
-export { useApiMutation, useOfflineMutationCompat } from "./useApiMutation";
+export { useApiMutation } from "./useApiMutation";
+
+// Feature hooks
+export * from "./useWorkOrders";
 
 // Re-export TanStack Query hooks untuk convenience
 export {

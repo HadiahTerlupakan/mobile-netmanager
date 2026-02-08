@@ -1,9 +1,9 @@
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { isAxiosError } from 'axios';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { isAxiosError } from 'axios';
-import { logger } from '@/utils/logger';
 
 // Configure how notifications are handled when app is in foreground
 // Note: Handled globally in NotificationService.ts
@@ -49,7 +49,14 @@ export async function registerForPushNotificationsAsync(token?: string): Promise
         // Register token with backend
         if (pushToken) {
             try {
-                await api.post('/api/mobile/push-token', { pushToken }, { skipGlobalAuthHandler: true });
+                const config: any = { skipGlobalAuthHandler: true };
+                
+                // If token is provided explicitly, use it in headers
+                if (token) {
+                    config.headers = { Authorization: `Bearer ${token}` };
+                }
+
+                await api.post('/api/mobile/push-token', { pushToken }, config);
                 logger.info('Push token registered with backend');
             } catch (error) {
                 // Ignore 401 (Unauthorized) as it will be handled by AuthContext

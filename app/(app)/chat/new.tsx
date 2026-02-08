@@ -66,7 +66,7 @@ export default function NewChatScreen() {
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
-    const { data: usersData, isLoading: loading } = useApiQuery<ChatUser[]>({
+    const { data: usersData, isPending: loading } = useApiQuery<ChatUser[]>({
         queryKey: queryKeys.chat.users(debouncedSearch),
         queryFn: () => chatService.getUsers(debouncedSearch),
     });
