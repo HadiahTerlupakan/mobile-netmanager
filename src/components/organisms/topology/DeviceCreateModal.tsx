@@ -1,17 +1,17 @@
+import { logger } from "@/utils/logger";
 import { Picker } from "@react-native-picker/picker";
 import { MapPin, X } from "lucide-react-native";
-import { logger } from "@/utils/logger";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import api from "../../../services/api";
 
@@ -22,11 +22,12 @@ interface DeviceCreateModalProps {
   onSuccess: () => void;
 }
 
+// Matched with Admin Portal NodeFormModal.tsx
 const DEVICE_TYPES = [
-  { label: "ODP", value: "ODP" },
-  { label: "ODC", value: "ODC" },
-  { label: "Tiang (Pole)", value: "POLE" },
-  { label: "Join Box", value: "JOINBOX" },
+  { label: "ODP (Optical Distribution Point)", value: "ODP" },
+  { label: "ODC (Optical Distribution Cabinet)", value: "ODC" },
+  { label: "OLT / Server", value: "OLT" },
+  { label: "ONT (Optical Network Terminal)", value: "ONT" },
 ];
 
 export function DeviceCreateModal({
@@ -40,71 +41,70 @@ export function DeviceCreateModal({
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [locationName, setLocationName] = useState("");
+  
+  // New fields from Admin Portal
+  const [capacity, setCapacity] = useState("8");
+  const [splitter, setSplitter] = useState("");
+  const [serialNumber, setSerialNumber] = useState("");
+  const [pppoe, setPppoe] = useState("");
 
-  // Relations
-  const [sites, setSites] = useState<{ label: string; value: string }[]>([]);
-  const [selectedSite, setSelectedSite] = useState<string | null>(null);
+  // New fields for topology
+  const [attenuationInput, setAttenuationInput] = useState("");
+  const [attenuationOutput, setAttenuationOutput] = useState("");
+  const [inputCoreColor, setInputCoreColor] = useState("");
 
+  // Relations (Parent only, Site removed as per Admin Portal)
   const [parents, setParents] = useState<{ label: string; value: string }[]>(
     [],
   );
   const [selectedParent, setSelectedParent] = useState<string | null>(null);
 
   const fetchParents = useCallback(async () => {
+    // Only fetch parents if we are creating an ODP (needs ODC parent) or generally if needed
+    // Admin portal doesn't restrict, but mobile UX usually suggests connecting ODP to ODC.
+    // We'll fetch all nodes and filter.
+    
     setParents([]);
-    setSelectedParent(null);
+    // Don't reset selectedParent immediately to avoid UI flicker if refreshing, 
+    // but here we probably want to reset if type changes.
+    // Ideally we should run this only when deviceType changes.
+    
     try {
-      let endpoint = "";
-      if (deviceType === "ODP") endpoint = "/api/odcs";
-
-      if (!endpoint) return;
-
-      const res = await api.get(endpoint);
-      let items: { name: string; id: string; siteId: string }[] = [];
-      if (deviceType === "ODP" && res.data?.odcs) items = res.data.odcs;
-
-      if (selectedSite) {
-        items = items.filter((i) => i.siteId === selectedSite);
-      }
-
-      setParents(items.map((i) => ({ label: i.name, value: i.id })));
+        // Use the new Map Nodes endpoint
+        const res = await api.get("/api/map/nodes");
+        const nodes = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+        
+        // Determine parent type based on current device type
+        let parentType = 'odc';
+        if (deviceType === 'ODC') parentType = 'olt';
+        if (deviceType === 'ONT') parentType = 'odp';
+        if (deviceType === 'OLT') {
+             // OLT usually has no parent in this context, or maybe upstream router? 
+             // Admin doesn't enforce parent for OLT.
+             setParents([]);
+             return;
+        }
+        
+        // Admin portal returns lowercase types 'odc', 'odp', 'olt'
+        const validParents = nodes.filter((n: any) => n.type === parentType);
+        
+        setParents(validParents.map((i: any) => ({ label: i.name, value: i.nodeId })));
+        
     } catch (e) {
       logger.error("Failed to fetch parents", e);
     }
-  }, [deviceType, selectedSite]);
+  }, [deviceType]);
 
   useEffect(() => {
     if (visible) {
-      fetchSites();
       if (initialLocation) {
         setLocationName(
           `${initialLocation.latitude.toFixed(6)}, ${initialLocation.longitude.toFixed(6)}`,
         );
       }
-    }
-  }, [visible, initialLocation]);
-
-  useEffect(() => {
-    if (visible && selectedSite) {
       fetchParents();
     }
-  }, [visible, selectedSite, deviceType, fetchParents]);
-
-  const fetchSites = async () => {
-    try {
-      const res = await api.get("/api/sites");
-      if (res.data?.sites) {
-        setSites(
-          res.data.sites.map((s: { name: string; id: string }) => ({ label: s.name, value: s.id })),
-        );
-        if (res.data.sites.length > 0) {
-          setSelectedSite(res.data.sites[0].id);
-        }
-      }
-    } catch (e) {
-      logger.error("Failed to fetch sites", e);
-    }
-  };
+  }, [visible, initialLocation, fetchParents]);
 
   const handleSubmit = async () => {
     if (!name || !deviceType || !initialLocation) {
@@ -114,36 +114,46 @@ export function DeviceCreateModal({
 
     setLoading(true);
     try {
-      let endpoint = "";
-      const payload: Record<string, unknown> = {
+      // 1. Create Node
+      const payload = {
+        type: deviceType.toLowerCase(),
         name,
-        notes,
         latitude: initialLocation.latitude,
         longitude: initialLocation.longitude,
-        status: "AKTIF",
-        siteId: selectedSite,
-        images: [],
+        capacity: parseInt(capacity) || 0,
+        splitter,
+        pppoe,
+        serialNumber,
+        notes,
+        attenuationInput,
+        attenuationOutput,
+        inputCoreColor,
       };
 
-      if (deviceType === "ODP") {
-        endpoint = "/api/odps";
-        payload.odcId = selectedParent;
-      } else if (deviceType === "ODC") {
-        endpoint = "/api/odcs";
-      } else if (deviceType === "POLE") {
-        endpoint = "/api/poles";
-      } else if (deviceType === "JOINBOX") {
-        endpoint = "/api/joinboxes";
+      const res = await api.post("/api/map/nodes", payload);
+      // Check response for newNode
+      const newNode = res.data?.data || res.data;
+      
+      if (!newNode || !newNode.nodeId) {
+          // If response structure is different, try to debug or assume success?
+          // But we need ID for edge creation.
+          logger.warn("Create Node Response:", res.data);
+          if (!newNode.nodeId) throw new Error("Gagal membuat node: ID tidak diterima");
       }
 
-      if (endpoint) {
-        await api.post(endpoint, payload);
-        Alert.alert("Sukses", "Perangkat berhasil ditambahkan");
-        onSuccess();
-        onClose();
-      } else {
-        Alert.alert("Error", "Tipe perangkat belum didukung sepenuhnya");
+      // 2. Create Edge if parent selected
+      if (selectedParent) {
+          await api.post("/api/map/edges", {
+              source: selectedParent,
+              target: newNode.nodeId,
+              fiberType: "Drop Core", // Default fiber type
+          });
       }
+
+      Alert.alert("Sukses", "Perangkat berhasil ditambahkan");
+      onSuccess();
+      onClose();
+
     } catch (err) {
       logger.error(err);
       const errorMessage = err instanceof Error ? err.message : "Gagal menyimpan data";
@@ -163,7 +173,7 @@ export function DeviceCreateModal({
       <View style={styles.overlay}>
         <View style={styles.container}>
           <View style={styles.header}>
-            <Text style={styles.title}>Tambah Perangkat Baru</Text>
+            <Text style={styles.title}>Tambah Perangkat (Admin-Sync)</Text>
             <TouchableOpacity onPress={onClose}>
               <X color="#000" size={24} />
             </TouchableOpacity>
@@ -193,28 +203,10 @@ export function DeviceCreateModal({
               onChangeText={setName}
               placeholder="Contoh: ODP-JKT-001"
             />
-
-            <Text style={styles.label}>Site / Area</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={selectedSite}
-                onValueChange={(itemValue) => setSelectedSite(itemValue)}
-              >
-                <Picker.Item label="Pilih Site" value={null} />
-                {sites.map((site) => (
-                  <Picker.Item
-                    key={site.value}
-                    label={site.label}
-                    value={site.value}
-                  />
-                ))}
-              </Picker>
-            </View>
-
-            {deviceType === "ODP" && (
-              <>
-                <Text style={styles.label}>Koneksi ke ODC (Opsional)</Text>
-                <View style={styles.pickerContainer}>
+            
+            {/* Parent Selection */}
+            <Text style={styles.label}>Induk / Parent (Opsional)</Text>
+             <View style={styles.pickerContainer}>
                   <Picker
                     selectedValue={selectedParent}
                     onValueChange={(itemValue) => setSelectedParent(itemValue)}
@@ -223,8 +215,8 @@ export function DeviceCreateModal({
                     <Picker.Item
                       label={
                         parents.length > 0
-                          ? "Pilih ODC Induk"
-                          : "Tidak ada ODC tersedia"
+                          ? `Pilih ${deviceType === 'ODP' ? 'ODC' : deviceType === 'ONT' ? 'ODP' : 'Parent'}`
+                          : "Tidak ada parent tersedia"
                       }
                       value={null}
                     />
@@ -236,8 +228,84 @@ export function DeviceCreateModal({
                       />
                     ))}
                   </Picker>
+            </View>
+
+            {/* Extra Fields from Admin */}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.label}>Kapasitas</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={capacity}
+                      onChangeText={setCapacity}
+                      keyboardType="numeric"
+                      placeholder="8"
+                    />
                 </View>
-              </>
+                 <View style={{ flex: 1 }}>
+                    <Text style={styles.label}>Splitter</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={splitter}
+                      onChangeText={setSplitter}
+                      placeholder="1:8"
+                    />
+                </View>
+            </View>
+
+            {(deviceType === 'ODP' || deviceType === 'ODC') && (
+                <>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.label}>Redaman Input (dBm)</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={attenuationInput}
+                                onChangeText={setAttenuationInput}
+                                keyboardType="numeric"
+                                placeholder="-20.5"
+                            />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.label}>Redaman Output (dBm)</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={attenuationOutput}
+                                onChangeText={setAttenuationOutput}
+                                keyboardType="numeric"
+                                placeholder="-22.0"
+                            />
+                        </View>
+                    </View>
+
+                    <Text style={styles.label}>Warna Core Input</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={inputCoreColor}
+                        onChangeText={setInputCoreColor}
+                        placeholder="Contoh: Biru, Merah"
+                    />
+                </>
+            )}
+            
+            <Text style={styles.label}>Serial Number</Text>
+            <TextInput
+              style={styles.input}
+              value={serialNumber}
+              onChangeText={setSerialNumber}
+              placeholder="S/N Perangkat"
+            />
+            
+            {deviceType === 'ONT' && (
+                <>
+                    <Text style={styles.label}>PPPoE Username</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={pppoe}
+                      onChangeText={setPppoe}
+                      placeholder="Username PPPoE"
+                    />
+                </>
             )}
 
             <Text style={styles.label}>Koordinat</Text>
