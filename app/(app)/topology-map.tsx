@@ -2,53 +2,129 @@ import { TopologySkeleton } from "@/components/molecules/TopologySkeleton";
 import { useAuth } from "@/context/AuthContext";
 import { useApiQuery } from "@/hooks/queries";
 import api from "@/services/api";
+import { logger } from "@/utils/logger";
 import toGeoJSON from "@/utils/togeojson-wrapper";
-import MapLibreGL from "@maplibre/maplibre-react-native";
+import * as MapLibreGL from "@maplibre/maplibre-react-native";
+import { FlashList } from "@shopify/flash-list";
 import { DOMParser } from "@xmldom/xmldom";
 import { useRouter } from "expo-router";
 import {
-    ArrowLeft,
-    Layers,
-    MapPin,
-    Plus,
-    RefreshCw,
-    Target,
+  ArrowLeft,
+  Box,
+  Disc,
+  Flag,
+  Home,
+  Layers,
+  MapPin,
+  RefreshCw,
+  Search,
+  Server,
+  Square,
+  X,
 } from "lucide-react-native";
 import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { logger } from "@/utils/logger";
 
-import { DeviceCreateModal } from "@/components/organisms/topology/DeviceCreateModal";
 import {
-    DeviceData,
-    DeviceDetailModal,
-    DeviceType,
+  DeviceData,
+  DeviceDetailModal,
+  DeviceType,
 } from "@/components/organisms/topology/DeviceDetailModal";
+import { DeviceCreateModal } from "@/components/organisms/topology/DeviceCreateModal";
 import { FilterPanel } from "@/components/organisms/topology/FilterPanel";
 import { TopologyErrorBoundary } from "@/components/organisms/topology/TopologyErrorBoundary";
 
+// Helper for distance calculation
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371e3; // metres
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(R * c); // in meters
+};
+
 const MARKER_COLORS: Record<DeviceType, string> = {
-  otb: "#3b82f6", // blue
-  odc: "#10b981", // green
-  odp: "#f97316", // orange
+  otb: "#9333ea", // Purple
+  odc: "#2563eb", // Blue
+  odp: "#06b6d4", // Cyan
   joinbox: "#a855f7", // purple
   pole: "#6b7280", // gray
-  pelanggan: "#ec4899", // pink
+  pelanggan: "#ea580c", // Orange
   kmz: "#6366f1", // indigo
+};
+
+const getDeviceIcon = (type: DeviceType, size: number = 16, color: string = "white") => {
+  switch (type) {
+    case "otb":
+      return <Server size={size} color={color} />;
+    case "odc":
+      return <Box size={size} color={color} />;
+    case "odp":
+      return <Disc size={size} color={color} />;
+    case "joinbox":
+      return <Square size={size} color={color} />;
+    case "pole":
+      return <Flag size={size} color={color} />;
+    case "pelanggan":
+      return <Home size={size} color={color} />;
+    default:
+      return <MapPin size={size} color={color} />;
+  }
+};
+
+// Helper to determine line color based on device types
+const getLineColor = (sourceType: string, targetType: string, defaultColor?: string): string => {
+  const s = sourceType?.toLowerCase() || "";
+  const t = targetType?.toLowerCase() || "";
+
+  // Feeder: Server/OTB -> ODC (Purple)
+  if (
+    ((s === "otb" || s === "server" || s === "olt") && t === "odc") ||
+    ((t === "otb" || t === "server" || t === "olt") && s === "odc")
+  ) {
+    return "#D946EF";
+  }
+
+  // Distribution: ODC -> ODP (Blue)
+  if (
+    (s === "odc" && t === "odp") ||
+    (t === "odc" && s === "odp")
+  ) {
+    return "#00FFFF";
+  }
+
+  // Drop: ODP -> Pelanggan (Green)
+  if (
+    (s === "odp" && (t === "pelanggan" || t === "ont")) ||
+    (t === "odp" && (s === "pelanggan" || s === "ont"))
+  ) {
+    return "#39FF14";
+  }
+
+  return defaultColor || "#FF0000";
 };
 
 // Types
@@ -61,6 +137,8 @@ interface TopologyData {
     longitude: number;
     notes: string | null;
     images: string[];
+    photo?: string;
+    inputCoreColor?: string;
   }[];
   odcs: {
     id: string;
@@ -70,6 +148,18 @@ interface TopologyData {
     longitude: number;
     notes: string | null;
     images: string[];
+    photo?: string;
+    attenuationInput?: string;
+    attenuationOutput?: string;
+    inputCoreColor?: string;
+    capacity?: number; // Added
+    splitter?: string; // Added
+    usedSlots?: number; // Added
+    parent?: {          // Added
+      id: string;
+      name: string;
+      type: string;
+    };
     otbCore?: {
       coreColor: string;
       tubeColor: string;
@@ -89,6 +179,18 @@ interface TopologyData {
     longitude: number;
     notes: string | null;
     images: string[];
+    photo?: string;
+    attenuationInput?: string;
+    attenuationOutput?: string;
+    inputCoreColor?: string;
+    capacity?: number; // Added
+    splitter?: string; // Added
+    usedSlots?: number; // Added
+    parent?: {          // Added
+      id: string;
+      name: string;
+      type: string;
+    };
     odcOutput?: {
       coreColor: string;
       tubeColor: string;
@@ -110,6 +212,16 @@ interface TopologyData {
     longitude: number;
     notes: string | null;
     images: string[];
+    photo?: string;
+    inputCoreColor?: string;
+    capacity?: number; // Added
+    splitter?: string; // Added
+    usedSlots?: number; // Added
+    parent?: {          // Added
+      id: string;
+      name: string;
+      type: string;
+    };
   }[];
   poles: {
     id: string;
@@ -120,6 +232,16 @@ interface TopologyData {
     notes: string | null;
     images: string[];
     cableSlack: boolean;
+    photo?: string;
+    inputCoreColor?: string;
+    capacity?: number; // Added
+    splitter?: string; // Added
+    usedSlots?: number; // Added
+    parent?: {          // Added
+      id: string;
+      name: string;
+      type: string;
+    };
   }[];
   pelanggans: {
     id: string;
@@ -137,12 +259,44 @@ interface TopologyData {
       longitude: number;
     };
   }[];
+  nodes?: {
+    nodeId: string;
+    name: string;
+    type: string;
+    latitude: number;
+    longitude: number;
+    photo?: string;
+    description: string | null; // Keep for backward compat
+    capacity?: number;
+    splitter?: string;
+    pppoe?: string;
+    serialNumber?: string;
+    notes?: string | null;
+    attenuationIn?: number;
+    attenuationOut?: number;
+    inputCoreColor?: string;
+    usedSlots?: number;
+    parent?: {
+      id: string;
+      name: string;
+      type: string;
+    };
+  }[];
   kmzFiles?: {
     id: string;
     name: string;
     kmlPath: string;
     lineColor: string;
     isActive: boolean;
+  }[];
+  edges?: {
+    id: string;
+    source: string;
+    target: string;
+    sourceType: string;
+    targetType: string;
+    color: string;
+    waypoints?: [number, number][];
   }[];
 }
 
@@ -161,6 +315,37 @@ MapLibreGL.Logger.setLogCallback((log) => {
   return false; // Let other logs through
 });
 
+// Helper component for animated lines
+const AnimatedConnectionLines = React.memo(
+  ({
+    shape,
+    onLineSelected,
+  }: {
+    shape: any;
+    onLineSelected: (e: any) => void;
+  }) => {
+    return (
+      <MapLibreGL.ShapeSource
+        id="linesSource"
+        shape={shape}
+        onPress={onLineSelected}
+      >
+        <MapLibreGL.LineLayer
+          id="linesLayer"
+          // Ensure lines are rendered at the bottom, just above the satellite tiles
+          aboveLayerID="google-satellite-tiles"
+          style={{
+            lineColor: ["get", "color"],
+            lineWidth: 4,
+            lineOpacity: 1,
+          }}
+        />
+      </MapLibreGL.ShapeSource>
+    );
+  }
+);
+AnimatedConnectionLines.displayName = 'AnimatedConnectionLines';
+
 export default function TopologyMapScreen() {
   const router = useRouter();
   const { token } = useAuth();
@@ -168,15 +353,15 @@ export default function TopologyMapScreen() {
   // Fetch topology data with useApiQuery
   const {
     data,
-    isLoading: loading,
+    isPending: loading,
     error: queryError,
     refetch: fetchData
   } = useApiQuery<TopologyData>({
     queryKey: ["topology"],
     queryFn: async () => {
-        const res = await api.get("/api/mobile/topology");
-        // Handle wrapped response { data: ... } or direct response
-        return res.data?.data || res.data;
+      const res = await api.get("/api/mobile/topology");
+      // Handle wrapped response { data: ... } or direct response
+      return res.data?.data || res.data;
     },
     enabled: !!token,
     staleTime: 5 * 60 * 1000, // 5 minutes cache
@@ -202,49 +387,186 @@ export default function TopologyMapScreen() {
     joinbox: true,
     pelanggan: true,
     kmz: true,
+    lines: true,
   });
 
   const [kmzFeatures, setKmzFeatures] = useState<GeoJSON.Feature[]>([]);
   const kmzCache = useRef<Map<string, GeoJSON.Feature[]>>(new Map()); // Cache for processed KMZ files
   const cameraRef = useRef<any>(null);
-  const shapeSourceRef = useRef<any>(null);
 
   const [selectedDevice, setSelectedDevice] = useState<{
     data: DeviceData;
     type: DeviceType;
   } | null>(null);
 
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [createLocation, setCreateLocation] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
+
   const [showFilters, setShowFilters] = useState(false);
 
-  // Creation Mode State
-  const [isPickerMode, setIsPickerMode] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  // Use ref for currentCenter to prevent re-renders
-  const currentCenterRef = useRef<[number, number] | null>(null);
+  // Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+
+  // OPTIMIZED: Pre-calculate all searchable devices
+  const allDevices = useMemo(() => {
+    if (!data) return [];
+    const devices: any[] = [];
+    const add = (arr: any[] | undefined, type: string) => {
+      if (arr) arr.forEach((d) => devices.push({ ...d, type }));
+    };
+
+    add(data.otbs, "otb");
+    add(data.odcs, "odc");
+    add(data.odps, "odp");
+    add(data.poles, "pole");
+    add(data.joinboxes, "joinbox");
+    add(data.pelanggans, "pelanggan");
+
+    // Include MappingNodes in search
+    if (data.nodes) {
+      data.nodes.forEach((node) => {
+        let mappedType = "pole"; // Default fallback
+        if (node.type) {
+          switch (node.type.toLowerCase()) {
+            case "server": mappedType = "otb"; break;
+            case "odc": mappedType = "odc"; break;
+            case "odp": mappedType = "odp"; break;
+            case "ont": mappedType = "pelanggan"; break;
+            default: mappedType = "pole";
+          }
+        }
+
+        // Push with normalized ID and mapped type
+        devices.push({
+          ...node,
+          id: node.nodeId,
+          type: mappedType,
+          originalType: node.type,
+          notes: node.description // Map description to notes for DetailModal compatibility
+        });
+      });
+    }
+
+    // Granular logging for debugging
+    const inventoryCount =
+      (data.otbs?.length || 0) +
+      (data.odcs?.length || 0) +
+      (data.odps?.length || 0) +
+      (data.poles?.length || 0) +
+      (data.joinboxes?.length || 0) +
+      (data.pelanggans?.length || 0);
+    const nodesCount = data.nodes?.length || 0;
+
+    logger.debug(`[allDevices] Built ${devices.length} items. Inventory: ${inventoryCount}, Nodes: ${nodesCount}`);
+
+    return devices;
+  }, [data]);
+
+  // Search Logic
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase();
+    const filtered = allDevices.filter((d) => {
+      const name = (d.name || d.nama || d.idPelanggan || "").toString();
+      return name.toLowerCase().includes(query);
+    });
+
+    setSearchResults(filtered.slice(0, 20));
+  }, [searchQuery, allDevices]);
+
+  const handleSearchResultPress = (item: any) => {
+    Keyboard.dismiss();
+    setSearchQuery("");
+    setSearchResults([]);
+
+    // Zoom to location
+    if (item.latitude && item.longitude && cameraRef.current) {
+      cameraRef.current.setCamera({
+        centerCoordinate: [Number(item.longitude), Number(item.latitude)],
+        zoomLevel: 18,
+        animationDuration: 1000,
+      });
+    }
+
+    // Open detail modal
+    handleMarkerPress(item, item.type as DeviceType);
+  };
 
   // Camera position refs for stable MapLibre Camera props
   const cameraCenterRef = useRef<[number, number]>([106.816666, -6.2]);
   const cameraZoomRef = useRef(12);
+
+  // RENDER HELPERS
+  const renderSearchResults = () => {
+    // FORCE VISIBILITY: Check if we have results
+    // Use length check directly to override any subtle false states
+    const hasResults = searchResults && searchResults.length > 0;
+
+    if (!hasResults) return null;
+
+    return (
+      <View style={styles.searchResultsContainer}>
+        <FlashList
+          data={searchResults}
+          keyExtractor={(item: any) => `${item.type}-${item.id}`}
+          renderItem={({ item }: { item: any }) => (
+            <TouchableOpacity
+              style={styles.searchResultItem}
+              onPress={() => handleSearchResultPress(item)}
+            >
+              <View
+                style={[
+                  styles.resultIcon,
+                  {
+                    backgroundColor:
+                      MARKER_COLORS[item.type as DeviceType] || "#ccc",
+                  },
+                ]}
+              />
+              <View>
+                <Text style={styles.resultName}>
+                  {item.name || item.nama || item.idPelanggan}
+                </Text>
+                <Text style={styles.resultType}>
+                  {item.type.toUpperCase()}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          estimatedItemSize={70}
+          style={{ maxHeight: 250 }}
+          keyboardShouldPersistTaps="handled"
+        />
+      </View>
+    );
+  };
 
   // Memoize map style to prevent reloads on render
   const mapStyle = useMemo(
     () => ({
       version: 8,
       sources: {
-        osm: {
+        google_satellite: {
           type: "raster",
-          tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+          tiles: [
+            "https://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}",
+          ],
           tileSize: 256,
-          attribution: "© OpenStreetMap contributors",
+          attribution: "© Google Maps",
         },
       },
       layers: [
         {
-          id: "osm-tiles",
+          id: "google-satellite-tiles",
           type: "raster",
-          source: "osm",
+          source: "google_satellite",
           minzoom: 0,
-          maxzoom: 19,
+          maxzoom: 22,
         },
       ],
     }),
@@ -358,94 +680,40 @@ export default function TopologyMapScreen() {
     }
   }, []);
 
-  // Connection lines GeoJSON
-  const connectionLines = useMemo((): GeoJSON.FeatureCollection => {
-    if (!data) return { type: "FeatureCollection", features: [] };
-
-    const features: GeoJSON.Feature[] = [];
-
-    // ODC to OTB connections
-    if (visibility.odc && visibility.otb) {
-      data.odcs.forEach((odc) => {
-        if (odc.otbCore?.otb) {
-          features.push({
-            type: "Feature",
-            properties: { color: "#10b981" },
-            geometry: {
-              type: "LineString",
-              coordinates: [
-                [odc.longitude, odc.latitude],
-                [odc.otbCore.otb.longitude, odc.otbCore.otb.latitude],
-              ],
-            },
-          });
-        }
-      });
-    }
-
-    // ODP to ODC connections
-    if (visibility.odp && visibility.odc) {
-      data.odps.forEach((odp) => {
-        if (odp.odcOutput?.odc) {
-          features.push({
-            type: "Feature",
-            properties: { color: "#f97316" },
-            geometry: {
-              type: "LineString",
-              coordinates: [
-                [odp.longitude, odp.latitude],
-                [odp.odcOutput.odc.longitude, odp.odcOutput.odc.latitude],
-              ],
-            },
-          });
-        }
-      });
-    }
-
-    // Pelanggan to ODP connections
-    if (visibility.pelanggan && visibility.odp) {
-      data.pelanggans.forEach((pelanggan) => {
-        if (pelanggan.odp) {
-          features.push({
-            type: "Feature",
-            properties: { color: "#ec4899" },
-            geometry: {
-              type: "LineString",
-              coordinates: [
-                [pelanggan.longitude, pelanggan.latitude],
-                [pelanggan.odp.longitude, pelanggan.odp.latitude],
-              ],
-            },
-          });
-        }
-      });
-    }
-
-    return { type: "FeatureCollection", features };
-  }, [data, visibility]);
-
-  // KMZ GeoJSON
-  const kmzGeoJson = useMemo(() => {
-    if (!visibility.kmz || !kmzFeatures || kmzFeatures.length === 0) {
-      return { type: "FeatureCollection", features: [] };
-    }
-    return { type: "FeatureCollection", features: kmzFeatures };
-  }, [visibility.kmz, kmzFeatures]);
-
-  // Convert data to GeoJSON for ShapeSource
+  // Convert data to GeoJSON for ShapeSource - MOVED UP and UPDATED
   const devicesGeoJson = useMemo((): GeoJSON.FeatureCollection => {
     if (!data) return { type: "FeatureCollection", features: [] };
 
     const features: GeoJSON.Feature[] = [];
-    const addFeature = (d: { id: string; longitude: number; latitude: number; name?: string; nama?: string; idPelanggan?: string }, type: DeviceType, color: string) => {
+    const addFeature = (d: any, type: DeviceType, color: string) => {
+      // PERMISIF: Skip hanya jika koordinat null/0
+      if (!d.longitude || !d.latitude) return;
+
+      // PERMISIF: Fallback ID jika data.id kosong
+      const safeId = d.id ? String(d.id) : `fallback-${type}-${Math.random().toString(36).substr(2, 9)}`;
+
       features.push({
         type: "Feature",
-        id: type + "-" + d.id,
+        id: type + "-" + safeId,
         properties: {
-          id: d.id,
+          id: safeId,
+          originalId: d.id, // STORE ORIGINAL ID
           type: type,
-          color: color,
-          name: d.name || d.nama || d.idPelanggan,
+          color: color || "#9ca3af",
+          name: d.name || d.nama || d.idPelanggan || "Tanpa Nama",
+          source: "inventory",
+          // Map all details for the modal
+          notes: d.notes,
+          capacity: d.capacity,
+          splitter: d.splitter,
+          serialNumber: d.serialNumber,
+          pppoe: d.pppoe,
+          attenuationIn: d.attenuationInput,
+          attenuationOut: d.attenuationOutput,
+          usedSlots: d.usedSlots,
+          inputCoreColor: d.inputCoreColor,
+          photo: d.photo,
+          parent: d.parent,
         },
         geometry: {
           type: "Point",
@@ -471,93 +739,320 @@ export default function TopologyMapScreen() {
         addFeature(d, "pelanggan", MARKER_COLORS.pelanggan),
       );
 
+    // Render nodes from MappingNode
+    if (data.nodes) {
+      data.nodes.forEach((node) => {
+        // PERMISIF: Cek koordinat
+        if (!node.longitude || !node.latitude) return;
+
+        // PERMISIF: Fallback ID
+        const safeId = node.nodeId ? String(node.nodeId) : `node-fallback-${Math.random().toString(36).substr(2, 9)}`;
+
+        let mappedType: DeviceType = "pole"; // Default fallback
+        let color = MARKER_COLORS.pole;
+
+        // Map node types to device types and colors
+        if (node.type) {
+          switch (node.type.toLowerCase()) {
+            case "server":
+              mappedType = "otb"; // Icon Server, Warna Ungu
+              color = MARKER_COLORS.otb;
+              break;
+            case "odc":
+              mappedType = "odc"; // Icon Box, Warna Biru
+              color = MARKER_COLORS.odc;
+              break;
+            case "odp":
+              mappedType = "odp"; // Icon Disc, Warna Cyan
+              color = MARKER_COLORS.odp;
+              break;
+            case "ont":
+              mappedType = "pelanggan"; // Icon Home, Warna Oranye
+              color = MARKER_COLORS.pelanggan;
+              break;
+          }
+        }
+
+        if (mappedType && visibility[mappedType]) {
+          features.push({
+            type: "Feature",
+            id: `node-${safeId}`,
+            properties: {
+              id: safeId,
+              originalId: node.nodeId, // STORE ORIGINAL ID
+              type: mappedType,
+              color: color,
+              name: node.name || "Node Tanpa Nama",
+              source: "mapping-node",
+              originalType: node.type || "unknown",
+              // Map all details for the modal
+              notes: node.notes, // Use notes from backend
+              description: node.description, // Fallback
+              capacity: node.capacity,
+              splitter: node.splitter,
+              serialNumber: node.serialNumber, // Note: node.serialNumber (camelCase)
+              pppoe: node.pppoe,
+              attenuationIn: node.attenuationIn,
+              attenuationOut: node.attenuationOut,
+              usedSlots: node.usedSlots,
+              inputCoreColor: node.inputCoreColor,
+              photo: node.photo,
+              parent: node.parent,
+            },
+            geometry: {
+              type: "Point",
+              coordinates: [node.longitude, node.latitude],
+            },
+          });
+        }
+      });
+    }
+
     return { type: "FeatureCollection", features };
   }, [data, visibility]);
 
-  const onShapePress = useCallback(
-    async (event: MapLibreGL.OnPressEvent) => {
-      const { features } = event;
-      const feature = features[0] as GeoJSON.Feature;
+  // Connection lines GeoJSON - UPDATED LOGIC
+  const connectionLines = useMemo((): GeoJSON.FeatureCollection => {
+    if (!data || !data.edges) return { type: "FeatureCollection", features: [] };
 
-      if (!feature) return;
+    const features: GeoJSON.Feature[] = [];
 
-      const isCluster = feature.properties?.cluster;
+    // Use visible features for lookup to ensure we only connect to valid/visible nodes
+    const allFeatures = devicesGeoJson.features;
 
-      if (isCluster) {
-        // Handle cluster press (Zoom in to expansion level)
-        logger.info("Cluster pressed, calculating expansion zoom...");
-        try {
-          const expansionZoom =
-            await shapeSourceRef.current?.getClusterExpansionZoom(feature);
+    if (!visibility.lines) return { type: "FeatureCollection", features: [] };
 
-          if (expansionZoom) {
-            logger.info("Zooming to:", expansionZoom);
-            cameraRef.current?.setCamera({
-              centerCoordinate: (feature.geometry as any).coordinates,
-              zoomLevel: expansionZoom,
-              animationDuration: 500,
-            });
-          } else {
-            // Fallback if expansion zoom is not returned
-            cameraRef.current?.setCamera({
-              centerCoordinate: (feature.geometry as any).coordinates,
-              zoomLevel: zoomRef.current + 2,
-              animationDuration: 500,
-            });
-          }
-        } catch (error) {
-          logger.error("Error getting cluster expansion zoom:", error);
-          // Fallback on error
-          cameraRef.current?.setCamera({
-            centerCoordinate: (feature.geometry as any).coordinates,
-            zoomLevel: zoomRef.current + 2,
-            animationDuration: 500,
-          });
-        }
-      } else {
-        // Handle single device press
-        const { id, type } = feature.properties as { id: string; type: DeviceType };
-        logger.info("Device pressed:", type, id);
+    data.edges.forEach((edge, index) => {
+      if (!edge) return;
 
-        // Find original data object
-        let deviceData: DeviceData | null = null;
-        if (data) {
-          switch (type) {
-            case "otb":
-              const otb = data.otbs.find((d) => d.id === id);
-              if (otb) deviceData = otb as unknown as DeviceData;
-              break;
-            case "odc":
-              const odc = data.odcs.find((d) => d.id === id);
-              if (odc) deviceData = odc as unknown as DeviceData;
-              break;
-            case "odp":
-              const odp = data.odps.find((d) => d.id === id);
-              if (odp) deviceData = odp as unknown as DeviceData;
-              break;
-            case "joinbox":
-              const joinbox = data.joinboxes.find((d) => d.id === id);
-              if (joinbox) deviceData = joinbox as unknown as DeviceData;
-              break;
-            case "pole":
-              const pole = data.poles.find((d) => d.id === id);
-              if (pole) deviceData = pole as unknown as DeviceData;
-              break;
-            case "pelanggan":
-              const pelanggan = data.pelanggans.find((d) => d.id === id);
-              if (pelanggan) deviceData = pelanggan as unknown as DeviceData;
-              break;
-          }
-        }
+      // 1. Loose ID Comparison (String vs String)
+      // Fix: Gunakan String() untuk membandingkan ID karena bisa berupa number/string dari DB
+      const sourceIdStr = String(edge.source);
+      const targetIdStr = String(edge.target);
 
-        if (deviceData) {
-          logger.info("Device selected:", type, deviceData.id);
-          handleMarkerPress(deviceData, type);
-        }
+      // Find source and target features by their ORIGINAL ID
+      const sourceFeature = allFeatures.find(f => String(f.properties?.originalId) === sourceIdStr);
+      const targetFeature = allFeatures.find(f => String(f.properties?.originalId) === targetIdStr);
+
+      // 4. Safety Check: Jika node tidak ketemu (mungkin terfilter atau data corrupt), skip garis ini
+      if (!sourceFeature || !targetFeature) {
+        return;
       }
-    },
-    [data, handleMarkerPress],
-  );
+
+      const sourceCoords = (sourceFeature.geometry as any).coordinates;
+      const targetCoords = (targetFeature.geometry as any).coordinates;
+
+      if (sourceCoords && targetCoords) {
+        let coordinates: number[][] = [];
+
+        // Start with Source
+        coordinates.push(sourceCoords);
+
+        // 1. Handle JSON String Waypoints (Robust Parsing)
+        let waypoints = edge.waypoints;
+
+        // Cek apakah string (JSON String dari DB)
+        if (typeof waypoints === 'string') {
+          try {
+            waypoints = JSON.parse(waypoints);
+          } catch (e) {
+            logger.error(`Failed to parse waypoints for edge ${edge.id || 'unknown'}:`, e);
+            waypoints = [];
+          }
+        }
+
+        // Add Waypoints (if any)
+        if (waypoints && Array.isArray(waypoints)) {
+          const wps = waypoints.map((wp: any) => {
+            let lng, lat;
+
+            if (Array.isArray(wp)) {
+              // 3. Koordinat GeoJSON: Pastikan [Longitude, Latitude]
+              // Heuristic: Jika format [Lat, Lng], maka Lng (biasanya >90 di Indo) ada di index 1
+              const val0 = Number(wp[0]);
+              const val1 = Number(wp[1]);
+
+              // Deteksi format [Lat, Lng] -> Swap jadi [Lng, Lat]
+              // Asumsi: Longitude Indonesia ~95-141, Latitude ~-11 s/d +6
+              if (Math.abs(val1) > Math.abs(val0) && Math.abs(val1) > 90) {
+                lng = val1;
+                lat = val0;
+              } else {
+                // Format standard [Lng, Lat]
+                lng = val0;
+                lat = val1;
+              }
+            } else {
+              // Handle object case if mixed
+              lng = wp.longitude ?? wp.lng ?? 0;
+              lat = wp.latitude ?? wp.lat ?? 0;
+            }
+            return [Number(lng), Number(lat)];
+          });
+          coordinates.push(...wps);
+        }
+
+        // End with Target
+        coordinates.push(targetCoords);
+
+        // Determine line color from feature types
+        const sourceType = sourceFeature.properties?.type;
+        const targetType = targetFeature.properties?.type;
+        const color = getLineColor(sourceType, targetType, edge.color);
+
+        // Calculate distance for info
+        const distance = calculateDistance(
+          sourceCoords[1],
+          sourceCoords[0],
+          targetCoords[1],
+          targetCoords[0]
+        );
+
+        features.push({
+          type: "Feature",
+          properties: {
+            color: color,
+            sourceName: sourceFeature.properties?.name || "Unknown",
+            targetName: targetFeature.properties?.name || "Unknown",
+            distance: `${distance}m`
+          },
+          geometry: {
+            type: "LineString",
+            coordinates: coordinates,
+          },
+        });
+      }
+    });
+
+    return { type: "FeatureCollection", features };
+  }, [data, visibility, devicesGeoJson]);
+
+  // KMZ GeoJSON
+  const kmzGeoJson = useMemo(() => {
+    if (!visibility.kmz || !kmzFeatures || kmzFeatures.length === 0) {
+      return { type: "FeatureCollection", features: [] };
+    }
+    return { type: "FeatureCollection", features: kmzFeatures };
+  }, [visibility.kmz, kmzFeatures]);
+
+  const onLineSelected = useCallback((event: any) => {
+    const feature = event.features[0];
+    if (!feature) return;
+
+    const { sourceName, targetName, distance } = feature.properties;
+    Alert.alert(
+      "Info Jalur Kabel",
+      `Dari: ${sourceName}\nKe: ${targetName}\nJarak Estimasi: ${distance || "?"}`,
+      [{ text: "Tutup" }]
+    );
+  }, []);
+
+  const onAnnotationSelected = useCallback((feature: GeoJSON.Feature) => {
+    const {
+      id,
+      type,
+      source,
+      description,
+      name,
+      originalId,
+      // Destructure new fields
+      notes,
+      capacity,
+      splitter,
+      serialNumber,
+      pppoe,
+      attenuationIn,
+      attenuationOut,
+      usedSlots,
+      inputCoreColor,
+      photo,
+      parent // Destructure parent
+    } = feature.properties as any;
+    logger.info("Device annotation selected:", type, id, source, "Original ID:", originalId);
+
+    if (source === "mapping-node") {
+      // Handle MappingNode selection
+      const deviceData: DeviceData = {
+        id: id,
+        name: name,
+        latitude: (feature.geometry as any).coordinates[1],
+        longitude: (feature.geometry as any).coordinates[0],
+        notes: notes || description, // prioritize notes
+        capacity,
+        splitter,
+        serialNumber,
+        pppoe,
+        attenuationInput: attenuationIn,
+        attenuationOutput: attenuationOut,
+        usedSlots,
+        inputCoreColor,
+        images: photo ? [photo] : undefined, // Map photo string to images array
+        parent, // Pass parent object
+      };
+
+      handleMarkerPress(deviceData, type);
+      return;
+    }
+
+    // Find original data object
+    let deviceData: DeviceData | null = null;
+    if (data) {
+      // Use helper to match ID safely (handles string vs number)
+      // Prioritize originalId if available, otherwise fallback to id from properties
+      const targetId = originalId !== undefined ? String(originalId) : String(id);
+
+      const matchesId = (d: any) => String(d.id) === targetId;
+
+      switch (type) {
+        case "otb":
+          const otb = data.otbs.find(matchesId);
+          if (otb) deviceData = otb as unknown as DeviceData;
+          break;
+        case "odc":
+          const odc = data.odcs.find(matchesId);
+          if (odc) deviceData = odc as unknown as DeviceData;
+          break;
+        case "odp":
+          const odp = data.odps.find(matchesId);
+          if (odp) deviceData = odp as unknown as DeviceData;
+          break;
+        case "joinbox":
+          const joinbox = data.joinboxes.find(matchesId);
+          if (joinbox) deviceData = joinbox as unknown as DeviceData;
+          break;
+        case "pole":
+          const pole = data.poles.find(matchesId);
+          if (pole) deviceData = pole as unknown as DeviceData;
+          break;
+        case "pelanggan":
+          const pelanggan = data.pelanggans.find(matchesId);
+          if (pelanggan) deviceData = pelanggan as unknown as DeviceData;
+          break;
+      }
+    }
+
+    if (deviceData) {
+      // Merge extra properties from feature if they exist in feature properties
+      // This ensures that even if 'data' array item is missing something, 
+      // but 'feature.properties' has it (via addFeature), we preserve it.
+      deviceData = {
+        ...deviceData,
+        capacity: deviceData.capacity ?? capacity,
+        splitter: deviceData.splitter ?? splitter,
+        serialNumber: deviceData.serialNumber ?? serialNumber,
+        pppoe: deviceData.pppoe ?? pppoe,
+        attenuationInput: deviceData.attenuationInput ?? attenuationIn,
+        attenuationOutput: deviceData.attenuationOutput ?? attenuationOut,
+        usedSlots: deviceData.usedSlots ?? usedSlots,
+        inputCoreColor: deviceData.inputCoreColor ?? inputCoreColor,
+        parent: deviceData.parent ?? parent,
+        notes: deviceData.notes ?? notes,
+        photo: deviceData.photo ?? photo,
+      };
+
+      handleMarkerPress(deviceData, type);
+    }
+  }, [data, handleMarkerPress]);
 
   // Counts for filter panel
   const counts = useMemo(() => {
@@ -570,6 +1065,7 @@ export default function TopologyMapScreen() {
         pole: 0,
         pelanggan: 0,
         kmz: 0,
+        lines: 0,
       };
     return {
       otb: data.otbs.length,
@@ -585,10 +1081,11 @@ export default function TopologyMapScreen() {
       pelanggan: data.pelanggans.length,
       pelanggans: data.pelanggans.length, // Alias
       kmz: data.kmzFiles?.length || 0,
+      lines: data.edges?.length || 0,
     };
   }, [data]);
 
-  const handleToggleVisibility = useCallback((type: DeviceType) => {
+  const handleToggleVisibility = useCallback((type: DeviceType | 'lines') => {
     setVisibility((prev) => ({ ...prev, [type]: !prev[type] }));
   }, []);
 
@@ -604,7 +1101,6 @@ export default function TopologyMapScreen() {
     const geometry = payload?.geometry as GeoJSON.Point;
     const center = geometry?.coordinates as [number, number];
     if (center) {
-      currentCenterRef.current = center;
       cameraCenterRef.current = center; // Keep Camera prop in sync
     }
 
@@ -617,6 +1113,17 @@ export default function TopologyMapScreen() {
         east: bounds.ne[0],
         west: bounds.sw[0],
       };
+    }
+  }, []);
+
+  const handleMapLongPress = useCallback((feature: any) => {
+    const coords = feature.geometry.coordinates;
+    if (coords) {
+      setCreateLocation({
+        longitude: coords[0],
+        latitude: coords[1],
+      });
+      setCreateModalVisible(true);
     }
   }, []);
 
@@ -640,6 +1147,7 @@ export default function TopologyMapScreen() {
       ...data.joinboxes.map((d) => [d.longitude, d.latitude]),
       ...data.poles.map((d) => [d.longitude, d.latitude]),
       ...data.pelanggans.map((d) => [d.longitude, d.latitude]),
+      ...(data.nodes || []).map((d) => [d.longitude, d.latitude]),
     ];
 
     if (allCoords.length === 0) return null;
@@ -673,6 +1181,47 @@ export default function TopologyMapScreen() {
       });
     }
   }, [mapReady, mapBounds]);
+
+  const renderPoints = () => {
+    return devicesGeoJson.features.map((feature) => {
+      const props = feature.properties as any;
+      const coords = (feature.geometry as any).coordinates;
+
+      // PERMISIF: Pastikan selalu render meski ID asli kosong
+      const safeId = props.id || `render-${Math.random().toString(36).substr(2, 9)}`;
+      const elementKey = `${props.source || "inventory"}-${props.type}-${safeId}`;
+
+      return (
+        <MapLibreGL.MarkerView
+          key={elementKey}
+          coordinate={coords}
+        >
+          <TouchableOpacity
+            onPress={() => onAnnotationSelected(feature)}
+            activeOpacity={0.8}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: props.color,
+              justifyContent: "center",
+              alignItems: "center",
+              borderWidth: 2,
+              borderColor: "white",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 3.84,
+              elevation: 5,
+              zIndex: 10,
+            }}
+          >
+            {getDeviceIcon(props.type, 16, "white")}
+          </TouchableOpacity>
+        </MapLibreGL.MarkerView>
+      );
+    });
+  };
 
   if (loading && !data) {
     return <TopologySkeleton />;
@@ -710,217 +1259,91 @@ export default function TopologyMapScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* KMZ Loading Indicator */}
-        {loadingKmz && (
-          <View style={styles.kmzLoading}>
-            <ActivityIndicator size="small" color="#3b82f6" />
-            <Text style={styles.kmzLoadingText}>Memuat KMZ...</Text>
-          </View>
-        )}
-
-        {/* Filter Panel */}
-        {showFilters && (
-          <FilterPanel
-            visibility={visibility}
-            onToggle={handleToggleVisibility}
-            counts={counts}
-          />
-        )}
-
-        {/* Map Content - Using mapStyle prop (v10+) */}
-        <MapLibreGL.MapView
-          key="topology-map-view"
-          style={styles.map}
-          mapStyle={mapStyle}
-          logoEnabled={false}
-          onRegionDidChange={handleCameraChange}
-          onDidFinishLoadingStyle={handleStyleLoaded}
-        >
-          <MapLibreGL.Camera
-            ref={cameraRef}
-            followUserLocation={false}
-            defaultSettings={{
-              centerCoordinate: [106.816666, -6.2], // Jakarta, Indonesia
-              zoomLevel: 10, // Reasonable zoom to see the area
-            }}
-          />
-
-          {/* Connection Lines (GeoJSON) */}
-          <MapLibreGL.ShapeSource
-            id="linesSource"
-            shape={connectionLines}
+        {/* Map Container with Relative Positioning for Overlays */}
+        <View style={styles.mapContainer}>
+          {/* Map Content - Using mapStyle prop (v10+) */}
+          <MapLibreGL.MapView
+            key="topology-map-view"
+            style={styles.map}
+            mapStyle={mapStyle}
+            logoEnabled={false}
+            attributionEnabled={false}
+            onRegionDidChange={handleCameraChange}
+            onDidFinishLoadingStyle={handleStyleLoaded}
+            onLongPress={handleMapLongPress}
           >
-            <MapLibreGL.LineLayer
-              id="linesLayer"
-              style={{
-                lineColor: ["get", "color"],
-                lineWidth: 2,
-                lineDasharray: [2, 2],
-              }}
-            />
-          </MapLibreGL.ShapeSource>
-
-          {/* KMZ/KML Layers */}
-          <MapLibreGL.ShapeSource id="kmzSource" shape={kmzGeoJson as any}>
-            <MapLibreGL.LineLayer
-              id="kmzLineLayer"
-              style={{
-                lineColor: ["get", "color"],
-                lineWidth: 3,
-                lineOpacity: 0.8,
-              }}
-            />
-          </MapLibreGL.ShapeSource>
-
-          {/* DEVICE MARKERS (Native Rendering) */}
-          <MapLibreGL.ShapeSource
-            ref={shapeSourceRef}
-            id="devicesSource"
-            shape={devicesGeoJson}
-            cluster={true}
-            clusterRadius={50}
-            clusterMaxZoomLevel={14}
-            onPress={onShapePress}
-            hitbox={{ width: 20, height: 20 }}
-          >
-            {/* 1. Unclustered Points (Individual Markers) */}
-            {/* Invisible Hitbox Layer (Large) */}
-            <MapLibreGL.CircleLayer
-              id="unclustered-point-hitbox"
-              filter={["!", ["has", "point_count"]]}
-              style={{
-                circleColor: "transparent",
-                circleRadius: 22, // 44px diameter touch target
-                circleOpacity: 0,
-                circleStrokeWidth: 0,
-              }}
-            />
-            {/* Visual Dot Layer */}
-            <MapLibreGL.CircleLayer
-              id="unclustered-point"
-              filter={["!", ["has", "point_count"]]}
-              style={{
-                circleColor: ["get", "color"],
-                circleRadius: 6, // 12px visual size
-                circleStrokeWidth: 2,
-                circleStrokeColor: "white",
+            <MapLibreGL.Camera
+              ref={cameraRef}
+              followUserLocation={false}
+              defaultSettings={{
+                centerCoordinate: [106.816666, -6.2], // Jakarta, Indonesia
+                zoomLevel: 10, // Reasonable zoom to see the area
               }}
             />
 
-            {/* 2. Clustered Points (Groups) */}
-            <MapLibreGL.CircleLayer
-              id="clustered-point"
-              filter={["has", "point_count"]}
-              style={{
-                circleColor: [
-                  "step",
-                  ["get", "point_count"],
-                  "#3b82f6", // default blue
-                  10,
-                  "#eab308", // yellow
-                  20,
-                  "#f97316", // orange
-                  50,
-                  "#dc2626", // red
-                ],
-                circleRadius: [
-                  "step",
-                  ["get", "point_count"],
-                  10, // default 20px
-                  10,
-                  12, // 24px
-                  20,
-                  15, // 30px
-                  50,
-                  18, // 36px
-                ],
-                circleStrokeWidth: 2,
-                circleStrokeColor: "white",
-              }}
+            {/* Connection Lines (GeoJSON) - Animated */}
+            <AnimatedConnectionLines
+              shape={connectionLines}
+              onLineSelected={onLineSelected}
             />
 
-            {/* 3. Cluster Counts (Text) */}
-            <MapLibreGL.SymbolLayer
-              id="cluster-count"
-              filter={["has", "point_count"]}
-              style={{
-                textField: "{point_count_abbreviated}",
-                textSize: 12,
-                textColor: "#ffffff",
-                textAllowOverlap: true,
-                textIgnorePlacement: true,
-                textAnchor: "center",
-              }}
-            />
-          </MapLibreGL.ShapeSource>
-        </MapLibreGL.MapView>
+            {/* KMZ/KML Layers */}
+            <MapLibreGL.ShapeSource id="kmzSource" shape={kmzGeoJson as any}>
+              <MapLibreGL.LineLayer
+                id="kmzLineLayer"
+                // Place KMZ lines above regular connection lines
+                aboveLayerID="linesLayer"
+                style={{
+                  lineColor: ["get", "color"],
+                  lineWidth: 3,
+                  lineOpacity: 0.8,
+                }}
+              />
+            </MapLibreGL.ShapeSource>
 
-        {/* Refresh Button */}
-        <TouchableOpacity style={styles.refreshButton} onPress={() => fetchData()}>
-          <RefreshCw size={20} color="#fff" />
-        </TouchableOpacity>
+            {/* DEVICE MARKERS (MarkerView) */}
+            {renderPoints()}
+          </MapLibreGL.MapView>
 
-        {/* Creation Modal */}
-        <DeviceCreateModal
-          visible={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          initialLocation={
-            currentCenterRef.current
-              ? {
-                  latitude: currentCenterRef.current[1],
-                  longitude: currentCenterRef.current[0],
-                }
-              : undefined
-          }
-          onSuccess={() => {
-            fetchData();
-            setIsPickerMode(false);
-          }}
-        />
-
-        {/* Mobile Creation UI Elements */}
-
-        {/* Crosshair (Picker Mode Only) */}
-        {isPickerMode && (
-          <View style={styles.crosshairContainer} pointerEvents="none">
-            <Target size={40} color="#EF4444" />
-          </View>
-        )}
-
-        {/* FAB & Action Buttons */}
-        <View style={styles.fabContainer}>
-          {!isPickerMode ? (
-            <TouchableOpacity
-              style={styles.fab}
-              onPress={() => {
-                setIsPickerMode(true);
-                Alert.alert(
-                  "Mode Tambah Device",
-                  "Geser peta untuk menentukan lokasi, lalu tekan 'Pasang Disini'",
-                );
-              }}
-            >
-              <Plus color="white" size={24} />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.pickerControls}>
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: "#EF4444", marginRight: 8 },
-                ]}
-                onPress={() => setIsPickerMode(false)}
-              >
-                <Text style={styles.actionButtonText}>Batal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: "#10B981" }]}
-                onPress={() => setShowCreateModal(true)}
-              >
-                <MapPin color="white" size={16} style={{ marginRight: 4 }} />
-                <Text style={styles.actionButtonText}>Pasang Disini</Text>
-              </TouchableOpacity>
+          {/* Search Bar (Moved inside Map Container) */}
+          <View style={styles.searchContainer}>
+            <View style={styles.searchWrapper}>
+              <Search size={20} color="#6b7280" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Cari perangkat (ODP, ODC, Server, Pelanggan)..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholderTextColor="#9ca3af"
+              />
+              {searchQuery.length > 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <X size={20} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
+          </View>
+
+          {/* KMZ Loading Indicator */}
+          {loadingKmz && (
+            <View style={styles.kmzLoading}>
+              <ActivityIndicator size="small" color="#3b82f6" />
+              <Text style={styles.kmzLoadingText}>Memuat KMZ...</Text>
+            </View>
+          )}
+
+          {/* RENDER SEARCH RESULTS INSIDE CONTAINER TO POSITION CORRECTLY */}
+          {renderSearchResults()}
+
+          {/* Filter Panel */}
+          {showFilters && (
+            <FilterPanel
+              visibility={visibility}
+              onToggle={handleToggleVisibility}
+              counts={counts}
+            />
           )}
         </View>
 
@@ -930,6 +1353,17 @@ export default function TopologyMapScreen() {
           onClose={() => setSelectedDevice(null)}
           device={selectedDevice?.data || null}
           deviceType={selectedDevice?.type || null}
+        />
+
+        {/* Device Create Modal */}
+        <DeviceCreateModal
+          visible={createModalVisible}
+          onClose={() => setCreateModalVisible(false)}
+          initialLocation={createLocation}
+          onSuccess={() => {
+            fetchData();
+            setCreateModalVisible(false);
+          }}
         />
       </SafeAreaView>
     </TopologyErrorBoundary>
@@ -962,6 +1396,11 @@ const styles = StyleSheet.create({
   },
   filterToggle: {
     padding: 8,
+  },
+  mapContainer: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
   },
   map: {
     flex: 1,
@@ -1004,23 +1443,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  refreshButton: {
-    position: "absolute",
-    top: 110, // Move to top below header
-    right: 16,
-    backgroundColor: "#3b82f6",
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    zIndex: 5,
-  },
   marker: {
     width: 16,
     height: 16,
@@ -1038,7 +1460,7 @@ const styles = StyleSheet.create({
   },
   kmzLoading: {
     position: "absolute",
-    top: 110,
+    top: 80,
     left: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -1055,10 +1477,11 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     position: "absolute",
-    top: 60,
+    top: 16, // Reduced from 60 to remove gap
     left: 16,
     right: 16,
-    zIndex: 20,
+    zIndex: 100,
+    elevation: 10,
   },
   searchWrapper: {
     flexDirection: "row",
@@ -1066,7 +1489,7 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderRadius: 8,
     paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1078,59 +1501,44 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 16,
     color: "#374151",
+    height: 40,
   },
-  crosshairContainer: {
+  searchResultsContainer: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 15,
-  },
-  fabContainer: {
-    position: "absolute",
-    bottom: 30,
-    right: 20,
-    left: 20,
-    alignItems: "flex-end",
-    zIndex: 30,
-  },
-  fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#2563EB",
-    justifyContent: "center",
-    alignItems: "center",
+    top: 70, // Adjusted to be just below searchContainer (16 + height ~50 + margin)
+    left: 16,
+    right: 16,
+    zIndex: 9999, // FORCE MAX Z-INDEX
+    elevation: 9999,
+    backgroundColor: "white",
+    borderRadius: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 6,
+    shadowRadius: 8,
+    maxHeight: 300,
   },
-  pickerControls: {
-    flexDirection: "row",
-    width: "100%",
-    justifyContent: "center",
-  },
-  actionButton: {
+  searchResultItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
   },
-  actionButtonText: {
-    color: "white",
-    fontWeight: "600",
-    fontSize: 16,
+  resultIcon: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 10,
+  },
+  resultName: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#1f2937",
+  },
+  resultType: {
+    fontSize: 12,
+    color: "#6b7280",
   },
   kmzLoadingText: {
     marginLeft: 8,
