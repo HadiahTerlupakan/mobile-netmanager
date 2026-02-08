@@ -11,11 +11,12 @@ interface VisibilityState {
   pole: boolean;
   pelanggan: boolean;
   kmz: boolean;
+  lines: boolean;
 }
 
 interface FilterPanelProps {
   visibility: VisibilityState;
-  onToggle: (type: DeviceType) => void;
+  onToggle: (type: DeviceType | 'lines') => void;
   counts: {
     otb: number;
     odc: number;
@@ -24,17 +25,19 @@ interface FilterPanelProps {
     pole: number;
     pelanggan: number;
     kmz: number;
+    lines: number;
   };
 }
 
-const FILTER_ITEMS: { type: DeviceType; label: string; color: string }[] = [
-  { type: 'otb', label: 'OTB', color: '#3b82f6' },
-  { type: 'odc', label: 'ODC', color: '#10b981' },
-  { type: 'odp', label: 'ODP', color: '#f97316' },
+const FILTER_ITEMS: { type: DeviceType | 'lines'; label: string; color: string }[] = [
+  { type: 'otb', label: 'OTB', color: '#9333ea' },
+  { type: 'odc', label: 'ODC', color: '#2563eb' },
+  { type: 'odp', label: 'ODP', color: '#06b6d4' },
   { type: 'joinbox', label: 'Joinbox', color: '#a855f7' },
   { type: 'pole', label: 'Tiang', color: '#6b7280' },
-  { type: 'pelanggan', label: 'Pelanggan', color: '#ec4899' },
+  { type: 'pelanggan', label: 'Pelanggan', color: '#ea580c' },
   { type: 'kmz', label: 'Jalur Fiber', color: '#6366f1' },
+  { type: 'lines', label: 'Jalur Kabel', color: '#64748b' },
 ];
 
 export const FilterPanel = React.memo<FilterPanelProps>(({ visibility, onToggle, counts }: FilterPanelProps) => {

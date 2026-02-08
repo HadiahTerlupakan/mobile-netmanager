@@ -1,22 +1,22 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import {
-    Building2,
-    Info,
-    MapPin,
-    Navigation,
-    User,
-    X,
+  Building2,
+  Info,
+  MapPin,
+  Navigation,
+  User,
+  X,
 } from "lucide-react-native";
 import React from "react";
 import {
-    Linking,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Linking,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import api from "../../../services/api";
@@ -45,6 +45,20 @@ export interface DeviceData {
   images?: string[];
   siteName?: string;
   odpOutputCount?: number;
+  splitter?: string;
+  capacity?: number;
+  usedSlots?: number;
+  pppoe?: string;
+  serialNumber?: string;
+  attenuationInput?: string | number;
+  attenuationOutput?: string | number;
+  inputCoreColor?: string;
+  photo?: string;
+  parent?: {
+    id: string;
+    name?: string;
+    type?: string;
+  };
   // Specific device fields
   otbCore?: {
     otb?: { name: string };
@@ -69,13 +83,13 @@ interface DeviceDetailModalProps {
 }
 
 const DEVICE_COLORS: Record<DeviceType, string> = {
-  otb: "#3b82f6", // blue
-  odc: "#10b981", // green
-  odp: "#f97316", // orange
-  joinbox: "#a855f7", // purple
-  pole: "#6b7280", // gray
-  pelanggan: "#ec4899", // pink
-  kmz: "#6366f1", // indigo
+  otb: "#9333ea", // Purple
+  odc: "#2563eb", // Blue
+  odp: "#06b6d4", // Cyan
+  joinbox: "#a855f7", // Purple
+  pole: "#6b7280", // Gray
+  pelanggan: "#ea580c", // Orange
+  kmz: "#6366f1", // Indigo
 };
 
 const DEVICE_LABELS: Record<DeviceType, string> = {
@@ -243,6 +257,134 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
                 </View>
               )}
 
+              {/* Slot Usage Section (ODC/ODP) */}
+              {(deviceType === "odc" || deviceType === "odp") && (device.capacity || device.usedSlots !== undefined) && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Slot Usage</Text>
+                  <View style={styles.card}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <Text style={styles.label}>Usage</Text>
+                      <Text style={[styles.value, { fontWeight: 'bold' }]}>
+                        {device.usedSlots ?? 0}/{device.capacity ?? 0}
+                      </Text>
+                    </View>
+
+                    {/* Progress Bar */}
+                    <View style={{ height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                      <View
+                        style={{
+                          height: '100%',
+                          width: `${Math.min(100, ((device.usedSlots || 0) / (device.capacity || 1)) * 100)}%`,
+                          backgroundColor: deviceType === 'odc' ? '#3b82f6' : '#f97316'
+                        }}
+                      />
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={styles.label}>Available:</Text>
+                      <Text style={[styles.value, { color: '#10b981', fontWeight: 'bold' }]}>
+                        {(device.capacity || 0) - (device.usedSlots || 0)} ports
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Optical Info Section */}
+              {(deviceType === "odc" || deviceType === "odp") && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Optical Info</Text>
+                  <View style={styles.card}>
+                    <View style={styles.row}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.label}>Input Redaman:</Text>
+                        <Text style={[styles.value, { fontWeight: '500' }]}>
+                          {device.attenuationInput ?? "-"} dBm
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.label}>Output Redaman:</Text>
+                        <Text style={[styles.value, { fontWeight: '500' }]}>
+                          {device.attenuationOutput ?? "-"} dBm
+                        </Text>
+                      </View>
+                    </View>
+
+                    {device.inputCoreColor && (
+                      <View style={{ marginTop: 8 }}>
+                        <Text style={styles.label}>Warna Core Input:</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                          <View
+                            style={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: 8,
+                              backgroundColor: device.inputCoreColor.toLowerCase(),
+                              borderWidth: 1,
+                              borderColor: '#d1d5db',
+                              marginRight: 8
+                            }}
+                          />
+                          <Text style={[styles.value, { textTransform: 'capitalize' }]}>
+                            {device.inputCoreColor}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* General Info (Splitter, PPPoE, Serial) */}
+              {(device.splitter || device.pppoe || device.serialNumber) && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Device Info</Text>
+                  <View style={styles.card}>
+                    {device.splitter && (
+                      <View style={styles.row}>
+                        <Text style={[styles.label, { width: 100 }]}>Splitter:</Text>
+                        <Text style={styles.value}>{device.splitter}</Text>
+                      </View>
+                    )}
+                    {device.pppoe && (
+                      <View style={styles.row}>
+                        <Text style={[styles.label, { width: 100 }]}>PPPoE:</Text>
+                        <Text style={styles.value}>{device.pppoe}</Text>
+                      </View>
+                    )}
+                    {device.serialNumber && (
+                      <View style={styles.row}>
+                        <Text style={[styles.label, { width: 100 }]}>Serial No:</Text>
+                        <Text style={styles.value}>{device.serialNumber}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* Parent Information (Connected From) */}
+              {device.parent && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Terhubung Dari</Text>
+                  <View style={styles.card}>
+                    <View style={styles.row}>
+                      <Text style={styles.label}>
+                        {device.parent.type
+                          ? DEVICE_LABELS[device.parent.type as DeviceType] ||
+                          device.parent.type.toUpperCase()
+                          : "Parent"}
+                        :
+                      </Text>
+                      <Text style={styles.value}>
+                        {device.parent.name || "Unknown"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+
+
               {/* OTB Information (for ODC) */}
               {deviceType === "odc" && device.otbCore?.otb && (
                 <View style={styles.section}>
@@ -372,22 +514,36 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               {/* Foto Fisik & Upload */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Foto Fisik</Text>
-                {device.images && device.images.length > 0 ? (
+                {(device.images && device.images.length > 0) || device.photo ? (
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     style={styles.imageScroll}
                   >
-                    {device.images.map((img, idx) => (
-                      <ImageWithCache key={idx}
-                        source={img.startsWith("http")
+                    {device.photo && (
+                      <ImageWithCache
+                        source={
+                          device.photo.startsWith("http")
+                            ? device.photo
+                            : `${api.defaults.baseURL}${device.photo.startsWith("/") ? "" : "/"}${device.photo}`
+                        }
+                        style={styles.deviceImage}
+                        contentFit="cover"
+                        transition={1000}
+                      />
+                    )}
+                    {device.images?.map((img, idx) => (
+                      <ImageWithCache
+                        key={idx}
+                        source={
+                          img.startsWith("http")
                             ? img
                             : `${api.defaults.baseURL}${img.startsWith("/") ? "" : "/"}${img}`
                         }
                         style={styles.deviceImage}
                         contentFit="cover"
                         transition={1000}
-                             />
+                      />
                     ))}
                   </ScrollView>
                 ) : (
