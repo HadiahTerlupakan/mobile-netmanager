@@ -128,6 +128,7 @@ export class LocationTrackingService {
                         { text: 'Buka Pengaturan', onPress: () => Linking.openSettings() }
                     ]
                 );
+                return false; // Cannot track without background permission
             }
 
             // Check Battery & Movement for Adaptive Interval
@@ -208,9 +209,9 @@ export class LocationTrackingService {
                         notificationBody: 'Jam kerja Anda sedang berjalan',
                         notificationColor: '#ffffff'
                     },
-                    pausesUpdatesAutomatically: true,
-                    showsBackgroundLocationIndicator: false,
-                    activityType: Location.ActivityType.AutomotiveNavigation
+                    pausesUpdatesAutomatically: false, // Don't let OS pause tracking
+                    showsBackgroundLocationIndicator: true, // iOS: Show blue bar to indicate active tracking
+                    activityType: Location.ActivityType.OtherNavigation
                 });
             } catch (error) {
                 if (__DEV__) {

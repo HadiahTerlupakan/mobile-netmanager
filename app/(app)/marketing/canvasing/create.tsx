@@ -81,7 +81,8 @@ export default function CreateCanvasingScreen() {
   const { mutate, isPending: isMutating } = useApiMutation({
     endpoint: "/api/marketing/canvasing",
     method: "POST",
-    showErrorAlert: false // We handle errors manually
+    showErrorAlert: false, // We handle errors manually
+    invalidateKeys: [["marketing_canvasing_list"]], // Refresh list after create
   });
 
   const openCamera = async (type: "foto" | "ktp") => {

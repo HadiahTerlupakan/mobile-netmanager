@@ -483,8 +483,18 @@ export default function AbsensiScreen() {
         setUploadProgress(0); // Indeterminate
         await mutation.mutate({ ...payload, photoUrl }, {
           onSuccess: async (data) => {
-            if (status === "idle") await LocationTrackingService.startTracking();
-            else await LocationTrackingService.stopTracking();
+            try {
+              if (status === "idle") {
+                logger.info('[Absensi] Check-in success, starting location tracking...');
+                const trackingStarted = await LocationTrackingService.startTracking();
+                logger.info(`[Absensi] Tracking started: ${trackingStarted}`);
+              } else {
+                logger.info('[Absensi] Check-out success, stopping location tracking...');
+                await LocationTrackingService.stopTracking();
+              }
+            } catch (trackingError) {
+              logger.error('[Absensi] Tracking error:', trackingError);
+            }
 
             setIsProcessing(false);
             setLoading(false);

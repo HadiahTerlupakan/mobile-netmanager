@@ -100,18 +100,113 @@ export default function LeaveFormScreen() {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Helper function for day names
+  const getDayName = (date: Date): string => {
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    return days[date.getDay()];
+  };
+
+  const getDayNameIndo = (dayCode: string): string => {
+    const dayMap: { [key: string]: string } = {
+      Mon: "Senin", Tue: "Selasa", Wed: "Rabu", Thu: "Kamis",
+      Fri: "Jumat", Sat: "Sabtu", Sun: "Minggu",
+    };
+    return dayMap[dayCode] || dayCode;
+  };
+
+  // Validate Tukar Libur logic
+  const validateTukarLibur = (): { valid: boolean; error?: string } => {
+    if (!replacementDate) {
+      return { valid: false, error: "Tanggal pengganti wajib diisi untuk Tukar Libur." };
+    }
+
+    // Same date validation
+    if (startDate.toDateString() === replacementDate.toDateString()) {
+      return { valid: false, error: "Tanggal izin dan tanggal pengganti tidak boleh sama." };
+    }
+
+    // Past date validation for replacement
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const replacementDateNormalized = new Date(replacementDate);
+    replacementDateNormalized.setHours(0, 0, 0, 0);
+
+    if (replacementDateNormalized < today) {
+      return { valid: false, error: "Tanggal pengganti tidak boleh di masa lalu." };
+    }
+
+    if (!currentWorkDays) {
+      // No work days configured - let backend validate
+      return { valid: true };
+    }
+
+    const workDays = currentWorkDays.split(",").map((d) => d.trim());
+    const startDayName = getDayName(startDate);
+    const replacementDayName = getDayName(replacementDate);
+
+    // 1. Start Date (Hari Izin) MUST be a Working Day
+    if (!workDays.includes(startDayName)) {
+      const workDaysIndo = workDays.map(getDayNameIndo).join(", ");
+      return {
+        valid: false,
+        error: `Tanggal izin (${formatDate(startDate, "EEEE, dd MMM")}) harus merupakan HARI KERJA Anda.\n\nJadwal kerja Anda: ${workDaysIndo}\n\nSilakan pilih tanggal di hari kerja.`,
+      };
+    }
+
+    // 2. Replacement Date (Hari Pengganti) should be Off Day
+    // Note: Backend also allows holidays, so we just warn here
+    if (workDays.includes(replacementDayName)) {
+      const offDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        .filter((d) => !workDays.includes(d))
+        .map(getDayNameIndo)
+        .join(", ");
+
+      return {
+        valid: false,
+        error: `Tanggal pengganti (${formatDate(replacementDate, "EEEE, dd MMM")}) harus merupakan HARI LIBUR Anda atau Tanggal Merah.\n\nHari libur Anda: ${offDays}\n\nSilakan pilih tanggal di hari libur atau tanggal merah nasional.`,
+      };
+    }
+
+    return { valid: true };
+  };
+
   // Submit
   const handleSubmit = async () => {
+    // Basic validation
+    if (!reason.trim()) {
+      Alert.alert("Data Tidak Lengkap", "Alasan wajib diisi.");
+      return;
+    }
+
+    if (reason.trim().length < 5) {
+      Alert.alert("Data Tidak Lengkap", "Alasan minimal 5 karakter.");
+      return;
+    }
+
+    if (type !== "CUTI" && type !== "TUKAR_LIBUR" && photos.length === 0) {
+      Alert.alert("Data Tidak Lengkap", "Foto bukti wajib diupload untuk pengajuan " + LEAVE_TYPES.find(t => t.value === type)?.label + ".");
+      return;
+    }
+
+    // Validate Tukar Libur specific rules
+    if (type === "TUKAR_LIBUR") {
+      const tukarLiburValidation = validateTukarLibur();
+      if (!tukarLiburValidation.valid) {
+        Alert.alert("Validasi Tukar Libur", tukarLiburValidation.error);
+        return;
+      }
+    }
+
     // 1. Prepare & Sanitize Data
     const rawData = {
         type,
         startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+        endDate: type === "TUKAR_LIBUR" ? startDate.toISOString() : endDate.toISOString(), // Single day for TUKAR_LIBUR
         reason: sanitizeInput(reason),
         replacementDate: type === "TUKAR_LIBUR" ? replacementDate.toISOString() : undefined,
     };
 
-    // 2. Validate Data
+    // 2. Validate Data with Schema
     const validation = validateData(LeaveRequestSchema, rawData);
 
     if (!validation.success) {
@@ -119,43 +214,34 @@ export default function LeaveFormScreen() {
         return;
     }
 
-    if (type !== "CUTI" && type !== "TUKAR_LIBUR" && photos.length === 0) {
-      Alert.alert("Error", "Foto bukti wajib diupload");
-      return;
+  // Helper to format error messages from backend
+  const formatErrorMessage = (err: Error | any): string => {
+    const message = err?.message || "Terjadi kesalahan tidak diketahui";
+
+    // Common backend error translations
+    if (message.includes("Missing required fields")) {
+      return "Data tidak lengkap. Pastikan semua field yang wajib sudah diisi.";
+    }
+    if (message.includes("Kuota") && message.includes("tidak cukup")) {
+      return message; // Already in Indonesian
+    }
+    if (message.includes("Tanggal izin") || message.includes("Tanggal pengganti")) {
+      return message; // Already in Indonesian
+    }
+    if (message.includes("Foto bukti wajib")) {
+      return "Foto bukti wajib diupload untuk jenis pengajuan ini.";
+    }
+    if (message.includes("Network") || message.includes("fetch")) {
+      return "Gagal terhubung ke server. Periksa koneksi internet Anda.";
+    }
+    if (message.includes("timeout")) {
+      return "Koneksi timeout. Silakan coba lagi.";
     }
 
-    // Validate Tukar Libur Dates
-    if (type === "TUKAR_LIBUR") {
-      if (!replacementDate) {
-        Alert.alert("Error", "Tanggal pengganti wajib diisi");
-        return;
-      }
+    return message;
+  };
 
-      if (currentWorkDays) {
-        const workDays = currentWorkDays.split(",").map((d) => d.trim());
-        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-        const startDayName = days[startDate.getDay()];
-        const replacementDayName = days[replacementDate.getDay()];
-
-        // 1. Start Date MUST be a Working Day
-        if (!workDays.includes(startDayName)) {
-          Alert.alert(
-            "Error Validasi",
-            `Tanggal izin (${formatDate(startDate, "dd MMM")}) harus merupakan HARI KERJA Anda (Jadwal: ${currentWorkDays}).`,
-          );
-          return;
-        }
-
-        // 2. Replacement Date MUST be an Off Day (not in workDays)
-        if (workDays.includes(replacementDayName)) {
-           // We rely on Backend for the "Holiday" exception to be safe.
-           // We ONLY strictly block the Start Date (must be work day).
-        }
-      }
-    }
-
-    // Build photoMap for multiple photos
+  // Build photoMap for multiple photos
     const photoMap: Record<string, string> = {};
     photos.forEach((uri, idx) => {
       photoMap[`photo${idx}`] = uri;
@@ -193,34 +279,36 @@ export default function LeaveFormScreen() {
                 {
                   ...validData,
                   photos: uploadedUrls,
-                  // No meta needed for online upload of photos
                 },
                 {
-                  onSuccess: (data: any) => {
+                  onSuccess: () => {
                     setShowLoading(false);
-                    // const isOffline = data?.__offline_queued__;
+                    const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
                     Alert.alert(
-                      "Sukses",
-                      "Pengajuan berhasil dikirim",
+                      "Pengajuan Berhasil",
+                      `Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`,
                       [{ text: "OK", onPress: () => router.back() }],
                     );
                   },
                   onError: (err: Error) => {
                     setShowLoading(false);
-                    Alert.alert("Error", err.message || "Gagal mengirim pengajuan");
+                    const errorMessage = formatErrorMessage(err);
+                    Alert.alert("Gagal Mengirim Pengajuan", errorMessage);
                   },
                 }
               );
-          } catch {
+          } catch (uploadError) {
               setShowLoading(false);
-              Alert.alert("Error", "Gagal mengupload foto");
+              logger.error("[Leave Form] Upload error:", uploadError);
+              Alert.alert("Gagal Upload Foto", "Terjadi kesalahan saat mengupload foto. Silakan coba lagi.");
           }
       } else {
           // Offline flow or no photos
+          setLoadingMessage("Mengirim data...");
           leaveMutation.mutate(
             {
               ...validData,
-              photos: [], // Will be populated by upload results if offline
+              photos: [],
               meta: {
                 photoMap: photoMap,
                 photoType: "employee-leave",
@@ -230,21 +318,27 @@ export default function LeaveFormScreen() {
               onSuccess: (data: any) => {
                 setShowLoading(false);
                 const isOffline = data?.__offline_queued__;
+                const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
                 Alert.alert(
-                  isOffline ? "Offline" : "Sukses",
-                  isOffline ? "Pengajuan diantrikan" : "Pengajuan berhasil dikirim",
+                  isOffline ? "Disimpan Offline" : "Pengajuan Berhasil",
+                  isOffline
+                    ? `Pengajuan ${typeLabel} disimpan dan akan dikirim saat online.`
+                    : `Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`,
                   [{ text: "OK", onPress: () => router.back() }],
                 );
               },
               onError: (err: Error) => {
                 setShowLoading(false);
-                Alert.alert("Error", err.message || "Gagal mengirim pengajuan");
+                const errorMessage = formatErrorMessage(err);
+                Alert.alert("Gagal Mengirim Pengajuan", errorMessage);
               },
             },
           );
       }
-    } catch {
+    } catch (unexpectedError) {
       setShowLoading(false);
+      logger.error("[Leave Form] Unexpected error:", unexpectedError);
+      Alert.alert("Terjadi Kesalahan", "Terjadi kesalahan yang tidak terduga. Silakan coba lagi.");
     }
   };
 
@@ -461,8 +555,26 @@ export default function LeaveFormScreen() {
           />
         )}
 
-        {/* Replacement Date for TUKAR_LIBUR */}
-        {/* Replacement Date for TUKAR_LIBUR */}
+        {/* Tukar Libur Explanation Card */}
+        {type === "TUKAR_LIBUR" && currentWorkDays && (
+          <View style={tw`bg-amber-50 p-3 rounded-xl border border-amber-200 mb-4`}>
+            <Text style={tw`text-xs font-bold text-amber-700 uppercase mb-1`}>
+              Cara Kerja Tukar Libur
+            </Text>
+            <Text style={tw`text-xs text-amber-800 leading-5`}>
+              1. <Text style={tw`font-bold`}>Tanggal Izin</Text>: Pilih hari KERJA yang ingin Anda libur{"\n"}
+              2. <Text style={tw`font-bold`}>Tanggal Pengganti</Text>: Pilih hari LIBUR Anda untuk masuk kerja{"\n"}
+              {"\n"}
+              <Text style={tw`text-amber-600`}>Hari libur Anda: {
+                ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+                  .filter((d) => !currentWorkDays.split(",").map(w => w.trim()).includes(d))
+                  .map(getDayNameIndo)
+                  .join(", ")
+              }</Text>
+            </Text>
+          </View>
+        )}
+
         {/* Replacement Date for TUKAR_LIBUR */}
         {type === "TUKAR_LIBUR" && (
           <View style={tw`mb-4`}>
@@ -499,8 +611,8 @@ export default function LeaveFormScreen() {
               title="Pilih Tanggal Izin"
               minDate={new Date().toISOString().split("T")[0]}
               markedDates={(() => {
-                const workDays = user?.workDays
-                  ? user.workDays.split(",").map((d) => d.trim())
+                const workDays = currentWorkDays
+                  ? currentWorkDays.split(",").map((d) => d.trim())
                   : [];
                 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
                 const marks: MarkedDates = {};
@@ -563,8 +675,8 @@ export default function LeaveFormScreen() {
               title="Pilih Tanggal Pengganti"
               minDate={new Date().toISOString().split("T")[0]}
               markedDates={(() => {
-                const workDays = user?.workDays
-                  ? user.workDays.split(",").map((d) => d.trim())
+                const workDays = currentWorkDays
+                  ? currentWorkDays.split(",").map((d) => d.trim())
                   : [];
                 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
                 const marks: MarkedDates = {};
@@ -596,11 +708,16 @@ export default function LeaveFormScreen() {
                         },
                       };
                     } else {
-                      // WORK DAYS are Bad for Replacement -> Red (but clickable)
+                      // WORK DAYS - Disabled (cannot be selected as replacement)
                       marks[dateStr] = {
+                        disabled: true,
+                        disableTouchEvent: true,
                         customStyles: {
+                          container: {
+                            backgroundColor: "#fef2f2", // Light red background
+                          },
                           text: {
-                            color: "#ef4444", // Red text
+                            color: "#fca5a5", // Faded red text
                             fontWeight: "normal",
                           },
                         },

@@ -165,8 +165,9 @@ export default function CompleteWorkOrderScreen() {
             if (!locationName) locationName = addr.name || addr.region || "";
           }
         }
-      } catch (e) {
-        logger.error("Loc error", e);
+      } catch {
+        // Reverse geocoding sering gagal di emulator, silently ignore
+        logger.debug("Location/geocode unavailable, using coordinates only");
       }
 
       // Watermark Lines

@@ -48,6 +48,10 @@ export const CanvasingSchema = z.object({
   paket: z.string().min(1, 'Paket wajib dipilih'),
   kabel: z.number().min(0, 'Estimasi kabel tidak boleh negatif'),
   odp: z.string().optional(),
+  sn: z.string().optional(),
+  shareloc: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
 });
 
 // Leave Request Schema
