@@ -20,7 +20,7 @@ interface State {
  * Screen-level Error Boundary
  *
  * Provides granular error handling for individual screens with:
- * - Error reporting to Sentry
+ * - Error logging
  * - Recovery options (retry or go home)
  * - Screen context for debugging
  */
@@ -45,7 +45,7 @@ export class ScreenErrorBoundary extends Component<Props, State> {
 
     logger.error(`[ScreenErrorBoundary] Error in ${screenName || 'unknown'}:`, error);
 
-    // Report to Sentry with screen context
+    // Report error with screen context
     errorReportingService.captureException(error, {
       screen: screenName || 'unknown',
       componentStack: errorInfo.componentStack,

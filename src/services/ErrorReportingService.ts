@@ -1,12 +1,11 @@
-import * as Sentry from '@sentry/react-native';
 import { logger } from '@/utils/logger';
 
 /**
- * Error Reporting Service using Sentry
+ * Error Reporting Service
+ *
+ * Unified interface for error logging and debugging.
  *
  * Features:
- * - Only enabled in production (__DEV__ = false)
- * - Graceful fallback to logger in development
  * - Safe error handling to prevent crashes
  * - User context management
  * - Breadcrumb tracking for debugging
@@ -23,113 +22,50 @@ interface ErrorContext {
   [key: string]: any;
 }
 
-type SentryLevel = 'fatal' | 'error' | 'warning' | 'info' | 'debug';
+type LogLevel = 'fatal' | 'error' | 'warning' | 'info' | 'debug';
 
 class ErrorReportingService {
   private isInitialized: boolean = false;
   private isEnabled: boolean = false;
 
   /**
-   * Initialize Sentry SDK
+   * Initialize the error reporting service
    * Call this once during app startup
    */
   init() {
     try {
-      // Only enable in production
-      if (__DEV__) {
-        logger.info('[ErrorReporting] Running in development mode - using logger instead of Sentry');
-        this.isEnabled = false;
-        return;
-      }
-
-      // Initialize Sentry with configuration
-      Sentry.init({
-        // Replace this DSN with your own from https://sentry.io/
-        dsn: 'https://your-dsn@sentry.io/your-project-id',
-
-        // Set tracesSampleRate to 1.0 to capture 100% of transactions for performance monitoring.
-        // Adjust this value in production to reduce data volume
-        tracesSampleRate: 1.0,
-
-        // Enable native crash handling
-        enableNative: true,
-
-        // Enable auto session tracking
-        enableAutoSessionTracking: true,
-
-        // Session timeout (30 minutes)
-        sessionTrackingIntervalMillis: 30000,
-
-        // Capture errors automatically
-        enableCaptureFailedRequests: true,
-
-        // Environment
-        environment: __DEV__ ? 'development' : 'production',
-
-        // Before send hook - modify or filter events before sending
-        beforeSend(event, hint) {
-          // You can filter sensitive data here
-          // Return null to drop the event
-          return event;
-        },
-      });
-
       this.isInitialized = true;
-      this.isEnabled = true;
-      logger.info('[ErrorReporting] Sentry initialized successfully');
+      this.isEnabled = false;
     } catch (error) {
-      logger.error('[ErrorReporting] Failed to initialize Sentry:', error);
+      logger.error('[ErrorReporting] Failed to initialize:', error);
       this.isEnabled = false;
     }
   }
 
   /**
-   * Capture an exception and send it to Sentry
+   * Capture an exception and log it
    * @param error The error object to capture
    * @param context Optional context data to attach
    */
   captureException(error: Error, context?: ErrorContext) {
     try {
-      if (!this.isEnabled) {
-        logger.error('[ErrorReporting] Exception:', error);
-        if (context) {
-          logger.error('[ErrorReporting] Context:', context);
-        }
-        return;
-      }
-
-      // Add context if provided
+      logger.error('[ErrorReporting] Exception:', error);
       if (context) {
-        Sentry.withScope((scope) => {
-          Object.keys(context).forEach((key) => {
-            scope.setContext(key, context[key]);
-          });
-          Sentry.captureException(error);
-        });
-      } else {
-        Sentry.captureException(error);
+        logger.error('[ErrorReporting] Context:', context);
       }
-
-      logger.info('[ErrorReporting] Exception sent to Sentry');
     } catch (err) {
       logger.error('[ErrorReporting] Failed to capture exception:', err);
     }
   }
 
   /**
-   * Capture a message and send it to Sentry
+   * Capture a message and log it
    * @param message The message to capture
    * @param level The severity level (default: 'info')
    */
-  captureMessage(message: string, level: SentryLevel = 'info') {
+  captureMessage(message: string, level: LogLevel = 'info') {
     try {
-      if (!this.isEnabled) {
-        logger.info(`[ErrorReporting] Message (${level}):`, message);
-        return;
-      }
-
-      Sentry.captureMessage(message, level);
-      logger.info('[ErrorReporting] Message sent to Sentry');
+      logger.info(`[ErrorReporting] Message (${level}):`, message);
     } catch (error) {
       logger.error('[ErrorReporting] Failed to capture message:', error);
     }
@@ -141,20 +77,7 @@ class ErrorReportingService {
    */
   setUser(user: UserContext) {
     try {
-      if (!this.isEnabled) {
-        logger.info('[ErrorReporting] Setting user context (dev mode):', user.id);
-        return;
-      }
-
-      const { id, username, email, ...rest } = user;
-      Sentry.setUser({
-        id,
-        username,
-        email,
-        ...rest,
-      });
-
-      logger.info('[ErrorReporting] User context set:', user.id);
+      logger.info('[ErrorReporting] Setting user context:', user.id);
     } catch (error) {
       logger.error('[ErrorReporting] Failed to set user context:', error);
     }
@@ -165,13 +88,7 @@ class ErrorReportingService {
    */
   clearUser() {
     try {
-      if (!this.isEnabled) {
-        logger.info('[ErrorReporting] Clearing user context (dev mode)');
-        return;
-      }
-
-      Sentry.setUser(null);
-      logger.info('[ErrorReporting] User context cleared');
+      logger.info('[ErrorReporting] Clearing user context');
     } catch (error) {
       logger.error('[ErrorReporting] Failed to clear user context:', error);
     }
@@ -187,18 +104,7 @@ class ErrorReportingService {
    */
   addBreadcrumb(category: string, message: string, data?: Record<string, any>) {
     try {
-      if (!this.isEnabled) {
-        logger.debug('[ErrorReporting] Breadcrumb:', category, message, data);
-        return;
-      }
-
-      Sentry.addBreadcrumb({
-        category,
-        message,
-        data,
-        level: 'info',
-        timestamp: Date.now() / 1000, // Sentry expects seconds
-      });
+      logger.debug('[ErrorReporting] Breadcrumb:', category, message, data);
     } catch (error) {
       logger.error('[ErrorReporting] Failed to add breadcrumb:', error);
     }
@@ -211,12 +117,7 @@ class ErrorReportingService {
    */
   setTag(key: string, value: string) {
     try {
-      if (!this.isEnabled) {
-        logger.debug('[ErrorReporting] Setting tag (dev mode):', key, value);
-        return;
-      }
-
-      Sentry.setTag(key, value);
+      logger.debug('[ErrorReporting] Setting tag:', key, value);
     } catch (error) {
       logger.error('[ErrorReporting] Failed to set tag:', error);
     }
@@ -229,26 +130,21 @@ class ErrorReportingService {
    */
   setContext(name: string, context: Record<string, any>) {
     try {
-      if (!this.isEnabled) {
-        logger.debug('[ErrorReporting] Setting context (dev mode):', name, context);
-        return;
-      }
-
-      Sentry.setContext(name, context);
+      logger.debug('[ErrorReporting] Setting context:', name, context);
     } catch (error) {
       logger.error('[ErrorReporting] Failed to set context:', error);
     }
   }
 
   /**
-   * Check if Sentry is initialized and enabled
+   * Check if service is initialized
    */
   get initialized(): boolean {
     return this.isInitialized;
   }
 
   /**
-   * Check if Sentry is enabled (production mode)
+   * Check if external reporting is enabled
    */
   get enabled(): boolean {
     return this.isEnabled;

@@ -1,46 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Bell } from 'lucide-react-native';
 import tw from 'twrnc';
-import { useRouter, useFocusEffect } from 'expo-router';
-import api from '@/services/api'; // Use centralized API
-import { useAuth } from '@/context/AuthContext';
-import { logger } from '@/utils/logger';
+import { useRouter } from 'expo-router';
+import { useApiQuery } from '@/hooks/queries';
 
 interface NotificationBellProps {
     color?: string;
 }
 
 function NotificationBellComponent({ color = '#ffffff' }: NotificationBellProps) {
-    const { token } = useAuth();
     const router = useRouter();
-    const [unreadCount, setUnreadCount] = useState(0);
 
-    const fetchUnreadCount = useCallback(async () => {
-        if (!token) return;
-        try {
-            // Use api.get instead of axios.get
-            const res = await api.get('/api/mobile/notifications');
-            if (res.data.success) {
-                setUnreadCount(res.data.data.unreadCount);
-            }
-        } catch {
-            logger.info('Failed to fetch notifications (silently ignored)');
-        }
-    }, [token]);
+    // Use React Query with caching to prevent excessive API calls
+    const { data } = useApiQuery<{ unreadCount: number }>({
+        queryKey: ['notifications', 'unread'],
+        endpoint: '/api/mobile/notifications',
+        staleTime: 1000 * 60 * 2, // 2 minutes - consider data fresh
+        refetchInterval: 1000 * 60 * 2, // Refetch every 2 minutes (reduced from 30s)
+        refetchOnWindowFocus: false,
+        refetchOnMount: false, // Don't refetch on every mount
+    });
 
-    // Fetch on focus
-    useFocusEffect(
-        useCallback(() => {
-            fetchUnreadCount();
-        }, [fetchUnreadCount])
-    );
-
-    // Poll every 30 seconds
-    useEffect(() => {
-        const interval = setInterval(fetchUnreadCount, 30000);
-        return () => clearInterval(interval);
-    }, [fetchUnreadCount]);
+    const unreadCount = data?.unreadCount ?? 0;
 
     const handlePress = () => {
         router.push('/(app)/notifications');

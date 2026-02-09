@@ -4,9 +4,9 @@ import { TokenService } from '@/services/TokenService';
 import { RefreshTokenService } from '@/services/RefreshTokenService';
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
+import { SecureStorage } from '@/utils/storage';
 import { isAxiosError } from 'axios';
 import * as Notifications from 'expo-notifications';
-import * as SecureStore from 'expo-secure-store';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
 
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             TokenService.setToken(newToken);
 
             logger.auth('Saving token...');
-            await SecureStore.setItemAsync('session_token', newToken);
+            await SecureStorage.setItem('session_token', newToken);
 
             // Save refresh token if provided
             if (refreshToken) {
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             logger.auth('Saving user data...');
-            await SecureStore.setItemAsync('user_data', JSON.stringify(userData));
+            await SecureStorage.setItem('user_data', JSON.stringify(userData));
 
             logger.auth('Updating state...');
             setToken(newToken);
@@ -110,8 +110,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Clear refresh token
             await RefreshTokenService.clearRefreshToken();
 
-            await SecureStore.deleteItemAsync('session_token');
-            await SecureStore.deleteItemAsync('user_data');
+            await SecureStorage.removeItem('session_token');
+            await SecureStorage.removeItem('user_data');
             setToken(null);
             setUser(null);
         } catch (error) {
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const updateUser = useCallback(async (userData: User) => {
         try {
             logger.auth('Updating user data in storage...');
-            await SecureStore.setItemAsync('user_data', JSON.stringify(userData));
+            await SecureStorage.setItem('user_data', JSON.stringify(userData));
             setUser(userData);
         } catch (error) {
             logger.error('Failed to update user data', error);
@@ -138,8 +138,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const initialize = async () => {
             // Load storage data
             try {
-                const storedToken = await SecureStore.getItemAsync('session_token');
-                const storedUser = await SecureStore.getItemAsync('user_data');
+                const storedToken = await SecureStorage.getItem('session_token');
+                const storedUser = await SecureStorage.getItem('user_data');
 
                 if (!isMounted) return;
 

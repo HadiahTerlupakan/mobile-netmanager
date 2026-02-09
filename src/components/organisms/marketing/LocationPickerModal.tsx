@@ -1,10 +1,11 @@
-import { getMapLibre, isExpoGo } from '@/utils/maplibre';
+import { getMapLibre, isMapLibreAvailable, isWeb } from '@/utils/maplibre';
 import { logger } from '@/utils/logger';
 import * as Location from 'expo-location';
 import { Crosshair, MapPin, Search, AlertTriangle } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
+import { WebLocationPicker } from './WebLocationPicker';
 
 interface LocationPickerModalProps {
     visible: boolean;
@@ -212,8 +213,20 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
         }
     };
 
-    // Show fallback for Expo Go
-    if (isExpoGo || !MapLibreGL) {
+    // Use WebLocationPicker for web platform
+    if (isWeb) {
+        return (
+            <WebLocationPicker
+                visible={visible}
+                onClose={onClose}
+                onSelectLocation={onSelectLocation}
+                initialLocation={initialLocation}
+            />
+        );
+    }
+
+    // Show fallback for Expo Go (native only)
+    if (!isMapLibreAvailable || !MapLibreGL) {
         return (
             <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
                 <View style={tw`flex-1 bg-white`}>

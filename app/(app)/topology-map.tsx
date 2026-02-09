@@ -3,7 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useApiQuery } from "@/hooks/queries";
 import api from "@/services/api";
 import { logger } from "@/utils/logger";
-import { getMapLibre, isExpoGo } from "@/utils/maplibre";
+import { getMapLibre, isMapLibreAvailable, isWeb } from "@/utils/maplibre";
 import toGeoJSON from "@/utils/togeojson-wrapper";
 import { FlashList } from "@shopify/flash-list";
 import { DOMParser } from "@xmldom/xmldom";
@@ -50,6 +50,7 @@ import {
 } from "@/components/organisms/topology/DeviceDetailModal";
 import { FilterPanel } from "@/components/organisms/topology/FilterPanel";
 import { TopologyErrorBoundary } from "@/components/organisms/topology/TopologyErrorBoundary";
+import { WebMapView } from "@/components/organisms/topology/WebMapView";
 import tw from "twrnc";
 
 // Get MapLibre (will be null in Expo Go)
@@ -1246,8 +1247,170 @@ export default function TopologyMapScreen() {
     });
   };
 
-  // Show fallback for Expo Go
-  if (isExpoGo || !MapLibreGL) {
+  // Prepare data for WebMapView
+  const webDevices = useMemo(() => {
+    if (!data) return [];
+    const devices: any[] = [];
+
+    const addDevice = (d: any, type: DeviceType) => {
+      if (!d.longitude || !d.latitude) return;
+      devices.push({
+        type,
+        id: d.id || d.nodeId,
+        name: d.name || d.nama || d.idPelanggan || 'Unknown',
+        latitude: d.latitude,
+        longitude: d.longitude,
+        color: MARKER_COLORS[type],
+        properties: d,
+      });
+    };
+
+    data.otbs.forEach(d => addDevice(d, 'otb'));
+    data.odcs.forEach(d => addDevice(d, 'odc'));
+    data.odps.forEach(d => addDevice(d, 'odp'));
+    data.joinboxes.forEach(d => addDevice(d, 'joinbox'));
+    data.poles.forEach(d => addDevice(d, 'pole'));
+    data.pelanggans.forEach(d => addDevice(d, 'pelanggan'));
+
+    // Add nodes
+    if (data.nodes) {
+      data.nodes.forEach(node => {
+        let mappedType: DeviceType = 'pole';
+        if (node.type) {
+          switch (node.type.toLowerCase()) {
+            case 'server': mappedType = 'otb'; break;
+            case 'odc': mappedType = 'odc'; break;
+            case 'odp': mappedType = 'odp'; break;
+            case 'ont': mappedType = 'pelanggan'; break;
+          }
+        }
+        addDevice({ ...node, id: node.nodeId }, mappedType);
+      });
+    }
+
+    return devices;
+  }, [data]);
+
+  const webLines = useMemo(() => {
+    if (!data || !data.edges) return [];
+    return data.edges.map(edge => {
+      const sourceDevice = webDevices.find(d => String(d.id) === String(edge.source));
+      const targetDevice = webDevices.find(d => String(d.id) === String(edge.target));
+
+      if (!sourceDevice || !targetDevice) return null;
+
+      const coordinates: [number, number][] = [
+        [sourceDevice.longitude, sourceDevice.latitude],
+      ];
+
+      // Add waypoints if present
+      let waypoints = edge.waypoints;
+      if (typeof waypoints === 'string') {
+        try {
+          waypoints = JSON.parse(waypoints);
+        } catch {
+          waypoints = [];
+        }
+      }
+      if (Array.isArray(waypoints)) {
+        waypoints.forEach((wp: any) => {
+          if (Array.isArray(wp)) {
+            coordinates.push([wp[0], wp[1]]);
+          }
+        });
+      }
+
+      coordinates.push([targetDevice.longitude, targetDevice.latitude]);
+
+      return {
+        coordinates,
+        color: edge.color || '#FF0000',
+        sourceName: sourceDevice.name,
+        targetName: targetDevice.name,
+      };
+    }).filter(Boolean) as any[];
+  }, [data, webDevices]);
+
+  const handleWebDevicePress = useCallback((device: any) => {
+    setSelectedDevice({
+      data: device.properties as DeviceData,
+      type: device.type as DeviceType,
+    });
+  }, []);
+
+  // Show WebMapView for web platform
+  if (isWeb) {
+    if (loading && !data) {
+      return <TopologySkeleton />;
+    }
+
+    if (error) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => fetchData()}>
+            <RefreshCw size={20} color="#fff" />
+            <Text style={styles.retryButtonText}>Coba Lagi</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <TopologyErrorBoundary>
+        <SafeAreaView style={styles.container} edges={["top"]}>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <ArrowLeft size={24} color="#1f2937" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Topology Map</Text>
+            <TouchableOpacity
+              style={styles.filterToggle}
+              onPress={() => setShowFilters(!showFilters)}
+            >
+              <Layers size={24} color={showFilters ? "#3b82f6" : "#6b7280"} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Web Map Container */}
+          <View style={styles.mapContainer}>
+            <WebMapView
+              devices={webDevices}
+              lines={webLines}
+              visibility={visibility}
+              onDevicePress={handleWebDevicePress}
+              onRefresh={() => fetchData()}
+              loading={loading}
+            />
+
+            {/* Filter Panel */}
+            {showFilters && (
+              <FilterPanel
+                visibility={visibility}
+                onToggle={handleToggleVisibility}
+                counts={counts}
+              />
+            )}
+          </View>
+
+          {/* Device Detail Modal */}
+          <DeviceDetailModal
+            visible={selectedDevice !== null}
+            onClose={() => setSelectedDevice(null)}
+            device={selectedDevice?.data || null}
+            deviceType={selectedDevice?.type || null}
+          />
+        </SafeAreaView>
+      </TopologyErrorBoundary>
+    );
+  }
+
+  // Show fallback for Expo Go (native only, not web)
+  if (!isMapLibreAvailable || !MapLibreGL) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         {/* Header */}

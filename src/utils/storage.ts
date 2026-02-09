@@ -1,7 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const STORAGE_PREFIX = 'netmanager_';
+const SECURE_STORAGE_PREFIX = 'netmanager_secure_';
+
+/**
+ * Check if we're running on web platform
+ */
+const isWeb = Platform.OS === 'web';
 
 /**
  * Async Storage wrapper with SecureStore fallback for sensitive data
@@ -61,11 +68,19 @@ export const Storage = {
 
 /**
  * Secure Storage for sensitive data (tokens, credentials)
- * Uses expo-secure-store which is available in Expo Go
+ * Uses expo-secure-store on native platforms
+ * Falls back to localStorage on web (not truly secure, but functional)
  */
 export const SecureStorage = {
   getItem: async (key: string): Promise<string | null> => {
     try {
+      if (isWeb) {
+        // Web fallback using localStorage
+        if (typeof window !== 'undefined' && window.localStorage) {
+          return window.localStorage.getItem(SECURE_STORAGE_PREFIX + key);
+        }
+        return null;
+      }
       return await SecureStore.getItemAsync(key);
     } catch (error) {
       console.error('SecureStorage.getItem error:', error);
@@ -75,6 +90,13 @@ export const SecureStorage = {
 
   setItem: async (key: string, value: string): Promise<void> => {
     try {
+      if (isWeb) {
+        // Web fallback using localStorage
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(SECURE_STORAGE_PREFIX + key, value);
+        }
+        return;
+      }
       await SecureStore.setItemAsync(key, value);
     } catch (error) {
       console.error('SecureStorage.setItem error:', error);
@@ -83,6 +105,13 @@ export const SecureStorage = {
 
   removeItem: async (key: string): Promise<void> => {
     try {
+      if (isWeb) {
+        // Web fallback using localStorage
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem(SECURE_STORAGE_PREFIX + key);
+        }
+        return;
+      }
       await SecureStore.deleteItemAsync(key);
     } catch (error) {
       console.error('SecureStorage.removeItem error:', error);

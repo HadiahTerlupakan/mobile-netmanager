@@ -75,14 +75,14 @@ export function SocketProvider({ children }: SocketProviderProps) {
                 userId: user.id,
                 userRole: user.role || 'USER',
             },
-            // Reconnection settings - Improved based on audit
+            // Reconnection settings - Limit retries to prevent endless loops
             reconnection: true,
-            reconnectionAttempts: 5, // Reduced from Infinity to prevent endless loops
-            reconnectionDelay: 2000,
-            reconnectionDelayMax: 10000,
+            reconnectionAttempts: 3, // Reduced to prevent endless error spam
+            reconnectionDelay: 5000, // Wait 5 seconds between attempts
+            reconnectionDelayMax: 30000,
             randomizationFactor: 0.5,
             // Timeout settings
-            timeout: 15000, // Reduced from 30000
+            timeout: 10000,
             // Transport settings - websocket first, then polling
             transports: ['websocket', 'polling'],
             autoConnect: true,

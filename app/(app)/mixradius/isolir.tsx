@@ -10,6 +10,7 @@ import { FlashList } from "@shopify/flash-list";
 import { formatDate } from "@/utils/date";
 import { Stack } from "expo-router";
 import {
+    AlertTriangle,
     Building,
     Calendar,
     CloudOff,
@@ -195,9 +196,11 @@ export default function MixRadiusIsolirScreen() {
   // Load Customers
   const {
     data: customerData,
-    isPending: loading,
+    isFetching,
     refetch,
     isRefetching: refreshing,
+    isError,
+    error,
   } = useApiQuery<any>({
     queryKey: ["mixradius", "isolir", selectedGroup?.id, search],
     queryFn: () =>
@@ -209,7 +212,12 @@ export default function MixRadiusIsolirScreen() {
         selectedGroup?.id
       ),
     enabled: hasSelected,
+    retry: false, // Don't retry on 403 permission errors
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
+
+  // Use isFetching for actual loading state (isPending stays true when query is disabled)
+  const loading = isFetching && !refreshing;
 
   const data = useMemo(() => {
     if (!customerData) return [];
@@ -217,6 +225,28 @@ export default function MixRadiusIsolirScreen() {
     if (customerData.data && Array.isArray(customerData.data)) return customerData.data;
     return [];
   }, [customerData]);
+
+  // Helper to get user-friendly error message
+  const getErrorMessage = useMemo(() => {
+    if (!error) return "Terjadi kesalahan saat mengambil data";
+
+    // Check for Axios error with response status
+    const axiosError = error as any;
+    if (axiosError?.response?.status === 403) {
+      return "Anda tidak memiliki akses ke fitur ini. Hubungi administrator untuk mendapatkan permission.";
+    }
+    if (axiosError?.response?.status === 401) {
+      return "Sesi Anda telah berakhir. Silakan login kembali.";
+    }
+    if (axiosError?.response?.status === 404) {
+      return "Integrasi MixRadius belum dikonfigurasi.";
+    }
+    if (axiosError?.response?.status >= 500) {
+      return "Server sedang mengalami gangguan. Coba lagi nanti.";
+    }
+
+    return error.message || "Terjadi kesalahan saat mengambil data";
+  }, [error]);
 
   const totalCount = useMemo(() => {
     if (!customerData) return 0;
@@ -300,7 +330,8 @@ export default function MixRadiusIsolirScreen() {
     </View>
   ), [search, selectedGroup, totalCount, data.length, hasSelected, refetch]);
 
-  if (loading && data.length === 0 && !refreshing) {
+  // Only show skeleton when query is enabled, actually loading, no data yet, and no error
+  if (hasSelected && loading && data.length === 0 && !isError) {
     return (
       <View style={[tw`flex-1 bg-gray-50`, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -326,17 +357,35 @@ export default function MixRadiusIsolirScreen() {
         ListEmptyComponent={
           !loading ? (
             <View style={tw`items-center justify-center py-20`}>
-              <CloudOff size={48} color="#d1d5db" />
-              <Text style={tw`text-gray-400 mt-4`}>
-                {!hasSelected ? "Pilih Site / Group terlebih dahulu" : "Tidak ada pelanggan ditemukan"}
-              </Text>
-              {!hasSelected && (
-                <TouchableOpacity
-                  onPress={() => setShowGroupModal(true)}
-                  style={tw`mt-4 bg-blue-600 px-6 py-2 rounded-full`}
-                >
-                  <Text style={tw`text-white font-bold`}>Pilih Site</Text>
-                </TouchableOpacity>
+              {isError ? (
+                <>
+                  <AlertTriangle size={48} color="#dc2626" />
+                  <Text style={tw`text-red-600 mt-4 font-medium`}>Gagal memuat data</Text>
+                  <Text style={tw`text-gray-400 mt-1 text-xs text-center px-8`}>
+                    {getErrorMessage}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => refetch()}
+                    style={tw`mt-4 bg-red-600 px-6 py-2 rounded-full`}
+                  >
+                    <Text style={tw`text-white font-bold`}>Coba Lagi</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <CloudOff size={48} color="#d1d5db" />
+                  <Text style={tw`text-gray-400 mt-4`}>
+                    {!hasSelected ? "Pilih Site / Group terlebih dahulu" : "Tidak ada pelanggan ditemukan"}
+                  </Text>
+                  {!hasSelected && (
+                    <TouchableOpacity
+                      onPress={() => setShowGroupModal(true)}
+                      style={tw`mt-4 bg-blue-600 px-6 py-2 rounded-full`}
+                    >
+                      <Text style={tw`text-white font-bold`}>Pilih Site</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </View>
           ) : null
