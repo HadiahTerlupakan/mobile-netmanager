@@ -5,7 +5,8 @@
  */
 
 import { queryKeys } from "../../lib/queryClient";
-import { useApiMutation, useOfflineQuery } from "./index";
+import { useApiMutation } from "./useApiMutation";
+import { useOfflineQuery } from "../useOfflineQuery";
 import { WorkOrder } from "@/types/work-order";
 
 // Types
