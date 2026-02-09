@@ -1,7 +1,7 @@
-import { Config } from '@/constants/Config';
 import { Events } from '@/constants/Events';
 import { TokenService } from '@/services/TokenService';
 import { TenantService } from '@/services/TenantService';
+import { RefreshTokenService } from '@/services/RefreshTokenService';
 import { logger } from '@/utils/logger';
 import { performanceMonitor } from '@/services/PerformanceMonitor'; // Import PerformanceMonitor
 import axios, { AxiosError } from 'axios';
@@ -11,6 +11,7 @@ declare module "axios" {
   export interface AxiosRequestConfig {
     skipGlobalAuthHandler?: boolean;
     _retryCount?: number;
+    _isRetryAfterRefresh?: boolean;
     metadata?: { startTime: number }; // Add metadata for tracking
   }
 }
@@ -120,7 +121,31 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
 
-      logger.warn(`[API] 401 Unauthorized from ${config.url}. Emitting AUTH_UNAUTHORIZED.`);
+      // Don't retry refresh if this is already a retry after refresh
+      if (config._isRetryAfterRefresh) {
+        logger.warn(`[API] 401 after token refresh from ${config.url}. Emitting AUTH_UNAUTHORIZED.`);
+        DeviceEventEmitter.emit(Events.AUTH_UNAUTHORIZED);
+        return Promise.reject(error);
+      }
+
+      // Try to refresh the token before logging out
+      logger.auth(`[API] 401 from ${config.url}. Attempting token refresh...`);
+
+      try {
+        const newToken = await RefreshTokenService.refreshAccessToken();
+
+        if (newToken) {
+          // Retry the original request with the new token
+          logger.auth('[API] Token refreshed successfully, retrying request...');
+          config.headers.Authorization = `Bearer ${newToken}`;
+          config._isRetryAfterRefresh = true;
+          return api(config);
+        }
+      } catch (refreshError) {
+        logger.error('[API] Token refresh failed:', refreshError);
+      }
+
+      logger.warn(`[API] Token refresh failed or no refresh token. Emitting AUTH_UNAUTHORIZED.`);
       // Emit event to be handled by AuthContext
       DeviceEventEmitter.emit(Events.AUTH_UNAUTHORIZED);
     }

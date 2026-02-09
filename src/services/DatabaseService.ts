@@ -45,7 +45,7 @@ class DatabaseServiceImpl {
 
     this.initPromise = (async () => {
       try {
-        const json = Storage.getItem(QUEUE_KEY);
+        const json = await Storage.getItem(QUEUE_KEY);
         if (json) {
           this.memoryQueue = JSON.parse(json);
         }
@@ -63,7 +63,7 @@ class DatabaseServiceImpl {
 
   private async persistQueue(): Promise<void> {
     try {
-      Storage.setItem(QUEUE_KEY, JSON.stringify(this.memoryQueue));
+      await Storage.setItem(QUEUE_KEY, JSON.stringify(this.memoryQueue));
     } catch (error) {
       logger.error("Failed to persist queue:", error);
     }
@@ -121,7 +121,7 @@ class DatabaseServiceImpl {
 
   public async saveOfflineData(key: string, data: any): Promise<void> {
     try {
-      Storage.setItem(`OFFLINE_${key}`, JSON.stringify(data));
+      await Storage.setItem(`OFFLINE_${key}`, JSON.stringify(data));
     } catch (error) {
       logger.error("Failed to save offline data:", error);
     }
@@ -129,7 +129,7 @@ class DatabaseServiceImpl {
 
   public async getOfflineData<T>(key: string): Promise<T | null> {
     try {
-      const json = Storage.getItem(`OFFLINE_${key}`);
+      const json = await Storage.getItem(`OFFLINE_${key}`);
       return json ? JSON.parse(json) : null;
     } catch (error) {
       logger.error("Failed to get offline data:", error);

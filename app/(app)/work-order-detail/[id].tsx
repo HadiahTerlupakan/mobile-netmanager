@@ -2,7 +2,6 @@ import { ImageViewerModal } from '@/components/molecules/ImageViewerModal';
 import { WorkOrderDetailSkeleton } from '@/components/molecules/WorkOrderDetailSkeleton';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { Config } from "@/constants/Config";
 import { TenantService } from "@/services/TenantService";
 import { useAuth } from "@/context/AuthContext";
 import { useSocketEvent, useSocketRoom } from "@/context/SocketContext";

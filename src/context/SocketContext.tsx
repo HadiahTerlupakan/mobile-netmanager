@@ -93,7 +93,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
         });
 
         // Store all listener references for cleanup
-        const listeners: Array<{ event: string; handler: (...args: any[]) => void }> = [];
+        const listeners: { event: string; handler: (...args: any[]) => void }[] = [];
 
         const addListener = (event: string, handler: (...args: any[]) => void) => {
             socketInstance.on(event, handler);

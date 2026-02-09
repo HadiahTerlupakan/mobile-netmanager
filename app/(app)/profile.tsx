@@ -1,7 +1,7 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
+import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { ProfileSkeleton } from '@/components/molecules/ProfileSkeleton';
 import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModal";
-import { Config } from '@/constants/Config';
 import { TenantService } from '@/services/TenantService';
 import { useAuth } from '@/context/AuthContext';
 import { useAppVersion } from "@/hooks/useAppVersion";
@@ -15,7 +15,7 @@ import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, Text, T
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
-export default function Profile() {
+function ProfileScreen() {
     const { user, signOut } = useAuth();
     const { profileData, isPending, refetch } = useProfileSync();
     const [refreshing, setRefreshing] = useState(false);
@@ -281,5 +281,13 @@ export default function Profile() {
                 />
             )}
         </SafeAreaView>
+    );
+}
+
+export default function Profile() {
+    return (
+        <ScreenErrorBoundary screenName="Profile">
+            <ProfileScreen />
+        </ScreenErrorBoundary>
     );
 }

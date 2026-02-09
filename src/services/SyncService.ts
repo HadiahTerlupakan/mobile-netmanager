@@ -1,7 +1,6 @@
 import NetInfo from '@react-native-community/netinfo';
 import axios, { isAxiosError } from 'axios'; // Keep for isAxiosError check
 import pLimit from 'p-limit';
-import { Config } from '../constants/Config';
 import { TenantService } from './TenantService';
 import { DatabaseService, SyncQueueItem } from './DatabaseService';
 import * as SecureStore from 'expo-secure-store'; // Ensure SyncQueueItem is exported

@@ -71,7 +71,7 @@ export function useAppVersion(): UseAppVersionState {
 
             if (result.success) {
                 // Check if this version is ignored
-                const ignoredVersion = Storage.getItem(IGNORED_VERSION_KEY)
+                const ignoredVersion = await Storage.getItem(IGNORED_VERSION_KEY)
                 const isIgnored = !result.isForceUpdate &&
                     result.latestVersion?.version &&
                     result.latestVersion.version === ignoredVersion
@@ -168,9 +168,9 @@ export function useAppVersion(): UseAppVersionState {
         setDownloadStatus('idle')
     }, [])
 
-    const ignoreUpdate = useCallback(() => {
+    const ignoreUpdate = useCallback(async () => {
         if (latestVersion?.version) {
-            Storage.setItem(IGNORED_VERSION_KEY, latestVersion.version)
+            await Storage.setItem(IGNORED_VERSION_KEY, latestVersion.version)
             setUpdateAvailable(false)
             setLatestVersion(null)
         }

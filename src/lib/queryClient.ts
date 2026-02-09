@@ -28,17 +28,15 @@ export const queryClient = new QueryClient({
   },
 });
 
-// MMKV-based Persister untuk menyimpan cache ke storage (encrypted)
+// AsyncStorage-based Persister untuk menyimpan cache ke storage
 export const asyncStoragePersister = createAsyncStoragePersister({
   storage: {
-    getItem: (key) => Promise.resolve(Storage.getItem(key)),
-    setItem: (key, value) => {
-      Storage.setItem(key, value);
-      return Promise.resolve();
+    getItem: async (key) => await Storage.getItem(key),
+    setItem: async (key, value) => {
+      await Storage.setItem(key, value);
     },
-    removeItem: (key) => {
-      Storage.removeItem(key);
-      return Promise.resolve();
+    removeItem: async (key) => {
+      await Storage.removeItem(key);
     },
   },
   key: "TANSTACK_QUERY_CACHE",
@@ -51,7 +49,7 @@ export const queryKeys = {
   workOrders: {
     all: ["workOrders"] as const,
     list: (filter?: string) =>
-      [...queryKeys.workOrders.all, "list", filter].filter(Boolean) as const,
+      filter ? [...queryKeys.workOrders.all, "list", filter] as const : [...queryKeys.workOrders.all, "list"] as const,
     detail: (id: string) =>
       [...queryKeys.workOrders.all, "detail", id] as const,
   },
@@ -59,12 +57,12 @@ export const queryKeys = {
   // Inventory / Barang
   inventory: {
     all: ["inventory"] as const,
-    list: (gudangId?: string) => [...queryKeys.inventory.all, "list", gudangId].filter(Boolean) as const,
+    list: (gudangId?: string) => gudangId ? [...queryKeys.inventory.all, "list", gudangId] as const : [...queryKeys.inventory.all, "list"] as const,
     detail: (id: string) => [...queryKeys.inventory.all, "detail", id] as const,
-    history: (filter?: string) => [...queryKeys.inventory.all, "history", filter].filter(Boolean) as const,
+    history: (filter?: string) => filter ? [...queryKeys.inventory.all, "history", filter] as const : [...queryKeys.inventory.all, "history"] as const,
     warehouses: () => [...queryKeys.inventory.all, "warehouses"] as const,
     stats: () => [...queryKeys.inventory.all, "stats"] as const,
-    master: (mode?: string) => [...queryKeys.inventory.all, "master", mode].filter(Boolean) as const,
+    master: (mode?: string) => mode ? [...queryKeys.inventory.all, "master", mode] as const : [...queryKeys.inventory.all, "master"] as const,
   },
 
   // Attendance

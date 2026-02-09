@@ -8,6 +8,7 @@ import { useAppVersion } from "@/hooks/useAppVersion";
 import { asyncStoragePersister, queryClient } from "@/lib/queryClient";
 import { appVersionService } from "@/services/AppVersionService";
 import { DatabaseService } from "@/services/DatabaseService"; // Import DatabaseService
+import { errorReportingService } from "@/services/ErrorReportingService"; // Import ErrorReportingService
 import { performanceMonitor } from "@/services/PerformanceMonitor"; // Import PerformanceMonitor
 import { SyncService } from "@/services/SyncService";
 import { eventManager } from "@/utils/EventManager";
@@ -20,6 +21,9 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import tw from "twrnc";
+
+// Initialize error reporting as early as possible
+errorReportingService.init();
 
 // Get current version from app.json
 const CURRENT_VERSION_CODE = Constants.expoConfig?.extra?.versionCode || 53;
@@ -94,13 +98,20 @@ function RootLayoutNav() {
         }
     };
     checkUpdate();
-  }, []);
+  }, [checkForUpdate]);
 
   // Report App Version
   useEffect(() => {
     let reportTimer: ReturnType<typeof setTimeout>;
 
     if (user && token) {
+      // Set user context for error reporting
+      errorReportingService.setUser({
+        id: user.id,
+        email: user.email,
+        username: user.name,
+      });
+
       // Throttle version reporting to avoid congestion on startup
       reportTimer = setTimeout(() => {
         appVersionService
@@ -109,6 +120,9 @@ function RootLayoutNav() {
             logger.error("Failed to report version:", e);
           });
       }, 5000);
+    } else {
+      // Clear user context when logged out
+      errorReportingService.clearUser();
     }
 
     return () => {

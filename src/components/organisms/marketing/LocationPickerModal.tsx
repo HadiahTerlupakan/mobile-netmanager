@@ -1,7 +1,7 @@
+import { getMapLibre, isExpoGo } from '@/utils/maplibre';
 import { logger } from '@/utils/logger';
-import MapLibreGL from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
-import { Crosshair, MapPin, Search } from 'lucide-react-native';
+import { Crosshair, MapPin, Search, AlertTriangle } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
@@ -19,7 +19,8 @@ interface OSMSuggestion {
     display_name: string;
 }
 
-MapLibreGL.setAccessToken(null);
+// Get MapLibre (will be null in Expo Go)
+const MapLibreGL = getMapLibre();
 
 export function LocationPickerModal({ visible, onClose, onSelectLocation, initialLocation }: LocationPickerModalProps) {
     const cameraRef = useRef<any>(null);
@@ -54,6 +55,14 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
             }
         };
         init();
+
+        // Cleanup: clear any pending search timeout on unmount
+        return () => {
+            if (searchTimeout.current) {
+                clearTimeout(searchTimeout.current);
+                searchTimeout.current = null;
+            }
+        };
     }, [visible, initialLocation]);
 
     // Memoize settings to prevent re-renders from "resetting" the map
@@ -88,13 +97,13 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
     const getCurrentLocation = async (isInitialId = false) => {
         try {
             if (!isInitialId) setLoadingLocation(true);
-            
+
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
                 Alert.alert('Izin Lokasi', 'Aktifkan izin lokasi untuk menggunakan fitur ini.');
                 // Fallback to Jakarta if permission denied
                 if (isInitialId) {
-                    setCenter([106.816666, -6.200000]); 
+                    setCenter([106.816666, -6.200000]);
                     setIsInitialized(true);
                 }
                 return;
@@ -139,7 +148,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
 
     const handleSearchTextChange = (text: string) => {
         setSearchQuery(text);
-        
+
         if (searchTimeout.current) {
             clearTimeout(searchTimeout.current);
         }
@@ -175,7 +184,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
         const lat = parseFloat(item.lat);
         const lng = parseFloat(item.lon);
         const newCenter: [number, number] = [lng, lat];
-        
+
         setCenter(newCenter);
         setSearchQuery(item.display_name.split(',')[0]); // Shorten name for display
         setSuggestions([]); // Close dropdown
@@ -203,6 +212,44 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
         }
     };
 
+    // Show fallback for Expo Go
+    if (isExpoGo || !MapLibreGL) {
+        return (
+            <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+                <View style={tw`flex-1 bg-white`}>
+                    {/* Header */}
+                    <View style={tw`flex-row items-center justify-between px-4 py-4 pt-12 border-b border-gray-100 bg-white`}>
+                        <Text style={tw`text-lg font-bold text-gray-900`}>Pilih Lokasi</Text>
+                        <TouchableOpacity onPress={onClose} style={tw`p-2 bg-gray-100 rounded-full`}>
+                            <Text style={tw`text-gray-500 font-bold`}>Tutup</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Expo Go Fallback Message */}
+                    <View style={tw`flex-1 items-center justify-center px-8`}>
+                        <AlertTriangle size={64} color="#f59e0b" />
+                        <Text style={tw`text-xl font-bold text-gray-900 mt-6 text-center`}>
+                            Fitur Peta Tidak Tersedia
+                        </Text>
+                        <Text style={tw`text-gray-600 mt-4 text-center leading-6`}>
+                            Fitur pemilihan lokasi dengan peta membutuhkan development build.
+                            Saat ini Anda menggunakan Expo Go yang tidak mendukung MapLibre.
+                        </Text>
+                        <Text style={tw`text-sm text-gray-500 mt-6 text-center`}>
+                            Jalankan `npx expo run:android` atau `npx expo run:ios` untuk menggunakan fitur ini.
+                        </Text>
+                        <TouchableOpacity
+                            onPress={onClose}
+                            style={tw`mt-8 bg-blue-600 px-8 py-4 rounded-xl`}
+                        >
+                            <Text style={tw`text-white font-bold`}>Tutup</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+        );
+    }
+
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
             <View style={tw`flex-1 bg-white`}>
@@ -218,22 +265,22 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                 <View style={tw`px-4 py-2 bg-white z-20 border-b border-gray-100`}>
                     <View style={tw`flex-row items-center bg-gray-100 rounded-xl px-3 h-10`}>
                         <Search size={20} color="#9ca3af" />
-                        <TextInput 
+                        <TextInput
                              value={searchQuery}
                              onChangeText={handleSearchTextChange}
                              placeholder="Cari desa, jalan, atau kota..."
                              style={tw`flex-1 ml-2 text-gray-900 h-full`}
                              returnKeyType="search"
-                             onSubmitEditing={() => Keyboard.dismiss()} 
+                             onSubmitEditing={() => Keyboard.dismiss()}
                         />
                         {isSearching && <ActivityIndicator size="small" color="#2563eb" />}
                     </View>
-                    
+
                     {/* Suggestions Dropdown */}
                     {suggestions.length > 0 && (
                         <View style={tw`absolute top-14 left-4 right-4 bg-white rounded-xl shadow-lg border border-gray-100 max-h-60 z-30 overflow-hidden`}>
                              {suggestions.map((item, index) => (
-                                 <TouchableOpacity 
+                                 <TouchableOpacity
                                     key={index}
                                     style={tw`p-3 border-b border-gray-100 flex-row items-center`}
                                     onPress={() => handleSelectSuggestion(item)}
@@ -275,7 +322,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
 
                     {/* Center Marker Overlay */}
                     <View style={[StyleSheet.absoluteFill, tw`items-center justify-center pointer-events-none`]}>
-                        <View style={tw`mb-8`}> 
+                        <View style={tw`mb-8`}>
                             <MapPin size={40} color="#ef4444" fill="white" />
                         </View>
                     </View>
@@ -295,21 +342,21 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
 
                     {/* Bottom Selection Panel */}
                 <View style={tw`absolute bottom-0 left-0 right-0 p-4 pb-12 bg-white rounded-t-3xl shadow-xl z-20`}>
-                    <View style={tw`w-12 h-1 bg-gray-200 rounded-full mx-auto mb-4`} />
-                    <View style={tw`mb-4`}>
-                        <Text style={tw`text-xs text-center text-gray-500 mb-1`}>Koordinat Terpilih</Text>
-                            <Text style={tw`text-sm font-mono text-center text-gray-900 bg-gray-50 py-2 rounded-lg`}>
-                                {isInitialized ? `${center[1].toFixed(6)}, ${center[0].toFixed(6)}` : '- , -'}
-                            </Text>
-                        </View>
-                        <TouchableOpacity
-                            onPress={handleSelect}
-                            style={tw`bg-blue-600 py-4 rounded-xl items-center justify-center shadow-md shadow-blue-200`}
-                        >
-                            <Text style={tw`text-white font-bold text-base`}>Pilih Titik Ini</Text>
-                        </TouchableOpacity>
+                <View style={tw`w-12 h-1 bg-gray-200 rounded-full mx-auto mb-4`} />
+                <View style={tw`mb-4`}>
+                    <Text style={tw`text-xs text-center text-gray-500 mb-1`}>Koordinat Terpilih</Text>
+                        <Text style={tw`text-sm font-mono text-center text-gray-900 bg-gray-50 py-2 rounded-lg`}>
+                            {isInitialized ? `${center[1].toFixed(6)}, ${center[0].toFixed(6)}` : '- , -'}
+                        </Text>
                     </View>
+                    <TouchableOpacity
+                        onPress={handleSelect}
+                        style={tw`bg-blue-600 py-4 rounded-xl items-center justify-center shadow-md shadow-blue-200`}
+                    >
+                        <Text style={tw`text-white font-bold text-base`}>Pilih Titik Ini</Text>
+                    </TouchableOpacity>
                 </View>
+            </View>
             </View>
         </Modal>
     );

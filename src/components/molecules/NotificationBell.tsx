@@ -11,7 +11,7 @@ interface NotificationBellProps {
     color?: string;
 }
 
-export default function NotificationBell({ color = '#ffffff' }: NotificationBellProps) {
+function NotificationBellComponent({ color = '#ffffff' }: NotificationBellProps) {
     const { token } = useAuth();
     const router = useRouter();
     const [unreadCount, setUnreadCount] = useState(0);
@@ -59,3 +59,9 @@ export default function NotificationBell({ color = '#ffffff' }: NotificationBell
         </TouchableOpacity>
     );
 }
+
+// Wrap with React.memo to prevent unnecessary re-renders
+const NotificationBell = React.memo(NotificationBellComponent);
+NotificationBell.displayName = 'NotificationBell';
+
+export default NotificationBell;

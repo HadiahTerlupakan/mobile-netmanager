@@ -14,8 +14,7 @@ import { InventoryMasukSchema, sanitizeInput, validateData } from "@/utils/valid
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { logger } from "@/utils/logger";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { formatDateRaw } from "@/utils/date";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -587,10 +586,8 @@ export default function BarangMasukScreen() {
                           fontSize: photo.width * 0.03,
                         }}
                       >
-                        ⏰ {format(photo.capturedAt, "HH:mm:ss")} •{" "}
-                        {format(photo.capturedAt, "d MMM yyyy", {
-                          locale: idLocale,
-                        })}
+                        ⏰ {formatDateRaw(photo.capturedAt, "HH:mm:ss")} •{" "}
+                        {formatDateRaw(photo.capturedAt, "D MMM YYYY")}
                       </Text>
                     </View>
                     <Text

@@ -1,61 +1,64 @@
 import { useAuth } from '@/context/AuthContext';
-import api from '@/services/api'; // Use centralized API
+import { FormInput } from '@/components/atoms/FormInput';
+import { useFormWithValidation } from '@/hooks/useFormWithValidation';
+import { biometricService } from '@/services/BiometricService';
+import api from '@/services/api';
 import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
-import { Lock, Mail } from 'lucide-react-native';
-import React, { useState } from 'react';
-import { Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Lock, Mail, Fingerprint } from 'lucide-react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Alert, Image, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import tw from 'twrnc';
-// import { useTenant } from '@/context/TenantContext'; // Added TenantContext
 import { logger } from '@/utils/logger';
-import { LoginSchema, validateData } from '@/utils/validation';
+import { LoginSchema } from '@/utils/validation';
 import { AxiosError } from 'axios';
-import { useRouter } from 'expo-router'; // Added useRouter
+import { z } from 'zod';
+
+type LoginFormData = z.infer<typeof LoginSchema>;
 
 export default function LoginScreen() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
+    const [biometricAvailable, setBiometricAvailable] = useState(false);
+    const [biometricEnabled, setBiometricEnabled] = useState(false);
+    const [biometricTypes, setBiometricTypes] = useState<string[]>([]);
     const { signIn } = useAuth();
-    // const { tenantUrl, clearTenant } = useTenant(); // Get tenant info
-    const router = useRouter();
 
-    /*
-    const handleChangeServer = async () => {
-        Alert.alert(
-            'Ganti Server',
-            'Apakah Anda yakin ingin mengganti server? Anda harus memasukkan URL server baru.',
-            [
-                { text: 'Batal', style: 'cancel' },
-                {
-                    text: 'Ganti',
-                    style: 'destructive',
-                    onPress: async () => {
-                        await clearTenant();
-                        router.replace('/tenant-selection');
-                    }
-                }
-            ]
-        );
-    };
-    */
-
-    const handleLogin = async () => {
-        const validation = validateData(LoginSchema, { email, password });
-
-        if (!validation.success) {
-            Alert.alert('Data Tidak Valid', validation.error);
-            return;
+    const {
+        control,
+        handleValidatedSubmit,
+        formState: { errors }
+    } = useFormWithValidation({
+        schema: LoginSchema,
+        defaultValues: {
+            email: '',
+            password: ''
         }
+    });
 
+    // Check biometric availability on mount
+    useEffect(() => {
+        const checkBiometric = async () => {
+            const available = await biometricService.isAvailable();
+            setBiometricAvailable(available);
+
+            if (available) {
+                const enabled = await biometricService.isBiometricEnabled();
+                setBiometricEnabled(enabled);
+                const types = await biometricService.getSupportedTypes();
+                setBiometricTypes(types);
+            }
+        };
+
+        checkBiometric();
+    }, []);
+
+    const performLogin = useCallback(async (email: string, password: string) => {
         setLoading(true);
         try {
             const versionCode = Constants.expoConfig?.extra?.versionCode || 15;
-            // Native version for APK (e.g. 1.0.7), fallback to 1.0.0
             const versionName = Constants.expoConfig?.version || '1.0.0';
 
             logger.auth('Attempting login...');
-            // Using centralized API - base URL and headers handled automatically
             const res = await api.post('/api/mobile/auth/login', {
                 email,
                 password,
@@ -65,25 +68,27 @@ export default function LoginScreen() {
 
             if (res.data.success) {
                 logger.auth('[LoginScreen] Login success, calling signIn...');
-                await signIn(res.data.token, res.data.user);
+                // Pass refresh token if provided by backend
+                await signIn(
+                    res.data.token,
+                    res.data.user,
+                    res.data.refreshToken // Optional refresh token
+                );
                 logger.auth('[LoginScreen] signIn returned');
             } else {
                 logger.warn('[LoginScreen] Login failed logic:', res.data);
                 Alert.alert('Login Gagal', res.data.error || 'Terjadi kesalahan');
             }
         } catch (error) {
-            const isAxiosError = error instanceof AxiosError;
-            const status = isAxiosError ? error.response?.status : undefined;
-            const data = isAxiosError ? error.response?.data as { error?: string } : undefined;
+            const isAxiosErr = error instanceof AxiosError;
+            const status = isAxiosErr ? error.response?.status : undefined;
+            const data = isAxiosErr ? error.response?.data as { error?: string } : undefined;
             logger.error('[LoginScreen] Login error:', status, data);
 
-            // Handle different error scenarios
-            if (isAxiosError && error.response) {
-                // Server responded with error - show the error message
+            if (isAxiosErr && error.response) {
                 let errorMessage = 'Login gagal. Silakan coba lagi.';
 
                 if (status === 401) {
-                    // Invalid credentials - show friendly message
                     errorMessage = data?.error || 'Email atau password salah';
                 } else if (status === 400) {
                     errorMessage = data?.error || 'Data tidak lengkap';
@@ -93,24 +98,40 @@ export default function LoginScreen() {
                     errorMessage = data.error;
                 }
 
-                logger.info('[LoginScreen] Showing alert:', errorMessage);
                 Alert.alert('Login Gagal', errorMessage);
             } else if (error instanceof AxiosError && error.request) {
-                // No response received (network error)
-                logger.info('[LoginScreen] Network error, showing alert');
                 Alert.alert(
                     'Koneksi Gagal',
                     'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.'
                 );
             } else {
-                // Other errors
-                logger.info('[LoginScreen] Unknown error, showing alert');
                 Alert.alert('Error', 'Terjadi kesalahan. Silakan coba lagi.');
             }
         } finally {
             setLoading(false);
         }
-    };
+    }, [signIn]);
+
+    const handleLogin = handleValidatedSubmit(async (data: LoginFormData) => {
+        await performLogin(data.email, data.password);
+    });
+
+    const handleBiometricLogin = useCallback(async () => {
+        const result = await biometricService.authenticate('Login dengan biometrik');
+
+        if (result.success) {
+            // For biometric login, we need stored credentials
+            // This is a simplified version - in production, you'd store encrypted credentials
+            // or use a different auth flow (like stored refresh token)
+            Alert.alert(
+                'Biometrik Berhasil',
+                'Autentikasi berhasil. Silakan masukkan kredensial Anda untuk melanjutkan.',
+                [{ text: 'OK' }]
+            );
+        } else if (result.error) {
+            Alert.alert('Autentikasi Gagal', result.error);
+        }
+    }, []);
 
     return (
         <View style={tw`flex-1 bg-white items-center justify-center p-6`}>
@@ -118,8 +139,8 @@ export default function LoginScreen() {
 
             {/* Logo */}
             <View style={tw`mb-10 items-center`}>
-                <Image 
-                    source={require('../../assets/images/icon.png')} 
+                <Image
+                    source={require('../../assets/images/icon.png')}
                     style={tw`h-24 w-24 rounded-2xl mb-4`}
                     resizeMode="contain"
                 />
@@ -128,49 +149,59 @@ export default function LoginScreen() {
             </View>
 
             <View style={tw`w-full max-w-sm`}>
-                <View style={tw`mb-4`}>
-                    <Text style={tw`mb-2 font-medium text-gray-700`}>Email Address</Text>
-                    <View style={tw`flex-row items-center border border-gray-300 rounded-xl px-4 h-12 bg-gray-50 focus:border-blue-500`}>
-                        <Mail color="#9ca3af" size={20} />
-                        <TextInput
-                            testID="email-input"
-                            accessibilityLabel="Email Input"
-                            style={tw`flex-1 ml-3 text-gray-900`}
-                            placeholder="nama@perusahaan.com"
-                            autoCapitalize="none"
-                            keyboardType="email-address"
-                            value={email}
-                            onChangeText={setEmail}
-                        />
-                    </View>
+                {/* Email Input with React Hook Form */}
+                <FormInput
+                    name="email"
+                    control={control}
+                    label="Email Address"
+                    placeholder="nama@perusahaan.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    leftIcon={<Mail color="#9ca3af" size={20} />}
+                    error={errors.email?.message}
+                    testID="email-input"
+                />
+
+                {/* Password Input with React Hook Form */}
+                <View style={tw`mt-4`}>
+                    <FormInput
+                        name="password"
+                        control={control}
+                        label="Password"
+                        placeholder="••••••••"
+                        secureTextEntry
+                        leftIcon={<Lock color="#9ca3af" size={20} />}
+                        error={errors.password?.message}
+                        testID="password-input"
+                    />
                 </View>
 
-                <View style={tw`mb-8`}>
-                    <Text style={tw`mb-2 font-medium text-gray-700`}>Password</Text>
-                    <View style={tw`flex-row items-center border border-gray-300 rounded-xl px-4 h-12 bg-gray-50 focus:border-blue-500`}>
-                        <Lock color="#9ca3af" size={20} />
-                        <TextInput
-                            testID="password-input"
-                            accessibilityLabel="Password Input"
-                            style={tw`flex-1 ml-3 text-gray-900`}
-                            placeholder="••••••••"
-                            secureTextEntry
-                            value={password}
-                            onChangeText={setPassword}
-                        />
-                    </View>
-                </View>
-
+                {/* Login Button */}
                 <TouchableOpacity
                     onPress={handleLogin}
                     disabled={loading}
-                    style={tw`bg-blue-600 h-14 rounded-xl items-center justify-center shadow-md ${loading ? 'opacity-70' : ''}`}
+                    style={tw`bg-blue-600 h-14 rounded-xl items-center justify-center shadow-md mt-8 ${loading ? 'opacity-70' : ''}`}
                 >
-                    <Text style={tw`text-white font-bold text-lg`}>
-                        {loading ? 'Memproses...' : 'Sign In'}
-                    </Text>
+                    {loading ? (
+                        <ActivityIndicator color="white" />
+                    ) : (
+                        <Text style={tw`text-white font-bold text-lg`}>Sign In</Text>
+                    )}
                 </TouchableOpacity>
 
+                {/* Biometric Login Button */}
+                {biometricAvailable && biometricEnabled && (
+                    <TouchableOpacity
+                        onPress={handleBiometricLogin}
+                        disabled={loading}
+                        style={tw`mt-4 h-14 rounded-xl items-center justify-center border border-blue-600 flex-row`}
+                    >
+                        <Fingerprint color="#2563eb" size={24} />
+                        <Text style={tw`text-blue-600 font-bold text-base ml-2`}>
+                            Login dengan {biometricTypes[0] || 'Biometrik'}
+                        </Text>
+                    </TouchableOpacity>
+                )}
             </View>
         </View>
     );

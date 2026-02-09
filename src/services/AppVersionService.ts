@@ -1,4 +1,3 @@
-import { Config } from '@/constants/Config';
 import { TenantService } from '@/services/TenantService';
 import { checkInstallPermission, installApkNative, openInstallSettings } from '@/native/ApkInstaller';
 import * as FileSystem from 'expo-file-system/legacy';

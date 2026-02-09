@@ -12,7 +12,7 @@ import {
   PackageMinus,
   WifiOff
 } from "lucide-react-native";
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
 import tw from "twrnc";
 
@@ -119,7 +119,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 
-export const QuickMenu = ({
+const QuickMenuComponent = ({
   features = [],
   isSales = false,
   role,
@@ -127,7 +127,7 @@ export const QuickMenu = ({
   const router = useRouter();
 
   // Check if user has a specific feature
-  const hasFeature = React.useCallback((requiredFeatures: string[]) => {
+  const hasFeature = useCallback((requiredFeatures: string[]) => {
     if (role === "SUPER_ADMIN") return true;
     if (requiredFeatures.length === 0) return true;
     return requiredFeatures.some((f) => features.includes(f));
@@ -140,7 +140,7 @@ export const QuickMenu = ({
     });
   }, [hasFeature, isSales]);
 
-  const handleMenuPress = (item: MenuItem & { enabled: boolean }) => {
+  const handleMenuPress = useCallback((item: MenuItem & { enabled: boolean }) => {
     if (item.enabled) {
       router.push(item.route as Href);
     } else {
@@ -151,7 +151,7 @@ export const QuickMenu = ({
 
       Alert.alert("Akses Terbatas", message, [{ text: "OK" }]);
     }
-  };
+  }, [router, isSales]);
 
   return (
     <View style={tw`px-4 pb-8`}>
@@ -199,3 +199,7 @@ export const QuickMenu = ({
     </View>
   );
 };
+
+// Wrap with React.memo to prevent unnecessary re-renders
+export const QuickMenu = React.memo(QuickMenuComponent);
+QuickMenu.displayName = 'QuickMenu';

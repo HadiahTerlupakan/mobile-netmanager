@@ -1,85 +1,51 @@
-import * as Crypto from 'expo-crypto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import { createMMKV, type MMKV } from 'react-native-mmkv';
 
-const SECURE_KEY_ALIAS = 'mmkv_encryption_key';
-
-// Lazy-loaded instance
-let secureStorage: MMKV | null = null;
+const STORAGE_PREFIX = 'netmanager_';
 
 /**
- * Helper to get or generate an encryption key securely.
- * Uses expo-secure-store for persistence and expo-crypto for generation.
- */
-function getEncryptionKey(): string {
-  try {
-    let key = SecureStore.getItem(SECURE_KEY_ALIAS);
-    if (!key) {
-      // Generate a random 32-character hex key if not exists
-      const randomBytes = Crypto.getRandomValues(new Uint8Array(16));
-      key = Array.from(randomBytes)
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-
-      SecureStore.setItem(SECURE_KEY_ALIAS, key);
-    }
-    return key;
-  } catch (error) {
-    console.error('Failed to get/set secure key for MMKV, falling back to unencrypted (WARNING)', error);
-    return ''; // Fallback, though ideally we should fail hard or handle UI
-  }
-}
-
-/**
- * Lazy initializer for MMKV instance.
- * Initializes the instance only when needed to avoid startup race conditions.
- */
-function getStorage(): MMKV | null {
-  if (secureStorage) return secureStorage;
-
-  try {
-    const encryptionKey = getEncryptionKey();
-    secureStorage = createMMKV({
-      id: 'netmanager-storage',
-      encryptionKey: encryptionKey || undefined,
-    });
-    return secureStorage;
-  } catch (error) {
-    console.error('Failed to initialize MMKV storage:', error);
-    return null;
-  }
-}
-
-// Export for direct access if strictly necessary (though usage via Storage wrapper is preferred)
-export { secureStorage };
-
-/**
- * Wrapper to mimic AsyncStorage-like API for easier migration, but fully synchronous.
+ * Async Storage wrapper with SecureStore fallback for sensitive data
+ * Compatible with Expo Go (no native modules required)
  */
 export const Storage = {
-  getItem: (key: string) => {
-    const storage = getStorage();
-    if (!storage) return null;
-    return storage.getString(key) || null;
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      return await AsyncStorage.getItem(STORAGE_PREFIX + key);
+    } catch (error) {
+      console.error('Storage.getItem error:', error);
+      return null;
+    }
   },
-  setItem: (key: string, value: string) => {
-    const storage = getStorage();
-    if (!storage) return;
-    storage.set(key, value);
+
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      await AsyncStorage.setItem(STORAGE_PREFIX + key, value);
+    } catch (error) {
+      console.error('Storage.setItem error:', error);
+    }
   },
-  removeItem: (key: string) => {
-    const storage = getStorage();
-    if (!storage) return;
-    storage.remove(key);
+
+  removeItem: async (key: string): Promise<void> => {
+    try {
+      await AsyncStorage.removeItem(STORAGE_PREFIX + key);
+    } catch (error) {
+      console.error('Storage.removeItem error:', error);
+    }
   },
-  clear: () => {
-    const storage = getStorage();
-    if (!storage) return;
-    storage.clearAll();
+
+  clear: async (): Promise<void> => {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const prefixedKeys = keys.filter(k => k.startsWith(STORAGE_PREFIX));
+      await AsyncStorage.multiRemove(prefixedKeys);
+    } catch (error) {
+      console.error('Storage.clear error:', error);
+    }
   },
-  // JSON helpers
-  getItemJson: <T>(key: string): T | null => {
-    const value = Storage.getItem(key);
+
+  // JSON helpers - async versions
+  getItemJson: async <T>(key: string): Promise<T | null> => {
+    const value = await Storage.getItem(key);
     if (!value) return null;
     try {
       return JSON.parse(value);
@@ -87,7 +53,42 @@ export const Storage = {
       return null;
     }
   },
-  setItemJson: (key: string, value: any) => {
-    Storage.setItem(key, JSON.stringify(value));
+
+  setItemJson: async (key: string, value: any): Promise<void> => {
+    await Storage.setItem(key, JSON.stringify(value));
   }
 };
+
+/**
+ * Secure Storage for sensitive data (tokens, credentials)
+ * Uses expo-secure-store which is available in Expo Go
+ */
+export const SecureStorage = {
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch (error) {
+      console.error('SecureStorage.getItem error:', error);
+      return null;
+    }
+  },
+
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch (error) {
+      console.error('SecureStorage.setItem error:', error);
+    }
+  },
+
+  removeItem: async (key: string): Promise<void> => {
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch (error) {
+      console.error('SecureStorage.removeItem error:', error);
+    }
+  }
+};
+
+// Legacy export for backward compatibility
+export const secureStorage = null; // Removed MMKV, use Storage or SecureStorage instead

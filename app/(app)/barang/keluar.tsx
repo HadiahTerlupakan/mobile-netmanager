@@ -14,8 +14,7 @@ import { logger } from "@/utils/logger";
 import { InventoryKeluarSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { formatDateRaw } from "@/utils/date";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -63,7 +62,6 @@ export default function BarangKeluarScreen() {
   // Ensure the collapsed picker text is always dark because our container is bg-white
   const pickerStyle = { color: "#1F2937" };
 
-  const [gudangs, setGudangs] = useState<Gudang[]>([]);
   const [barangs, setBarangs] = useState<Barang[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -119,7 +117,29 @@ export default function BarangKeluarScreen() {
     else if (!selectedGudang) setBarangs([]);
   }, [barangData, selectedGudang]);
 
-  if (isLoadingGudangs && !gudangs.length) {
+  // Must define arrays and useMemo hooks before early returns to follow React Rules of Hooks
+  // Wrap in useMemo to prevent recreation on every render
+  const barangsArray = useMemo(() => Array.isArray(barangs) ? barangs : [], [barangs]);
+  const gudangsArray = useMemo(() => Array.isArray(gudangList) ? gudangList : [], [gudangList]);
+
+  const gudangModalItems = useMemo(() => {
+    return gudangsArray.map((g) => ({
+      id: g.id,
+      label: g.nama,
+      value: g.id,
+    }));
+  }, [gudangsArray]);
+
+  const barangModalItems = useMemo(() => {
+    return barangsArray.map((b) => ({
+      id: b.id,
+      label: `${b.kode} - ${b.nama}`,
+      value: b.id,
+      subLabel: `Stok: ${b.stokBaru} Baru | ${b.stokBekas} Bekas`,
+    }));
+  }, [barangsArray]);
+
+  if (isLoadingGudangs && gudangsArray.length === 0) {
     return <FormSkeleton />;
   }
 
@@ -247,26 +267,6 @@ export default function BarangKeluarScreen() {
         throw error;
     }
   };
-
-  const barangsArray = Array.isArray(barangs) ? barangs : [];
-  const gudangsArray = Array.isArray(gudangs) ? gudangs : [];
-
-  const gudangModalItems = useMemo(() => {
-    return gudangsArray.map((g) => ({
-      id: g.id,
-      label: g.nama,
-      value: g.id,
-    }));
-  }, [gudangsArray]);
-
-  const barangModalItems = useMemo(() => {
-    return barangsArray.map((b) => ({
-      id: b.id,
-      label: `${b.kode} - ${b.nama}`,
-      value: b.id,
-      subLabel: `Stok: ${b.stokBaru} Baru | ${b.stokBekas} Bekas`,
-    }));
-  }, [barangsArray]);
 
   const selectedBarangData = barangsArray.find((b) => b.id === selectedBarang);
   const selectedBarangName = selectedBarangData
@@ -647,10 +647,8 @@ export default function BarangKeluarScreen() {
                           fontSize: photo.width * 0.03,
                         }}
                       >
-                        ⏰ {format(photo.capturedAt, "HH:mm:ss")} •{" "}
-                        {format(photo.capturedAt, "d MMM yyyy", {
-                          locale: idLocale,
-                        })}
+                        ⏰ {formatDateRaw(photo.capturedAt, "HH:mm:ss")} •{" "}
+                        {formatDateRaw(photo.capturedAt, "D MMM YYYY")}
                       </Text>
                     </View>
                     <Text

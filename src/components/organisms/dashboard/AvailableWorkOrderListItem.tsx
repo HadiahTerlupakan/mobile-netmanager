@@ -8,18 +8,18 @@ interface AvailableWorkOrderListItemProps {
         id: string;
         workOrderNumber: string;
         title: string;
-        contactName?: string;
-        contactPhone?: string;
-        locationAddress?: string;
+        contactName?: string | null;
+        contactPhone?: string | null;
+        locationAddress?: string | null;
         type: string;
         priority: string;
         pelanggan?: {
-            nama?: string;
-            noTelp?: string;
-            alamat?: string;
+            nama?: string | null;
+            noTelp?: string | null;
+            alamat?: string | null;
         };
         site?: {
-            name?: string;
+            name?: string | null;
         };
     };
     onClaim: (id: string) => void;

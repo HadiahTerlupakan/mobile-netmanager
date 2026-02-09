@@ -3,12 +3,13 @@ import { useAuth } from "@/context/AuthContext";
 import { useApiQuery } from "@/hooks/queries";
 import api from "@/services/api";
 import { logger } from "@/utils/logger";
+import { getMapLibre, isExpoGo } from "@/utils/maplibre";
 import toGeoJSON from "@/utils/togeojson-wrapper";
-import * as MapLibreGL from "@maplibre/maplibre-react-native";
 import { FlashList } from "@shopify/flash-list";
 import { DOMParser } from "@xmldom/xmldom";
 import { useRouter } from "expo-router";
 import {
+  AlertTriangle,
   ArrowLeft,
   Box,
   Disc,
@@ -49,6 +50,26 @@ import {
 } from "@/components/organisms/topology/DeviceDetailModal";
 import { FilterPanel } from "@/components/organisms/topology/FilterPanel";
 import { TopologyErrorBoundary } from "@/components/organisms/topology/TopologyErrorBoundary";
+import tw from "twrnc";
+
+// Get MapLibre (will be null in Expo Go)
+const MapLibreGL = getMapLibre();
+
+// GeoJSON types for TypeScript
+type GeoJSONFeature = {
+  type: "Feature";
+  id?: string | number;
+  properties: Record<string, any>;
+  geometry: {
+    type: string;
+    coordinates: number[] | number[][] | number[][][];
+  };
+};
+
+type GeoJSONFeatureCollection = {
+  type: "FeatureCollection";
+  features: GeoJSONFeature[];
+};
 
 // Helper for distance calculation
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -302,18 +323,20 @@ interface TopologyData {
 
 // interface VisibilityState removed (unused)
 
-// MapLibre Config
-MapLibreGL.setAccessToken(null); // Not needed for open tiles
+// MapLibre Config (only if available)
+if (MapLibreGL) {
+  MapLibreGL.setAccessToken(null); // Not needed for open tiles
 
-// Suppress MapLibre HTTP errors for empty URLs
-MapLibreGL.Logger.setLogCallback((log) => {
-  const { message } = log;
-  // Ignore empty resourceUrl errors
-  if (message?.includes("Unable to parse resourceUrl")) {
-    return true; // Suppress this log
-  }
-  return false; // Let other logs through
-});
+  // Suppress MapLibre HTTP errors for empty URLs
+  MapLibreGL.Logger.setLogCallback((log: any) => {
+    const { message } = log;
+    // Ignore empty resourceUrl errors
+    if (message?.includes("Unable to parse resourceUrl")) {
+      return true; // Suppress this log
+    }
+    return false; // Let other logs through
+  });
+}
 
 // Helper component for animated lines
 const AnimatedConnectionLines = React.memo(
@@ -390,8 +413,8 @@ export default function TopologyMapScreen() {
     lines: true,
   });
 
-  const [kmzFeatures, setKmzFeatures] = useState<GeoJSON.Feature[]>([]);
-  const kmzCache = useRef<Map<string, GeoJSON.Feature[]>>(new Map()); // Cache for processed KMZ files
+  const [kmzFeatures, setKmzFeatures] = useState<GeoJSONFeature[]>([]);
+  const kmzCache = useRef<Map<string, GeoJSONFeature[]>>(new Map()); // Cache for processed KMZ files
   const cameraRef = useRef<any>(null);
 
   const [selectedDevice, setSelectedDevice] = useState<{
@@ -603,7 +626,7 @@ export default function TopologyMapScreen() {
       logger.info("Loading KMZ files:", data.kmzFiles.length);
       setLoadingKmz(true);
 
-      const allFeatures: GeoJSON.Feature[] = [];
+      const allFeatures: GeoJSONFeature[] = [];
 
       for (const file of data.kmzFiles) {
         if (!file.kmlPath) continue;
@@ -639,7 +662,7 @@ export default function TopologyMapScreen() {
 
           if (geoJson.features) {
             // Add styling properties
-            geoJson.features.forEach((feature: GeoJSON.Feature) => {
+            geoJson.features.forEach((feature: GeoJSONFeature) => {
               if (!feature.properties) feature.properties = {};
               feature.properties.color = file.lineColor || "#6366f1";
               feature.properties.kmzId = file.id;
@@ -647,8 +670,8 @@ export default function TopologyMapScreen() {
             });
 
             // Cache the result
-            kmzCache.current.set(cacheKey, geoJson.features as GeoJSON.Feature[]);
-            allFeatures.push(...(geoJson.features as GeoJSON.Feature[]));
+            kmzCache.current.set(cacheKey, geoJson.features as GeoJSONFeature[]);
+            allFeatures.push(...(geoJson.features as GeoJSONFeature[]));
           }
         } catch (e) {
           logger.error(`Error loading KML ${file.name}:`, e);
@@ -681,10 +704,10 @@ export default function TopologyMapScreen() {
   }, []);
 
   // Convert data to GeoJSON for ShapeSource - MOVED UP and UPDATED
-  const devicesGeoJson = useMemo((): GeoJSON.FeatureCollection => {
+  const devicesGeoJson = useMemo((): GeoJSONFeatureCollection => {
     if (!data) return { type: "FeatureCollection", features: [] };
 
-    const features: GeoJSON.Feature[] = [];
+    const features: GeoJSONFeature[] = [];
     const addFeature = (d: any, type: DeviceType, color: string) => {
       // PERMISIF: Skip hanya jika koordinat null/0
       if (!d.longitude || !d.latitude) return;
@@ -812,10 +835,10 @@ export default function TopologyMapScreen() {
   }, [data, visibility]);
 
   // Connection lines GeoJSON - UPDATED LOGIC
-  const connectionLines = useMemo((): GeoJSON.FeatureCollection => {
+  const connectionLines = useMemo((): GeoJSONFeatureCollection => {
     if (!data || !data.edges) return { type: "FeatureCollection", features: [] };
 
-    const features: GeoJSON.Feature[] = [];
+    const features: GeoJSONFeature[] = [];
 
     // Use visible features for lookup to ensure we only connect to valid/visible nodes
     const allFeatures = devicesGeoJson.features;
@@ -947,7 +970,7 @@ export default function TopologyMapScreen() {
     );
   }, []);
 
-  const onAnnotationSelected = useCallback((feature: GeoJSON.Feature) => {
+  const onAnnotationSelected = useCallback((feature: GeoJSONFeature) => {
     const {
       id,
       type,
@@ -1098,7 +1121,7 @@ export default function TopologyMapScreen() {
     }
 
     // Update center for picker (using ref to prevent re-renders)
-    const geometry = payload?.geometry as GeoJSON.Point;
+    const geometry = payload?.geometry as { type: string; coordinates: [number, number] };
     const center = geometry?.coordinates as [number, number];
     if (center) {
       cameraCenterRef.current = center; // Keep Camera prop in sync
@@ -1222,6 +1245,46 @@ export default function TopologyMapScreen() {
       );
     });
   };
+
+  // Show fallback for Expo Go
+  if (isExpoGo || !MapLibreGL) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft size={24} color="#1f2937" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Topology Map</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        {/* Expo Go Fallback Message */}
+        <View style={tw`flex-1 items-center justify-center px-8 bg-gray-50`}>
+          <AlertTriangle size={64} color="#f59e0b" />
+          <Text style={tw`text-xl font-bold text-gray-900 mt-6 text-center`}>
+            Fitur Peta Tidak Tersedia
+          </Text>
+          <Text style={tw`text-gray-600 mt-4 text-center leading-6`}>
+            Topology Map membutuhkan development build karena menggunakan MapLibre.
+            Saat ini Anda menggunakan Expo Go yang tidak mendukung native module ini.
+          </Text>
+          <Text style={tw`text-sm text-gray-500 mt-6 text-center`}>
+            Jalankan `npx expo run:android` atau `npx expo run:ios` untuk menggunakan fitur ini.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={tw`mt-8 bg-blue-600 px-8 py-4 rounded-xl`}
+          >
+            <Text style={tw`text-white font-bold`}>Kembali</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loading && !data) {
     return <TopologySkeleton />;

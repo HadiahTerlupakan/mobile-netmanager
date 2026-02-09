@@ -1,4 +1,3 @@
-import { Config } from '@/constants/Config';
 import api from '@/services/api'; // Use centralized API
 import { uploadService } from '@/services/UploadService';
 import { TenantService } from '@/services/TenantService';
@@ -104,9 +103,11 @@ class ChatService {
         }
     }
 
-    // Listen for new messages
+    // Listen for new messages (removes existing listener first to prevent stacking)
     onNewMessage(callback: (message: ChatMessage) => void) {
         if (this.socket) {
+            // Remove any existing listener first to prevent stacking
+            this.socket.off('chat:message');
             this.socket.on('chat:message', callback);
         }
     }

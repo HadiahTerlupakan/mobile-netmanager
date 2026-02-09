@@ -1,4 +1,5 @@
 import { WorkOrderSkeleton } from "@/components/molecules/WorkOrderSkeleton";
+import { ScreenErrorBoundary } from "@/components/atoms/ScreenErrorBoundary";
 import AvailableWorkOrderListItem from "@/components/organisms/dashboard/AvailableWorkOrderListItem";
 import { WorkOrderListItem } from "@/components/organisms/dashboard/WorkOrderListItem";
 import { useAuth } from "@/context/AuthContext";
@@ -10,7 +11,7 @@ import {
   useWorkOrders,
 } from "@/hooks/queries";
 import { SyncService } from "@/services/SyncService";
-import { WorkOrder, WorkOrderAssignment } from "@/types/work-order";
+import { WorkOrder } from "@/types/work-order";
 import { FlashList } from "@shopify/flash-list";
 import { AxiosError } from "axios";
 import { Href, useRouter } from "expo-router";
@@ -22,7 +23,6 @@ import {
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     RefreshControl,
     Text,
@@ -42,7 +42,7 @@ const WorkOrderRow = React.memo(({ item, userId, onPress }: { item: WorkOrder, u
 ));
 WorkOrderRow.displayName = "WorkOrderRow";
 
-export default function WorkOrderScreen() {
+function WorkOrderScreenContent() {
   const { token, user } = useAuth();
   const { isConnected } = useSocket();
   const router = useRouter();
@@ -182,16 +182,24 @@ export default function WorkOrderScreen() {
     [activeTab, claiming, handleClaimWO, handleDetailPress, user?.id],
   );
 
-  // WebSocket: Auto-refresh on WO updates
+  // WebSocket: Auto-refresh on WO updates (only active tab)
   const handleWOEvent = useCallback(
     () => {
-      logger.socket("WO Event received, refreshing list...");
-      // Refresh all relevant queries
-      refetchAvailable();
-      refetchActive();
-      refetchHistory();
+      logger.socket("WO Event received, refreshing active tab...");
+      // Only refresh the currently active tab to avoid unnecessary requests
+      switch (activeTab) {
+        case "tersedia":
+          refetchAvailable();
+          break;
+        case "aktif":
+          refetchActive();
+          break;
+        case "riwayat":
+          refetchHistory();
+          break;
+      }
     },
-    [refetchAvailable, refetchActive, refetchHistory],
+    [activeTab, refetchAvailable, refetchActive, refetchHistory],
   );
 
   // Subscribe to WO events for real-time updates
@@ -279,6 +287,7 @@ export default function WorkOrderScreen() {
           keyExtractor={(item: WorkOrder) => item.id}
           renderItem={renderItem}
           estimatedItemSize={200}
+          removeClippedSubviews={true}
           onEndReachedThreshold={0.5}
           contentContainerStyle={tw`pb-20 pt-1 px-4`}
           showsVerticalScrollIndicator={false}
@@ -295,5 +304,13 @@ export default function WorkOrderScreen() {
         />
       )}
     </SafeAreaView>
+  );
+}
+
+export default function WorkOrderScreen() {
+  return (
+    <ScreenErrorBoundary screenName="WorkOrder">
+      <WorkOrderScreenContent />
+    </ScreenErrorBoundary>
   );
 }

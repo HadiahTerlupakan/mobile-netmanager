@@ -9,15 +9,15 @@ import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import { logger } from "@/utils/logger";
 import { LeaveRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import {
     addMonths,
     eachDayOfInterval,
     endOfMonth,
-    format,
+    formatDate,
     isSameDay,
     startOfMonth,
-} from "date-fns";
+} from "@/utils/date";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Camera, ChevronDown, X } from "lucide-react-native";
@@ -142,7 +142,7 @@ export default function LeaveFormScreen() {
         if (!workDays.includes(startDayName)) {
           Alert.alert(
             "Error Validasi",
-            `Tanggal izin (${format(startDate, "dd MMM")}) harus merupakan HARI KERJA Anda (Jadwal: ${currentWorkDays}).`,
+            `Tanggal izin (${formatDate(startDate, "dd MMM")}) harus merupakan HARI KERJA Anda (Jadwal: ${currentWorkDays}).`,
           );
           return;
         }
@@ -412,7 +412,7 @@ export default function LeaveFormScreen() {
               disabled={showLoading}
             >
               <Text style={tw`text-slate-800`}>
-                {format(startDate, "dd/MM/yyyy")}
+                {formatDate(startDate, "dd/MM/yyyy")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -429,7 +429,7 @@ export default function LeaveFormScreen() {
                 disabled={showLoading}
               >
                 <Text style={tw`text-slate-800`}>
-                  {format(endDate, "dd/MM/yyyy")}
+                  {formatDate(endDate, "dd/MM/yyyy")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -475,7 +475,7 @@ export default function LeaveFormScreen() {
               disabled={showLoading}
             >
               <Text style={tw`text-teal-800 font-bold`}>
-                {format(replacementDate, "dd MMMM yyyy")}
+                {formatDate(replacementDate, "dd MMMM yyyy")}
               </Text>
             </TouchableOpacity>
             <Text style={tw`text-xs text-gray-500 mt-1 italic`}>
@@ -512,7 +512,7 @@ export default function LeaveFormScreen() {
 
                 eachDayOfInterval({ start: rangeStart, end: rangeEnd }).forEach(
                   (date) => {
-                    const dateStr = format(date, "yyyy-MM-dd");
+                    const dateStr = formatDate(date, "yyyy-MM-dd");
                     const dayName = days[date.getDay()];
                     const isWorkDay = workDays.includes(dayName);
                     const isSelected = isSameDay(date, startDate);
@@ -576,7 +576,7 @@ export default function LeaveFormScreen() {
 
                 eachDayOfInterval({ start: rangeStart, end: rangeEnd }).forEach(
                   (date) => {
-                    const dateStr = format(date, "yyyy-MM-dd");
+                    const dateStr = formatDate(date, "yyyy-MM-dd");
                     const dayName = days[date.getDay()];
                     const isWorkDay = workDays.includes(dayName);
                     const isSelected = isSameDay(date, replacementDate);

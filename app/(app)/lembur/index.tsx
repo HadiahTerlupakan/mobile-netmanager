@@ -9,11 +9,9 @@ import {
 import { queryKeys } from "@/lib/queryClient";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
-import { formatDate } from "@/utils/date";
+import { formatDate, formatDateRaw } from "@/utils/date";
 import { OvertimeRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { FlashList } from "@shopify/flash-list";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -108,10 +106,10 @@ const DigitalClock = React.memo(() => {
   return (
     <View style={tw`items-center`}>
       <Text style={tw`text-indigo-100 font-medium text-sm mb-1`}>
-        {format(time, "EEEE, d MMMM yyyy", { locale: idLocale })}
+        {formatDateRaw(time, "dddd, D MMMM YYYY")}
       </Text>
       <Text style={tw`text-white font-bold text-5xl`}>
-        {format(time, "HH:mm")}
+        {formatDateRaw(time, "HH:mm")}
       </Text>
     </View>
   );
@@ -370,7 +368,7 @@ export default function LemburScreen() {
                   <View style={tw`flex-row items-center mb-1`}>
                     <Clock size={12} color="#fff" />
                     <Text style={tw`text-white font-bold text-sm ml-2`}>
-                      {capturedTime ? format(capturedTime, "HH:mm:ss") : "--:--:--"}
+                      {capturedTime ? formatDateRaw(capturedTime, "HH:mm:ss") : "--:--:--"}
                     </Text>
                   </View>
                   <View style={tw`flex-row items-center mb-1`}>
@@ -452,6 +450,11 @@ export default function LemburScreen() {
     }
   }, [overtimeData]);
 
+  // Memoized renderItem to prevent FlashList re-renders
+  const renderOvertimeItem = useCallback(({ item }: { item: Overtime }) => (
+    <OvertimeItem item={item} />
+  ), []);
+
   if (isPending && !overtimeData) {
     return <OvertimeSkeleton />;
   }
@@ -493,9 +496,10 @@ export default function LemburScreen() {
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={["top"]}>
       <FlashList
         data={history}
-        renderItem={({ item }: { item: Overtime }) => <OvertimeItem item={item} />}
+        renderItem={renderOvertimeItem}
         keyExtractor={(item: Overtime) => item.id}
         estimatedItemSize={80}
+        removeClippedSubviews={true}
         ListHeaderComponent={ListHeader}
         contentContainerStyle={tw`pb-20`}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4f46e5" />}

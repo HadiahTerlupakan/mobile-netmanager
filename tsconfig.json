@@ -8,5 +8,6 @@
       "@app/*": ["./app/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "FORM_COMPONENTS_EXAMPLES.tsx", "__tests__"]
 }

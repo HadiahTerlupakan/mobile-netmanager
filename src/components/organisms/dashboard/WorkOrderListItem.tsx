@@ -12,22 +12,22 @@ export interface WorkOrderListItemProps {
         status: string;
         title: string;
         priority: string;
-        contactPhone?: string;
-        contactName?: string;
-        locationAddress?: string;
-        scheduledDate?: string;
+        contactPhone?: string | null;
+        contactName?: string | null;
+        locationAddress?: string | null;
+        scheduledDate?: string | null;
         assignments?: {
             userId: string;
             role: string;
             status: string;
         }[];
         pelanggan?: {
-            noTelp?: string;
-            alamat?: string;
-            nama?: string;
+            noTelp?: string | null;
+            alamat?: string | null;
+            nama?: string | null;
         };
         site?: {
-            name?: string;
+            name?: string | null;
         };
     };
     userId?: string;
@@ -59,7 +59,7 @@ const getPriorityColor = (priority: string) => {
 };
 
 // Memoized sub-components to prevent re-renders
-const PhoneButton = memo(({ phone }: { phone?: string }) => {
+const PhoneButton = memo(({ phone }: { phone?: string | null }) => {
     if (!phone) return null;
 
     const handlePress = () => {
@@ -88,7 +88,7 @@ const PhoneButton = memo(({ phone }: { phone?: string }) => {
 });
 PhoneButton.displayName = 'PhoneButton';
 
-const AddressButton = memo(({ address }: { address?: string }) => {
+const AddressButton = memo(({ address }: { address?: string | null }) => {
     if (!address) return null;
 
     const handlePress = () => {

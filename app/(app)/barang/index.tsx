@@ -36,8 +36,10 @@ export default function BarangIndexScreen() {
     const queryClient = useQueryClient();
     const [refreshing, setRefreshing] = useState(false);
 
+    // Use dashboard.stats() query key to share cache with dashboard screen
+    // This prevents duplicate API calls when navigating between screens
     const { data: stats, isPending, refetch } = useApiQuery<DashboardStats>({
-        queryKey: queryKeys.inventory.stats(),
+        queryKey: queryKeys.dashboard.stats(),
         endpoint: '/api/mobile/dashboard',
         select: (data: any) => ({
             barangMasukToday: data.barangMasukToday || 0,
@@ -49,12 +51,13 @@ export default function BarangIndexScreen() {
     // Real-time updates via WebSocket
     useSocketEvent<{ type: 'masuk' | 'keluar' }>('inventory:update', useCallback((data) => {
         logger.socket('Real-time inventory update received:', data);
-        queryClient.setQueryData<DashboardStats>(queryKeys.inventory.stats(), (prev) => {
+        // Update the shared dashboard.stats() cache
+        queryClient.setQueryData<any>(queryKeys.dashboard.stats(), (prev: any) => {
             if (!prev) return prev;
             return {
                 ...prev,
-                barangMasukToday: data.type === 'masuk' ? prev.barangMasukToday + 1 : prev.barangMasukToday,
-                barangKeluarToday: data.type === 'keluar' ? prev.barangKeluarToday + 1 : prev.barangKeluarToday
+                barangMasukToday: data.type === 'masuk' ? (prev.barangMasukToday || 0) + 1 : prev.barangMasukToday,
+                barangKeluarToday: data.type === 'keluar' ? (prev.barangKeluarToday || 0) + 1 : prev.barangKeluarToday
             };
         });
     }, [queryClient]));

@@ -147,6 +147,11 @@ export default function IzinScreen() {
     </View>
   ), [router]);
 
+  // Memoized renderItem to prevent FlashList re-renders
+  const renderLeaveItem = useCallback(({ item }: { item: LeaveRequest }) => (
+    <LeaveItem item={item} />
+  ), []);
+
   if (isPending && history.length === 0) {
     return <LeaveSkeleton />;
   }
@@ -155,9 +160,10 @@ export default function IzinScreen() {
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={["top"]}>
       <FlashList
         data={history}
-        renderItem={({ item }: { item: LeaveRequest }) => <LeaveItem item={item} />}
+        renderItem={renderLeaveItem}
         keyExtractor={(item: LeaveRequest) => item.id}
         estimatedItemSize={150}
+        removeClippedSubviews={true}
         ListHeaderComponent={ListHeader}
         contentContainerStyle={tw`pb-20`}
         refreshControl={

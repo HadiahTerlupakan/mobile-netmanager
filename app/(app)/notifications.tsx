@@ -25,7 +25,7 @@ import {
 import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface Notification {
   id: string;
@@ -94,6 +94,7 @@ NotificationItem.displayName = 'NotificationItem';
 export default function NotificationsScreen() {
   const { token } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   // Infinite Query for Notifications
   const {
@@ -156,13 +157,43 @@ export default function NotificationsScreen() {
     }
   };
 
+  // Optimistic mark as read - update UI immediately, rollback on error
   const markAsRead = useCallback((notificationId: string) => {
+    // Optimistic update: mark as read immediately in cache
+    queryClient.setQueryData<any>(queryKeys.notifications.list(), (oldData: any) => {
+      if (!oldData?.pages) return oldData;
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page: any) => ({
+          ...page,
+          notifications: page.notifications?.map((n: Notification) =>
+            n.id === notificationId ? { ...n, isRead: true } : n
+          ),
+          unreadCount: Math.max(0, (page.unreadCount || 0) - 1)
+        }))
+      };
+    });
+
+    // Fire and forget - if it fails, the next refetch will correct the state
     notificationMutation.mutate({ action: "markRead", notificationId });
-  }, [notificationMutation]);
+  }, [notificationMutation, queryClient]);
 
   const markAllAsRead = useCallback(() => {
+    // Optimistic update: mark all as read immediately
+    queryClient.setQueryData<any>(queryKeys.notifications.list(), (oldData: any) => {
+      if (!oldData?.pages) return oldData;
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page: any) => ({
+          ...page,
+          notifications: page.notifications?.map((n: Notification) => ({ ...n, isRead: true })),
+          unreadCount: 0
+        }))
+      };
+    });
+
     notificationMutation.mutate({ action: "markAllRead" });
-  }, [notificationMutation]);
+  }, [notificationMutation, queryClient]);
 
   const handleNotificationPress = useCallback((notification: Notification) => {
     if (!notification.isRead) {
@@ -183,6 +214,11 @@ export default function NotificationsScreen() {
       default: router.push("/(app)/dashboard"); break;
     }
   }, [markAsRead, announcementReadMutation, router]);
+
+  // Memoized renderItem to prevent FlashList re-renders
+  const renderNotificationItem = useCallback(({ item }: { item: Notification }) => (
+    <NotificationItem item={item} onPress={handleNotificationPress} />
+  ), [handleNotificationPress]);
 
   if (isPending && notifications.length === 0) {
     return (
@@ -222,11 +258,10 @@ export default function NotificationsScreen() {
       <View style={tw`flex-1`}>
         <FlashList
           data={notifications}
-          renderItem={({ item }: { item: Notification }) => (
-            <NotificationItem item={item} onPress={handleNotificationPress} />
-          )}
+          renderItem={renderNotificationItem}
           keyExtractor={(item: Notification) => item.id}
           estimatedItemSize={80}
+          removeClippedSubviews={true}
           onEndReached={onLoadMore}
           onEndReachedThreshold={0.5}
           refreshControl={

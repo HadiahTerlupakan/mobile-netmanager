@@ -1,6 +1,5 @@
 import { CanvasingDetailSkeleton } from '@/components/molecules/CanvasingDetailSkeleton';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
-import { Config } from '@/constants/Config';
 import { TenantService } from '@/services/TenantService';
 import { useAuth } from '@/context/AuthContext';
 import { useApiQuery } from '@/hooks/queries';

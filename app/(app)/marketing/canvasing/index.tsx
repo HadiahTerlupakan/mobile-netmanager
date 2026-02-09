@@ -288,6 +288,18 @@ export default function CanvasingListScreen() {
     router.push(`/(app)/marketing/canvasing/${id}`);
   }, [router]);
 
+  // Memoized renderItem to prevent FlashList re-renders
+  const renderCanvasingItem = useCallback(({ item }: { item: CanvasingRequest }) => (
+    <CanvasingItem
+      item={item}
+      onPress={handleItemPress}
+      getStatusUI={getStatusUI}
+      canClaimPoints={canClaimPoints}
+      hasClaimPending={hasClaimPending}
+      hasClaimApproved={hasClaimApproved}
+    />
+  ), [handleItemPress, getStatusUI, canClaimPoints, hasClaimPending, hasClaimApproved]);
+
   const targetMonthly = profile?.canvasingTarget || 50;
   const progressPerc = Math.min((stats.total / targetMonthly) * 100, 100);
 
@@ -370,18 +382,10 @@ export default function CanvasingListScreen() {
       <View style={tw`flex-1`}>
         <FlashList
           data={filteredRequests}
-          renderItem={({ item }: { item: CanvasingRequest }) => (
-            <CanvasingItem
-              item={item}
-              onPress={handleItemPress}
-              getStatusUI={getStatusUI}
-              canClaimPoints={canClaimPoints}
-              hasClaimPending={hasClaimPending}
-              hasClaimApproved={hasClaimApproved}
-            />
-          )}
+          renderItem={renderCanvasingItem}
           keyExtractor={(item: CanvasingRequest) => item.id.toString()}
           estimatedItemSize={180}
+          removeClippedSubviews={true}
           contentContainerStyle={tw`p-4 pb-12`}
           onEndReached={onLoadMore}
           onEndReachedThreshold={0.5}

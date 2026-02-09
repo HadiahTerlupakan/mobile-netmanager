@@ -1,4 +1,3 @@
-import { Config } from '@/constants/Config';
 import { TenantService } from '@/services/TenantService';
 import { ChatMessage } from '@/services/ChatService';
 import { formatDate } from '@/utils/date';

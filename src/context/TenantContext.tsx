@@ -29,7 +29,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     setTenant,
     clearTenant
-  }), []);
+  }), [tenantUrl, isLoading]);
 
   return (
     <TenantContext.Provider value={value}>

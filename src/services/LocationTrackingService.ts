@@ -142,7 +142,7 @@ export class LocationTrackingService {
                 ]) as number;
 
                 // Check last known movement state
-                const lastSentStr = Storage.getItem(STORAGE_KEY_LAST_SENT);
+                const lastSentStr = await Storage.getItem(STORAGE_KEY_LAST_SENT);
                 if (lastSentStr) {
                     const lastSent = JSON.parse(lastSentStr);
                     isMoving = lastSent.isMoving || false;
@@ -220,7 +220,7 @@ export class LocationTrackingService {
                 }
             }
 
-            Storage.setItem(STORAGE_KEY_TRACKING, 'true');
+            await Storage.setItem(STORAGE_KEY_TRACKING, 'true');
             logger.info('[LocationTracking] Started background tracking');
 
             // Initial position push
@@ -231,7 +231,7 @@ export class LocationTrackingService {
                         logger.info('[LocationTracking] Initial location sent');
                         const sent = await this.sendLocation(initialLoc);
                         if (sent !== false) {
-                            Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(initialLoc));
+                            await Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(initialLoc));
                         }
                     }
                 } catch (e) {
@@ -260,8 +260,8 @@ export class LocationTrackingService {
             if (isTracking) {
                 await Location.stopLocationUpdatesAsync(TASK_NAME);
             }
-            Storage.setItem(STORAGE_KEY_TRACKING, 'false');
-            Storage.removeItem(STORAGE_KEY_LAST_SENT); // Clear session data
+            await Storage.setItem(STORAGE_KEY_TRACKING, 'false');
+            await Storage.removeItem(STORAGE_KEY_LAST_SENT); // Clear session data
             logger.info('[LocationTracking] Stopped tracking');
         } catch (error) {
             logger.info('[LocationTracking] Stop tracking cleanup:', error);
@@ -355,7 +355,7 @@ export class LocationTrackingService {
                 pending.shift();
             }
 
-            Storage.setItem(STORAGE_KEY_PENDING, JSON.stringify(pending));
+            await Storage.setItem(STORAGE_KEY_PENDING, JSON.stringify(pending));
         } catch (error) {
             logger.error('[LocationTracking] Failed to save pending location:', error);
         }
@@ -366,7 +366,7 @@ export class LocationTrackingService {
      */
     static async getPendingLocations(): Promise<LocationData[]> {
         try {
-            const data = Storage.getItem(STORAGE_KEY_PENDING);
+            const data = await Storage.getItem(STORAGE_KEY_PENDING);
             return data ? JSON.parse(data) : [];
         } catch {
             return [];
@@ -400,7 +400,7 @@ export class LocationTrackingService {
             );
 
             // Clear pending queue
-            Storage.removeItem(STORAGE_KEY_PENDING);
+            await Storage.removeItem(STORAGE_KEY_PENDING);
             logger.info(`[LocationTracking] Synced ${pending.length} pending locations`);
             return pending.length;
 
@@ -483,7 +483,7 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManage
             let lastSent: LocationData | null = null;
 
             try {
-                const lastSentStr = Storage.getItem(STORAGE_KEY_LAST_SENT);
+                const lastSentStr = await Storage.getItem(STORAGE_KEY_LAST_SENT);
                 if (lastSentStr) {
                     lastSent = JSON.parse(lastSentStr);
                 }
@@ -538,7 +538,7 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManage
 
                 // If sent (or saved to queue), update last sent reference
                 if (sent !== false) {
-                    Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(locationData));
+                    await Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(locationData));
                 }
             }
         }

@@ -2,7 +2,6 @@ import { Config } from '@/constants/Config';
 import { logger } from '@/utils/logger';
 
 // Multi-tenant disabled: Always use Config.API_URL
-let currentTenantUrl: string | null = Config.API_URL;
 
 export const TenantService = {
   setTenantUrl: (url: string | null) => {
@@ -21,7 +20,6 @@ export const TenantService = {
 
   loadTenantUrl: async () => {
     // Always return Config.API_URL
-    currentTenantUrl = Config.API_URL;
     return Config.API_URL;
   },
 

@@ -122,6 +122,11 @@ export default function ChatListScreen() {
         router.push('/(app)/chat/new');
     }, [router]);
 
+    // Memoized renderItem to prevent FlashList re-renders
+    const renderConversationItem = useCallback(({ item }: { item: ChatConversation }) => (
+        <ConversationItem item={item} onPress={handleConversationPress} />
+    ), [handleConversationPress]);
+
     const ListHeader = useMemo(() => {
         if (!globalChat) return null;
         return (
@@ -179,10 +184,9 @@ export default function ChatListScreen() {
                 <FlashList
                     data={conversations}
                     keyExtractor={(item: ChatConversation) => item.id}
-                    renderItem={({ item }: { item: ChatConversation }) => (
-                        <ConversationItem item={item} onPress={handleConversationPress} />
-                    )}
+                    renderItem={renderConversationItem}
                     estimatedItemSize={80}
+                    removeClippedSubviews={true}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}

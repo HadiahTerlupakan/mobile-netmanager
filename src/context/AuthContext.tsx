@@ -1,6 +1,7 @@
 import { Events } from '@/constants/Events';
 import { addNotificationListeners, registerForPushNotificationsAsync } from '@/services/PushNotificationService';
 import { TokenService } from '@/services/TokenService';
+import { RefreshTokenService } from '@/services/RefreshTokenService';
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { isAxiosError } from 'axios';
@@ -26,7 +27,7 @@ export type AuthContextType = {
     user: User | null;
     token: string | null;
     isLoading: boolean;
-    signIn: (token: string, userData: User) => Promise<void>;
+    signIn: (token: string, userData: User, refreshToken?: string) => Promise<void>;
     signOut: (options?: { skipApi?: boolean }) => Promise<void>;
     updateUser: (userData: User) => Promise<void>;
 };
@@ -50,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    const signIn = useCallback(async (newToken: string, userData: User) => {
+    const signIn = useCallback(async (newToken: string, userData: User, refreshToken?: string) => {
         setIsLoading(true);
         logger.auth('signIn started for:', userData.email);
         try {
@@ -59,6 +60,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             logger.auth('Saving token...');
             await SecureStore.setItemAsync('session_token', newToken);
+
+            // Save refresh token if provided
+            if (refreshToken) {
+                logger.auth('Saving refresh token...');
+                await RefreshTokenService.saveRefreshToken(refreshToken);
+            }
+
             logger.auth('Saving user data...');
             await SecureStore.setItemAsync('user_data', JSON.stringify(userData));
 
@@ -68,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // Register for push notifications
             logger.auth('Registering push notifications...');
-            
+
             // Critical: Await push registration to ensure backend updates token ownership
             // This prevents "Zombie Token" issues where previous user still owns the token
             await registerPush(newToken);
@@ -98,6 +106,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // Optimization: Clear in-memory token
             TokenService.setToken(null);
+
+            // Clear refresh token
+            await RefreshTokenService.clearRefreshToken();
 
             await SecureStore.deleteItemAsync('session_token');
             await SecureStore.deleteItemAsync('user_data');

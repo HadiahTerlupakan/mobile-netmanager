@@ -1,53 +1,58 @@
-import api from '@/services/api'; // Use centralized API
-import { ChangePasswordSchema, validateData } from '@/utils/validation';
+import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
+import { FormPasswordInput } from '@/components/atoms/FormPasswordInput';
+import { useFormWithValidation } from '@/hooks/useFormWithValidation';
+import api from '@/services/api';
+import { ChangePasswordSchema } from '@/utils/validation';
 import { router } from 'expo-router';
-import { ArrowLeft, Eye, EyeOff, Lock, Save } from 'lucide-react-native';
+import { ArrowLeft, Save } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { z } from 'zod';
+import { isAxiosError } from 'axios';
 
-export default function ChangePassword() {
+type ChangePasswordFormData = z.infer<typeof ChangePasswordSchema>;
+
+function ChangePasswordScreen() {
     const [saving, setSaving] = useState(false);
-    
-    const [currentPassword, setCurrentPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    
-    const [showCurrent, setShowCurrent] = useState(false);
-    const [showNew, setShowNew] = useState(false);
-    const [showConfirm, setShowConfirm] = useState(false);
 
-    const handleSave = async () => {
-        const validation = validateData(ChangePasswordSchema, {
-            currentPassword,
-            newPassword,
-            confirmPassword
-        });
-
-        if (!validation.success) {
-            Alert.alert('Data Tidak Valid', validation.error);
-            return;
+    const {
+        control,
+        handleValidatedSubmit,
+        formState: { errors }
+    } = useFormWithValidation({
+        schema: ChangePasswordSchema,
+        defaultValues: {
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: ''
         }
+    });
 
+    const handleSave = handleValidatedSubmit(async (data: ChangePasswordFormData) => {
         setSaving(true);
         try {
-            const res = await api.post(
-                '/api/mobile/profile/password',
-                validation.data
-            );
+            const res = await api.post('/api/mobile/profile/password', data);
             if (res.data.success) {
                 Alert.alert('Sukses', 'Password berhasil diubah', [
                     { text: 'OK', onPress: () => router.back() }
                 ]);
             }
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Gagal mengubah password';
+            let errorMessage = 'Gagal mengubah password';
+
+            if (isAxiosError(error) && error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+
             Alert.alert('Error', errorMessage);
         } finally {
             setSaving(false);
         }
-    };
+    });
 
     return (
         <SafeAreaView style={tw`flex-1 bg-gray-50`}>
@@ -71,69 +76,36 @@ export default function ChangePassword() {
                 <View style={tw`bg-white rounded-xl p-4 shadow-sm`}>
                     {/* Current Password */}
                     <View style={tw`mb-4`}>
-                        <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Password Lama</Text>
-                        <View style={tw`flex-row items-center border border-gray-300 rounded-lg px-3`}>
-                            <Lock size={20} color="#6b7280" />
-                            <TextInput
-                                value={currentPassword}
-                                onChangeText={setCurrentPassword}
-                                placeholder="Masukkan password lama"
-                                secureTextEntry={!showCurrent}
-                                style={tw`flex-1 py-3 px-3 text-gray-800`}
-                            />
-                            <TouchableOpacity onPress={() => setShowCurrent(!showCurrent)}>
-                                {showCurrent ? (
-                                    <EyeOff size={20} color="#6b7280" />
-                                ) : (
-                                    <Eye size={20} color="#6b7280" />
-                                )}
-                            </TouchableOpacity>
-                        </View>
+                        <FormPasswordInput
+                            name="currentPassword"
+                            control={control}
+                            label="Password Lama"
+                            placeholder="Masukkan password lama"
+                            error={errors.currentPassword?.message}
+                        />
                     </View>
 
                     {/* New Password */}
                     <View style={tw`mb-4`}>
-                        <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Password Baru</Text>
-                        <View style={tw`flex-row items-center border border-gray-300 rounded-lg px-3`}>
-                            <Lock size={20} color="#6b7280" />
-                            <TextInput
-                                value={newPassword}
-                                onChangeText={setNewPassword}
-                                placeholder="Masukkan password baru"
-                                secureTextEntry={!showNew}
-                                style={tw`flex-1 py-3 px-3 text-gray-800`}
-                            />
-                            <TouchableOpacity onPress={() => setShowNew(!showNew)}>
-                                {showNew ? (
-                                    <EyeOff size={20} color="#6b7280" />
-                                ) : (
-                                    <Eye size={20} color="#6b7280" />
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={tw`text-xs text-gray-400 mt-1`}>Minimal 6 karakter</Text>
+                        <FormPasswordInput
+                            name="newPassword"
+                            control={control}
+                            label="Password Baru"
+                            placeholder="Masukkan password baru"
+                            hint="Minimal 6 karakter"
+                            error={errors.newPassword?.message}
+                        />
                     </View>
 
                     {/* Confirm Password */}
                     <View style={tw`mb-4`}>
-                        <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Konfirmasi Password Baru</Text>
-                        <View style={tw`flex-row items-center border border-gray-300 rounded-lg px-3`}>
-                            <Lock size={20} color="#6b7280" />
-                            <TextInput
-                                value={confirmPassword}
-                                onChangeText={setConfirmPassword}
-                                placeholder="Ulangi password baru"
-                                secureTextEntry={!showConfirm}
-                                style={tw`flex-1 py-3 px-3 text-gray-800`}
-                            />
-                            <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
-                                {showConfirm ? (
-                                    <EyeOff size={20} color="#6b7280" />
-                                ) : (
-                                    <Eye size={20} color="#6b7280" />
-                                )}
-                            </TouchableOpacity>
-                        </View>
+                        <FormPasswordInput
+                            name="confirmPassword"
+                            control={control}
+                            label="Konfirmasi Password Baru"
+                            placeholder="Ulangi password baru"
+                            error={errors.confirmPassword?.message}
+                        />
                     </View>
                 </View>
 
@@ -154,5 +126,13 @@ export default function ChangePassword() {
                 </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>
+    );
+}
+
+export default function ChangePassword() {
+    return (
+        <ScreenErrorBoundary screenName="ChangePassword">
+            <ChangePasswordScreen />
+        </ScreenErrorBoundary>
     );
 }

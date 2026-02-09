@@ -7,7 +7,7 @@ import {
     OwnerGroup,
 } from "@/services/MixRadiusService";
 import { FlashList } from "@shopify/flash-list";
-import { format } from "date-fns";
+import { formatDate } from "@/utils/date";
 import { Stack } from "expo-router";
 import {
     Building,
@@ -49,7 +49,7 @@ const CustomerItem = memo(({ item, onDismantle }: { item: MixRadiusCustomer, onD
     try {
       const d = safeDate(item.expired_on) || safeDate(item.expiration);
       if (!d) return "-";
-      return format(d, "dd MMM yyyy");
+      return formatDate(d, "dd MMM yyyy");
     } catch {
       return "-";
     }

@@ -1,48 +1,53 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
+import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
+import { FormInput } from '@/components/atoms/FormInput';
 import { FormSkeleton } from '@/components/molecules/FormSkeleton';
 import LoadingModal from '@/components/molecules/LoadingModal';
-import { Config } from '@/constants/Config';
+import { useFormWithValidation } from '@/hooks/useFormWithValidation';
 import { TenantService } from '@/services/TenantService';
 import { useApiMutation, useQueryClient } from '@/hooks/queries';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { queryKeys } from '@/lib/queryClient';
-import api from '@/services/api';
 import { uploadService } from '@/services/UploadService';
-import { ChangePasswordSchema, ProfileSchema, sanitizeInput, validateData } from '@/utils/validation';
-import { AxiosError } from 'axios';
+import { ProfileSchema } from '@/utils/validation';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { ArrowLeft, Camera, ChevronDown, ChevronUp, Eye, EyeOff, Lock, Phone, Save, User } from 'lucide-react-native';
+import { ArrowLeft, Camera, ChevronRight, Lock, Phone, Save, User } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { z } from 'zod';
 
-export default function EditProfile() {
+type ProfileFormData = z.infer<typeof ProfileSchema>;
+
+function EditProfileScreen() {
     const { profileData, isPending } = useProfileSync();
     const queryClient = useQueryClient();
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
-    const [changingPassword, setChangingPassword] = useState(false);
 
-    const [name, setName] = useState('');
-    const [phone, setPhone] = useState('');
-
-    // Password section
-    const [showPasswordSection, setShowPasswordSection] = useState(false);
-    const [currentPassword, setCurrentPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [showCurrent, setShowCurrent] = useState(false);
-    const [showNew, setShowNew] = useState(false);
-    const [showConfirm, setShowConfirm] = useState(false);
+    const {
+        control,
+        handleValidatedSubmit,
+        formState: { errors },
+        reset
+    } = useFormWithValidation({
+        schema: ProfileSchema,
+        defaultValues: {
+            name: '',
+            phone: ''
+        }
+    });
 
     useEffect(() => {
         if (profileData) {
-            setName(profileData.name || '');
-            setPhone((profileData as any).phone || '');
+            reset({
+                name: profileData.name || '',
+                phone: (profileData as any).phone || ''
+            });
         }
-    }, [profileData]);
+    }, [profileData, reset]);
 
     const saveMutation = useApiMutation({
         endpoint: '/api/mobile/profile',
@@ -54,59 +59,9 @@ export default function EditProfile() {
         }
     });
 
-    const handleSave = () => {
-        const rawData = {
-            name: sanitizeInput(name),
-            phone: sanitizeInput(phone)
-        };
-
-        const validation = validateData(ProfileSchema, rawData);
-
-        if (!validation.success) {
-            Alert.alert('Data Tidak Valid', validation.error);
-            return;
-        }
-
-        saveMutation.mutate(validation.data);
-    };
-
-    const handleChangePassword = async () => {
-        const rawData = {
-            currentPassword,
-            newPassword,
-            confirmPassword
-        };
-
-        const validation = validateData(ChangePasswordSchema, rawData);
-
-        if (!validation.success) {
-            Alert.alert('Data Tidak Valid', validation.error);
-            return;
-        }
-
-        setChangingPassword(true);
-        try {
-            const res = await api.post(
-                '/api/mobile/profile/password',
-                validation.data
-            );
-            if (res.data.success) {
-                Alert.alert('Sukses', 'Password berhasil diubah');
-                setCurrentPassword('');
-                setNewPassword('');
-                setConfirmPassword('');
-                setShowPasswordSection(false);
-            }
-        } catch (error) {
-            let message = 'Gagal mengubah password';
-            if (error instanceof AxiosError) {
-                message = error.response?.data?.error || error.response?.data?.message || message;
-            }
-            Alert.alert('Error', message);
-        } finally {
-            setChangingPassword(false);
-        }
-    };
+    const handleSave = handleValidatedSubmit((data: ProfileFormData) => {
+        saveMutation.mutate(data);
+    });
 
     const pickImage = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -133,7 +88,7 @@ export default function EditProfile() {
         try {
             const res = await uploadService.uploadCustom(uri, '/api/mobile/profile/photo', {
                 fieldName: 'photo',
-                mimeType: mimeType || 'image/jpeg', // Fallback to image/jpeg if mimeType is missing
+                mimeType: mimeType || 'image/jpeg',
                 onProgress: (progress) => {
                     setUploadProgress(progress.percentage);
                 }
@@ -141,14 +96,10 @@ export default function EditProfile() {
 
             if (res.success) {
                 Alert.alert('Sukses', 'Foto berhasil diperbarui');
-                // Invalidate profile cache to update photo everywhere
                 queryClient.invalidateQueries({ queryKey: queryKeys.profile.detail() });
             }
         } catch (error) {
-            let message = 'Gagal upload foto';
-            if (error instanceof Error) {
-                message = error.message;
-            }
+            const message = error instanceof Error ? error.message : 'Gagal upload foto';
             Alert.alert('Error', message);
         } finally {
             setUploadingPhoto(false);
@@ -164,7 +115,6 @@ export default function EditProfile() {
         if (!path) return null;
         if (path.startsWith('http')) return path;
 
-        // Ensure proper slash handling
         const baseUrl = TenantService.getTenantUrl().replace(/\/$/, '');
         const imagePath = path.startsWith('/') ? path : `/${path}`;
 
@@ -219,34 +169,30 @@ export default function EditProfile() {
                 {/* Profile Form */}
                 <View style={tw`bg-white rounded-xl p-4 shadow-sm mb-4`}>
                     <Text style={tw`text-base font-bold text-gray-800 mb-4`}>Informasi Profil</Text>
-                    
+
                     {/* Name */}
                     <View style={tw`mb-4`}>
-                        <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Nama</Text>
-                        <View style={tw`flex-row items-center border border-gray-300 rounded-lg px-3`}>
-                            <User size={20} color="#6b7280" />
-                            <TextInput
-                                value={name}
-                                onChangeText={setName}
-                                placeholder="Masukkan nama"
-                                style={tw`flex-1 py-3 px-3 text-gray-800`}
-                            />
-                        </View>
+                        <FormInput
+                            name="name"
+                            control={control}
+                            label="Nama"
+                            placeholder="Masukkan nama"
+                            leftIcon={<User size={20} color="#6b7280" />}
+                            error={errors.name?.message}
+                        />
                     </View>
 
                     {/* Phone */}
                     <View style={tw`mb-4`}>
-                        <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Nomor Telepon</Text>
-                        <View style={tw`flex-row items-center border border-gray-300 rounded-lg px-3`}>
-                            <Phone size={20} color="#6b7280" />
-                            <TextInput
-                                value={phone}
-                                onChangeText={setPhone}
-                                placeholder="Masukkan nomor telepon"
-                                keyboardType="phone-pad"
-                                style={tw`flex-1 py-3 px-3 text-gray-800`}
-                            />
-                        </View>
+                        <FormInput
+                            name="phone"
+                            control={control}
+                            label="Nomor Telepon"
+                            placeholder="Masukkan nomor telepon"
+                            keyboardType="phone-pad"
+                            leftIcon={<Phone size={20} color="#6b7280" />}
+                            error={errors.phone?.message}
+                        />
                     </View>
 
                     {/* Email (read-only) */}
@@ -263,96 +209,17 @@ export default function EditProfile() {
                     </View>
                 </View>
 
-                {/* Password Section */}
-                <View style={tw`bg-white rounded-xl shadow-sm mb-4 overflow-hidden`}>
-                    <TouchableOpacity
-                        onPress={() => setShowPasswordSection(!showPasswordSection)}
-                        style={tw`flex-row items-center justify-between p-4`}
-                    >
-                        <View style={tw`flex-row items-center`}>
-                            <Lock size={20} color="#6b7280" />
-                            <Text style={tw`text-base font-bold text-gray-800 ml-3`}>Ganti Password</Text>
-                        </View>
-                        {showPasswordSection ? (
-                            <ChevronUp size={20} color="#6b7280" />
-                        ) : (
-                            <ChevronDown size={20} color="#6b7280" />
-                        )}
-                    </TouchableOpacity>
-
-                    {showPasswordSection && (
-                        <View style={tw`px-4 pb-4`}>
-                            <View style={tw`bg-blue-50 rounded-lg p-3 mb-4`}>
-                                <Text style={tw`text-blue-800 text-xs`}>
-                                    Masukkan password lama untuk mengubah password
-                                </Text>
-                            </View>
-
-                            {/* Current Password */}
-                            <View style={tw`mb-3`}>
-                                <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Password Lama</Text>
-                                <View style={tw`flex-row items-center border border-gray-300 rounded-lg px-3`}>
-                                    <TextInput
-                                        value={currentPassword}
-                                        onChangeText={setCurrentPassword}
-                                        placeholder="Password lama"
-                                        secureTextEntry={!showCurrent}
-                                        style={tw`flex-1 py-3 text-gray-800`}
-                                    />
-                                    <TouchableOpacity onPress={() => setShowCurrent(!showCurrent)}>
-                                        {showCurrent ? <EyeOff size={20} color="#6b7280" /> : <Eye size={20} color="#6b7280" />}
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            {/* New Password */}
-                            <View style={tw`mb-3`}>
-                                <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Password Baru</Text>
-                                <View style={tw`flex-row items-center border border-gray-300 rounded-lg px-3`}>
-                                    <TextInput
-                                        value={newPassword}
-                                        onChangeText={setNewPassword}
-                                        placeholder="Password baru (min 6 karakter)"
-                                        secureTextEntry={!showNew}
-                                        style={tw`flex-1 py-3 text-gray-800`}
-                                    />
-                                    <TouchableOpacity onPress={() => setShowNew(!showNew)}>
-                                        {showNew ? <EyeOff size={20} color="#6b7280" /> : <Eye size={20} color="#6b7280" />}
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            {/* Confirm Password */}
-                            <View style={tw`mb-4`}>
-                                <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>Konfirmasi Password</Text>
-                                <View style={tw`flex-row items-center border border-gray-300 rounded-lg px-3`}>
-                                    <TextInput
-                                        value={confirmPassword}
-                                        onChangeText={setConfirmPassword}
-                                        placeholder="Ulangi password baru"
-                                        secureTextEntry={!showConfirm}
-                                        style={tw`flex-1 py-3 text-gray-800`}
-                                    />
-                                    <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
-                                        {showConfirm ? <EyeOff size={20} color="#6b7280" /> : <Eye size={20} color="#6b7280" />}
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            <TouchableOpacity
-                                onPress={handleChangePassword}
-                                disabled={changingPassword}
-                                style={tw`bg-gray-800 rounded-lg py-3 flex-row items-center justify-center ${changingPassword ? 'opacity-50' : ''}`}
-                            >
-                                {changingPassword ? (
-                                    <ActivityIndicator color="#fff" />
-                                ) : (
-                                    <Text style={tw`text-white font-bold`}>Ubah Password</Text>
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                </View>
+                {/* Change Password Link */}
+                <TouchableOpacity
+                    onPress={() => router.push('/(app)/change-password')}
+                    style={tw`bg-white rounded-xl p-4 shadow-sm mb-4 flex-row items-center justify-between`}
+                >
+                    <View style={tw`flex-row items-center`}>
+                        <Lock size={20} color="#6b7280" />
+                        <Text style={tw`text-base font-bold text-gray-800 ml-3`}>Ganti Password</Text>
+                    </View>
+                    <ChevronRight size={20} color="#6b7280" />
+                </TouchableOpacity>
 
                 {/* Save Button */}
                 <TouchableOpacity
@@ -371,5 +238,13 @@ export default function EditProfile() {
                 </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>
+    );
+}
+
+export default function EditProfile() {
+    return (
+        <ScreenErrorBoundary screenName="EditProfile">
+            <EditProfileScreen />
+        </ScreenErrorBoundary>
     );
 }

@@ -4,7 +4,7 @@ import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeade
 import { PerformanceStats } from '@/components/organisms/dashboard/PerformanceStats';
 import { QuickMenu } from '@/components/organisms/dashboard/QuickMenu';
 import { WorkOrderCard } from '@/components/organisms/dashboard/WorkOrderCard';
-import { Config } from '@/constants/Config';
+import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { TenantService } from '@/services/TenantService';
 import { useAuth } from '@/context/AuthContext';
 import { useOfflineQuery } from '@/hooks/queries';
@@ -45,7 +45,7 @@ type CarouselItem =
     | { type: 'canvasing'; data: { assigned: number; completed: number } }
     | { type: 'empty' };
 
-export default function Dashboard() {
+function DashboardScreen() {
     const { user, token } = useAuth();
     const router = useRouter();
     const { width } = useWindowDimensions();
@@ -305,5 +305,13 @@ export default function Dashboard() {
                 <QuickMenu features={profileData?.features || user?.features || []} isSales={user?.isSales ?? false} role={user?.role} />
             </ScrollView>
         </SafeAreaView>
+    );
+}
+
+export default function Dashboard() {
+    return (
+        <ScreenErrorBoundary screenName="Dashboard">
+            <DashboardScreen />
+        </ScreenErrorBoundary>
     );
 }

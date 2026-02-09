@@ -1,19 +1,19 @@
 import { HolidaySkeleton } from '@/components/molecules/HolidaySkeleton';
 import { useOfflineQuery } from '@/hooks/queries';
 import { queryKeys } from '@/lib/queryClient';
-import { formatDate } from '@/utils/date';
 import {
     addMonths,
     eachDayOfInterval,
     endOfMonth,
+    formatDate,
     getDay,
     isSameDay,
     startOfMonth,
     subMonths
-} from 'date-fns';
+} from '@/utils/date';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
     ActivityIndicator,
     Modal,
@@ -24,7 +24,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { logger } from '@/utils/logger';
 
 interface Holiday {
     id: string;

@@ -57,14 +57,14 @@ export default function AnnouncementPopup() {
 
             if (res.data && Array.isArray(res.data)) {
                 // Filter out dismissed announcements
-                const dismissedIds = Storage.getItemJson<string[]>(DISMISSED_STORAGE_KEY) || [];
+                const dismissedIds = await Storage.getItemJson<string[]>(DISMISSED_STORAGE_KEY) || [];
 
                 // Clean up dismissed IDs - only keep those that are still active
                 const activeIds = res.data.map((a: Announcement) => a.id);
                 const validDismissedIds = dismissedIds.filter(id => activeIds.includes(id));
 
                 if (validDismissedIds.length !== dismissedIds.length) {
-                    Storage.setItemJson(DISMISSED_STORAGE_KEY, validDismissedIds);
+                    await Storage.setItemJson(DISMISSED_STORAGE_KEY, validDismissedIds);
                 }
 
                 const newAnnouncements = res.data.filter(
@@ -103,10 +103,10 @@ export default function AnnouncementPopup() {
         const currentAnn = announcements[currentIndex];
 
         // Save to dismissed list
-        const dismissedIds = Storage.getItemJson<string[]>(DISMISSED_STORAGE_KEY) || [];
+        const dismissedIds = await Storage.getItemJson<string[]>(DISMISSED_STORAGE_KEY) || [];
         if (!dismissedIds.includes(currentAnn.id)) {
             dismissedIds.push(currentAnn.id);
-            Storage.setItemJson(DISMISSED_STORAGE_KEY, dismissedIds);
+            await Storage.setItemJson(DISMISSED_STORAGE_KEY, dismissedIds);
         }
 
         // Mark as read in backend
@@ -122,7 +122,7 @@ export default function AnnouncementPopup() {
     const handleDismissAll = async () => {
         // Save all to dismissed list
         const dismissedIds = announcements.map(a => a.id);
-        Storage.setItemJson(DISMISSED_STORAGE_KEY, dismissedIds);
+        await Storage.setItemJson(DISMISSED_STORAGE_KEY, dismissedIds);
 
         // Mark all as read
         announcements.forEach(a => markAsRead(a.id));

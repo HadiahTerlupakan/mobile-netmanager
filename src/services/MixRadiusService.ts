@@ -1,5 +1,4 @@
 import api from "./api";
-import { TenantService } from "./TenantService";
 import { logger } from "@/utils/logger";
 
 export interface MixRadiusCustomer {
