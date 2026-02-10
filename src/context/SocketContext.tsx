@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { AppState, AppStateStatus } from 'react-native';
 import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
+import { queryClient } from '@/lib/queryClient';
 import { logger } from '../utils/logger';
 import { eventManager } from '@/utils/EventManager';
 
@@ -146,6 +147,12 @@ export function SocketProvider({ children }: SocketProviderProps) {
         // Custom ping/pong for application level health check
         addListener('pong', () => {
             // Heartbeat received, connection is alive
+        });
+
+        // Listen for new notifications and invalidate React Query cache
+        addListener('notification:new', (data: any) => {
+            logger.info('[WS] New notification received:', data?.title || 'untitled');
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
         });
 
         // Store cleanup function on socket instance

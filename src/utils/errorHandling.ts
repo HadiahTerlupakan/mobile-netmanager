@@ -60,19 +60,25 @@ export function getUserFriendlyError(error: unknown): ErrorMessage {
     if (error.response) {
       const status = error.response.status;
       const data = error.response.data as any;
+      const backendMessage = data?.message || data?.error;
 
-      // Use backend error message if available and looks user-friendly
-      // Simple heuristic: if it's a 400/422 and has a 'message' or 'error' string
-      if ((status === 400 || status === 422) && (data?.message || data?.error)) {
+      // Use backend error message if available for 400/403/422
+      if ((status === 400 || status === 422) && backendMessage) {
          return {
              title: 'Periksa Data',
-             message: data.message || data.error || 'Terjadi kesalahan pada data input.'
+             message: backendMessage
          };
       }
 
       if (status === 401) return ERROR_MESSAGES['AUTH_FAILED'];
-      if (status === 403) return { title: 'Akses Ditolak', message: 'Anda tidak memiliki izin untuk melakukan aksi ini.' };
-      if (status === 404) return ERROR_MESSAGES['NOT_FOUND'];
+      if (status === 403) return {
+        title: 'Akses Ditolak',
+        message: backendMessage || 'Anda tidak memiliki izin untuk melakukan aksi ini.'
+      };
+      if (status === 404) return {
+        title: 'Data Tidak Ditemukan',
+        message: backendMessage || ERROR_MESSAGES['NOT_FOUND'].message
+      };
       if (status >= 500) return ERROR_MESSAGES['SERVER_ERROR'];
     }
   }

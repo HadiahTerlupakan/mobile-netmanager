@@ -16,7 +16,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "location",
-          "fetch"
+          "fetch",
+          "remote-notification"
         ],
         "NSFaceIDUsageDescription": "Gunakan Face ID untuk login dengan cepat dan aman"
       }

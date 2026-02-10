@@ -9,12 +9,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import tw from 'twrnc';
 import { logger } from '@/utils/logger';
 
 export default function ClaimPointScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
+    const queryClient = useQueryClient();
 
     const [buktiUrls, setBuktiUrls] = useState<string[]>([]);
     const [buktiMetadata, setBuktiMetadata] = useState<{ width: number; height: number; type: string }[]>([]);
@@ -148,6 +150,13 @@ export default function ClaimPointScreen() {
                             );
 
                             setShowLoading(false);
+
+                            // Invalidate cache agar list & detail update
+                            queryClient.invalidateQueries({ queryKey: ["marketing_canvasing_list"] });
+                            queryClient.invalidateQueries({ queryKey: [`marketing_canvasing_detail`, String(id)] });
+                            queryClient.invalidateQueries({ queryKey: [`marketing_canvasing_claim`, String(id)] });
+                            queryClient.invalidateQueries({ queryKey: ["marketing_point_summary"] });
+
                             Alert.alert(
                                 'Berhasil! 🎉',
                                 'Claim poin berhasil diajukan. Tunggu approval dari admin.',

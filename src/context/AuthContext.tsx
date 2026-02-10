@@ -1,12 +1,11 @@
 import { Events } from '@/constants/Events';
-import { addNotificationListeners, registerForPushNotificationsAsync } from '@/services/PushNotificationService';
+import { registerForPushNotificationsAsync } from '@/services/PushNotificationService';
 import { TokenService } from '@/services/TokenService';
 import { RefreshTokenService } from '@/services/RefreshTokenService';
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { SecureStorage } from '@/utils/storage';
 import { isAxiosError } from 'axios';
-import * as Notifications from 'expo-notifications';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
 
@@ -74,12 +73,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setToken(newToken);
             setUser(userData);
 
-            // Register for push notifications
-            logger.auth('Registering push notifications...');
-
-            // Critical: Await push registration to ensure backend updates token ownership
-            // This prevents "Zombie Token" issues where previous user still owns the token
-            await registerPush(newToken);
+            // Register for push notifications (non-blocking)
+            // Don't await - login should not be blocked by push registration
+            logger.auth('Registering push notifications (background)...');
+            registerPush(newToken);
 
             logger.auth('signIn complete');
         } catch (error) {
@@ -131,7 +128,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Unified initialization effect with cleanup
     useEffect(() => {
-        let notificationCleanup: (() => void) | undefined;
         let isMounted = true;
         let authSubscription: any;
 
@@ -149,19 +145,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     setToken(storedToken);
                     setUser(JSON.parse(storedUser));
 
-                    // Background registration
+                    // Background registration (non-blocking)
                     registerPush(storedToken);
-
-                    // Setup notification listeners (Logging only)
-                    // Navigation is handled in RootLayout
-                    notificationCleanup = addNotificationListeners(
-                        (notification: Notifications.Notification) => {
-                            logger.info('[Push][Auth] Received:', notification.request.content.title);
-                        },
-                        (response: Notifications.NotificationResponse) => {
-                            logger.info('[Push][Auth] Tapped:', response.notification.request.content.title);
-                        }
-                    );
                 }
             } catch (e) {
                 logger.error('Failed to load auth storage', e);
@@ -184,9 +169,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isMounted = false;
             if (authSubscription) {
                 authSubscription.remove();
-            }
-            if (notificationCleanup) {
-                notificationCleanup();
             }
         };
     }, [signOut]);

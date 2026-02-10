@@ -78,6 +78,7 @@ interface StatusUI {
 const CanvasingItem = React.memo(({
     item,
     onPress,
+    onClaimPress,
     getStatusUI,
     canClaimPoints,
     hasClaimPending,
@@ -85,6 +86,7 @@ const CanvasingItem = React.memo(({
 }: {
     item: CanvasingRequest;
     onPress: (id: string) => void;
+    onClaimPress: (id: string) => void;
     getStatusUI: (status: string, woStatus?: string) => StatusUI;
     canClaimPoints: (item: CanvasingRequest) => boolean;
     hasClaimPending: (item: CanvasingRequest) => boolean;
@@ -145,10 +147,14 @@ const CanvasingItem = React.memo(({
 
         <View style={tw`flex-row items-center gap-2`}>
           {canClaimPoints(item) && (
-            <View style={tw`flex-row items-center bg-purple-100 px-2 py-1 rounded-lg`}>
+            <TouchableOpacity
+              onPress={() => onClaimPress(item.id)}
+              activeOpacity={0.7}
+              style={tw`flex-row items-center bg-purple-100 px-2 py-1 rounded-lg`}
+            >
               <Ionicons name="gift" size={14} color="#7c3aed" />
               <Text style={tw`text-[10px] font-bold text-purple-600 ml-1`}>Claim</Text>
-            </View>
+            </TouchableOpacity>
           )}
           {hasClaimPending(item) && (
             <View style={tw`flex-row items-center bg-pink-100 px-2 py-1 rounded-lg`}>
@@ -288,17 +294,22 @@ export default function CanvasingListScreen() {
     router.push(`/(app)/marketing/canvasing/${id}`);
   }, [router]);
 
+  const handleClaimPress = useCallback((id: string) => {
+    router.push(`/(app)/marketing/canvasing/${id}/claim`);
+  }, [router]);
+
   // Memoized renderItem to prevent FlashList re-renders
   const renderCanvasingItem = useCallback(({ item }: { item: CanvasingRequest }) => (
     <CanvasingItem
       item={item}
       onPress={handleItemPress}
+      onClaimPress={handleClaimPress}
       getStatusUI={getStatusUI}
       canClaimPoints={canClaimPoints}
       hasClaimPending={hasClaimPending}
       hasClaimApproved={hasClaimApproved}
     />
-  ), [handleItemPress, getStatusUI, canClaimPoints, hasClaimPending, hasClaimApproved]);
+  ), [handleItemPress, handleClaimPress, getStatusUI, canClaimPoints, hasClaimPending, hasClaimApproved]);
 
   const targetMonthly = profile?.canvasingTarget || 50;
   const progressPerc = Math.min((stats.total / targetMonthly) * 100, 100);

@@ -9,14 +9,18 @@ import { Platform } from 'react-native';
 // Note: Handled globally in NotificationService.ts
 // Notifications.setNotificationHandler({ ... });
 
+// Setup Android notification channel early so first notification uses correct settings
+if (Platform.OS === 'android') {
+    Notifications.setNotificationChannelAsync('default', {
+        name: 'Default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+    }).catch((e) => logger.warn('Failed to setup notification channel:', e));
+}
+
 export async function registerForPushNotificationsAsync(token?: string): Promise<string | null> {
     let pushToken: string | null = null;
-
-    // Check if running on physical device
-    // if (!Device.isDevice) {
-    //     logger.info('Push notifications require a physical device');
-    //     // return null; // Allow emulator to try registration
-    // }
 
     // Check existing permissions
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -50,7 +54,7 @@ export async function registerForPushNotificationsAsync(token?: string): Promise
         if (pushToken) {
             try {
                 const config: any = { skipGlobalAuthHandler: true };
-                
+
                 // If token is provided explicitly, use it in headers
                 if (token) {
                     config.headers = { Authorization: `Bearer ${token}` };
@@ -69,16 +73,6 @@ export async function registerForPushNotificationsAsync(token?: string): Promise
         }
     } catch (error) {
         logger.error('Error getting push token:', error);
-    }
-
-    // Configure Android channel
-    if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('default', {
-            name: 'Default',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 250, 250, 250],
-            lightColor: '#FF231F7C',
-        });
     }
 
     return pushToken;

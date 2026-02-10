@@ -132,65 +132,76 @@ function RootLayoutNav() {
 
   // Handle Push Notifications
   useEffect(() => {
+    const validRoutes = [
+      "/dashboard",
+      "/work-order",
+      "/barang",
+      "/absensi",
+      "/profile",
+      "/notifications",
+      "/lembur",
+      "/izin",
+      "/chat",
+      "/holidays",
+    ];
+
+    const handleNotificationNavigation = (data: { url?: string }) => {
+      if (!data?.url) return;
+
+      try {
+        const url = data.url;
+        const isValidRoute =
+          validRoutes.some(
+            (r) =>
+              url === r ||
+              url.startsWith(r + "/") ||
+              url.startsWith("/(app)" + r),
+          ) ||
+          url.startsWith("/work-order-detail/") ||
+          url.startsWith("/chat/");
+
+        if (isValidRoute) {
+          router.push(url as Href);
+        } else {
+          logger.warn(
+            "Invalid notification route, redirecting to dashboard:",
+            url,
+          );
+          router.replace("/(app)/dashboard");
+        }
+      } catch (e) {
+        logger.error("Navigation failed:", e);
+        router.replace("/(app)/dashboard");
+      }
+    };
+
     // Import dynamically to avoid circular dependencies if any
     const setupNotifications = async () => {
       const { addNotificationListeners } =
         await import("@/services/PushNotificationService");
 
+      // Handle notification that opened the app from killed state
+      const lastResponse = await Notifications.getLastNotificationResponseAsync();
+      if (lastResponse) {
+        const data = lastResponse.notification.request.content.data as { url?: string };
+        logger.info("App opened from notification (killed state):", data);
+        // Delay to ensure router is ready
+        setTimeout(() => handleNotificationNavigation(data), 500);
+      }
+
       const cleanup = addNotificationListeners(
         (notification: Notifications.Notification) => {
           // Handle foreground notification received
-          logger.info("Foreground notification:", notification);
+          logger.info("Foreground notification:", notification.request.content.title);
+
+          // Invalidate notification queries so bell updates
+          queryClient.invalidateQueries({ queryKey: ["notifications"] });
         },
         (response: Notifications.NotificationResponse) => {
           // Handle notification tap
           const data = response.notification.request.content.data as { url?: string };
           logger.info("Notification tapped, data:", data);
-
-          if (data?.url) {
-            try {
-              // Map known routes - skip invalid ones
-              const validRoutes = [
-                "/dashboard",
-                "/work-order",
-                "/barang",
-                "/absensi",
-                "/profile",
-                "/notifications",
-                "/lembur",
-                "/izin",
-                "/chat",
-                "/holidays",
-              ];
-
-              const url = data.url;
-
-              // Check if it's a valid route or starts with a valid route prefix
-              const isValidRoute =
-                validRoutes.some(
-                  (r) =>
-                    url === r ||
-                    url.startsWith(r + "/") ||
-                    url.startsWith("/(app)" + r),
-                ) ||
-                url.startsWith("/work-order-detail/") ||
-                url.startsWith("/chat/");
-
-              if (isValidRoute) {
-                router.push(url as Href);
-              } else {
-                // Invalid route like /announcement - just go to dashboard
-                logger.warn(
-                  "Invalid notification route, redirecting to dashboard:",
-                  url,
-                );
-                router.replace("/(app)/dashboard");
-              }
-            } catch (e) {
-              logger.error("Navigation failed:", e);
-              router.replace("/(app)/dashboard");
-            }
-          }
+          handleNotificationNavigation(data);
         },
       );
 

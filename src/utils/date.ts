@@ -53,16 +53,29 @@ const formatMap: Record<string, string> = {
 
 /**
  * Convert date-fns format string to dayjs format string
+ * Uses placeholder-based replacement to avoid regex collision
+ * (e.g. EEEE→dddd then dd→DD would corrupt dddd into DDDD)
  */
 function convertFormat(dateFnsFormat: string): string {
   let result = dateFnsFormat;
-  // Sort by length descending to replace longer patterns first
+
+  // Phase 1: Replace date-fns tokens with unique placeholders
+  const placeholders: [string, string][] = [];
+  // Sort by length descending to match longer tokens first
   const sortedKeys = Object.keys(formatMap).sort((a, b) => b.length - a.length);
 
   for (const key of sortedKeys) {
-    // Use word boundary to avoid partial replacements
     const regex = new RegExp(key, 'g');
-    result = result.replace(regex, formatMap[key]);
+    if (regex.test(result)) {
+      const placeholder = `\x00${placeholders.length}\x00`;
+      placeholders.push([placeholder, formatMap[key]]);
+      result = result.replace(new RegExp(key, 'g'), placeholder);
+    }
+  }
+
+  // Phase 2: Replace placeholders with dayjs format tokens
+  for (const [placeholder, value] of placeholders) {
+    result = result.replace(new RegExp(placeholder.replace(/\x00/g, '\\x00'), 'g'), value);
   }
 
   return result;

@@ -12,14 +12,14 @@ import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import { InventoryMasukSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
-import { Picker } from "@react-native-picker/picker";
+
 import { logger } from "@/utils/logger";
 import { formatDateRaw } from "@/utils/date";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, useColorScheme, View,  } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
@@ -53,11 +53,6 @@ const KONDISI_OPTIONS = [
 export default function BarangMasukScreen() {
   const router = useRouter();
   const { token, user } = useAuth();
-  const colorScheme = useColorScheme();
-  const isDarkMode = colorScheme === "dark";
-  const pickerItemColor = isDarkMode ? "#FFFFFF" : "#1F2937";
-  // Ensure the collapsed picker text is always dark because our container is bg-white
-  const pickerStyle = { color: "#1F2937" };
 
   const [gudangs, setGudangs] = useState<Gudang[]>([]);
   const [barangs, setBarangs] = useState<Barang[]>([]);
@@ -439,29 +434,31 @@ export default function BarangMasukScreen() {
             )}
           </View>
 
-          {/* Kondisi - Keep standard Picker for small list */}
+          {/* Kondisi */}
           <View style={tw`mb-4`}>
             <Text style={tw`text-sm font-medium text-gray-700 mb-2`}>
               Kondisi
             </Text>
-            <View
-              style={tw`bg-white border border-gray-200 rounded-xl overflow-hidden justify-center h-14`}
-            >
-              <Picker
-                selectedValue={kondisi}
-                onValueChange={(itemValue) => setKondisi(String(itemValue))}
-                style={pickerStyle}
-                dropdownIconColor={isDarkMode ? "#FFFFFF" : "#1F2937"}
-              >
-                {KONDISI_OPTIONS.map((k) => (
-                  <Picker.Item
-                    key={k.value}
-                    label={k.label}
-                    value={k.value}
-                    color={pickerItemColor}
-                  />
-                ))}
-              </Picker>
+            <View style={tw`flex-row gap-2`}>
+              {KONDISI_OPTIONS.map((k) => (
+                <TouchableOpacity
+                  key={k.value}
+                  onPress={() => setKondisi(k.value)}
+                  style={tw`flex-1 py-3 rounded-xl border items-center ${
+                    kondisi === k.value
+                      ? "bg-blue-50 border-blue-500"
+                      : "bg-white border-gray-200"
+                  }`}
+                >
+                  <Text
+                    style={tw`font-medium ${
+                      kondisi === k.value ? "text-blue-700" : "text-gray-600"
+                    }`}
+                  >
+                    {k.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
 

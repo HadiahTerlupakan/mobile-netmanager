@@ -260,7 +260,21 @@ export function useApiMutation<
       (mutationOptions as any).onSuccess?.(data, variables, context);
     },
     onError: (error, variables, context) => {
-      logger.error("[useApiMutation] Error:", error);
+      // Log concise error info instead of raw AxiosError object
+      if (isAxiosError(error) && error.response) {
+        const { status, data } = error.response;
+        const backendMessage = (data as any)?.message || (data as any)?.error;
+        logger.error(
+          `[useApiMutation] ${method} ${endpoint} failed:`,
+          `status=${status}`,
+          backendMessage || 'No message'
+        );
+      } else {
+        logger.error(
+          `[useApiMutation] ${method} ${endpoint} failed:`,
+          error instanceof Error ? error.message : error
+        );
+      }
 
       // Show error alert
       if (showErrorAlert) {

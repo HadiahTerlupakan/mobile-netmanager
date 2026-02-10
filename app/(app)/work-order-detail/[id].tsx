@@ -71,6 +71,16 @@ export default function WorkOrderDetailScreen() {
   // Readonly check - Tab Tugas, Barang, Diskusi readonly sebelum Mulai Kerja
   const isWorkStarted = wo?.status === "IN_PROGRESS";
 
+  // Role checks - determine user's relationship to this work order
+  const isAssignedToMe = wo?.assignedToId === user?.id;
+  const myAssignment = wo?.assignments?.find((a) => a.userId === user?.id);
+  const isApprovedPartner = myAssignment?.role === "PARTNER" && myAssignment?.status === "APPROVED";
+  const isPendingPartner = myAssignment?.role === "PARTNER" && myAssignment?.status === "PENDING";
+
+  // Can this user interact with WO actions (material, tasks, discussion)?
+  // Only lead technician or approved partner, and work must be started
+  const canInteract = isWorkStarted && (isAssignedToMe || isApprovedPartner);
+
   // Partner State
   const [isPartnerModalVisible, setIsPartnerModalVisible] = useState(false);
   const [availablePartners, setAvailablePartners] = useState<UserSummary[]>([]);
@@ -650,13 +660,20 @@ export default function WorkOrderDetailScreen() {
             <Clock size={20} color="#2563eb" style={tw`mt-0.5 mr-3`} />
             <View>
               <Text style={tw`text-xs text-gray-400 mb-0.5`}>Jadwal</Text>
-              <Text style={tw`text-sm font-bold text-gray-800`}>
-                {formatDate(wo.scheduledDate, "EEEE, dd MMMM yyyy")}
-              </Text>
-              <Text style={tw`text-xs text-gray-500`}>
-                {formatDate(wo.scheduledDate, "HH.mm")}{" "}
-                - selesai
-              </Text>
+              {wo.scheduledDate ? (
+                <>
+                  <Text style={tw`text-sm font-bold text-gray-800`}>
+                    {formatDate(wo.scheduledDate, "EEEE, dd MMMM yyyy")}
+                  </Text>
+                  <Text style={tw`text-xs text-gray-500`}>
+                    Pukul {formatDate(wo.scheduledDate, "HH:mm")} WIB
+                  </Text>
+                </>
+              ) : (
+                <Text style={tw`text-sm text-gray-400 italic`}>
+                  Belum dijadwalkan
+                </Text>
+              )}
             </View>
           </View>
 
@@ -978,21 +995,21 @@ export default function WorkOrderDetailScreen() {
         )}
 
       <View style={tw`mt-6 gap-3`}>
-        {/* Ambil Barang Button - For all work order types */}
+        {/* Ambil Barang Button - Only for lead technician and approved partners */}
         <TouchableOpacity
           onPress={() =>
-            isWorkStarted && router.push(`/(app)/ambil-barang/${id}`)
+            canInteract && router.push(`/(app)/ambil-barang/${id}`)
           }
-          disabled={!isWorkStarted}
-          style={tw`flex-row items-center justify-center p-3 rounded-xl border ${isWorkStarted ? "bg-blue-50 border-blue-200 active:bg-blue-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
+          disabled={!canInteract}
+          style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-blue-50 border-blue-200 active:bg-blue-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
         >
           <ImageIcon
             size={20}
-            color={isWorkStarted ? "#2563eb" : "#9ca3af"}
+            color={canInteract ? "#2563eb" : "#9ca3af"}
             style={tw`mr-2`}
           />
           <Text
-            style={tw`font-bold ${isWorkStarted ? "text-blue-600" : "text-gray-400"}`}
+            style={tw`font-bold ${canInteract ? "text-blue-600" : "text-gray-400"}`}
           >
             Ambil Barang / Material
           </Text>
@@ -1002,18 +1019,18 @@ export default function WorkOrderDetailScreen() {
         {(wo.type === "DISCONNECTION" || wo.type === "RELOCATION") && (
           <TouchableOpacity
             onPress={() =>
-              isWorkStarted && router.push(`/(app)/kembalikan-barang/${id}`)
+              canInteract && router.push(`/(app)/kembalikan-barang/${id}`)
             }
-            disabled={!isWorkStarted}
-            style={tw`flex-row items-center justify-center p-3 rounded-xl border ${isWorkStarted ? "bg-green-50 border-green-200 active:bg-green-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
+            disabled={!canInteract}
+            style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-green-50 border-green-200 active:bg-green-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
           >
             <Package
               size={20}
-              color={isWorkStarted ? "#16a34a" : "#9ca3af"}
+              color={canInteract ? "#16a34a" : "#9ca3af"}
               style={tw`mr-2`}
             />
             <Text
-              style={tw`font-bold ${isWorkStarted ? "text-green-600" : "text-gray-400"}`}
+              style={tw`font-bold ${canInteract ? "text-green-600" : "text-gray-400"}`}
             >
               Kembalikan Barang
             </Text>
@@ -1028,30 +1045,32 @@ export default function WorkOrderDetailScreen() {
       style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}
     >
       {/* Readonly Banner */}
-      {!isWorkStarted && (
+      {!canInteract && (
         <View
           style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}
         >
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
-            ⚠️ Klik &quot;Mulai Kerja&quot; terlebih dahulu untuk mengirim diskusi
+            {!isWorkStarted
+              ? '⚠️ Klik "Mulai Kerja" terlebih dahulu untuk mengirim diskusi'
+              : '⚠️ Hanya lead teknisi dan partner yang bisa mengirim diskusi'}
           </Text>
         </View>
       )}
 
       {/* Input Form */}
-      <View style={tw`mb-6 ${!isWorkStarted ? "opacity-60" : ""}`}>
+      <View style={tw`mb-6 ${!canInteract ? "opacity-60" : ""}`}>
         <TextInput
           style={tw`bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm h-20 mb-3`}
           multiline
           textAlignVertical="top"
           placeholder={
-            isWorkStarted
+            canInteract
               ? "Tulis diskusi..."
               : "Mulai kerja dulu untuk berdiskusi"
           }
           value={resolutionNotes}
           onChangeText={setResolutionNotes}
-          editable={isWorkStarted}
+          editable={canInteract}
         />
 
         {photo && (
@@ -1071,23 +1090,23 @@ export default function WorkOrderDetailScreen() {
 
         <View style={tw`flex-row justify-between items-center mt-2`}>
           <TouchableOpacity
-            onPress={() => isWorkStarted && handleImageSelection()}
-            disabled={!isWorkStarted}
-            style={tw`p-3 rounded-xl items-center justify-center ${isWorkStarted ? "bg-gray-100" : "bg-gray-50"}`}
+            onPress={() => canInteract && handleImageSelection()}
+            disabled={!canInteract}
+            style={tw`p-3 rounded-xl items-center justify-center ${canInteract ? "bg-gray-100" : "bg-gray-50"}`}
           >
-            <Camera size={20} color={isWorkStarted ? "#4b5563" : "#9ca3af"} />
+            <Camera size={20} color={canInteract ? "#4b5563" : "#9ca3af"} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => isWorkStarted && handleUpdateActivity()}
-            disabled={updateConfigLoading || !isWorkStarted}
-            style={tw`px-6 py-3 rounded-xl items-center justify-center shadow-sm ${isWorkStarted ? "bg-blue-600" : "bg-gray-300"}`}
+            onPress={() => canInteract && handleUpdateActivity()}
+            disabled={updateConfigLoading || !canInteract}
+            style={tw`px-6 py-3 rounded-xl items-center justify-center shadow-sm ${canInteract ? "bg-blue-600" : "bg-gray-300"}`}
           >
             {updateConfigLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <Text
-                style={tw`font-bold text-sm ${isWorkStarted ? "text-white" : "text-gray-500"}`}
+                style={tw`font-bold text-sm ${canInteract ? "text-white" : "text-gray-500"}`}
               >
                 Kirim
               </Text>
@@ -1325,12 +1344,14 @@ export default function WorkOrderDetailScreen() {
       style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}
     >
       {/* Readonly Banner */}
-      {!isWorkStarted && (
+      {!canInteract && (
         <View
           style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}
         >
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
-            ⚠️ Klik &quot;Mulai Kerja&quot; terlebih dahulu untuk mencentang tugas
+            {!isWorkStarted
+              ? '⚠️ Klik "Mulai Kerja" terlebih dahulu untuk mencentang tugas'
+              : '⚠️ Hanya lead teknisi dan partner yang bisa mengubah tugas'}
           </Text>
         </View>
       )}
@@ -1349,11 +1370,11 @@ export default function WorkOrderDetailScreen() {
         wo.tasks.map((task, index: number) => (
           <TouchableOpacity
             key={task.id}
-            style={tw`flex-row items-center py-3 border-b border-gray-50 last:border-0 ${!isWorkStarted ? "opacity-60" : ""}`}
+            style={tw`flex-row items-center py-3 border-b border-gray-50 last:border-0 ${!canInteract ? "opacity-60" : ""}`}
             onPress={() =>
-              isWorkStarted && handleToggleTask(task.id, task.status)
+              canInteract && handleToggleTask(task.id, task.status)
             }
-            disabled={!isWorkStarted}
+            disabled={!canInteract}
           >
             <View style={tw`mr-3`}>
               {task.status === "COMPLETED" ? (
@@ -1435,6 +1456,18 @@ export default function WorkOrderDetailScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Role Indicator Banner */}
+      {(isAssignedToMe || isApprovedPartner) && (
+        <View style={tw`px-4 py-2 ${isAssignedToMe ? 'bg-blue-50 border-b border-blue-100' : 'bg-indigo-50 border-b border-indigo-100'}`}>
+          <View style={tw`flex-row items-center justify-center`}>
+            <User size={14} color={isAssignedToMe ? '#2563eb' : '#6366f1'} style={tw`mr-1.5`} />
+            <Text style={tw`text-xs font-bold ${isAssignedToMe ? 'text-blue-700' : 'text-indigo-700'}`}>
+              {isAssignedToMe ? 'Anda adalah Lead Teknisi' : 'Anda adalah Partner'}
+            </Text>
+          </View>
+        </View>
+      )}
 
       <ScrollView contentContainerStyle={tw`p-4 pb-32`}>
         {activeTab === "INFO" && renderInfoTab()}
@@ -1523,17 +1556,6 @@ export default function WorkOrderDetailScreen() {
       {/* Bottom Actions */}
       {(() => {
         if (!wo) return null;
-        // Determine user role and permissions
-        const isAssignedToMe = wo.assignedToId === user?.id;
-        const myAssignment = wo.assignments?.find(
-          (a) => a.userId === user?.id,
-        );
-        const isPendingPartner =
-          myAssignment?.role === "PARTNER" &&
-          myAssignment?.status === "PENDING";
-        const isApprovedPartner =
-          myAssignment?.role === "PARTNER" &&
-          myAssignment?.status === "APPROVED";
 
         // Check if all partners responded
         const partnerList =
@@ -1545,8 +1567,6 @@ export default function WorkOrderDetailScreen() {
         // Conditions for actions
         const canStartWork =
           isAssignedToMe && wo.status === "ASSIGNED" && allPartnersResponded;
-        const canPauseOrComplete =
-          (isAssignedToMe || isApprovedPartner) && wo.status === "IN_PROGRESS";
         const canResumeWork = isAssignedToMe && wo.status === "ON_HOLD";
 
         // Partner pending - show accept/reject buttons
@@ -1585,8 +1605,8 @@ export default function WorkOrderDetailScreen() {
           );
         }
 
-        // IN_PROGRESS - show pause/complete (for assignedTo and approved partners)
-        if (canPauseOrComplete) {
+        // IN_PROGRESS - Lead: pause + complete, Partner: no bottom actions (can interact via tabs)
+        if (isAssignedToMe && wo.status === "IN_PROGRESS") {
           return (
             <View
               style={[
@@ -1602,16 +1622,14 @@ export default function WorkOrderDetailScreen() {
                 <Pause size={20} color="#854d0e" style={tw`mr-2`} />
                 <Text style={tw`font-bold text-yellow-800`}>Pause</Text>
               </TouchableOpacity>
-              {isAssignedToMe && (
-                <TouchableOpacity
-                  onPress={() => handleUpdateStatus("COMPLETE")}
-                  disabled={actionLoading}
-                  style={tw`flex-1 bg-green-600 py-3.5 rounded-xl items-center flex-row justify-center shadow-sm`}
-                >
-                  <CheckCircle size={20} color="white" style={tw`mr-2`} />
-                  <Text style={tw`font-bold text-white`}>Selesai</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                onPress={() => handleUpdateStatus("COMPLETE")}
+                disabled={actionLoading}
+                style={tw`flex-1 bg-green-600 py-3.5 rounded-xl items-center flex-row justify-center shadow-sm`}
+              >
+                <CheckCircle size={20} color="white" style={tw`mr-2`} />
+                <Text style={tw`font-bold text-white`}>Selesai</Text>
+              </TouchableOpacity>
             </View>
           );
         }
