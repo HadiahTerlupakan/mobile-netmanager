@@ -10,6 +10,7 @@ import {
 import { queryKeys } from "@/lib/queryClient";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
+import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import { InventoryKeluarSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
@@ -162,7 +163,7 @@ export default function BarangKeluarScreen() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Denied", "Izin akses galeri diperlukan");
+      Alert.alert("Akses Ditolak", "Izin akses galeri diperlukan");
       return;
     }
 
@@ -190,7 +191,7 @@ export default function BarangKeluarScreen() {
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permission Denied", "Izin akses kamera diperlukan");
+      Alert.alert("Akses Ditolak", "Izin akses kamera diperlukan");
       return;
     }
 
@@ -248,18 +249,18 @@ export default function BarangKeluarScreen() {
   const uploadPhotos = async (uris: string[]): Promise<string[]> => {
     logger.info("[Upload] Starting upload for URIs:", uris);
     try {
-        setUploadProgress(0);
-        return await uploadService.uploadBatch(
-            uris,
-            'inventory-keluar',
-            (index, total, progress) => {
-                setLoadingMessage(`Mengupload foto ${index}/${total}...`);
-                setUploadProgress(progress.percentage);
-            }
-        );
+      setUploadProgress(0);
+      return await uploadService.uploadBatch(
+        uris,
+        'inventory-keluar',
+        (index, total, progress) => {
+          setLoadingMessage(`Mengupload foto ${index}/${total}...`);
+          setUploadProgress(progress.percentage);
+        }
+      );
     } catch (error) {
-        logger.error("[Upload] Batch upload failed:", error);
-        throw error;
+      logger.error("[Upload] Batch upload failed:", error);
+      throw error;
     }
   };
 
@@ -288,20 +289,20 @@ export default function BarangKeluarScreen() {
   const handleSubmit = async () => {
     // 1. Prepare & Sanitize Data
     const rawData = {
-        barangId: selectedBarang,
-        gudangId: selectedGudang,
-        jumlah: parseInt(jumlah) || 0,
-        kondisi,
-        tujuanPenggunaan: sanitizeInput(tujuanPenggunaan),
-        keterangan: sanitizeInput(keterangan),
+      barangId: selectedBarang,
+      gudangId: selectedGudang,
+      jumlah: parseInt(jumlah) || 0,
+      kondisi,
+      tujuanPenggunaan: sanitizeInput(tujuanPenggunaan),
+      keterangan: sanitizeInput(keterangan),
     };
 
     // 2. Validate
     const validation = validateData(InventoryKeluarSchema, rawData);
 
     if (!validation.success) {
-        Alert.alert("Data Tidak Valid", validation.error);
-        return;
+      Alert.alert("Data Tidak Valid", validation.error);
+      return;
     }
 
     // Check stock
@@ -309,7 +310,7 @@ export default function BarangKeluarScreen() {
     const availableStock = getAvailableStock();
     if (qty > availableStock) {
       Alert.alert(
-        "Error",
+        "Stok Tidak Cukup",
         `Stok ${kondisi} tidak mencukupi. Tersedia: ${availableStock}`,
       );
       return;
@@ -355,13 +356,15 @@ export default function BarangKeluarScreen() {
               },
               onError: (err) => {
                 setShowLoading(false);
-                Alert.alert("Error", err.message || "Gagal menyimpan data");
+                const { title, message } = getUserFriendlyError(err);
+                Alert.alert(title, message);
               },
             },
           );
-        } catch {
+        } catch (error) {
           setShowLoading(false);
-          Alert.alert("Error", "Gagal upload foto atau simpan data");
+          const { title, message } = getUserFriendlyError(error);
+          Alert.alert(title, message);
         } finally {
           setSubmitting(false);
         }
@@ -396,7 +399,8 @@ export default function BarangKeluarScreen() {
     } catch (error) {
       setShowLoading(false);
       logger.error(error);
-      Alert.alert("Error", "Terjadi kesalahan saat memproses data");
+      const { title, message } = getUserFriendlyError(error);
+      Alert.alert(title, message);
     }
   };
 
@@ -476,16 +480,14 @@ export default function BarangKeluarScreen() {
                 <TouchableOpacity
                   key={k.value}
                   onPress={() => setKondisi(k.value)}
-                  style={tw`flex-1 py-3 rounded-xl border items-center ${
-                    kondisi === k.value
+                  style={tw`flex-1 py-3 rounded-xl border items-center ${kondisi === k.value
                       ? "bg-teal-50 border-teal-500"
                       : "bg-white border-gray-200"
-                  }`}
+                    }`}
                 >
                   <Text
-                    style={tw`font-medium ${
-                      kondisi === k.value ? "text-teal-700" : "text-gray-600"
-                    }`}
+                    style={tw`font-medium ${kondisi === k.value ? "text-teal-700" : "text-gray-600"
+                      }`}
                   >
                     {k.label}
                   </Text>
@@ -554,7 +556,7 @@ export default function BarangKeluarScreen() {
                   <View key={index} style={tw`relative`}>
                     <ImageWithCache source={photo.uri}
                       style={tw`w-20 h-20 rounded-lg`}
-                     contentFit="cover" transition={1000}       />
+                      contentFit="cover" transition={1000} />
                     <TouchableOpacity
                       style={tw`absolute -top-2 -right-2 bg-red-500 rounded-full p-1`}
                       onPress={() => removePhoto(index)}
@@ -590,7 +592,7 @@ export default function BarangKeluarScreen() {
                   <ImageWithCache source={photo.uri}
                     style={{ width: photo.width, height: photo.height }}
                     contentFit="contain"
-                   transition={1000}       />
+                    transition={1000} />
                   {/* Watermark Overlay - Dynamic Sizing */}
                   <View
                     style={[

@@ -7,16 +7,17 @@ import { queryKeys } from "@/lib/queryClient";
 import api from "@/services/api";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
+import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  formatDate,
+  isSameDay,
+  startOfMonth,
+} from "@/utils/date";
+import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import { LeaveRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
-import {
-    addMonths,
-    eachDayOfInterval,
-    endOfMonth,
-    formatDate,
-    isSameDay,
-    startOfMonth,
-} from "@/utils/date";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -199,49 +200,23 @@ export default function LeaveFormScreen() {
 
     // 1. Prepare & Sanitize Data
     const rawData = {
-        type,
-        startDate: startDate.toISOString(),
-        endDate: type === "TUKAR_LIBUR" ? startDate.toISOString() : endDate.toISOString(), // Single day for TUKAR_LIBUR
-        reason: sanitizeInput(reason),
-        replacementDate: type === "TUKAR_LIBUR" ? replacementDate.toISOString() : undefined,
+      type,
+      startDate: startDate.toISOString(),
+      endDate: type === "TUKAR_LIBUR" ? startDate.toISOString() : endDate.toISOString(), // Single day for TUKAR_LIBUR
+      reason: sanitizeInput(reason),
+      replacementDate: type === "TUKAR_LIBUR" ? replacementDate.toISOString() : undefined,
     };
 
     // 2. Validate Data with Schema
     const validation = validateData(LeaveRequestSchema, rawData);
 
     if (!validation.success) {
-        Alert.alert("Data Tidak Valid", validation.error);
-        return;
+      Alert.alert("Data Tidak Valid", validation.error);
+      return;
     }
 
-  // Helper to format error messages from backend
-  const formatErrorMessage = (err: Error | any): string => {
-    const message = err?.message || "Terjadi kesalahan tidak diketahui";
 
-    // Common backend error translations
-    if (message.includes("Missing required fields")) {
-      return "Data tidak lengkap. Pastikan semua field yang wajib sudah diisi.";
-    }
-    if (message.includes("Kuota") && message.includes("tidak cukup")) {
-      return message; // Already in Indonesian
-    }
-    if (message.includes("Tanggal izin") || message.includes("Tanggal pengganti")) {
-      return message; // Already in Indonesian
-    }
-    if (message.includes("Foto bukti wajib")) {
-      return "Foto bukti wajib diupload untuk jenis pengajuan ini.";
-    }
-    if (message.includes("Network") || message.includes("fetch")) {
-      return "Gagal terhubung ke server. Periksa koneksi internet Anda.";
-    }
-    if (message.includes("timeout")) {
-      return "Koneksi timeout. Silakan coba lagi.";
-    }
-
-    return message;
-  };
-
-  // Build photoMap for multiple photos
+    // Build photoMap for multiple photos
     const photoMap: Record<string, string> = {};
     photos.forEach((uri, idx) => {
       photoMap[`photo${idx}`] = uri;
@@ -261,84 +236,86 @@ export default function LeaveFormScreen() {
       const isOnline = await SyncService.isOnline();
 
       if (isOnline && photos.length > 0) {
-          try {
-              setLoadingMessage("Mengupload foto...");
-              const uploadedUrls = await uploadService.uploadBatch(
-                  photos,
-                  "employee-leave",
-                  (index, total, progress) => {
-                      setLoadingMessage(`Mengupload foto ${index}/${total}...`);
-                      setUploadProgress(progress.percentage);
-                  }
-              );
+        try {
+          setLoadingMessage("Mengupload foto...");
+          const uploadedUrls = await uploadService.uploadBatch(
+            photos,
+            "employee-leave",
+            (index, total, progress) => {
+              setLoadingMessage(`Mengupload foto ${index}/${total}...`);
+              setUploadProgress(progress.percentage);
+            }
+          );
 
-              setLoadingMessage("Mengirim data...");
-              setUploadProgress(0);
-
-              leaveMutation.mutate(
-                {
-                  ...validData,
-                  photos: uploadedUrls,
-                },
-                {
-                  onSuccess: () => {
-                    setShowLoading(false);
-                    const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
-                    Alert.alert(
-                      "Pengajuan Berhasil",
-                      `Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`,
-                      [{ text: "OK", onPress: () => router.back() }],
-                    );
-                  },
-                  onError: (err: Error) => {
-                    setShowLoading(false);
-                    const errorMessage = formatErrorMessage(err);
-                    Alert.alert("Gagal Mengirim Pengajuan", errorMessage);
-                  },
-                }
-              );
-          } catch (uploadError) {
-              setShowLoading(false);
-              logger.error("[Leave Form] Upload error:", uploadError);
-              Alert.alert("Gagal Upload Foto", "Terjadi kesalahan saat mengupload foto. Silakan coba lagi.");
-          }
-      } else {
-          // Offline flow or no photos
           setLoadingMessage("Mengirim data...");
+          setUploadProgress(0);
+
           leaveMutation.mutate(
             {
               ...validData,
-              photos: [],
-              meta: {
-                photoMap: photoMap,
-                photoType: "employee-leave",
-              },
+              photos: uploadedUrls,
             },
             {
-              onSuccess: (data: any) => {
+              onSuccess: () => {
                 setShowLoading(false);
-                const isOffline = data?.__offline_queued__;
                 const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
                 Alert.alert(
-                  isOffline ? "Disimpan Offline" : "Pengajuan Berhasil",
-                  isOffline
-                    ? `Pengajuan ${typeLabel} disimpan dan akan dikirim saat online.`
-                    : `Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`,
+                  "Pengajuan Berhasil",
+                  `Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`,
                   [{ text: "OK", onPress: () => router.back() }],
                 );
               },
               onError: (err: Error) => {
                 setShowLoading(false);
-                const errorMessage = formatErrorMessage(err);
-                Alert.alert("Gagal Mengirim Pengajuan", errorMessage);
+                const { title, message } = getUserFriendlyError(err);
+                Alert.alert(title, message);
               },
-            },
+            }
           );
+        } catch (uploadError) {
+          setShowLoading(false);
+          logger.error("[Leave Form] Upload error:", uploadError);
+          const { title, message } = getUserFriendlyError(uploadError);
+          Alert.alert(title, message);
+        }
+      } else {
+        // Offline flow or no photos
+        setLoadingMessage("Mengirim data...");
+        leaveMutation.mutate(
+          {
+            ...validData,
+            photos: [],
+            meta: {
+              photoMap: photoMap,
+              photoType: "employee-leave",
+            },
+          },
+          {
+            onSuccess: (data: any) => {
+              setShowLoading(false);
+              const isOffline = data?.__offline_queued__;
+              const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
+              Alert.alert(
+                isOffline ? "Disimpan Offline" : "Pengajuan Berhasil",
+                isOffline
+                  ? `Pengajuan ${typeLabel} disimpan dan akan dikirim saat online.`
+                  : `Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`,
+                [{ text: "OK", onPress: () => router.back() }],
+              );
+            },
+            onError: (err: Error) => {
+              setShowLoading(false);
+              const { title, message } = getUserFriendlyError(err);
+              Alert.alert(title, message);
+            },
+          },
+        );
       }
     } catch (unexpectedError) {
       setShowLoading(false);
       logger.error("[Leave Form] Unexpected error:", unexpectedError);
-      Alert.alert("Terjadi Kesalahan", "Terjadi kesalahan yang tidak terduga. Silakan coba lagi.");
+      const { title, message } = getUserFriendlyError(unexpectedError);
+      Alert.alert(title, message);
     }
   };
 
@@ -360,7 +337,7 @@ export default function LeaveFormScreen() {
               if (!result.canceled)
                 setPhotos((prev) => [...prev, result.assets[0].uri]);
             } catch {
-              Alert.alert("Error", "Gagal membuka kamera");
+              Alert.alert("Gagal", "Gagal membuka kamera");
             }
           },
         },
@@ -376,7 +353,7 @@ export default function LeaveFormScreen() {
               if (!result.canceled)
                 setPhotos((prev) => [...prev, result.assets[0].uri]);
             } catch {
-              Alert.alert("Error", "Gagal membuka galeri");
+              Alert.alert("Gagal", "Gagal membuka galeri");
             }
           },
         },
@@ -787,7 +764,7 @@ export default function LeaveFormScreen() {
                   <View key={idx} style={tw`relative`}>
                     <ImageWithCache source={photo}
                       style={tw`w-24 h-24 rounded-lg bg-gray-100`}
-                     contentFit="cover" transition={1000}       />
+                      contentFit="cover" transition={1000} />
                     <TouchableOpacity
                       onPress={() => removePhoto(idx)}
                       style={tw`absolute -top-2 -right-2 bg-red-500 rounded-full p-1 border border-white`}
@@ -827,10 +804,10 @@ export default function LeaveFormScreen() {
           style={[
             tw`py-4 rounded-xl items-center shadow-sm`,
             showLoading ||
-            (type !== "CUTI" &&
-              type !== "TUKAR_LIBUR" &&
-              photos.length === 0) ||
-            !reason.trim()
+              (type !== "CUTI" &&
+                type !== "TUKAR_LIBUR" &&
+                photos.length === 0) ||
+              !reason.trim()
               ? tw`bg-gray-300`
               : tw`bg-teal-600`,
           ]}

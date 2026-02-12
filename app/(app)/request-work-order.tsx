@@ -2,6 +2,7 @@ import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
 import { useApiQuery, useCreateWorkOrderRequest } from "@/hooks/queries";
 import api from "@/services/api";
+import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import { RequestWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { useRouter } from "expo-router";
@@ -277,16 +278,16 @@ export default function RequestWorkOrderScreen() {
 
     // 1. Validate & Sanitize Input
     const rawData = {
-        title: sanitizeInput(title),
-        description: sanitizeInput(description),
-        notes: sanitizeInput(notes)
+      title: sanitizeInput(title),
+      description: sanitizeInput(description),
+      notes: sanitizeInput(notes)
     };
 
     const validation = validateData(RequestWorkOrderSchema, rawData);
 
     if (!validation.success) {
-        Alert.alert("Data Tidak Valid", validation.error);
-        return;
+      Alert.alert("Data Tidak Valid", validation.error);
+      return;
     }
 
     setShowLoading(true);
@@ -297,30 +298,30 @@ export default function RequestWorkOrderScreen() {
       const payload =
         woMode === "CUSTOMER"
           ? {
-              type,
-              priority,
-              title: validData.title,
-              description: validData.description,
-              isInternal: false,
-              contactName: selectedCustomer!.fullname,
-              contactPhone: selectedCustomer!.phone,
-              locationAddress: selectedCustomer!.address,
-              notes:
-                validData.notes ||
-                `Pelanggan: ${selectedCustomer!.username} (${selectedCustomer!.memberId})\nPaket: ${selectedCustomer!.planName}\nOwner: ${selectedCustomer!.ownerName}`,
-              mixRadiusCustomerId: selectedCustomer!.id,
-              mixRadiusMemberId: selectedCustomer!.memberId,
-            }
+            type,
+            priority,
+            title: validData.title,
+            description: validData.description,
+            isInternal: false,
+            contactName: selectedCustomer!.fullname,
+            contactPhone: selectedCustomer!.phone,
+            locationAddress: selectedCustomer!.address,
+            notes:
+              validData.notes ||
+              `Pelanggan: ${selectedCustomer!.username} (${selectedCustomer!.memberId})\nPaket: ${selectedCustomer!.planName}\nOwner: ${selectedCustomer!.ownerName}`,
+            mixRadiusCustomerId: selectedCustomer!.id,
+            mixRadiusMemberId: selectedCustomer!.memberId,
+          }
           : {
-              type,
-              priority,
-              title: validData.title,
-              description: validData.description,
-              isInternal: true,
-              departmentId: selectedDepartment!.id,
-              contactName: selectedDepartment!.name, // Department name as contact
-              notes: validData.notes || undefined,
-            };
+            type,
+            priority,
+            title: validData.title,
+            description: validData.description,
+            isInternal: true,
+            departmentId: selectedDepartment!.id,
+            contactName: selectedDepartment!.name, // Department name as contact
+            notes: validData.notes || undefined,
+          };
 
       await mutate(payload, {
         onSuccess: (data) => {
@@ -348,12 +349,14 @@ export default function RequestWorkOrderScreen() {
         },
         onError: (err) => {
           setShowLoading(false);
-          Alert.alert("Error", err.message || "Gagal mengirim request");
+          const { title, message } = getUserFriendlyError(err);
+          Alert.alert(title, message);
         },
       });
-    } catch {
+    } catch (error) {
       setShowLoading(false);
-      Alert.alert("Error", "Terjadi kesalahan");
+      const { title, message } = getUserFriendlyError(error);
+      Alert.alert(title, message);
     }
   };
 
@@ -766,15 +769,15 @@ export default function RequestWorkOrderScreen() {
           </>
         )}
 
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={handleSubmit}
-              disabled={showLoading || !isFormValid}
-              style={[
-                tw`py-4 rounded-xl items-center shadow-sm`,
-                !isFormValid || showLoading
-                  ? tw`bg-gray-300`
-                  : woMode === "INTERNAL"
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={handleSubmit}
+          disabled={showLoading || !isFormValid}
+          style={[
+            tw`py-4 rounded-xl items-center shadow-sm`,
+            !isFormValid || showLoading
+              ? tw`bg-gray-300`
+              : woMode === "INTERNAL"
                 ? tw`bg-orange-500`
                 : tw`bg-sky-600`,
           ]}

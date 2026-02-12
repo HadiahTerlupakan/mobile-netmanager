@@ -1,14 +1,15 @@
+import { FormInput } from '@/components/atoms/FormInput';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
-import { FormInput } from '@/components/atoms/FormInput';
 import { FormSkeleton } from '@/components/molecules/FormSkeleton';
 import LoadingModal from '@/components/molecules/LoadingModal';
-import { useFormWithValidation } from '@/hooks/useFormWithValidation';
-import { TenantService } from '@/services/TenantService';
 import { useApiMutation, useQueryClient } from '@/hooks/queries';
+import { useFormWithValidation } from '@/hooks/useFormWithValidation';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { queryKeys } from '@/lib/queryClient';
+import { TenantService } from '@/services/TenantService';
 import { uploadService } from '@/services/UploadService';
+import { getUserFriendlyError } from '@/utils/errorHandling';
 import { ProfileSchema } from '@/utils/validation';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -99,8 +100,8 @@ function EditProfileScreen() {
                 queryClient.invalidateQueries({ queryKey: queryKeys.profile.detail() });
             }
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Gagal upload foto';
-            Alert.alert('Error', message);
+            const { title, message } = getUserFriendlyError(error);
+            Alert.alert(title, message);
         } finally {
             setUploadingPhoto(false);
         }

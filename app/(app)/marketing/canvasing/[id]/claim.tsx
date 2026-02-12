@@ -2,16 +2,17 @@ import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from '@/components/molecules/LoadingModal';
 import api from '@/services/api'; // Use centralized API
 import { uploadService } from '@/services/UploadService';
+import { getUserFriendlyError } from '@/utils/errorHandling';
+import { logger } from '@/utils/logger';
 import { ClaimPointSchema, sanitizeInput, validateData } from '@/utils/validation';
 import { Ionicons } from '@expo/vector-icons';
+import { useQueryClient } from '@tanstack/react-query';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useQueryClient } from '@tanstack/react-query';
 import tw from 'twrnc';
-import { logger } from '@/utils/logger';
 
 export default function ClaimPointScreen() {
     const { id } = useLocalSearchParams();
@@ -62,7 +63,8 @@ export default function ClaimPointScreen() {
             }
         } catch (error) {
             logger.error('Camera capture error:', error);
-            Alert.alert('Error', 'Gagal mengambil foto');
+            const { title, message } = getUserFriendlyError(error);
+            Alert.alert(title, message);
         }
     };
 
@@ -87,7 +89,8 @@ export default function ClaimPointScreen() {
             }
         } catch (error) {
             logger.error('Gallery pick error:', error);
-            Alert.alert('Error', 'Gagal memilih foto');
+            const { title, message } = getUserFriendlyError(error);
+            Alert.alert(title, message);
         }
     };
 
@@ -164,8 +167,8 @@ export default function ClaimPointScreen() {
                             );
                         } catch (error) {
                             setShowLoading(false);
-                            const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan";
-                            Alert.alert('Gagal', errorMessage);
+                            const { title, message } = getUserFriendlyError(error);
+                            Alert.alert(title, message);
                         } finally {
                             setIsSubmitting(false);
                         }
@@ -269,7 +272,7 @@ export default function ClaimPointScreen() {
                         <View style={tw`flex-row flex-wrap gap-3 mb-4`}>
                             {buktiUrls.map((uri, index) => (
                                 <View key={index} style={tw`relative`}>
-                                    <ImageWithCache source={uri} style={tw`w-24 h-24 rounded-xl`} contentFit="cover" transition={1000}  />
+                                    <ImageWithCache source={uri} style={tw`w-24 h-24 rounded-xl`} contentFit="cover" transition={1000} />
                                     <TouchableOpacity
                                         onPress={() => removePhoto(index)}
                                         style={tw`absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full items-center justify-center shadow`}

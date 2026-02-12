@@ -3,17 +3,17 @@
  * This component provides map functionality on web using maplibre-gl
  */
 
-import { Platform } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+import { RefreshCw, Search, X } from 'lucide-react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 // Only import maplibre-gl on web platform
 let maplibregl: typeof import('maplibre-gl') | null = null;
 if (Platform.OS === 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   maplibregl = require('maplibre-gl');
 }
-
-import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
-import { Search, X, RefreshCw } from 'lucide-react-native';
 
 // Types
 export type DeviceType = 'otb' | 'odc' | 'odp' | 'joinbox' | 'pole' | 'pelanggan' | 'kmz';
@@ -78,7 +78,7 @@ export function WebMapView({
 }: WebMapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
+  const markersRef = useRef<any[]>([]);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -117,9 +117,9 @@ export function WebMapView({
       },
       center: initialCenter,
       zoom: initialZoom,
-    });
+    }) as any;
 
-    map.current.on('load', () => {
+    map.current!.on('load', () => {
       setMapLoaded(true);
     });
 
@@ -127,7 +127,7 @@ export function WebMapView({
       map.current?.remove();
       map.current = null;
     };
-  }, []);
+  }, [initialCenter, initialZoom]);
 
   // Update lines when data changes
   useEffect(() => {
@@ -214,9 +214,9 @@ export function WebMapView({
         }
       });
 
-      const marker = new maplibregl.Marker({ element: el })
+      const marker = new maplibregl!.Marker({ element: el })
         .setLngLat([device.longitude, device.latitude])
-        .addTo(map.current!);
+        .addTo(map.current as any);
 
       markersRef.current.push(marker);
     });
@@ -259,12 +259,12 @@ export function WebMapView({
   const fitToDevices = useCallback(() => {
     if (!map.current || devices.length === 0) return;
 
-    const bounds = new maplibregl.LngLatBounds();
+    const bounds = new maplibregl!.LngLatBounds();
     devices.forEach(d => {
       bounds.extend([d.longitude, d.latitude]);
     });
 
-    map.current.fitBounds(bounds, {
+    map.current.fitBounds(bounds as any, {
       padding: 50,
       duration: 1000,
     });
@@ -275,7 +275,7 @@ export function WebMapView({
     if (mapLoaded && devices.length > 0) {
       fitToDevices();
     }
-  }, [mapLoaded, devices.length]);
+  }, [mapLoaded, devices.length, fitToDevices]);
 
   if (Platform.OS !== 'web') {
     return null;
@@ -313,12 +313,12 @@ export function WebMapView({
                 <View
                   style={[
                     styles.resultIcon,
-                    { backgroundColor: device.color || MARKER_COLORS[device.type] },
+                    { backgroundColor: device.color || MARKER_COLORS[device.type as DeviceType] },
                   ]}
                 />
                 <View>
                   <Text style={styles.resultName}>{device.name}</Text>
-                  <Text style={styles.resultType}>{device.type.toUpperCase()}</Text>
+                  <Text style={styles.resultType}>{String(device.type).toUpperCase()}</Text>
                 </View>
               </TouchableOpacity>
             ))}

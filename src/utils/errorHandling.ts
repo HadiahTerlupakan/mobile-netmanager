@@ -6,7 +6,7 @@ interface ErrorMessage {
   action?: string;
 }
 
-const ERROR_MESSAGES: Record<string, ErrorMessage> = {
+const ERROR_MESSAGES = {
   'ERR_NETWORK': {
     title: 'Koneksi Bermasalah',
     message: 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda dan coba lagi.',
@@ -64,10 +64,10 @@ export function getUserFriendlyError(error: unknown): ErrorMessage {
 
       // Use backend error message if available for 400/403/422
       if ((status === 400 || status === 422) && backendMessage) {
-         return {
-             title: 'Periksa Data',
-             message: backendMessage
-         };
+        return {
+          title: 'Periksa Data',
+          message: backendMessage
+        };
       }
 
       if (status === 401) return ERROR_MESSAGES['AUTH_FAILED'];
@@ -86,12 +86,12 @@ export function getUserFriendlyError(error: unknown): ErrorMessage {
   // Handle standard Error objects
   if (error instanceof Error) {
     if (error.message === 'Offline' || error.message.includes('Internet')) {
-        return ERROR_MESSAGES['OFFLINE'];
+      return ERROR_MESSAGES['OFFLINE'];
     }
     // Return the actual error message for specific known logic errors, fallback to generic
     return {
-        title: 'Terjadi Kesalahan',
-        message: error.message || 'Terjadi kesalahan yang tidak terduga.'
+      title: 'Terjadi Kesalahan',
+      message: error.message || 'Terjadi kesalahan yang tidak terduga.'
     };
   }
 

@@ -1,52 +1,52 @@
-import { ImageViewerModal } from '@/components/molecules/ImageViewerModal';
-import { WorkOrderDetailSkeleton } from '@/components/molecules/WorkOrderDetailSkeleton';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
+import { ImageViewerModal } from '@/components/molecules/ImageViewerModal';
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { TenantService } from "@/services/TenantService";
+import { WorkOrderDetailSkeleton } from '@/components/molecules/WorkOrderDetailSkeleton';
 import { useAuth } from "@/context/AuthContext";
 import { useSocketEvent, useSocketRoom } from "@/context/SocketContext";
 import { SOCKET_EVENTS, WorkOrderActivityPayload } from "@/context/socketTypes";
 import {
-    useApiMutation,
-    useWorkOrder,
-    queryKeys,
+  queryKeys,
+  useApiMutation,
+  useWorkOrder,
 } from "@/hooks/queries";
+import { TenantService } from "@/services/TenantService";
 import { uploadService } from "@/services/UploadService";
 import api from "@/services/api"; // Use centralized API
-import { WorkOrder, WorkOrderAssignment, WorkOrderUpdate, UserSummary } from "@/types/work-order";
+import { UserSummary, WorkOrder, WorkOrderAssignment, WorkOrderUpdate } from "@/types/work-order";
 import { formatDate } from "@/utils/date";
-import { AxiosError } from "axios";
+import { getUserFriendlyError } from "@/utils/errorHandling";
+import { logger } from "@/utils/logger";
+import { FlashList } from '@shopify/flash-list';
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
-    ArrowLeft,
-    Calendar,
-    Camera,
-    CheckCircle,
-    CheckSquare,
-    Clock,
-    FileText,
-    History,
-    Image as ImageIcon,
-    ListChecks,
-    MapPin,
-    MessageSquare,
-    Package,
-    Pause,
-    Phone,
-    Play,
-    Square,
-    User,
-    X,
+  ArrowLeft,
+  Calendar,
+  Camera,
+  CheckCircle,
+  CheckSquare,
+  Clock,
+  FileText,
+  History,
+  Image as ImageIcon,
+  ListChecks,
+  MapPin,
+  MessageSquare,
+  Package,
+  Pause,
+  Phone,
+  Play,
+  Square,
+  User,
+  X,
 } from "lucide-react-native";
-import { FlashList } from '@shopify/flash-list';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { logger } from "@/utils/logger";
 import {
-    SafeAreaView,
-    useSafeAreaInsets,
+  SafeAreaView,
+  useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import tw from "twrnc";
 
@@ -333,14 +333,16 @@ export default function WorkOrderDetailScreen() {
             setIsProcessingStatus(false);
           },
           onError: (err) => {
-            Alert.alert("Error", err.message || "Gagal update status");
+            const { title, message } = getUserFriendlyError(err);
+            Alert.alert(title, message);
             setIsProcessingStatus(false);
           },
         },
       );
-    } catch {
+    } catch (error) {
       setIsProcessingStatus(false);
-      Alert.alert("Error", "Terjadi kesalahan sistem");
+      const { title, message } = getUserFriendlyError(error);
+      Alert.alert(title, message);
     }
   };
 
@@ -402,12 +404,13 @@ export default function WorkOrderDetailScreen() {
       setLoadingMessage("Mengupload Foto...");
 
       try {
-         // Use the shared service
-         uploadedPhotoUrl = await uploadService.uploadFile(photo, "work-order-updates");
-         logger.info("[WO Comment] Photo uploaded:", uploadedPhotoUrl);
+        // Use the shared service
+        uploadedPhotoUrl = await uploadService.uploadFile(photo, "work-order-updates");
+        logger.info("[WO Comment] Photo uploaded:", uploadedPhotoUrl);
       } catch (uploadError: any) {
         logger.error("[WO Comment] Photo upload failed:", uploadError);
-        Alert.alert("Error", uploadError.message || "Gagal upload foto. Silakan coba lagi.");
+        const { title, message } = getUserFriendlyError(uploadError);
+        Alert.alert(title, message);
         setIsProcessingStatus(false);
         return;
       }
@@ -440,7 +443,8 @@ export default function WorkOrderDetailScreen() {
         setIsProcessingStatus(false);
       },
       onError: (err) => {
-        Alert.alert("Error", err.message || "Gagal update catatan");
+        const { title, message } = getUserFriendlyError(err);
+        Alert.alert(title, message);
         setIsProcessingStatus(false);
       },
     });
@@ -465,8 +469,9 @@ export default function WorkOrderDetailScreen() {
                 quality: 0.5,
               });
               if (!result.canceled) setPhoto(result.assets[0].uri);
-            } catch {
-              Alert.alert("Error", "Gagal membuka kamera");
+            } catch (error) {
+              const { title, message } = getUserFriendlyError(error);
+              Alert.alert(title, message);
             }
           },
         },
@@ -480,8 +485,9 @@ export default function WorkOrderDetailScreen() {
                 quality: 0.5,
               });
               if (!result.canceled) setPhoto(result.assets[0].uri);
-            } catch {
-              Alert.alert("Error", "Gagal membuka galeri");
+            } catch (error) {
+              const { title, message } = getUserFriendlyError(error);
+              Alert.alert(title, message);
             }
           },
         },
@@ -513,13 +519,11 @@ export default function WorkOrderDetailScreen() {
       );
       setIsPartnerModalVisible(false);
       fetchDetail(); // Refresh WO data
+      fetchDetail(); // Refresh WO data
       Alert.alert("Berhasil", "Partner berhasil ditambahkan");
     } catch (error) {
-      let message = "Gagal menambahkan partner";
-      if (error instanceof AxiosError) {
-        message = error.response?.data?.error || message;
-      }
-      Alert.alert("Gagal", message);
+      const { title, message } = getUserFriendlyError(error);
+      Alert.alert(title, message);
     } finally {
       setPartnerLoading(false);
     }
@@ -541,8 +545,9 @@ export default function WorkOrderDetailScreen() {
               );
               fetchDetail();
               Alert.alert("Berhasil", "Partner dihapus");
-            } catch {
-              Alert.alert("Gagal", "Gagal menghapus partner");
+            } catch (error) {
+              const { title, message } = getUserFriendlyError(error);
+              Alert.alert(title, message);
             }
           },
         },
@@ -575,7 +580,8 @@ export default function WorkOrderDetailScreen() {
       }
     } catch (error) {
       logger.error("Partner Response Error:", error);
-      Alert.alert("Error", "Gagal merespon permintaan partner");
+      const { title, message } = getUserFriendlyError(error);
+      Alert.alert(title, message);
     } finally {
       setPartnerResponseLoading(false);
     }
@@ -593,31 +599,28 @@ export default function WorkOrderDetailScreen() {
               Jadwal & Status
             </Text>
             <Text
-              style={tw`text-xs font-bold ${
-                wo.priority === "URGENT" ? "text-red-600" : "text-gray-500"
-              }`}
+              style={tw`text-xs font-bold ${wo.priority === "URGENT" ? "text-red-600" : "text-gray-500"
+                }`}
             >
               {wo.priority}
             </Text>
           </View>
           <View style={tw`flex-row items-center justify-between`}>
             <View
-              style={tw`px-3 py-1 rounded-full ${
-                wo.status === "IN_PROGRESS"
+              style={tw`px-3 py-1 rounded-full ${wo.status === "IN_PROGRESS"
                   ? "bg-blue-100"
                   : wo.status === "COMPLETED"
                     ? "bg-green-100"
                     : "bg-gray-100"
-              }`}
+                }`}
             >
               <Text
-                style={tw`font-bold ${
-                  wo.status === "IN_PROGRESS"
+                style={tw`font-bold ${wo.status === "IN_PROGRESS"
                     ? "text-blue-700"
                     : wo.status === "COMPLETED"
                       ? "text-green-700"
                       : "text-gray-700"
-                }`}
+                  }`}
               >
                 {wo.status}
               </Text>
@@ -717,55 +720,55 @@ export default function WorkOrderDetailScreen() {
           wo.pelanggan?.nama ||
           wo.contactPhone ||
           wo.pelanggan?.noTelp) && (
-          <View
-            style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}
-          >
-            <Text style={tw`text-xs text-gray-400 font-bold mb-3 uppercase`}>
-              Kontak
-            </Text>
+            <View
+              style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}
+            >
+              <Text style={tw`text-xs text-gray-400 font-bold mb-3 uppercase`}>
+                Kontak
+              </Text>
 
-            {(wo.contactName || wo.pelanggan?.nama) && (
-              <View style={tw`flex-row items-center mb-3`}>
-                <User size={18} color="#6b7280" style={tw`mr-3`} />
-                <View>
-                  <Text style={tw`text-xs text-gray-400`}>Nama</Text>
-                  <Text style={tw`text-sm font-bold text-gray-800`}>
-                    {wo.contactName || wo.pelanggan?.nama}
-                  </Text>
+              {(wo.contactName || wo.pelanggan?.nama) && (
+                <View style={tw`flex-row items-center mb-3`}>
+                  <User size={18} color="#6b7280" style={tw`mr-3`} />
+                  <View>
+                    <Text style={tw`text-xs text-gray-400`}>Nama</Text>
+                    <Text style={tw`text-sm font-bold text-gray-800`}>
+                      {wo.contactName || wo.pelanggan?.nama}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            )}
+              )}
 
-            {(wo.contactPhone || wo.pelanggan?.noTelp) && (
-              <TouchableOpacity
-                onPress={() => {
-                  const phone = wo.contactPhone || wo.pelanggan?.noTelp;
-                  if (phone) {
-                    let formattedPhone = phone.replace(/\D/g, "");
-                    if (formattedPhone.startsWith("0")) {
-                      formattedPhone = "62" + formattedPhone.substring(1);
+              {(wo.contactPhone || wo.pelanggan?.noTelp) && (
+                <TouchableOpacity
+                  onPress={() => {
+                    const phone = wo.contactPhone || wo.pelanggan?.noTelp;
+                    if (phone) {
+                      let formattedPhone = phone.replace(/\D/g, "");
+                      if (formattedPhone.startsWith("0")) {
+                        formattedPhone = "62" + formattedPhone.substring(1);
+                      }
+
+                      Linking.openURL(
+                        `whatsapp://send?phone=${formattedPhone}`,
+                      ).catch(() => {
+                        Linking.openURL(`tel:${phone}`);
+                      });
                     }
-
-                    Linking.openURL(
-                      `whatsapp://send?phone=${formattedPhone}`,
-                    ).catch(() => {
-                      Linking.openURL(`tel:${phone}`);
-                    });
-                  }
-                }}
-                style={tw`flex-row items-center`}
-              >
-                <Phone size={18} color="#2563eb" style={tw`mr-3`} />
-                <View>
-                  <Text style={tw`text-xs text-gray-400`}>Telepon</Text>
-                  <Text style={tw`text-sm font-bold text-blue-600`}>
-                    {wo.contactPhone || wo.pelanggan?.noTelp}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+                  }}
+                  style={tw`flex-row items-center`}
+                >
+                  <Phone size={18} color="#2563eb" style={tw`mr-3`} />
+                  <View>
+                    <Text style={tw`text-xs text-gray-400`}>Telepon</Text>
+                    <Text style={tw`text-sm font-bold text-blue-600`}>
+                      {wo.contactPhone || wo.pelanggan?.noTelp}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
         {/* Team & Partners Card */}
         <View
@@ -830,22 +833,20 @@ export default function WorkOrderDetailScreen() {
                         {assignment.role || "Partner"}
                       </Text>
                       <View
-                        style={tw`px-2 py-0.5 rounded-full ${
-                          assignment.status === "APPROVED"
+                        style={tw`px-2 py-0.5 rounded-full ${assignment.status === "APPROVED"
                             ? "bg-green-100"
                             : assignment.status === "REJECTED"
                               ? "bg-red-100"
                               : "bg-yellow-100"
-                        }`}
+                          }`}
                       >
                         <Text
-                          style={tw`text-[10px] font-bold ${
-                            assignment.status === "APPROVED"
+                          style={tw`text-[10px] font-bold ${assignment.status === "APPROVED"
                               ? "text-green-700"
                               : assignment.status === "REJECTED"
                                 ? "text-red-700"
                                 : "text-yellow-700"
-                          }`}
+                            }`}
                         >
                           {assignment.status === "APPROVED"
                             ? "Setuju"
@@ -923,8 +924,8 @@ export default function WorkOrderDetailScreen() {
 
       <Text style={tw`font-bold text-gray-800 mb-4`}>Barang Digunakan</Text>
       {wo.usedMaterials &&
-      Array.isArray(wo.usedMaterials) &&
-      wo.usedMaterials.length > 0 ? (
+        Array.isArray(wo.usedMaterials) &&
+        wo.usedMaterials.length > 0 ? (
         wo.usedMaterials.map((item, idx: number) => (
           <View
             key={idx}
@@ -963,22 +964,20 @@ export default function WorkOrderDetailScreen() {
                   </Text>
                   <View style={tw`flex-row items-center gap-2 mt-1`}>
                     <View
-                      style={tw`px-1.5 py-0.5 rounded ${
-                        item.kondisi === "BARU"
+                      style={tw`px-1.5 py-0.5 rounded ${item.kondisi === "BARU"
                           ? "bg-green-100"
                           : item.kondisi === "BEKAS"
                             ? "bg-yellow-100"
                             : "bg-red-100"
-                      }`}
+                        }`}
                     >
                       <Text
-                        style={tw`text-[10px] font-bold ${
-                          item.kondisi === "BARU"
+                        style={tw`text-[10px] font-bold ${item.kondisi === "BARU"
                             ? "text-green-700"
                             : item.kondisi === "BEKAS"
                               ? "text-yellow-700"
                               : "text-red-700"
-                        }`}
+                          }`}
                       >
                         {item.kondisi}
                       </Text>
@@ -1078,7 +1077,7 @@ export default function WorkOrderDetailScreen() {
             <ImageWithCache source={photo}
               style={tw`w-24 h-24 rounded-lg`}
               contentFit="cover"
-             transition={1000}        />
+              transition={1000} />
             <TouchableOpacity
               onPress={() => setPhoto(null)}
               style={tw`absolute top-1 right-1 bg-black/50 p-1 rounded-full`}
@@ -1153,13 +1152,12 @@ export default function WorkOrderDetailScreen() {
 
               <View style={tw`max-w-[80%]`}>
                 <View
-                  style={tw`rounded-2xl overflow-hidden ${
-                    isPhoto
+                  style={tw`rounded-2xl overflow-hidden ${isPhoto
                       ? "" // Photos handle their own rounding or have no bg
                       : isMe
                         ? "bg-blue-600 rounded-tr-none px-4 py-2.5"
                         : "bg-gray-100 rounded-tl-none px-4 py-2.5"
-                  }`}
+                    }`}
                 >
                   {!isMe && !isPhoto && (
                     <Text style={tw`text-xs font-bold text-gray-500 mb-1`}>
@@ -1172,7 +1170,7 @@ export default function WorkOrderDetailScreen() {
                       <TouchableOpacity
                         onPress={() => {
                           if (item.filePath) {
-                             openImageViewer(`${TenantService.getTenantUrl()}${item.filePath}`);
+                            openImageViewer(`${TenantService.getTenantUrl()}${item.filePath}`);
                           }
                         }}
                         activeOpacity={0.9}
@@ -1180,7 +1178,7 @@ export default function WorkOrderDetailScreen() {
                         <ImageWithCache source={`${TenantService.getTenantUrl()}${item.filePath}`}
                           style={tw`w-48 h-64 bg-gray-200 rounded-lg`}
                           contentFit="cover"
-                         transition={1000}        />
+                          transition={1000} />
                       </TouchableOpacity>
                       {item.message && (
                         <View
@@ -1236,8 +1234,7 @@ export default function WorkOrderDetailScreen() {
 
             {/* Dot */}
             <View
-              style={tw`w-6 h-6 rounded-full ${
-                update.updateType === "PHOTO"
+              style={tw`w-6 h-6 rounded-full ${update.updateType === "PHOTO"
                   ? "bg-purple-100"
                   : update.updateType === "MATERIAL_PICKUP"
                     ? "bg-orange-100"
@@ -1246,11 +1243,10 @@ export default function WorkOrderDetailScreen() {
                       : update.updateType === "STATUS_CHANGE"
                         ? "bg-blue-100"
                         : "bg-gray-100"
-              } items-center justify-center mr-3 z-10`}
+                } items-center justify-center mr-3 z-10`}
             >
               <View
-                style={tw`w-2 h-2 rounded-full ${
-                  update.updateType === "PHOTO"
+                style={tw`w-2 h-2 rounded-full ${update.updateType === "PHOTO"
                     ? "bg-purple-600"
                     : update.updateType === "MATERIAL_PICKUP"
                       ? "bg-orange-600"
@@ -1259,7 +1255,7 @@ export default function WorkOrderDetailScreen() {
                         : update.updateType === "STATUS_CHANGE"
                           ? "bg-blue-600"
                           : "bg-gray-400"
-                }`}
+                  }`}
               />
             </View>
 
@@ -1305,10 +1301,10 @@ export default function WorkOrderDetailScreen() {
         wo.updates.filter(
           (u: WorkOrderUpdate) => !["COMMENT", "NOTE"].includes(u.updateType),
         ).length === 0) && (
-        <Text style={tw`text-center text-gray-400 py-4`}>
-          Belum ada riwayat sistem
-        </Text>
-      )}
+          <Text style={tw`text-center text-gray-400 py-4`}>
+            Belum ada riwayat sistem
+          </Text>
+        )}
     </View>
   );
 
@@ -1333,7 +1329,8 @@ export default function WorkOrderDetailScreen() {
       fetchDetail();
     } catch (error) {
       logger.error("Task Toggle Error:", error);
-      Alert.alert("Gagal", "Gagal mengubah status tugas");
+      const { title, message } = getUserFriendlyError(error);
+      Alert.alert(title, message);
       // Revert on error
       fetchDetail();
     }
@@ -1437,9 +1434,8 @@ export default function WorkOrderDetailScreen() {
           <TouchableOpacity
             key={tab.key}
             onPress={() => setActiveTab(tab.key)}
-            style={tw`flex-1 flex-row items-center justify-center py-3 border-b-2 ${
-              activeTab === tab.key ? "border-blue-600" : "border-transparent"
-            }`}
+            style={tw`flex-1 flex-row items-center justify-center py-3 border-b-2 ${activeTab === tab.key ? "border-blue-600" : "border-transparent"
+              }`}
           >
             <tab.icon
               size={16}
@@ -1447,9 +1443,8 @@ export default function WorkOrderDetailScreen() {
               style={tw`mr-2`}
             />
             <Text
-              style={tw`text-sm font-medium ${
-                activeTab === tab.key ? "text-blue-600" : "text-gray-500"
-              }`}
+              style={tw`text-sm font-medium ${activeTab === tab.key ? "text-blue-600" : "text-gray-500"
+                }`}
             >
               {tab.label}
             </Text>

@@ -26,6 +26,7 @@ export function getMapLibre(): any {
   if (!MapLibreGL) {
     try {
       // Dynamic import to prevent crash in Expo Go
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       MapLibreGL = require('@maplibre/maplibre-react-native');
       MapLibreGL.setAccessToken(null);
     } catch (e) {

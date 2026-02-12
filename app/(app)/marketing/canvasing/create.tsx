@@ -1,35 +1,36 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
-import { LocationPickerModal } from "@/components/organisms/marketing/LocationPickerModal";
 import LoadingModal from "@/components/molecules/LoadingModal"; // Import LoadingModal
+import { LocationPickerModal } from "@/components/organisms/marketing/LocationPickerModal";
 
 import { useApiMutation } from "@/hooks/queries";
-import { CanvasingSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { SyncService } from "@/services/SyncService"; // Import SyncService
 import { uploadService } from "@/services/UploadService"; // Import UploadService
+import { getUserFriendlyError } from "@/utils/errorHandling";
+import { logger } from "@/utils/logger";
+import { CanvasingSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import {
-    Camera,
-    ChevronLeft,
-    Image as ImageIcon,
-    Info,
-    Map as MapIcon,
-    MapPin,
-    Package,
-    RotateCcw,
-    Settings,
-    User,
-    X,
-    Zap,
-    ZapOff,
+  Camera,
+  ChevronLeft,
+  Image as ImageIcon,
+  Info,
+  Map as MapIcon,
+  MapPin,
+  Package,
+  RotateCcw,
+  Settings,
+  User,
+  X,
+  Zap,
+  ZapOff,
 } from "lucide-react-native";
 import React, { useRef, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TextInputProps, TouchableOpacity, View,  } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TextInputProps, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { logger } from "@/utils/logger";
 
 export default function CreateCanvasingScreen() {
   const router = useRouter();
@@ -120,7 +121,8 @@ export default function CreateCanvasingScreen() {
       }
     } catch (error) {
       logger.error("Gallery pick error:", error);
-      Alert.alert("Error", "Gagal mengambil gambar dari galeri");
+      const { title, message } = getUserFriendlyError(error);
+      Alert.alert(title, message);
     }
   };
 
@@ -159,33 +161,34 @@ export default function CreateCanvasingScreen() {
       }
     } catch (error) {
       logger.error("Capture error:", error);
-      Alert.alert("Error", "Gagal mengambil foto");
+      const { title, message } = getUserFriendlyError(error);
+      Alert.alert(title, message);
     }
   };
 
   const handleSubmit = async () => {
     // 1. Sanitize & Prepare Data
     const rawData = {
-        ...form,
-        kabel: form.kabel ? parseInt(form.kabel) : 0, // Convert string to number for schema
-        // Sanitize string inputs
-        nama: sanitizeInput(form.nama),
-        noKtp: sanitizeInput(form.noKtp),
-        noTelpon: sanitizeInput(form.noTelpon),
-        email: sanitizeInput(form.email),
-        alamat: sanitizeInput(form.alamat),
-        odp: sanitizeInput(form.odp),
-        paket: sanitizeInput(form.paket),
-        sn: sanitizeInput(form.sn),
-        shareloc: sanitizeInput(form.shareloc),
+      ...form,
+      kabel: form.kabel ? parseInt(form.kabel) : 0, // Convert string to number for schema
+      // Sanitize string inputs
+      nama: sanitizeInput(form.nama),
+      noKtp: sanitizeInput(form.noKtp),
+      noTelpon: sanitizeInput(form.noTelpon),
+      email: sanitizeInput(form.email),
+      alamat: sanitizeInput(form.alamat),
+      odp: sanitizeInput(form.odp),
+      paket: sanitizeInput(form.paket),
+      sn: sanitizeInput(form.sn),
+      shareloc: sanitizeInput(form.shareloc),
     };
 
     // 2. Validate Data
     const validation = validateData(CanvasingSchema, rawData);
 
     if (!validation.success) {
-        Alert.alert("Data Tidak Valid", validation.error);
-        return;
+      Alert.alert("Data Tidak Valid", validation.error);
+      return;
     }
 
     if (!fotoKtpLocal) {
@@ -204,97 +207,95 @@ export default function CreateCanvasingScreen() {
       const isOnline = await SyncService.isOnline();
 
       if (isOnline) {
-          // Manual upload for progress
-          const photoMap: Record<string, string> = {};
+        // Manual upload for progress
+        const photoMap: Record<string, string> = {};
 
-          try {
-              if (fotoLocal) {
-                  setLoadingMessage("Mengupload Foto Lokasi...");
-                  setUploadProgress(0);
-                  const url = await uploadService.uploadFile(fotoLocal, "marketing", {
-                      onProgress: (p) => setUploadProgress(p.percentage)
-                  });
-                  photoMap["foto"] = url;
-              }
-
-              if (fotoKtpLocal) {
-                  setLoadingMessage("Mengupload Foto KTP...");
-                  setUploadProgress(0);
-                  const url = await uploadService.uploadFile(fotoKtpLocal, "marketing", {
-                      onProgress: (p) => setUploadProgress(p.percentage)
-                  });
-                  photoMap["fotoKtp"] = url;
-              }
-
-              setLoadingMessage("Menyimpan data...");
-              setUploadProgress(0); // Indeterminate
-
-              mutate(
-                {
-                  ...validData,
-                  ...photoMap, // Pass URLs directly
-                },
-                {
-                  onSuccess: () => {
-                    setIsLoading(false);
-                    Alert.alert("Berhasil", "Data canvasing berhasil disimpan", [
-                      { text: "OK", onPress: () => router.back() },
-                    ]);
-                  },
-                  onError: (err) => {
-                    setIsLoading(false);
-                    logger.error("Submit error:", err);
-                    Alert.alert(
-                      "Gagal",
-                      err.message || "Terjadi kesalahan saat menyimpan data",
-                    );
-                  },
-                },
-              );
-          } catch (uploadError) {
-              setIsLoading(false);
-              logger.error("Upload error:", uploadError);
-              Alert.alert("Error", "Gagal mengupload foto");
+        try {
+          if (fotoLocal) {
+            setLoadingMessage("Mengupload Foto Lokasi...");
+            setUploadProgress(0);
+            const url = await uploadService.uploadFile(fotoLocal, "marketing", {
+              onProgress: (p) => setUploadProgress(p.percentage)
+            });
+            photoMap["foto"] = url;
           }
-      } else {
-          // Offline flow
-          // Prepare photo map for upload (local URIs)
-          const photoMap: Record<string, string> = {};
-          if (fotoLocal) photoMap["foto"] = fotoLocal;
-          if (fotoKtpLocal) photoMap["fotoKtp"] = fotoKtpLocal;
 
-          setLoadingMessage("Menyimpan offline...");
+          if (fotoKtpLocal) {
+            setLoadingMessage("Mengupload Foto KTP...");
+            setUploadProgress(0);
+            const url = await uploadService.uploadFile(fotoKtpLocal, "marketing", {
+              onProgress: (p) => setUploadProgress(p.percentage)
+            });
+            photoMap["fotoKtp"] = url;
+          }
+
+          setLoadingMessage("Menyimpan data...");
+          setUploadProgress(0); // Indeterminate
+
           mutate(
             {
               ...validData,
-              meta: {
-                photoMap,
-                photoType: "marketing",
-              },
+              ...photoMap, // Pass URLs directly
             },
             {
-              onSuccess: (data: any) => {
+              onSuccess: () => {
                 setIsLoading(false);
-                // const isOffline = data?.__offline_queued__;
-                Alert.alert("Berhasil", "Data canvasing berhasil disimpan (Offline)", [
+                Alert.alert("Berhasil", "Data canvasing berhasil disimpan", [
                   { text: "OK", onPress: () => router.back() },
                 ]);
               },
               onError: (err) => {
                 setIsLoading(false);
                 logger.error("Submit error:", err);
-                Alert.alert(
-                  "Gagal",
-                  err.message || "Terjadi kesalahan saat menyimpan data",
-                );
+                const { title, message } = getUserFriendlyError(err);
+                Alert.alert(title, message);
               },
             },
           );
+        } catch (uploadError) {
+          setIsLoading(false);
+          logger.error("Upload error:", uploadError);
+          const { title, message } = getUserFriendlyError(uploadError);
+          Alert.alert(title, message);
+        }
+      } else {
+        // Offline flow
+        // Prepare photo map for upload (local URIs)
+        const photoMap: Record<string, string> = {};
+        if (fotoLocal) photoMap["foto"] = fotoLocal;
+        if (fotoKtpLocal) photoMap["fotoKtp"] = fotoKtpLocal;
+
+        setLoadingMessage("Menyimpan offline...");
+        mutate(
+          {
+            ...validData,
+            meta: {
+              photoMap,
+              photoType: "marketing",
+            },
+          },
+          {
+            onSuccess: (data: any) => {
+              setIsLoading(false);
+              // const isOffline = data?.__offline_queued__;
+              Alert.alert("Berhasil", "Data canvasing berhasil disimpan (Offline)", [
+                { text: "OK", onPress: () => router.back() },
+              ]);
+            },
+            onError: (err) => {
+              setIsLoading(false);
+              logger.error("Submit error:", err);
+              const { title, message } = getUserFriendlyError(err);
+              Alert.alert(title, message);
+            },
+          },
+        );
       }
     } catch (error) {
       setIsLoading(false);
       logger.error("Submit exception:", error);
-      Alert.alert("Error", "Terjadi kesalahan sistem");
+      const { title, message } = getUserFriendlyError(error);
+      Alert.alert(title, message);
     }
   };
 
@@ -309,95 +310,95 @@ export default function CreateCanvasingScreen() {
           flash={flash}
           ref={cameraRef}
         />
-          {/* Top Controls */}
-          <View style={tw`absolute top-0 left-0 right-0 flex-row justify-between p-6 pt-12 bg-black/30 z-20`}>
-            <TouchableOpacity
-              onPress={() => setShowCamera(false)}
-              style={tw`bg-black/40 p-2 rounded-full`}
-            >
-              <X color="white" size={24} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setFlash((f) => (f === "off" ? "on" : "off"))}
-              style={tw`bg-black/40 p-2 rounded-full`}
-            >
-              {flash === "on" ? (
-                <Zap color="#facc15" size={24} />
-              ) : (
-                <ZapOff color="white" size={24} />
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Guide Overlay */}
-          <View style={tw`absolute inset-0 items-center justify-center pointer-events-none z-10`}>
-            {targetPhoto === "ktp" ? (
-              <View style={tw`relative items-center justify-center`}>
-                {/* Dark overlay around the box - top */}
-                <View
-                  style={tw`absolute -top-[1000px] left-0 right-0 h-[1000px] bg-black/60`}
-                />
-                {/* Dark overlay around the box - bottom */}
-                <View
-                  style={tw`absolute -bottom-[1000px] left-0 right-0 h-[1000px] bg-black/60`}
-                />
-                {/* Dark overlay around the box - left */}
-                <View
-                  style={tw`absolute top-0 -left-[1000px] w-[1000px] bottom-0 bg-black/60`}
-                />
-                {/* Dark overlay around the box - right */}
-                <View
-                  style={tw`absolute top-0 -right-[1000px] w-[1000px] bottom-0 bg-black/60`}
-                />
-
-                {/* The KTP Box - Fixed Dimensions 1:1.58 Portrait (280px x 444px) - Larger for better visibility */}
-                <View
-                  style={tw`w-[280px] h-[444px] border-2 border-white/80 rounded-xl bg-transparent relative z-10`}
-                >
-                  <View
-                    style={tw`absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-xl`}
-                  />
-                  <View
-                    style={tw`absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-xl`}
-                  />
-                  <View
-                    style={tw`absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-xl`}
-                  />
-                  <View
-                    style={tw`absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-xl`}
-                  />
-                </View>
-              </View>
-            ) : (
-              // Simple guide for location/photo
-              <View
-                style={tw`w-[80%] aspect-square border border-white/30 border-dashed rounded-3xl relative`}
-              />
-            )}
-          </View>
-
-          {/* Bottom Controls */}
-          <View
-            style={tw`absolute bottom-0 left-0 right-0 flex-row items-center justify-around pb-12 pt-6 bg-black/40 z-20`}
+        {/* Top Controls */}
+        <View style={tw`absolute top-0 left-0 right-0 flex-row justify-between p-6 pt-12 bg-black/30 z-20`}>
+          <TouchableOpacity
+            onPress={() => setShowCamera(false)}
+            style={tw`bg-black/40 p-2 rounded-full`}
           >
-            <View style={tw`w-12`} />
-            <TouchableOpacity
-              onPress={handleCapture}
-              style={tw`w-20 h-20 bg-white rounded-full border-4 border-gray-300 items-center justify-center`}
-            >
+            <X color="white" size={24} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setFlash((f) => (f === "off" ? "on" : "off"))}
+            style={tw`bg-black/40 p-2 rounded-full`}
+          >
+            {flash === "on" ? (
+              <Zap color="#facc15" size={24} />
+            ) : (
+              <ZapOff color="white" size={24} />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Guide Overlay */}
+        <View style={tw`absolute inset-0 items-center justify-center pointer-events-none z-10`}>
+          {targetPhoto === "ktp" ? (
+            <View style={tw`relative items-center justify-center`}>
+              {/* Dark overlay around the box - top */}
               <View
-                style={tw`w-16 h-16 bg-white rounded-full border-2 border-gray-200`}
+                style={tw`absolute -top-[1000px] left-0 right-0 h-[1000px] bg-black/60`}
               />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() =>
-                setFacing((f) => (f === "back" ? "front" : "back"))
-              }
-              style={tw`w-12 items-center`}
-            >
-              <RotateCcw color="white" size={24} />
-            </TouchableOpacity>
-          </View>
+              {/* Dark overlay around the box - bottom */}
+              <View
+                style={tw`absolute -bottom-[1000px] left-0 right-0 h-[1000px] bg-black/60`}
+              />
+              {/* Dark overlay around the box - left */}
+              <View
+                style={tw`absolute top-0 -left-[1000px] w-[1000px] bottom-0 bg-black/60`}
+              />
+              {/* Dark overlay around the box - right */}
+              <View
+                style={tw`absolute top-0 -right-[1000px] w-[1000px] bottom-0 bg-black/60`}
+              />
+
+              {/* The KTP Box - Fixed Dimensions 1:1.58 Portrait (280px x 444px) - Larger for better visibility */}
+              <View
+                style={tw`w-[280px] h-[444px] border-2 border-white/80 rounded-xl bg-transparent relative z-10`}
+              >
+                <View
+                  style={tw`absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-white rounded-tl-xl`}
+                />
+                <View
+                  style={tw`absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-white rounded-tr-xl`}
+                />
+                <View
+                  style={tw`absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-white rounded-bl-xl`}
+                />
+                <View
+                  style={tw`absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-white rounded-br-xl`}
+                />
+              </View>
+            </View>
+          ) : (
+            // Simple guide for location/photo
+            <View
+              style={tw`w-[80%] aspect-square border border-white/30 border-dashed rounded-3xl relative`}
+            />
+          )}
+        </View>
+
+        {/* Bottom Controls */}
+        <View
+          style={tw`absolute bottom-0 left-0 right-0 flex-row items-center justify-around pb-12 pt-6 bg-black/40 z-20`}
+        >
+          <View style={tw`w-12`} />
+          <TouchableOpacity
+            onPress={handleCapture}
+            style={tw`w-20 h-20 bg-white rounded-full border-4 border-gray-300 items-center justify-center`}
+          >
+            <View
+              style={tw`w-16 h-16 bg-white rounded-full border-2 border-gray-200`}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() =>
+              setFacing((f) => (f === "back" ? "front" : "back"))
+            }
+            style={tw`w-12 items-center`}
+          >
+            <RotateCcw color="white" size={24} />
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -769,7 +770,7 @@ function PhotoPickerField({
           <View
             style={tw`relative rounded-2xl overflow-hidden aspect-video bg-gray-200`}
           >
-            <ImageWithCache source={value} style={tw`w-full h-full`}  contentFit="cover" transition={1000}       />
+            <ImageWithCache source={value} style={tw`w-full h-full`} contentFit="cover" transition={1000} />
             <TouchableOpacity
               onPress={onRemove}
               style={tw`absolute top-3 right-3 bg-black/40 w-10 h-10 items-center justify-center rounded-full z-10`}

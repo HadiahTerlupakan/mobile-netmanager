@@ -2,6 +2,7 @@ import { TopologySkeleton } from "@/components/molecules/TopologySkeleton";
 import { useAuth } from "@/context/AuthContext";
 import { useApiQuery } from "@/hooks/queries";
 import api from "@/services/api";
+import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import { getMapLibre, isMapLibreAvailable, isWeb } from "@/utils/maplibre";
 import toGeoJSON from "@/utils/togeojson-wrapper";
@@ -391,7 +392,11 @@ export default function TopologyMapScreen() {
     staleTime: 5 * 60 * 1000, // 5 minutes cache
   });
 
-  const error = useMemo(() => queryError?.message || null, [queryError]);
+  const error = useMemo(() => {
+    if (!queryError) return null;
+    const { message } = getUserFriendlyError(queryError);
+    return message;
+  }, [queryError]);
 
   // Use refs instead of state for camera tracking to prevent re-renders
   const zoomRef = useRef(12);

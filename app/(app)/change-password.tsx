@@ -1,7 +1,8 @@
-import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { FormPasswordInput } from '@/components/atoms/FormPasswordInput';
+import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { useFormWithValidation } from '@/hooks/useFormWithValidation';
 import api from '@/services/api';
+import { getUserFriendlyError } from '@/utils/errorHandling';
 import { ChangePasswordSchema } from '@/utils/validation';
 import { router } from 'expo-router';
 import { ArrowLeft, Save } from 'lucide-react-native';
@@ -10,7 +11,6 @@ import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { z } from 'zod';
-import { isAxiosError } from 'axios';
 
 type ChangePasswordFormData = z.infer<typeof ChangePasswordSchema>;
 
@@ -40,15 +40,8 @@ function ChangePasswordScreen() {
                 ]);
             }
         } catch (error) {
-            let errorMessage = 'Gagal mengubah password';
-
-            if (isAxiosError(error) && error.response?.data?.error) {
-                errorMessage = error.response.data.error;
-            } else if (error instanceof Error) {
-                errorMessage = error.message;
-            }
-
-            Alert.alert('Error', errorMessage);
+            const { title, message } = getUserFriendlyError(error);
+            Alert.alert(title, message);
         } finally {
             setSaving(false);
         }

@@ -1,3 +1,4 @@
+import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import { Picker } from "@react-native-picker/picker";
 import { MapPin, X } from "lucide-react-native";
@@ -41,7 +42,7 @@ export function DeviceCreateModal({
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [locationName, setLocationName] = useState("");
-  
+
   // New fields from Admin Portal
   const [capacity, setCapacity] = useState("8");
   const [splitter, setSplitter] = useState("");
@@ -63,33 +64,33 @@ export function DeviceCreateModal({
     // Only fetch parents if we are creating an ODP (needs ODC parent) or generally if needed
     // Admin portal doesn't restrict, but mobile UX usually suggests connecting ODP to ODC.
     // We'll fetch all nodes and filter.
-    
+
     setParents([]);
     // Don't reset selectedParent immediately to avoid UI flicker if refreshing, 
     // but here we probably want to reset if type changes.
     // Ideally we should run this only when deviceType changes.
-    
+
     try {
-        // Use the new Map Nodes endpoint
-        const res = await api.get("/api/map/nodes");
-        const nodes = Array.isArray(res.data) ? res.data : (res.data?.data || []);
-        
-        // Determine parent type based on current device type
-        let parentType = 'odc';
-        if (deviceType === 'ODC') parentType = 'olt';
-        if (deviceType === 'ONT') parentType = 'odp';
-        if (deviceType === 'OLT') {
-             // OLT usually has no parent in this context, or maybe upstream router? 
-             // Admin doesn't enforce parent for OLT.
-             setParents([]);
-             return;
-        }
-        
-        // Admin portal returns lowercase types 'odc', 'odp', 'olt'
-        const validParents = nodes.filter((n: any) => n.type === parentType);
-        
-        setParents(validParents.map((i: any) => ({ label: i.name, value: i.nodeId })));
-        
+      // Use the new Map Nodes endpoint
+      const res = await api.get("/api/map/nodes");
+      const nodes = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+
+      // Determine parent type based on current device type
+      let parentType = 'odc';
+      if (deviceType === 'ODC') parentType = 'olt';
+      if (deviceType === 'ONT') parentType = 'odp';
+      if (deviceType === 'OLT') {
+        // OLT usually has no parent in this context, or maybe upstream router? 
+        // Admin doesn't enforce parent for OLT.
+        setParents([]);
+        return;
+      }
+
+      // Admin portal returns lowercase types 'odc', 'odp', 'olt'
+      const validParents = nodes.filter((n: any) => n.type === parentType);
+
+      setParents(validParents.map((i: any) => ({ label: i.name, value: i.nodeId })));
+
     } catch (e) {
       logger.error("Failed to fetch parents", e);
     }
@@ -133,21 +134,21 @@ export function DeviceCreateModal({
       const res = await api.post("/api/map/nodes", payload);
       // Check response for newNode
       const newNode = res.data?.data || res.data;
-      
+
       if (!newNode || !newNode.nodeId) {
-          // If response structure is different, try to debug or assume success?
-          // But we need ID for edge creation.
-          logger.warn("Create Node Response:", res.data);
-          if (!newNode.nodeId) throw new Error("Gagal membuat node: ID tidak diterima");
+        // If response structure is different, try to debug or assume success?
+        // But we need ID for edge creation.
+        logger.warn("Create Node Response:", res.data);
+        if (!newNode.nodeId) throw new Error("Gagal membuat node: ID tidak diterima");
       }
 
       // 2. Create Edge if parent selected
       if (selectedParent) {
-          await api.post("/api/map/edges", {
-              source: selectedParent,
-              target: newNode.nodeId,
-              fiberType: "Drop Core", // Default fiber type
-          });
+        await api.post("/api/map/edges", {
+          source: selectedParent,
+          target: newNode.nodeId,
+          fiberType: "Drop Core", // Default fiber type
+        });
       }
 
       Alert.alert("Sukses", "Perangkat berhasil ditambahkan");
@@ -156,8 +157,8 @@ export function DeviceCreateModal({
 
     } catch (err) {
       logger.error(err);
-      const errorMessage = err instanceof Error ? err.message : "Gagal menyimpan data";
-      Alert.alert("Error", errorMessage);
+      const errIdx = getUserFriendlyError(err);
+      Alert.alert(errIdx.title || 'Error', errIdx.message || 'Terjadi kesalahan');
     } finally {
       setLoading(false);
     }
@@ -203,91 +204,91 @@ export function DeviceCreateModal({
               onChangeText={setName}
               placeholder="Contoh: ODP-JKT-001"
             />
-            
+
             {/* Parent Selection */}
             <Text style={styles.label}>Induk / Parent (Opsional)</Text>
-             <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={selectedParent}
-                    onValueChange={(itemValue) => setSelectedParent(itemValue)}
-                    enabled={parents.length > 0}
-                  >
-                    <Picker.Item
-                      label={
-                        parents.length > 0
-                          ? `Pilih ${deviceType === 'ODP' ? 'ODC' : deviceType === 'ONT' ? 'ODP' : 'Parent'}`
-                          : "Tidak ada parent tersedia"
-                      }
-                      value={null}
-                    />
-                    {parents.map((parent) => (
-                      <Picker.Item
-                        key={parent.value}
-                        label={parent.label}
-                        value={parent.value}
-                      />
-                    ))}
-                  </Picker>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={selectedParent}
+                onValueChange={(itemValue) => setSelectedParent(itemValue)}
+                enabled={parents.length > 0}
+              >
+                <Picker.Item
+                  label={
+                    parents.length > 0
+                      ? `Pilih ${deviceType === 'ODP' ? 'ODC' : deviceType === 'ONT' ? 'ODP' : 'Parent'}`
+                      : "Tidak ada parent tersedia"
+                  }
+                  value={null}
+                />
+                {parents.map((parent) => (
+                  <Picker.Item
+                    key={parent.value}
+                    label={parent.label}
+                    value={parent.value}
+                  />
+                ))}
+              </Picker>
             </View>
 
             {/* Extra Fields from Admin */}
             <View style={{ flexDirection: 'row', gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.label}>Kapasitas</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={capacity}
-                      onChangeText={setCapacity}
-                      keyboardType="numeric"
-                      placeholder="8"
-                    />
-                </View>
-                 <View style={{ flex: 1 }}>
-                    <Text style={styles.label}>Splitter</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={splitter}
-                      onChangeText={setSplitter}
-                      placeholder="1:8"
-                    />
-                </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Kapasitas</Text>
+                <TextInput
+                  style={styles.input}
+                  value={capacity}
+                  onChangeText={setCapacity}
+                  keyboardType="numeric"
+                  placeholder="8"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Splitter</Text>
+                <TextInput
+                  style={styles.input}
+                  value={splitter}
+                  onChangeText={setSplitter}
+                  placeholder="1:8"
+                />
+              </View>
             </View>
 
             {(deviceType === 'ODP' || deviceType === 'ODC') && (
-                <>
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.label}>Redaman Input (dBm)</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={attenuationInput}
-                                onChangeText={setAttenuationInput}
-                                keyboardType="numeric"
-                                placeholder="-20.5"
-                            />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.label}>Redaman Output (dBm)</Text>
-                            <TextInput
-                                style={styles.input}
-                                value={attenuationOutput}
-                                onChangeText={setAttenuationOutput}
-                                keyboardType="numeric"
-                                placeholder="-22.0"
-                            />
-                        </View>
-                    </View>
-
-                    <Text style={styles.label}>Warna Core Input</Text>
+              <>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.label}>Redaman Input (dBm)</Text>
                     <TextInput
-                        style={styles.input}
-                        value={inputCoreColor}
-                        onChangeText={setInputCoreColor}
-                        placeholder="Contoh: Biru, Merah"
+                      style={styles.input}
+                      value={attenuationInput}
+                      onChangeText={setAttenuationInput}
+                      keyboardType="numeric"
+                      placeholder="-20.5"
                     />
-                </>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.label}>Redaman Output (dBm)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={attenuationOutput}
+                      onChangeText={setAttenuationOutput}
+                      keyboardType="numeric"
+                      placeholder="-22.0"
+                    />
+                  </View>
+                </View>
+
+                <Text style={styles.label}>Warna Core Input</Text>
+                <TextInput
+                  style={styles.input}
+                  value={inputCoreColor}
+                  onChangeText={setInputCoreColor}
+                  placeholder="Contoh: Biru, Merah"
+                />
+              </>
             )}
-            
+
             <Text style={styles.label}>Serial Number</Text>
             <TextInput
               style={styles.input}
@@ -295,17 +296,17 @@ export function DeviceCreateModal({
               onChangeText={setSerialNumber}
               placeholder="S/N Perangkat"
             />
-            
+
             {deviceType === 'ONT' && (
-                <>
-                    <Text style={styles.label}>PPPoE Username</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={pppoe}
-                      onChangeText={setPppoe}
-                      placeholder="Username PPPoE"
-                    />
-                </>
+              <>
+                <Text style={styles.label}>PPPoE Username</Text>
+                <TextInput
+                  style={styles.input}
+                  value={pppoe}
+                  onChangeText={setPppoe}
+                  placeholder="Username PPPoE"
+                />
+              </>
             )}
 
             <Text style={styles.label}>Koordinat</Text>

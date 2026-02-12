@@ -18,14 +18,14 @@ if (!globalWithPolyfills.XMLSerializer) {
 // GeoJSON types for togeojson output
 interface GeoJSONFeatureCollection {
   type: "FeatureCollection";
-  features: Array<{
+  features: {
     type: "Feature";
     properties: Record<string, any>;
     geometry: {
       type: string;
       coordinates: number[] | number[][] | number[][][];
     };
-  }>;
+  }[];
 }
 
 /**

@@ -3,28 +3,29 @@ import LoadingModal from "@/components/molecules/LoadingModal";
 import { OvertimeSkeleton } from '@/components/molecules/OvertimeSkeleton';
 import { useAuth } from "@/context/AuthContext";
 import {
-    useApiMutation,
-    useApiQuery,
+  useApiMutation,
+  useApiQuery,
 } from "@/hooks/queries";
 import { queryKeys } from "@/lib/queryClient";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import { formatDate, formatDateRaw } from "@/utils/date";
+import { getUserFriendlyError } from "@/utils/errorHandling";
 import { OvertimeRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { FlashList } from "@shopify/flash-list";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
-    ArrowLeft,
-    Camera,
-    CheckCircle,
-    Clock,
-    MapPin,
-    Plus,
-    RotateCcw,
-    Timer,
-    X,
+  ArrowLeft,
+  Camera,
+  CheckCircle,
+  Clock,
+  MapPin,
+  Plus,
+  RotateCcw,
+  Timer,
+  X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Modal, RefreshControl, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -211,15 +212,15 @@ export default function LemburScreen() {
   const handleSubmitRequest = useCallback(async () => {
     // 1. Validate & Sanitize
     const rawData = {
-        date: new Date().toISOString(),
-        reason: sanitizeInput(reason)
+      date: new Date().toISOString(),
+      reason: sanitizeInput(reason)
     };
 
     const validation = validateData(OvertimeRequestSchema, rawData);
 
     if (!validation.success) {
-        Alert.alert("Data Tidak Valid", validation.error);
-        return;
+      Alert.alert("Data Tidak Valid", validation.error);
+      return;
     }
 
     setShowLoading(true);
@@ -238,7 +239,8 @@ export default function LemburScreen() {
         },
         onError: (err: Error) => {
           setShowLoading(false);
-          Alert.alert("Error", err.message || "Gagal mengirim pengajuan");
+          const errIdx = getUserFriendlyError(err);
+          Alert.alert(errIdx.title, errIdx.message);
         },
       },
     );
@@ -277,10 +279,10 @@ export default function LemburScreen() {
       let photoUrl = null;
 
       if (isOnline) {
-          setLoadingMessage("Mengupload foto...");
-          photoUrl = await uploadService.uploadFile(watermarkedUri, "employee-attendance", {
-              onProgress: (p) => setUploadProgress(p.percentage)
-          });
+        setLoadingMessage("Mengupload foto...");
+        photoUrl = await uploadService.uploadFile(watermarkedUri, "employee-attendance", {
+          onProgress: (p) => setUploadProgress(p.percentage)
+        });
       }
 
       setLoadingMessage("Mengirim data...");
@@ -294,8 +296,8 @@ export default function LemburScreen() {
           location: `${location.coords.latitude},${location.coords.longitude}`,
           timestamp: (capturedTime || new Date()).toISOString(),
           meta: {
-              photoMap: { photo: watermarkedUri }, // Local URI for offline fallback
-              photoType: "employee-attendance"
+            photoMap: { photo: watermarkedUri }, // Local URI for offline fallback
+            photoType: "employee-attendance"
           },
         },
         {
@@ -310,14 +312,15 @@ export default function LemburScreen() {
           },
           onError: (err: Error) => {
             setShowLoading(false);
-            Alert.alert("Gagal", err.message || "Terjadi kesalahan");
+            const errIdx = getUserFriendlyError(err);
+            Alert.alert(errIdx.title, errIdx.message);
           },
         },
       );
     } catch (error: unknown) {
       setShowLoading(false);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      Alert.alert("Gagal", errorMessage || "Terjadi kesalahan.");
+      const errIdx = getUserFriendlyError(error);
+      Alert.alert(errIdx.title, errIdx.message);
     }
   }, [photo, location, todayRequest, activeAction, capturedTime, captureWatermarkedPhoto, overtimeMutation, fetchData]);
 
@@ -522,7 +525,7 @@ export default function LemburScreen() {
               <TouchableOpacity style={tw`flex-1 py-3 bg-gray-100 rounded-xl`} onPress={() => setShowRequestModal(false)}>
                 <Text style={tw`text-center text-gray-500 font-bold`}>Batal</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[tw`flex-1 py-3 rounded-xl`, reason.trim() ? tw`bg-indigo-600` : tw`bg-gray-300` ]} onPress={handleSubmitRequest} disabled={!reason.trim() || showLoading}>
+              <TouchableOpacity style={[tw`flex-1 py-3 rounded-xl`, reason.trim() ? tw`bg-indigo-600` : tw`bg-gray-300`]} onPress={handleSubmitRequest} disabled={!reason.trim() || showLoading}>
                 {showLoading ? <ActivityIndicator color="white" /> : <Text style={tw`text-center text-white font-bold`}>Kirim</Text>}
               </TouchableOpacity>
             </View>

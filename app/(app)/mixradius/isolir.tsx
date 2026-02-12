@@ -2,36 +2,37 @@ import { IsolirSkeleton } from "@/components/molecules/IsolirSkeleton";
 import SelectionModal from "@/components/molecules/SelectionModal";
 import { useApiMutation, useApiQuery } from "@/hooks/queries";
 import {
-    MixRadiusCustomer,
-    MixRadiusService,
-    OwnerGroup,
+  MixRadiusCustomer,
+  MixRadiusService,
+  OwnerGroup,
 } from "@/services/MixRadiusService";
-import { FlashList } from "@shopify/flash-list";
 import { formatDate } from "@/utils/date";
+import { getUserFriendlyError } from "@/utils/errorHandling";
+import { FlashList } from "@shopify/flash-list";
 import { Stack } from "expo-router";
 import {
-    AlertTriangle,
-    Building,
-    Calendar,
-    CloudOff,
-    Filter,
-    MapPin,
-    Phone,
-    Search,
-    X,
-    Trash2,
+  AlertTriangle,
+  Building,
+  Calendar,
+  CloudOff,
+  Filter,
+  MapPin,
+  Phone,
+  Search,
+  Trash2,
+  X,
 } from "lucide-react-native";
-import React, { useCallback, useState, useMemo, memo } from "react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Linking,
-    RefreshControl,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-    Platform,
-    Alert
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
+  RefreshControl,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import tw from "twrnc";
@@ -64,35 +65,35 @@ const CustomerItem = memo(({ item, onDismantle }: { item: MixRadiusCustomer, onD
   const plan = item?.plan_name || "-";
 
   const handlePhone = () => {
-      if (phone && phone !== '-' && phone.length > 3) {
-          let formattedPhone = phone.replace(/\D/g, '');
-          if (formattedPhone.startsWith('0')) {
-              formattedPhone = '62' + formattedPhone.substring(1);
-          }
-          if (formattedPhone.startsWith('8')) {
-              formattedPhone = '62' + formattedPhone;
-          }
-
-          const whatsappUrl = `whatsapp://send?phone=${formattedPhone}`;
-          Linking.canOpenURL(whatsappUrl).then(supported => {
-              if (supported) {
-                  Linking.openURL(whatsappUrl);
-              } else {
-                  Linking.openURL(`tel:${phone}`);
-              }
-          }).catch(() => {
-              Linking.openURL(`tel:${phone}`);
-          });
+    if (phone && phone !== '-' && phone.length > 3) {
+      let formattedPhone = phone.replace(/\D/g, '');
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '62' + formattedPhone.substring(1);
       }
+      if (formattedPhone.startsWith('8')) {
+        formattedPhone = '62' + formattedPhone;
+      }
+
+      const whatsappUrl = `whatsapp://send?phone=${formattedPhone}`;
+      Linking.canOpenURL(whatsappUrl).then(supported => {
+        if (supported) {
+          Linking.openURL(whatsappUrl);
+        } else {
+          Linking.openURL(`tel:${phone}`);
+        }
+      }).catch(() => {
+        Linking.openURL(`tel:${phone}`);
+      });
+    }
   };
 
   const handleAddress = () => {
     if (address && address !== 'Tidak ada alamat' && address !== '-') {
-        const url = Platform.select({
-            ios: `maps:0,0?q=${encodeURIComponent(address)}`,
-            android: `geo:0,0?q=${encodeURIComponent(address)}`
-        });
-        Linking.openURL(url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
+      const url = Platform.select({
+        ios: `maps:0,0?q=${encodeURIComponent(address)}`,
+        android: `geo:0,0?q=${encodeURIComponent(address)}`
+      });
+      Linking.openURL(url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
     }
   };
 
@@ -126,26 +127,26 @@ const CustomerItem = memo(({ item, onDismantle }: { item: MixRadiusCustomer, onD
 
       <View style={{ gap: 6, marginBottom: 12 }}>
         <TouchableOpacity onPress={handleAddress} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-            <MapPin size={14} color="#2563eb" style={{ marginTop: 2 }} />
-            <Text style={{ fontSize: 12, color: '#374151', marginLeft: 6, flex: 1, lineHeight: 18, textDecorationLine: 'underline' }}>
+          <MapPin size={14} color="#2563eb" style={{ marginTop: 2 }} />
+          <Text style={{ fontSize: 12, color: '#374151', marginLeft: 6, flex: 1, lineHeight: 18, textDecorationLine: 'underline' }}>
             {address}
-            </Text>
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-            onPress={handlePhone}
-            disabled={!phone || phone === '-' || phone.length < 4}
-            style={{ flexDirection: 'row', alignItems: 'center' }}
+          onPress={handlePhone}
+          disabled={!phone || phone === '-' || phone.length < 4}
+          style={{ flexDirection: 'row', alignItems: 'center' }}
         >
-            <Phone size={14} color="#16a34a" />
-            <Text style={{
-                fontSize: 12,
-                color: (phone && phone !== '-' && phone.length > 3) ? '#16a34a' : '#6b7280',
-                marginLeft: 6,
-                fontWeight: (phone && phone !== '-' && phone.length > 3) ? '600' : '400'
-            }}>
+          <Phone size={14} color="#16a34a" />
+          <Text style={{
+            fontSize: 12,
+            color: (phone && phone !== '-' && phone.length > 3) ? '#16a34a' : '#6b7280',
+            marginLeft: 6,
+            fontWeight: (phone && phone !== '-' && phone.length > 3) ? '600' : '400'
+          }}>
             {phone} (WhatsApp)
-            </Text>
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -155,22 +156,22 @@ const CustomerItem = memo(({ item, onDismantle }: { item: MixRadiusCustomer, onD
           <Text style={{ fontSize: 12, color: '#dc2626', marginLeft: 6, fontWeight: '500' }}>Exp: {displayDate}</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Building size={14} color="#9ca3af" />
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#4b5563', marginLeft: 4, marginRight: 12 }}>{group}</Text>
+          <Building size={14} color="#9ca3af" />
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#4b5563', marginLeft: 4, marginRight: 12 }}>{group}</Text>
 
-            <TouchableOpacity
-              onPress={() => onDismantle(item)}
-              style={{
-                backgroundColor: '#fee2e2',
-                padding: 8,
-                borderRadius: 8,
-                borderWidth: 1,
-                borderColor: '#fecaca',
-                marginLeft: 8
-              }}
-            >
-              <Trash2 size={16} color="#dc2626" />
-            </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => onDismantle(item)}
+            style={{
+              backgroundColor: '#fee2e2',
+              padding: 8,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: '#fecaca',
+              marginLeft: 8
+            }}
+          >
+            <Trash2 size={16} color="#dc2626" />
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -229,23 +230,8 @@ export default function MixRadiusIsolirScreen() {
   // Helper to get user-friendly error message
   const getErrorMessage = useMemo(() => {
     if (!error) return "Terjadi kesalahan saat mengambil data";
-
-    // Check for Axios error with response status
-    const axiosError = error as any;
-    if (axiosError?.response?.status === 403) {
-      return "Anda tidak memiliki akses ke fitur ini. Hubungi administrator untuk mendapatkan permission.";
-    }
-    if (axiosError?.response?.status === 401) {
-      return "Sesi Anda telah berakhir. Silakan login kembali.";
-    }
-    if (axiosError?.response?.status === 404) {
-      return "Integrasi MixRadius belum dikonfigurasi.";
-    }
-    if (axiosError?.response?.status >= 500) {
-      return "Server sedang mengalami gangguan. Coba lagi nanti.";
-    }
-
-    return error.message || "Terjadi kesalahan saat mengambil data";
+    const { message } = getUserFriendlyError(error);
+    return message;
   }, [error]);
 
   const totalCount = useMemo(() => {
@@ -277,11 +263,19 @@ export default function MixRadiusIsolirScreen() {
           text: "Ya, Buat WO",
           style: "destructive",
           onPress: () => {
-            dismantleMutation.mutate({
-              customerId: customer.id,
-              reason: "Isolir/Tunggakan",
-              notes: "Request otomatis dari Aplikasi Mobile (Menu Isolir)"
-            });
+            dismantleMutation.mutate(
+              {
+                customerId: customer.id,
+                reason: "Isolir/Tunggakan",
+                notes: "Request otomatis dari Aplikasi Mobile (Menu Isolir)"
+              },
+              {
+                onError: (err) => {
+                  const { title, message } = getUserFriendlyError(err);
+                  Alert.alert(title, message);
+                }
+              }
+            );
           }
         }
       ]

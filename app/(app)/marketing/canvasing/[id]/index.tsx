@@ -1,14 +1,15 @@
-import { CanvasingDetailSkeleton } from '@/components/molecules/CanvasingDetailSkeleton';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
-import { TenantService } from '@/services/TenantService';
+import { CanvasingDetailSkeleton } from '@/components/molecules/CanvasingDetailSkeleton';
 import { useAuth } from '@/context/AuthContext';
 import { useApiQuery } from '@/hooks/queries';
+import { TenantService } from '@/services/TenantService';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, Linking, Platform, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 import { Canvasing, CanvasingClaim } from '@/types/marketing';
+import { getUserFriendlyError } from '@/utils/errorHandling';
 import { ComponentProps } from 'react';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
@@ -50,8 +51,8 @@ export default function CanvasingDetailScreen() {
         }
 
         if (item?.shareloc) {
-             Linking.openURL(item.shareloc);
-             return;
+            Linking.openURL(item.shareloc);
+            return;
         }
 
         Alert.alert('Info', 'Lokasi tidak tersedia (Map & Lat/Long kosong)');
@@ -59,8 +60,8 @@ export default function CanvasingDetailScreen() {
 
     const openWhatsApp = () => {
         if (!item?.noTelpon) {
-             Alert.alert('Info', 'Nomor telepon tidak tersedia');
-             return;
+            Alert.alert('Info', 'Nomor telepon tidak tersedia');
+            return;
         }
         let phone = item.noTelpon.replace(/\D/g, '').replace(/^0/, '62');
         if (!phone.startsWith('62')) phone = '62' + phone;
@@ -69,8 +70,8 @@ export default function CanvasingDetailScreen() {
 
     const callNumber = () => {
         if (!item?.noTelpon) {
-             Alert.alert('Info', 'Nomor telepon tidak tersedia');
-             return;
+            Alert.alert('Info', 'Nomor telepon tidak tersedia');
+            return;
         }
         Linking.openURL(`tel:${item.noTelpon}`);
     };
@@ -83,11 +84,11 @@ export default function CanvasingDetailScreen() {
                     message: textToCopy,
                 });
             } catch (error: unknown) {
-                const message = error instanceof Error ? error.message : 'Gagal menyalin ID';
-                Alert.alert('Error', message);
+                const errIdx = getUserFriendlyError(error);
+                Alert.alert(errIdx.title, errIdx.message);
             }
         } else {
-             Alert.alert('Info', 'Tidak ada ID yang bisa disalin');
+            Alert.alert('Info', 'Tidak ada ID yang bisa disalin');
         }
     };
 
@@ -392,10 +393,10 @@ function PhotoPreview({ title, uri }: PhotoPreviewProps) {
     const fullUri = uri?.startsWith('http') ? uri : `${TenantService.getTenantUrl()}${uri}`;
 
     return (
-        <View style={[tw`flex-1 bg-white rounded-2xl p-2 shadow-sm border border-gray-100`, { aspectRatio: 4/3, minWidth: 120 }]}>
+        <View style={[tw`flex-1 bg-white rounded-2xl p-2 shadow-sm border border-gray-100`, { aspectRatio: 4 / 3, minWidth: 120 }]}>
             <View style={tw`flex-1 bg-gray-100 rounded-xl overflow-hidden relative`}>
                 {uri ? (
-                    <ImageWithCache source={fullUri} style={tw`w-full h-full`} contentFit="cover" transition={1000}       />
+                    <ImageWithCache source={fullUri} style={tw`w-full h-full`} contentFit="cover" transition={1000} />
                 ) : (
                     <View style={tw`flex-1 items-center justify-center`}>
                         <Ionicons name="image-outline" size={24} color="#d1d5db" />

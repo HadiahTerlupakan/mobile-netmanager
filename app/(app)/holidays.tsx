@@ -11,11 +11,11 @@ import {
     startOfMonth,
     subMonths
 } from '@/utils/date';
+import { getUserFriendlyError } from '@/utils/errorHandling';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
     Modal,
     ScrollView,
     Text,
@@ -40,7 +40,13 @@ export default function HolidaysScreen() {
 
     const year = currentDate.getFullYear();
 
-    const { data: holidaysData, isPending: loading } = useOfflineQuery<any, Error, Holiday[]>({
+    const {
+        data: holidaysData,
+        isPending: loading,
+        isError,
+        error,
+        refetch
+    } = useOfflineQuery<any, Error, Holiday[]>({
         queryKey: queryKeys.holidays.list(year),
         endpoint: `/api/mobile/holidays?year=${year}`,
         select: (data: any) => data?.data || [],
@@ -143,103 +149,67 @@ export default function HolidaysScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Calendar Grid */}
-                <View style={tw`bg-white rounded-xl p-4 shadow-sm mb-4`}>
-                    {/* Day Names */}
-                    <View style={tw`flex-row mb-2`}>
-                        {dayNames.map((day, idx) => (
-                            <View key={idx} style={tw`flex-1 items-center py-2`}>
-                                <Text style={tw`text-xs font-bold ${idx === 0 ? 'text-red-500' : 'text-gray-500'}`}>
-                                    {day}
-                                </Text>
-                            </View>
-                        ))}
+                {isError && holidays.length === 0 ? (
+                    <View style={tw`items-center justify-center py-10`}>
+                        <AlertTriangle size={48} color="#dc2626" />
+                        <Text style={tw`text-red-600 font-bold text-lg mt-4 text-center`}>
+                            Gagal memuat data libur
+                        </Text>
+                        <Text style={tw`text-gray-500 text-center mt-2 mb-4 px-4`}>
+                            {getUserFriendlyError(error).message}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => refetch()}
+                            style={tw`bg-blue-600 px-6 py-2 rounded-full`}
+                        >
+                            <Text style={tw`text-white font-bold`}>Coba Lagi</Text>
+                        </TouchableOpacity>
                     </View>
+                ) : (
+                    <>
+                        {/* Calendar Grid */}
 
-                    {/* Days Grid */}
-                    {loading ? (
-                        <View style={tw`py-20 items-center`}>
-                            <ActivityIndicator size="large" color="#2563eb" />
-                        </View>
-                    ) : (
-                        <View style={tw`flex-row flex-wrap`}>
-                            {/* Padding Days */}
-                            {paddingDays.map((_, idx) => (
-                                <View key={`pad-${idx}`} style={tw`w-[14.28%] aspect-square`} />
-                            ))}
 
-                            {/* Actual Days */}
-                            {daysInMonth.map((date, idx) => {
-                                const holiday = getHolidayForDate(date);
-                                const isToday = isSameDay(date, today);
-                                const isSunday = getDay(date) === 0;
-
-                                return (
+                        {/* Upcoming Holidays List */}
+                        <View style={tw`bg-white rounded-xl p-4 shadow-sm`}>
+                            <Text style={tw`font-bold text-gray-900 mb-3`}>
+                                Hari Libur {formatDate(currentDate, 'yyyy')}
+                            </Text>
+                            {holidays.length === 0 ? (
+                                <Text style={tw`text-gray-400 text-center py-4`}>
+                                    Tidak ada data hari libur
+                                </Text>
+                            ) : (
+                                holidays.map((holiday, idx) => (
                                     <TouchableOpacity
-                                        key={idx}
-                                        onPress={() => handleDayPress(date)}
-                                        style={tw`w-[14.28%] aspect-square items-center justify-center`}
+                                        key={holiday.id}
+                                        onPress={() => {
+                                            setSelectedHoliday(holiday);
+                                            setModalVisible(true);
+                                        }}
+                                        style={tw`flex-row items-center py-3 ${idx !== holidays.length - 1 ? 'border-b border-gray-100' : ''
+                                            }`}
                                     >
-                                        <View style={tw`w-10 h-10 rounded-full items-center justify-center ${
-                                            holiday ? getHolidayBgColor(holiday) : isToday ? 'bg-blue-500' : ''
-                                        }`}>
-                                            <Text style={tw`font-medium ${
-                                                holiday ? 'text-white' :
-                                                isToday ? 'text-white' :
-                                                isSunday ? 'text-red-500' : 'text-gray-800'
-                                            }`}>
-                                                {formatDate(date, 'd')}
+                                        <View style={tw`w-12 h-12 ${getListBgColor(holiday.isNational)} rounded-lg items-center justify-center mr-3`}>
+                                            <Text style={tw`text-lg font-bold ${getListTextColor(holiday.isNational)}`}>
+                                                {formatDate(holiday.date, 'd')}
+                                            </Text>
+                                            <Text style={tw`text-[10px] ${getListSubTextColor(holiday.isNational)} -mt-1`}>
+                                                {formatDate(holiday.date, 'MMM')}
                                             </Text>
                                         </View>
-                                        {holiday && (
-                                            <View style={tw`w-1.5 h-1.5 rounded-full ${getHolidayDotColor(holiday)} mt-0.5`} />
-                                        )}
+                                        <View style={tw`flex-1`}>
+                                            <Text style={tw`font-semibold text-gray-900`}>{holiday.name}</Text>
+                                            <Text style={tw`text-xs text-gray-500`}>
+                                                {holiday.isNational ? 'Libur Nasional' : 'Cuti Bersama'} • {formatDate(holiday.date, 'EEEE')}
+                                            </Text>
+                                        </View>
                                     </TouchableOpacity>
-                                );
-                            })}
+                                ))
+                            )}
                         </View>
-                    )}
-                </View>
-
-                {/* Upcoming Holidays List */}
-                <View style={tw`bg-white rounded-xl p-4 shadow-sm`}>
-                    <Text style={tw`font-bold text-gray-900 mb-3`}>
-                        Hari Libur {formatDate(currentDate, 'yyyy')}
-                    </Text>
-                    {holidays.length === 0 ? (
-                        <Text style={tw`text-gray-400 text-center py-4`}>
-                            Tidak ada data hari libur
-                        </Text>
-                    ) : (
-                        holidays.map((holiday, idx) => (
-                            <TouchableOpacity
-                                key={holiday.id}
-                                onPress={() => {
-                                    setSelectedHoliday(holiday);
-                                    setModalVisible(true);
-                                }}
-                                style={tw`flex-row items-center py-3 ${
-                                    idx !== holidays.length - 1 ? 'border-b border-gray-100' : ''
-                                }`}
-                            >
-                                <View style={tw`w-12 h-12 ${getListBgColor(holiday.isNational)} rounded-lg items-center justify-center mr-3`}>
-                                    <Text style={tw`text-lg font-bold ${getListTextColor(holiday.isNational)}`}>
-                                        {formatDate(holiday.date, 'd')}
-                                    </Text>
-                                    <Text style={tw`text-[10px] ${getListSubTextColor(holiday.isNational)} -mt-1`}>
-                                        {formatDate(holiday.date, 'MMM')}
-                                    </Text>
-                                </View>
-                                <View style={tw`flex-1`}>
-                                    <Text style={tw`font-semibold text-gray-900`}>{holiday.name}</Text>
-                                    <Text style={tw`text-xs text-gray-500`}>
-                                        {holiday.isNational ? 'Libur Nasional' : 'Cuti Bersama'} • {formatDate(holiday.date, 'EEEE')}
-                                    </Text>
-                                </View>
-                            </TouchableOpacity>
-                        ))
-                    )}
-                </View>
+                    </>
+                )}
             </ScrollView>
 
             {/* Holiday Detail Modal */}
@@ -282,6 +252,6 @@ export default function HolidaysScreen() {
                     </View>
                 </TouchableOpacity>
             </Modal>
-        </SafeAreaView>
+        </SafeAreaView >
     );
 }

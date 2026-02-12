@@ -1,20 +1,21 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { useApiMutation } from "@/hooks/queries";
-import { uploadService } from "@/services/UploadService";
 import { SyncService } from "@/services/SyncService";
+import { uploadService } from "@/services/UploadService";
 import api from "@/services/api"; // Use centralized API
-import { CompleteWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { formatDate } from "@/utils/date";
+import { getUserFriendlyError } from "@/utils/errorHandling";
+import { logger } from "@/utils/logger";
+import { CompleteWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Camera, CheckCircle, X } from "lucide-react-native";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View,  } from 'react-native';
+import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { logger } from "@/utils/logger";
 
 export default function CompleteWorkOrderScreen() {
   const { id } = useLocalSearchParams();
@@ -126,16 +127,16 @@ export default function CompleteWorkOrderScreen() {
 
     // Validate Notes first
     const rawData = {
-        action: "COMPLETE" as const,
-        notes: sanitizeInput(resolutionNotes),
-        // latitude/longitude will be added later
+      action: "COMPLETE" as const,
+      notes: sanitizeInput(resolutionNotes),
+      // latitude/longitude will be added later
     };
 
     const validation = validateData(CompleteWorkOrderSchema, rawData);
 
     if (!validation.success) {
-        Alert.alert("Data Tidak Valid", validation.error);
-        return;
+      Alert.alert("Data Tidak Valid", validation.error);
+      return;
     }
 
     if (photos.length === 0) {
@@ -203,85 +204,87 @@ export default function CompleteWorkOrderScreen() {
       const isOnline = await SyncService.isOnline();
 
       if (isOnline) {
-          try {
-              setLoadingMessage("Mengupload foto...");
-              setUploadProgress(0);
+        try {
+          setLoadingMessage("Mengupload foto...");
+          setUploadProgress(0);
 
-              const uploadedUrls = await uploadService.uploadBatch(
-                  photos,
-                  "workorder-completion",
-                  (index, total, progress) => {
-                      setLoadingMessage(`Mengupload foto ${index}/${total}...`);
-                      setUploadProgress(progress.percentage);
-                  }
-              );
+          const uploadedUrls = await uploadService.uploadBatch(
+            photos,
+            "workorder-completion",
+            (index, total, progress) => {
+              setLoadingMessage(`Mengupload foto ${index}/${total}...`);
+              setUploadProgress(progress.percentage);
+            }
+          );
 
-              setLoadingMessage("Mengirim laporan...");
-              setUploadProgress(0); // Indeterminate
+          setLoadingMessage("Mengirim laporan...");
+          setUploadProgress(0); // Indeterminate
 
-              await mutate(
-                {
-                  ...payload,
-                  photoUrls: uploadedUrls, // Send URLs directly
-                },
-                {
-                  onSuccess: () => {
-                    setIsProcessingComplete(false);
-                    Alert.alert(
-                        "Berhasil",
-                        "Pekerjaan telah diselesaikan dan laporan terkirim!",
-                        [
-                          {
-                            text: "OK",
-                            onPress: () => router.replace("/(app)/dashboard"),
-                          },
-                        ],
-                      );
-                  },
-                  onError: (err) => {
-                    setIsProcessingComplete(false);
-                    Alert.alert("Gagal", err.message || "Gagal menyelesaikan pekerjaan");
-                  }
-                }
-              );
-          } catch {
-              setIsProcessingComplete(false);
-              Alert.alert("Error", "Gagal mengupload foto atau mengirim data");
-          }
-      } else {
-          // Offline flow
-          setLoadingMessage("Menyimpan offline...");
           await mutate(
             {
               ...payload,
-              meta: {
-                photoMap,
-                targetField: "photoUrls", // Backend expects photoUrls array
-                photoType: "workorder-completion",
-                watermarkLines,
-              },
+              photoUrls: uploadedUrls, // Send URLs directly
             },
             {
-              onSuccess: (data, isOffline) => {
+              onSuccess: () => {
                 setIsProcessingComplete(false);
-                if (isOffline) {
-                  Alert.alert("Offline", "Laporan disimpan di antrian.", [
+                Alert.alert(
+                  "Berhasil",
+                  "Pekerjaan telah diselesaikan dan laporan terkirim!",
+                  [
                     {
                       text: "OK",
                       onPress: () => router.replace("/(app)/dashboard"),
                     },
-                  ]);
-                }
+                  ],
+                );
               },
               onError: (err) => {
                 setIsProcessingComplete(false);
-                Alert.alert(
-                  "Gagal",
-                  err.message || "Gagal menyelesaikan pekerjaan",
-                );
-              },
-            },
+                const { title, message } = getUserFriendlyError(err);
+                Alert.alert(title, message);
+              }
+            }
           );
+        } catch {
+          setIsProcessingComplete(false);
+          Alert.alert("Error", "Gagal mengupload foto atau mengirim data");
+          // Consider using getUserFriendlyError here if 'catch' catches something specific
+        }
+      } else {
+        // Offline flow
+        setLoadingMessage("Menyimpan offline...");
+        await mutate(
+          {
+            ...payload,
+            meta: {
+              photoMap,
+              targetField: "photoUrls", // Backend expects photoUrls array
+              photoType: "workorder-completion",
+              watermarkLines,
+            },
+          },
+          {
+            onSuccess: (data, isOffline) => {
+              setIsProcessingComplete(false);
+              if (isOffline) {
+                Alert.alert("Offline", "Laporan disimpan di antrian.", [
+                  {
+                    text: "OK",
+                    onPress: () => router.replace("/(app)/dashboard"),
+                  },
+                ]);
+              }
+            },
+            onError: (err) => {
+              setIsProcessingComplete(false);
+              Alert.alert(
+                "Gagal",
+                err.message || "Gagal menyelesaikan pekerjaan",
+              );
+            },
+          },
+        );
       }
     }, 100);
   };

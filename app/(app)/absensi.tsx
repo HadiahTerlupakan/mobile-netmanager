@@ -12,6 +12,7 @@ import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import { generateSignature } from "@/utils/crypto";
 import { formatDate } from "@/utils/date";
+import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
@@ -63,9 +64,9 @@ const calculateDistance = (
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos(toRad(lat2)) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
@@ -215,8 +216,8 @@ const GeofenceWarning = React.memo(({ visible, onCancel, onContinue, geofenceSta
           <TouchableOpacity onPress={onCancel} style={tw`flex-1 bg-gray-100 py-3 rounded-xl items-center`}>
             <Text style={tw`font-bold text-gray-600`}>Batal</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={onContinue} 
+          <TouchableOpacity
+            onPress={onContinue}
             disabled={loading}
             style={tw`flex-1 ${loading ? "bg-orange-300" : "bg-orange-500"} py-3 rounded-xl items-center`}
           >
@@ -470,11 +471,11 @@ export default function AbsensiScreen() {
       try {
         setLoadingMessage("Mengupload foto...");
         const uploadedUrls = await uploadService.uploadBatch(
-            [processedUri],
-            "employee-attendance",
-            (_, __, progress) => {
-                setUploadProgress(progress.percentage);
-            }
+          [processedUri],
+          "employee-attendance",
+          (_, __, progress) => {
+            setUploadProgress(progress.percentage);
+          }
         );
         const photoUrl = uploadedUrls[0];
         if (!photoUrl) throw new Error("Gagal upload foto.");
@@ -506,14 +507,15 @@ export default function AbsensiScreen() {
           onError: (e) => {
             setIsProcessing(false);
             setLoading(false);
-            Alert.alert("Gagal", e.message || "Terjadi kesalahan.");
+            const { title, message } = getUserFriendlyError(e);
+            Alert.alert(title, message);
           },
         });
       } catch (error) {
         setIsProcessing(false);
         setLoading(false);
-        const errorMessage = error instanceof Error ? error.message : "Gagal Absen";
-        Alert.alert("Error", errorMessage);
+        const { title, message } = getUserFriendlyError(error);
+        Alert.alert(title, message);
       }
     } else {
       setLoadingMessage("Menyimpan offline...");
@@ -540,15 +542,16 @@ export default function AbsensiScreen() {
             setPhoto(null);
             Alert.alert("Offline", "Data disimpan offline.");
           } else {
-             // If it surprisingly succeeded online
-             setPhoto(null);
-             Alert.alert("Berhasil", "Data berhasil dikirim.");
-             refetchStatus();
+            // If it surprisingly succeeded online
+            setPhoto(null);
+            Alert.alert("Berhasil", "Data berhasil dikirim.");
+            refetchStatus();
           }
         },
         onError: (e) => {
-            setIsProcessing(false);
-            Alert.alert("Gagal", e.message || "Gagal menyimpan data offline.");
+          setIsProcessing(false);
+          const { title, message } = getUserFriendlyError(e);
+          Alert.alert(title, message);
         }
       });
     }
@@ -615,11 +618,11 @@ export default function AbsensiScreen() {
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
       <ScrollView contentContainerStyle={tw`pb-20`}>
-        <AttendanceHeader 
-          todayHoliday={todayHoliday} 
-          isTukarLiburWorkDay={isTukarLiburWorkDay} 
-          isTukarLiburLeaveDay={isTukarLiburLeaveDay} 
-          isOffDay={isOffDay} 
+        <AttendanceHeader
+          todayHoliday={todayHoliday}
+          isTukarLiburWorkDay={isTukarLiburWorkDay}
+          isTukarLiburLeaveDay={isTukarLiburLeaveDay}
+          isOffDay={isOffDay}
         />
 
         <View style={tw`px-4 -mt-8`}>
@@ -670,11 +673,11 @@ export default function AbsensiScreen() {
         </View>
       </ScrollView>
 
-      <GeofenceWarning 
-        visible={showOutsideWarning} 
-        onCancel={() => setShowOutsideWarning(false)} 
-        onContinue={handleConfirmOutsideSubmit} 
-        geofenceStatus={geofenceStatus} 
+      <GeofenceWarning
+        visible={showOutsideWarning}
+        onCancel={() => setShowOutsideWarning(false)}
+        onContinue={handleConfirmOutsideSubmit}
+        geofenceStatus={geofenceStatus}
         loading={isProcessing}
       />
       <LoadingModal visible={isProcessing} message={loadingMessage} progress={uploadProgress > 0 ? uploadProgress : undefined} />

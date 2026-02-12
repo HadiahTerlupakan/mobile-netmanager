@@ -19,7 +19,7 @@ import * as Notifications from "expo-notifications";
 import { Href, Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import tw from "twrnc";
 
 // Initialize error reporting as early as possible
@@ -177,6 +177,8 @@ function RootLayoutNav() {
 
     // Import dynamically to avoid circular dependencies if any
     const setupNotifications = async () => {
+      if (Platform.OS === "web") return;
+
       const { addNotificationListeners } =
         await import("@/services/PushNotificationService");
 

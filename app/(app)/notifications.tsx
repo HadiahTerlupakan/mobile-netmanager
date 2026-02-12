@@ -4,28 +4,30 @@ import { useApiMutation } from "@/hooks/queries";
 import { queryKeys } from "@/lib/queryClient";
 import api from "@/services/api"; // Use centralized API
 import { formatTimeAgo } from "@/utils/date";
+import { getUserFriendlyError } from "@/utils/errorHandling";
+import { FlashList } from "@shopify/flash-list";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useFocusEffect, useRouter } from "expo-router";
 import {
-    ArrowLeft,
-    Bell,
-    Briefcase,
-    Calendar,
-    Clock,
-    Megaphone,
-    Package,
+  AlertTriangle,
+  ArrowLeft,
+  Bell,
+  Briefcase,
+  Calendar,
+  Clock,
+  Megaphone,
+  Package,
 } from "lucide-react-native";
 import React, { useCallback, useMemo } from "react";
 import {
-    ActivityIndicator,
-    RefreshControl,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface Notification {
   id: string;
@@ -105,6 +107,8 @@ export default function NotificationsScreen() {
     isPending,
     refetch,
     isRefetching,
+    isError,
+    error,
   } = useInfiniteQuery({
     queryKey: queryKeys.notifications.list(),
     queryFn: async ({ pageParam = null }) => {
@@ -134,7 +138,7 @@ export default function NotificationsScreen() {
   // We use standard useMutation here because useApiMutation doesn't support dynamic endpoints easily yet
   const announcementReadMutation = useMutation({
     mutationFn: async ({ id }: { id: string }) => {
-        return api.post(`/api/mobile/announcements/${id}/read`, { portal: "employee" });
+      return api.post(`/api/mobile/announcements/${id}/read`, { portal: "employee" });
     }
   });
 
@@ -153,7 +157,7 @@ export default function NotificationsScreen() {
 
   const onLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
-        fetchNextPage();
+      fetchNextPage();
     }
   };
 
@@ -269,15 +273,35 @@ export default function NotificationsScreen() {
           }
           ListFooterComponent={
             isFetchingNextPage ? (
-                <View style={tw`py-4`}>
-                    <ActivityIndicator size="small" color="#2563eb" />
-                </View>
+              <View style={tw`py-4`}>
+                <ActivityIndicator size="small" color="#2563eb" />
+              </View>
             ) : null
           }
           ListEmptyComponent={
-            <View style={tw`items-center justify-center py-20`}>
-              <Bell size={48} color="#d1d5db" />
-              <Text style={tw`text-gray-400 text-lg mt-4`}>Belum ada notifikasi</Text>
+            <View style={tw`items-center justify-center py-20 px-8`}>
+              {isError ? (
+                <>
+                  <AlertTriangle size={48} color="#dc2626" />
+                  <Text style={tw`text-red-600 font-bold text-lg mt-4 text-center`}>
+                    Gagal memuat notifikasi
+                  </Text>
+                  <Text style={tw`text-gray-500 text-center mt-2 mb-4`}>
+                    {getUserFriendlyError(error).message}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => refetch()}
+                    style={tw`bg-blue-600 px-6 py-2 rounded-full`}
+                  >
+                    <Text style={tw`text-white font-bold`}>Coba Lagi</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Bell size={48} color="#d1d5db" />
+                  <Text style={tw`text-gray-400 text-lg mt-4`}>Belum ada notifikasi</Text>
+                </>
+              )}
             </View>
           }
         />

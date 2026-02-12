@@ -1,5 +1,5 @@
-import { WorkOrderSkeleton } from "@/components/molecules/WorkOrderSkeleton";
 import { ScreenErrorBoundary } from "@/components/atoms/ScreenErrorBoundary";
+import { WorkOrderSkeleton } from "@/components/molecules/WorkOrderSkeleton";
 import AvailableWorkOrderListItem from "@/components/organisms/dashboard/AvailableWorkOrderListItem";
 import { WorkOrderListItem } from "@/components/organisms/dashboard/WorkOrderListItem";
 import { useAuth } from "@/context/AuthContext";
@@ -12,22 +12,22 @@ import {
 } from "@/hooks/queries";
 import { SyncService } from "@/services/SyncService";
 import { WorkOrder } from "@/types/work-order";
-import { FlashList } from "@shopify/flash-list";
-import { AxiosError } from "axios";
-import { Href, useRouter } from "expo-router";
+import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
+import { FlashList } from "@shopify/flash-list";
+import { Href, useRouter } from "expo-router";
 import {
-    CheckCircle,
-    FileText,
-    Inbox,
+  CheckCircle,
+  FileText,
+  Inbox,
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    Alert,
-    RefreshControl,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
@@ -142,11 +142,8 @@ function WorkOrderScreenContent() {
                     setActiveTab("aktif");
                   },
                   onError: (err: any) => {
-                    const errorMessage = err instanceof AxiosError ? err.response?.data?.error || err.message : "Gagal mengambil tugas";
-                    Alert.alert(
-                      "Error",
-                      errorMessage,
-                    );
+                    const { title, message } = getUserFriendlyError(err);
+                    Alert.alert(title, message);
                   },
                 },
               );
@@ -261,18 +258,18 @@ function WorkOrderScreenContent() {
       <View style={tw`flex-row px-4 bg-white border-b border-gray-100`}>
         {/* Helper function to avoid repetition */}
         {(["tersedia", "aktif", "riwayat"] as TabType[]).map((tab) => {
-            const styles = getTabStyle(tab);
-            return (
-                <TouchableOpacity
-                    key={tab}
-                    onPress={() => setActiveTab(tab)}
-                    style={tw`${styles.container}`}
-                >
-                    <Text style={tw`${styles.text}`}>
-                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                    </Text>
-                </TouchableOpacity>
-            );
+          const styles = getTabStyle(tab);
+          return (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => setActiveTab(tab)}
+              style={tw`${styles.container}`}
+            >
+              <Text style={tw`${styles.text}`}>
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          );
         })}
       </View>
 

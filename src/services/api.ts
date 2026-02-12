@@ -1,9 +1,9 @@
 import { Events } from '@/constants/Events';
-import { TokenService } from '@/services/TokenService';
-import { TenantService } from '@/services/TenantService';
-import { RefreshTokenService } from '@/services/RefreshTokenService';
-import { logger } from '@/utils/logger';
 import { performanceMonitor } from '@/services/PerformanceMonitor'; // Import PerformanceMonitor
+import { RefreshTokenService } from '@/services/RefreshTokenService';
+import { TenantService } from '@/services/TenantService';
+import { TokenService } from '@/services/TokenService';
+import { logger } from '@/utils/logger';
 import axios, { AxiosError } from 'axios';
 import { DeviceEventEmitter } from 'react-native';
 
@@ -78,8 +78,8 @@ api.interceptors.response.use(
     // Stop performance tracking
     const config = response.config;
     if (config && config.url) {
-        const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
-        performanceMonitor.stop(metricName, { status: response.status });
+      const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
+      performanceMonitor.stop(metricName, { status: response.status });
     }
     return response;
   },
@@ -92,8 +92,8 @@ api.interceptors.response.use(
 
     // Stop performance tracking on error
     if (config.url) {
-        const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
-        performanceMonitor.stop(metricName, { status: error.response?.status || 'network_error' });
+      const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
+      performanceMonitor.stop(metricName, { status: error.response?.status || 'network_error' });
     }
 
     // Initialize retry count
@@ -148,6 +148,10 @@ api.interceptors.response.use(
       logger.warn(`[API] Token refresh failed or no refresh token. Emitting AUTH_UNAUTHORIZED.`);
       // Emit event to be handled by AuthContext
       DeviceEventEmitter.emit(Events.AUTH_UNAUTHORIZED);
+
+      // Prevent unhandled promise rejection by returning a pending promise.
+      // The app is checking out (logging out), so we don't need to resolve/reject this.
+      return new Promise(() => { });
     }
     return Promise.reject(error);
   }

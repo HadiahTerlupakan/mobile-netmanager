@@ -1,35 +1,36 @@
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { useAuth } from "@/context/AuthContext";
 import {
-    useApiMutation,
-    useApiQuery,
+  useApiMutation,
+  useApiQuery,
 } from "@/hooks/queries";
+import { getUserFriendlyError } from "@/utils/errorHandling";
 import { WorkOrderMaterialBatchSchema, validateData } from "@/utils/validation";
+import { FlashList } from "@shopify/flash-list";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
-    AlertCircle,
-    ArrowLeft,
-    Check,
-    CheckCircle,
-    ChevronDown,
-    Filter,
-    Minus,
-    Package,
-    Plus,
-    Search,
-    X,
+  AlertCircle,
+  ArrowLeft,
+  Check,
+  CheckCircle,
+  ChevronDown,
+  Filter,
+  Minus,
+  Package,
+  Plus,
+  Search,
+  X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    Alert,
-    Modal,
-    RefreshControl,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  RefreshControl,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
 
@@ -69,7 +70,7 @@ interface UsedMaterial {
 }
 
 interface WorkOrder {
-    usedMaterials?: UsedMaterial[];
+  usedMaterials?: UsedMaterial[];
 }
 
 // Memoized List Item
@@ -189,7 +190,7 @@ export default function AmbilBarangScreen() {
     endpoint: `/api/mobile/work-orders/${workOrderId}/materials`,
     method: "POST",
     invalidateKeys: [['work_order', workOrderId]],
-    showErrorAlert: true
+    showErrorAlert: false
   });
 
   useEffect(() => {
@@ -285,8 +286,8 @@ export default function AmbilBarangScreen() {
 
     const validation = validateData(WorkOrderMaterialBatchSchema, { items: itemsToSend });
     if (!validation.success) {
-        Alert.alert("Data Tidak Valid", validation.error);
-        return;
+      Alert.alert("Data Tidak Valid", validation.error);
+      return;
     }
 
     setSubmitting(true);
@@ -300,7 +301,8 @@ export default function AmbilBarangScreen() {
       },
       onError: (err) => {
         setSubmitting(false);
-        // Error alert is handled by useApiMutation if showErrorAlert is true
+        const { title, message } = getUserFriendlyError(err);
+        Alert.alert(title, message);
       },
     });
   }, [selectedItems, initialQuantities, ambilBarangMutation, workOrderId, router]);

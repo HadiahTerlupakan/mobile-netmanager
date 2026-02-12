@@ -2,20 +2,20 @@
  * WebLocationPicker - MapLibre GL JS wrapper for location picking on web
  */
 
-import { Platform } from 'react-native';
+import { ActivityIndicator, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+import { logger } from '@/utils/logger';
+import * as Location from 'expo-location';
+import { Crosshair, MapPin, Search } from 'lucide-react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import tw from 'twrnc';
 
 // Only import maplibre-gl on web platform
 let maplibregl: typeof import('maplibre-gl') | null = null;
 if (Platform.OS === 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   maplibregl = require('maplibre-gl');
 }
-
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator, Modal } from 'react-native';
-import { Search, MapPin, Crosshair, X } from 'lucide-react-native';
-import tw from 'twrnc';
-import * as Location from 'expo-location';
-import { logger } from '@/utils/logger';
 
 interface WebLocationPickerProps {
   visible: boolean;
@@ -67,7 +67,7 @@ export function WebLocationPicker({
 
     setCenter(initialCenter);
 
-    map.current = new maplibregl.Map({
+    map.current = new maplibregl!.Map({
       container: mapContainer.current,
       style: {
         version: 8,
@@ -91,9 +91,9 @@ export function WebLocationPicker({
       },
       center: initialCenter,
       zoom: 15,
-    });
+    }) as any;
 
-    map.current.on('load', () => {
+    map.current!.on('load', () => {
       setMapLoaded(true);
 
       // Get current location if no initial location
@@ -102,7 +102,7 @@ export function WebLocationPicker({
       }
     });
 
-    map.current.on('move', () => {
+    map.current!.on('move', () => {
       if (map.current) {
         const newCenter = map.current.getCenter();
         setCenter([newCenter.lng, newCenter.lat]);
@@ -114,7 +114,7 @@ export function WebLocationPicker({
       map.current = null;
       setMapLoaded(false);
     };
-  }, [visible]);
+  }, [visible, initialLocation]);
 
   // Cleanup search timeout
   useEffect(() => {
@@ -324,6 +324,6 @@ export function WebLocationPicker({
   );
 }
 
-const styles = StyleSheet.create({});
+
 
 export default WebLocationPicker;

@@ -1,17 +1,18 @@
-import { useAuth } from '@/context/AuthContext';
 import { FormInput } from '@/components/atoms/FormInput';
+import { useAuth } from '@/context/AuthContext';
 import { useFormWithValidation } from '@/hooks/useFormWithValidation';
 import { biometricService } from '@/services/BiometricService';
 import api from '@/services/api';
-import Constants from 'expo-constants';
-import { StatusBar } from 'expo-status-bar';
-import { Lock, Mail, Fingerprint } from 'lucide-react-native';
-import React, { useEffect, useState, useCallback } from 'react';
-import { Alert, Image, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
-import tw from 'twrnc';
+import { getUserFriendlyError } from '@/utils/errorHandling';
 import { logger } from '@/utils/logger';
 import { LoginSchema } from '@/utils/validation';
 import { AxiosError } from 'axios';
+import Constants from 'expo-constants';
+import { StatusBar } from 'expo-status-bar';
+import { Fingerprint, Lock, Mail } from 'lucide-react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Text, TouchableOpacity, View } from 'react-native';
+import tw from 'twrnc';
 import { z } from 'zod';
 
 type LoginFormData = z.infer<typeof LoginSchema>;
@@ -82,30 +83,13 @@ export default function LoginScreen() {
         } catch (error) {
             const isAxiosErr = error instanceof AxiosError;
             const status = isAxiosErr ? error.response?.status : undefined;
-            const data = isAxiosErr ? error.response?.data as { error?: string } : undefined;
-            logger.error('[LoginScreen] Login error:', status, data);
+            logger.error('[LoginScreen] Login error:', status, isAxiosErr ? error.response?.data : error);
 
-            if (isAxiosErr && error.response) {
-                let errorMessage = 'Login gagal. Silakan coba lagi.';
-
-                if (status === 401) {
-                    errorMessage = data?.error || 'Email atau password salah';
-                } else if (status === 400) {
-                    errorMessage = data?.error || 'Data tidak lengkap';
-                } else if (status && status >= 500) {
-                    errorMessage = 'Server sedang bermasalah. Coba lagi nanti.';
-                } else if (data?.error) {
-                    errorMessage = data.error;
-                }
-
-                Alert.alert('Login Gagal', errorMessage);
-            } else if (error instanceof AxiosError && error.request) {
-                Alert.alert(
-                    'Koneksi Gagal',
-                    'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.'
-                );
+            if (status === 401) {
+                Alert.alert('Login Gagal', 'Email atau password salah.');
             } else {
-                Alert.alert('Error', 'Terjadi kesalahan. Silakan coba lagi.');
+                const errIdx = getUserFriendlyError(error);
+                Alert.alert(errIdx.title || 'Error', errIdx.message || 'Terjadi kesalahan');
             }
         } finally {
             setLoading(false);

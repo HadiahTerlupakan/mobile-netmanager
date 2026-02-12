@@ -4,9 +4,10 @@ import { useApiQuery } from '@/hooks/queries/useApiQuery';
 import { queryKeys } from '@/lib/queryClient';
 import { chatService, ChatUser } from '@/services/ChatService';
 import { CreateConversationSchema, validateData } from '@/utils/validation';
+import { FlashList } from '@shopify/flash-list';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Check, Search, User } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Text,
@@ -14,7 +15,6 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -41,9 +41,8 @@ const UserItem = React.memo(({ item, isSelected, onToggle }: { item: ChatUser, i
             </View>
 
             {/* Selection indicator */}
-            <View style={tw`h-6 w-6 rounded-full border-2 items-center justify-center ${
-                isSelected ? 'bg-purple-500 border-purple-500' : 'border-gray-300'
-            }`}>
+            <View style={tw`h-6 w-6 rounded-full border-2 items-center justify-center ${isSelected ? 'bg-purple-500 border-purple-500' : 'border-gray-300'
+                }`}>
                 {isSelected && <Check size={14} color="white" />}
             </View>
         </TouchableOpacity>
