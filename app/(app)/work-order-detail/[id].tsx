@@ -179,6 +179,12 @@ export default function WorkOrderDetailScreen() {
           return;
         }
 
+        const enabled = await Location.hasServicesEnabledAsync();
+        if (!enabled) {
+          logger.warn("Location services are disabled");
+          return;
+        }
+
         let currentLocation = await Location.getLastKnownPositionAsync({});
         if (!currentLocation) {
           currentLocation = await Location.getCurrentPositionAsync({
@@ -187,8 +193,8 @@ export default function WorkOrderDetailScreen() {
         }
 
         setLocation(currentLocation);
-      } catch {
-        logger.error("Location Error in WO Detail:");
+      } catch (error) {
+        logger.error("Location Error in WO Detail:", error);
       }
     })();
   }, []);
@@ -239,7 +245,7 @@ export default function WorkOrderDetailScreen() {
         const pagination = res.data.pagination;
 
         setAvailablePartners(prev => shouldAppend ? [...prev, ...newData] : newData);
-        setHasMorePartners(pageNum < pagination.totalPages);
+        setHasMorePartners(pageNum < (pagination?.totalPages || 0));
         setPartnerPage(pageNum);
       }
     } catch (error) {
