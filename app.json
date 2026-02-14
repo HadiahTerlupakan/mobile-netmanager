@@ -2,7 +2,7 @@
   "expo": {
     "name": "SBL KARYAWAN",
     "slug": "netmanager",
-    "version": "1.0.14",
+    "version": "1.0.17",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "netmanager",
@@ -42,7 +42,8 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_LOCATION",
         "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
       "googleServicesFile": "./google-services.json",
       "config": {}
@@ -106,7 +107,7 @@
         "projectId": "0e8762f0-6c54-4bc5-82f2-18aa3f8e765a"
       },
       "router": {},
-      "versionCode": 15
+      "versionCode": 18
     },
     "owner": "rohadimrajas-organization"
   }
