@@ -90,6 +90,11 @@ export default function WorkOrderDetailScreen() {
   const [partnerResponseLoading, setPartnerResponseLoading] = useState(false);
   const [isProcessingStatus, setIsProcessingStatus] = useState(false);
 
+  // Partner Pagination State
+  const [partnerPage, setPartnerPage] = useState(1);
+  const [hasMorePartners, setHasMorePartners] = useState(true);
+  const [isFetchingMorePartners, setIsFetchingMorePartners] = useState(false);
+
   // Image Viewer State
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerImage, setViewerImage] = useState<string | null>(null);
@@ -218,27 +223,43 @@ export default function WorkOrderDetailScreen() {
   useSocketEvent(SOCKET_EVENTS.WORKORDER_UPDATE, handleWOUpdate);
   useSocketEvent(SOCKET_EVENTS.WORKORDER_ACTIVITY, handleActivityUpdate);
 
-  // Partner search effect
-  useEffect(() => {
-    if (isPartnerModalVisible && searchPartnerQuery !== undefined) {
-      const fetchPartners = async () => {
-        setPartnerLoading(true);
-        try {
-          const res = await api.get(
-            `/api/mobile/partners?search=${searchPartnerQuery}`
-          );
-          if (res.data.success) {
-            setAvailablePartners(res.data.data);
-          }
-        } catch (error) {
-          logger.error("Fetch Partners Error:", error);
-        } finally {
-          setPartnerLoading(false);
-        }
-      };
-      fetchPartners();
+  // Partner search and pagination effect
+  const fetchPartners = useCallback(async (pageNum = 1, shouldAppend = false) => {
+    if (!isPartnerModalVisible) return;
+
+    if (pageNum === 1) setPartnerLoading(true);
+    else setIsFetchingMorePartners(true);
+
+    try {
+      const res = await api.get(
+        `/api/mobile/partners?search=${searchPartnerQuery}&page=${pageNum}&limit=20`
+      );
+      if (res.data.success) {
+        const newData = res.data.data;
+        const pagination = res.data.pagination;
+
+        setAvailablePartners(prev => shouldAppend ? [...prev, ...newData] : newData);
+        setHasMorePartners(pageNum < pagination.totalPages);
+        setPartnerPage(pageNum);
+      }
+    } catch (error) {
+      logger.error("Fetch Partners Error:", error);
+    } finally {
+      setPartnerLoading(false);
+      setIsFetchingMorePartners(false);
     }
-  }, [isPartnerModalVisible, searchPartnerQuery, token]);
+  }, [isPartnerModalVisible, searchPartnerQuery]);
+
+  useEffect(() => {
+    setPartnerPage(1);
+    fetchPartners(1, false);
+  }, [searchPartnerQuery, isPartnerModalVisible]);
+
+  const loadMorePartners = () => {
+    if (!partnerLoading && !isFetchingMorePartners && hasMorePartners) {
+      fetchPartners(partnerPage + 1, true);
+    }
+  };
 
   const [loadingMessage, setLoadingMessage] = useState("Memproses...");
 
@@ -519,7 +540,6 @@ export default function WorkOrderDetailScreen() {
       );
       setIsPartnerModalVisible(false);
       fetchDetail(); // Refresh WO data
-      fetchDetail(); // Refresh WO data
       Alert.alert("Berhasil", "Partner berhasil ditambahkan");
     } catch (error) {
       const { title, message } = getUserFriendlyError(error);
@@ -608,18 +628,18 @@ export default function WorkOrderDetailScreen() {
           <View style={tw`flex-row items-center justify-between`}>
             <View
               style={tw`px-3 py-1 rounded-full ${wo.status === "IN_PROGRESS"
-                  ? "bg-blue-100"
-                  : wo.status === "COMPLETED"
-                    ? "bg-green-100"
-                    : "bg-gray-100"
+                ? "bg-blue-100"
+                : wo.status === "COMPLETED"
+                  ? "bg-green-100"
+                  : "bg-gray-100"
                 }`}
             >
               <Text
                 style={tw`font-bold ${wo.status === "IN_PROGRESS"
-                    ? "text-blue-700"
-                    : wo.status === "COMPLETED"
-                      ? "text-green-700"
-                      : "text-gray-700"
+                  ? "text-blue-700"
+                  : wo.status === "COMPLETED"
+                    ? "text-green-700"
+                    : "text-gray-700"
                   }`}
               >
                 {wo.status}
@@ -834,18 +854,18 @@ export default function WorkOrderDetailScreen() {
                       </Text>
                       <View
                         style={tw`px-2 py-0.5 rounded-full ${assignment.status === "APPROVED"
-                            ? "bg-green-100"
-                            : assignment.status === "REJECTED"
-                              ? "bg-red-100"
-                              : "bg-yellow-100"
+                          ? "bg-green-100"
+                          : assignment.status === "REJECTED"
+                            ? "bg-red-100"
+                            : "bg-yellow-100"
                           }`}
                       >
                         <Text
                           style={tw`text-[10px] font-bold ${assignment.status === "APPROVED"
-                              ? "text-green-700"
-                              : assignment.status === "REJECTED"
-                                ? "text-red-700"
-                                : "text-yellow-700"
+                            ? "text-green-700"
+                            : assignment.status === "REJECTED"
+                              ? "text-red-700"
+                              : "text-yellow-700"
                             }`}
                         >
                           {assignment.status === "APPROVED"
@@ -965,18 +985,18 @@ export default function WorkOrderDetailScreen() {
                   <View style={tw`flex-row items-center gap-2 mt-1`}>
                     <View
                       style={tw`px-1.5 py-0.5 rounded ${item.kondisi === "BARU"
-                          ? "bg-green-100"
-                          : item.kondisi === "BEKAS"
-                            ? "bg-yellow-100"
-                            : "bg-red-100"
+                        ? "bg-green-100"
+                        : item.kondisi === "BEKAS"
+                          ? "bg-yellow-100"
+                          : "bg-red-100"
                         }`}
                     >
                       <Text
                         style={tw`text-[10px] font-bold ${item.kondisi === "BARU"
-                            ? "text-green-700"
-                            : item.kondisi === "BEKAS"
-                              ? "text-yellow-700"
-                              : "text-red-700"
+                          ? "text-green-700"
+                          : item.kondisi === "BEKAS"
+                            ? "text-yellow-700"
+                            : "text-red-700"
                           }`}
                       >
                         {item.kondisi}
@@ -1153,10 +1173,10 @@ export default function WorkOrderDetailScreen() {
               <View style={tw`max-w-[80%]`}>
                 <View
                   style={tw`rounded-2xl overflow-hidden ${isPhoto
-                      ? "" // Photos handle their own rounding or have no bg
-                      : isMe
-                        ? "bg-blue-600 rounded-tr-none px-4 py-2.5"
-                        : "bg-gray-100 rounded-tl-none px-4 py-2.5"
+                    ? "" // Photos handle their own rounding or have no bg
+                    : isMe
+                      ? "bg-blue-600 rounded-tr-none px-4 py-2.5"
+                      : "bg-gray-100 rounded-tl-none px-4 py-2.5"
                     }`}
                 >
                   {!isMe && !isPhoto && (
@@ -1235,26 +1255,26 @@ export default function WorkOrderDetailScreen() {
             {/* Dot */}
             <View
               style={tw`w-6 h-6 rounded-full ${update.updateType === "PHOTO"
-                  ? "bg-purple-100"
-                  : update.updateType === "MATERIAL_PICKUP"
-                    ? "bg-orange-100"
-                    : update.updateType === "MATERIAL_RETURN"
-                      ? "bg-green-100"
-                      : update.updateType === "STATUS_CHANGE"
-                        ? "bg-blue-100"
-                        : "bg-gray-100"
+                ? "bg-purple-100"
+                : update.updateType === "MATERIAL_PICKUP"
+                  ? "bg-orange-100"
+                  : update.updateType === "MATERIAL_RETURN"
+                    ? "bg-green-100"
+                    : update.updateType === "STATUS_CHANGE"
+                      ? "bg-blue-100"
+                      : "bg-gray-100"
                 } items-center justify-center mr-3 z-10`}
             >
               <View
                 style={tw`w-2 h-2 rounded-full ${update.updateType === "PHOTO"
-                    ? "bg-purple-600"
-                    : update.updateType === "MATERIAL_PICKUP"
-                      ? "bg-orange-600"
-                      : update.updateType === "MATERIAL_RETURN"
-                        ? "bg-green-600"
-                        : update.updateType === "STATUS_CHANGE"
-                          ? "bg-blue-600"
-                          : "bg-gray-400"
+                  ? "bg-purple-600"
+                  : update.updateType === "MATERIAL_PICKUP"
+                    ? "bg-orange-600"
+                    : update.updateType === "MATERIAL_RETURN"
+                      ? "bg-green-600"
+                      : update.updateType === "STATUS_CHANGE"
+                        ? "bg-blue-600"
+                        : "bg-gray-400"
                   }`}
               />
             </View>
@@ -1536,10 +1556,19 @@ export default function WorkOrderDetailScreen() {
                       </View>
                     </TouchableOpacity>
                   )}
+                  onEndReached={loadMorePartners}
+                  onEndReachedThreshold={0.5}
+                  ListFooterComponent={
+                    isFetchingMorePartners ? (
+                      <ActivityIndicator size="small" color="#2563eb" style={tw`py-4`} />
+                    ) : null
+                  }
                   ListEmptyComponent={
-                    <Text style={tw`text-center text-gray-400 mt-10`}>
-                      Tidak ada teknisi ditemukan
-                    </Text>
+                    !partnerLoading ? (
+                      <Text style={tw`text-center text-gray-400 mt-10`}>
+                        Tidak ada teknisi ditemukan
+                      </Text>
+                    ) : null
                   }
                 />
               </View>
