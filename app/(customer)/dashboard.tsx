@@ -186,7 +186,7 @@ export default function CustomerDashboardScreen() {
               </View>
 
               <TouchableOpacity 
-                onPress={() => router.push('/(customer)/history')} // Or payment page
+                onPress={() => router.push('/(customer)/tagihan')} // Fixed route
                 style={tw`w-full bg-white py-3 px-4 rounded-lg flex-row items-center justify-center`}
               >
                 <Text style={tw`text-teal-700 font-bold text-sm mr-2`}>
@@ -203,7 +203,10 @@ export default function CustomerDashboardScreen() {
           <Text style={tw`text-lg font-bold text-gray-900 mb-3`}>Menu Cepat</Text>
           <View style={tw`flex-row flex-wrap justify-between`}>
             {/* Detail Layanan */}
-            <TouchableOpacity style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}>
+            <TouchableOpacity 
+              onPress={() => router.push('/(customer)/paket')}
+              style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
+            >
               <View style={tw`w-10 h-10 rounded-lg bg-teal-50 items-center justify-center mb-3`}>
                 <FileText size={24} color="#0d9488" />
               </View>
@@ -212,7 +215,10 @@ export default function CustomerDashboardScreen() {
             </TouchableOpacity>
 
             {/* Dukungan */}
-            <TouchableOpacity style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}>
+            <TouchableOpacity 
+              onPress={() => router.push('/(customer)/tickets')}
+              style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
+            >
               <View style={tw`w-10 h-10 rounded-lg bg-orange-50 items-center justify-center mb-3`}>
                 <Headset size={24} color="#ea580c" />
               </View>
@@ -222,7 +228,7 @@ export default function CustomerDashboardScreen() {
 
             {/* Riwayat */}
             <TouchableOpacity 
-              onPress={() => router.push('/(customer)/history')}
+              onPress={() => router.push('/(customer)/riwayat')}
               style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
             >
               <View style={tw`w-10 h-10 rounded-lg bg-purple-50 items-center justify-center mb-3`}>
