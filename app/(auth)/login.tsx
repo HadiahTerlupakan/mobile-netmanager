@@ -9,7 +9,7 @@ import { LoginSchema } from '@/utils/validation';
 import { AxiosError } from 'axios';
 import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
-import { Fingerprint, Lock, Mail } from 'lucide-react-native';
+import { Fingerprint, Lock, Mail, User } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
@@ -22,6 +22,8 @@ export default function LoginScreen() {
     const [biometricAvailable, setBiometricAvailable] = useState(false);
     const [biometricEnabled, setBiometricEnabled] = useState(false);
     const [biometricTypes, setBiometricTypes] = useState<string[]>([]);
+    // Login Type State: EMPLOYEE (Karyawan) vs CUSTOMER (Pelanggan)
+    const [loginType, setLoginType] = useState<'EMPLOYEE' | 'CUSTOMER'>('EMPLOYEE');
     const { signIn } = useAuth();
 
     const {
@@ -64,7 +66,8 @@ export default function LoginScreen() {
                 email,
                 password,
                 versionCode: versionCode.toString(),
-                versionName: versionName
+                versionName: versionName,
+                loginType // Send the selected login type
             });
 
             if (res.data.success) {
@@ -122,26 +125,60 @@ export default function LoginScreen() {
             <StatusBar style="dark" />
 
             {/* Logo */}
-            <View style={tw`mb-10 items-center`}>
+            <View style={tw`mb-8 items-center`}>
                 <Image
                     source={require('../../assets/images/icon.png')}
                     style={tw`h-24 w-24 rounded-2xl mb-4`}
                     resizeMode="contain"
                 />
-                <Text style={tw`text-2xl font-bold text-gray-900`}>SBL KARYAWAN</Text>
-                <Text style={tw`text-gray-500 mt-1`}>Employee Portal App</Text>
+                <Text style={tw`text-2xl font-bold text-gray-900`}>SBL NET</Text>
+                <Text style={tw`text-gray-500 mt-1`}>
+                    {loginType === 'EMPLOYEE' ? 'Employee Portal' : 'Customer Portal'}
+                </Text>
             </View>
 
             <View style={tw`w-full max-w-sm`}>
+                {/* Login Type Tabs */}
+                <View style={tw`flex-row bg-gray-100 p-1 rounded-xl mb-6`}>
+                    <TouchableOpacity
+                        onPress={() => setLoginType('CUSTOMER')}
+                        style={[
+                            tw`flex-1 py-2.5 items-center rounded-lg`,
+                            loginType === 'CUSTOMER' ? tw`bg-white shadow-sm` : tw`bg-transparent`
+                        ]}
+                    >
+                        <Text style={[
+                            tw`font-semibold text-sm`,
+                            loginType === 'CUSTOMER' ? tw`text-blue-600` : tw`text-gray-500`
+                        ]}>
+                            Pelanggan
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => setLoginType('EMPLOYEE')}
+                        style={[
+                            tw`flex-1 py-2.5 items-center rounded-lg`,
+                            loginType === 'EMPLOYEE' ? tw`bg-white shadow-sm` : tw`bg-transparent`
+                        ]}
+                    >
+                        <Text style={[
+                            tw`font-semibold text-sm`,
+                            loginType === 'EMPLOYEE' ? tw`text-blue-600` : tw`text-gray-500`
+                        ]}>
+                            Karyawan
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
                 {/* Email Input with React Hook Form */}
                 <FormInput
                     name="email"
                     control={control}
-                    label="Email Address"
-                    placeholder="nama@perusahaan.com"
-                    keyboardType="email-address"
+                    label={loginType === 'EMPLOYEE' ? "Email Address" : "Username / ID Pelanggan"}
+                    placeholder={loginType === 'EMPLOYEE' ? "nama@perusahaan.com" : "Contoh: budi123"}
+                    keyboardType={loginType === 'EMPLOYEE' ? "email-address" : "default"}
                     autoCapitalize="none"
-                    leftIcon={<Mail color="#9ca3af" size={20} />}
+                    leftIcon={loginType === 'EMPLOYEE' ? <Mail color="#9ca3af" size={20} /> : <User color="#9ca3af" size={20} />}
                     error={errors.email?.message}
                     testID="email-input"
                 />
