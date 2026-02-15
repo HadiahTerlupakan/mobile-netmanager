@@ -24,7 +24,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // Default timeout 30s
+  timeout: 60000, // Increased to 60s to match backend long-running tasks
 });
 
 // Request interceptor to add token and handle dynamic base URL

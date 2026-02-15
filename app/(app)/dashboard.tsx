@@ -175,6 +175,9 @@ function DashboardScreen() {
         const baseUrl = TenantService.getTenantUrl().replace(/\/$/, '');
         const imagePath = path.startsWith('/') ? path : `/${path}`;
 
+        // Double check to prevent http duplication if path already contains full url but wasn't caught by startsWith check
+        if (imagePath.includes('http')) return path;
+
         return `${baseUrl}${imagePath}`;
     };
 

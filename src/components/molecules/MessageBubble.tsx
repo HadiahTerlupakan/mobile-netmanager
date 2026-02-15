@@ -26,7 +26,7 @@ const MessageBubble = React.memo(({ item }: MessageBubbleProps) => {
             <View style={tw`max-w-[80%] ${isOwn ? 'bg-purple-500' : 'bg-white'} rounded-2xl ${hasImage && !hasText ? 'p-1' : 'px-4 py-2'} shadow-sm overflow-hidden`}>
                 {hasImage && (
                     <ImageWithCache
-                        source={`${TenantService.getTenantUrl()}${item.imageUrl}`}
+                        source={item.imageUrl?.startsWith('http') ? item.imageUrl : `${TenantService.getTenantUrl()}${item.imageUrl}`}
                         style={tw`w-52 h-40 rounded-xl ${hasText ? "mb-2" : ""}`}
                         contentFit="cover"
                         transition={1000}

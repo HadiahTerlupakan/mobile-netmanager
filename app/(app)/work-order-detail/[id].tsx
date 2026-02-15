@@ -1196,12 +1196,20 @@ export default function WorkOrderDetailScreen() {
                       <TouchableOpacity
                         onPress={() => {
                           if (item.filePath) {
-                            openImageViewer(`${TenantService.getTenantUrl()}${item.filePath}`);
+                            const imageUrl = item.filePath.startsWith('http') 
+                              ? item.filePath 
+                              : `${TenantService.getTenantUrl()}${item.filePath}`;
+                            openImageViewer(imageUrl);
                           }
                         }}
                         activeOpacity={0.9}
                       >
-                        <ImageWithCache source={`${TenantService.getTenantUrl()}${item.filePath}`}
+                        <ImageWithCache 
+                          source={
+                            item.filePath?.startsWith('http') 
+                              ? item.filePath 
+                              : `${TenantService.getTenantUrl()}${item.filePath}`
+                          }
                           style={tw`w-48 h-64 bg-gray-200 rounded-lg`}
                           contentFit="cover"
                           transition={1000} />

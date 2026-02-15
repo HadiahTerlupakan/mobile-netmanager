@@ -119,6 +119,8 @@ function EditProfileScreen() {
         const baseUrl = TenantService.getTenantUrl().replace(/\/$/, '');
         const imagePath = path.startsWith('/') ? path : `/${path}`;
 
+        if (imagePath.includes('http')) return path;
+
         return `${baseUrl}${imagePath}`;
     };
 
