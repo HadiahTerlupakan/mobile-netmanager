@@ -68,6 +68,10 @@ export default function LoginScreen() {
                 versionCode: versionCode.toString(),
                 versionName: versionName,
                 loginType // Send the selected login type
+            }, {
+                // IMPORTANT: Prevent global 401 interceptor from hanging the request
+                // We want to handle 401 manually (Invalid Password) in this component
+                skipGlobalAuthHandler: true
             });
 
             if (res.data.success) {
