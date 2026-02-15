@@ -81,14 +81,12 @@ export default function CustomerLayout() {
           name="tickets/index"
           options={{
             href: null,
-            title: "Tiket"
           }}
         />
         <Tabs.Screen
           name="riwayat/index"
           options={{
             href: null,
-            title: "Riwayat"
           }}
         />
       </Tabs>
