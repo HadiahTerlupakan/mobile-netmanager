@@ -72,13 +72,16 @@ export default function LoginScreen() {
 
             if (res.data.success) {
                 logger.auth('[LoginScreen] Login success, calling signIn...');
-                // Pass refresh token if provided by backend
+                
+                // Add robust token saving and state update
                 await signIn(
                     res.data.token,
                     res.data.user,
-                    res.data.refreshToken // Optional refresh token
+                    res.data.refreshToken
                 );
-                logger.auth('[LoginScreen] signIn returned');
+                
+                // Note: AuthContext handles navigation via Effect based on user state
+                logger.auth('[LoginScreen] signIn completed, waiting for redirect...');
             } else {
                 logger.warn('[LoginScreen] Login failed logic:', res.data);
                 Alert.alert('Login Gagal', res.data.error || 'Terjadi kesalahan');
