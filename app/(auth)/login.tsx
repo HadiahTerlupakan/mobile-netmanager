@@ -23,7 +23,8 @@ export default function LoginScreen() {
     const [biometricEnabled, setBiometricEnabled] = useState(false);
     const [biometricTypes, setBiometricTypes] = useState<string[]>([]);
     // Login Type State: EMPLOYEE (Karyawan) vs CUSTOMER (Pelanggan)
-    const [loginType, setLoginType] = useState<'EMPLOYEE' | 'CUSTOMER'>('EMPLOYEE');
+    // Default to CUSTOMER since it's the first tab now
+    const [loginType, setLoginType] = useState<'EMPLOYEE' | 'CUSTOMER'>('CUSTOMER');
     const { signIn } = useAuth();
 
     const {
