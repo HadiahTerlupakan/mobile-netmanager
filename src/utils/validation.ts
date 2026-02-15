@@ -18,7 +18,7 @@ export function sanitizeInput(input: string): string {
 
 // Login Schema
 export const LoginSchema = z.object({
-  email: z.string().email('Format email tidak valid').trim(),
+  email: z.string().trim().min(1, 'Username/Email wajib diisi'),
   password: z.string().min(1, 'Password wajib diisi'),
 });
 
