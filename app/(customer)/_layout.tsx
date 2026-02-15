@@ -41,7 +41,7 @@ export default function CustomerLayout() {
           }}
         />
         <Tabs.Screen
-          name="koneksi"
+          name="koneksi/index"
           options={{
             title: "Koneksi",
             tabBarIcon: ({ color }) => (
@@ -50,7 +50,7 @@ export default function CustomerLayout() {
           }}
         />
         <Tabs.Screen
-          name="tagihan"
+          name="tagihan/index"
           options={{
             title: "Tagihan",
             tabBarIcon: ({ color }) => (
@@ -59,7 +59,7 @@ export default function CustomerLayout() {
           }}
         />
         <Tabs.Screen
-          name="paket"
+          name="paket/index"
           options={{
             title: "Paket",
             tabBarIcon: ({ color }) => (
@@ -76,16 +76,16 @@ export default function CustomerLayout() {
             ),
           }}
         />
-        {/* Hidden Screens but accessible via links */}
+        {/* Hidden Screens */}
         <Tabs.Screen
-          name="tickets"
+          name="tickets/index"
           options={{
             href: null,
             title: "Tiket"
           }}
         />
         <Tabs.Screen
-          name="riwayat"
+          name="riwayat/index"
           options={{
             href: null,
             title: "Riwayat"
