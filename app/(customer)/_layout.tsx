@@ -4,7 +4,9 @@ import {
   User,
   MessageCircle,
   FileText,
-  Zap
+  Zap,
+  Signal,
+  Box
 } from "lucide-react-native";
 import { Fragment } from "react";
 import tw from "twrnc";
@@ -39,20 +41,29 @@ export default function CustomerLayout() {
           }}
         />
         <Tabs.Screen
-          name="paket"
+          name="koneksi"
           options={{
-            title: "Paket",
+            title: "Koneksi",
             tabBarIcon: ({ color }) => (
-              <Zap size={24} color={color} />
+              <Signal size={24} color={color} />
             ),
           }}
         />
         <Tabs.Screen
-          name="riwayat"
+          name="tagihan"
           options={{
-            title: "Riwayat",
+            title: "Tagihan",
             tabBarIcon: ({ color }) => (
               <FileText size={24} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="paket"
+          options={{
+            title: "Paket",
+            tabBarIcon: ({ color }) => (
+              <Box size={24} color={color} />
             ),
           }}
         />
@@ -67,13 +78,6 @@ export default function CustomerLayout() {
         />
         {/* Hidden Screens but accessible via links */}
         <Tabs.Screen
-          name="tagihan"
-          options={{
-            href: null,
-            title: "Tagihan"
-          }}
-        />
-        <Tabs.Screen
           name="tickets"
           options={{
             href: null,
@@ -81,10 +85,10 @@ export default function CustomerLayout() {
           }}
         />
         <Tabs.Screen
-          name="koneksi"
+          name="riwayat"
           options={{
             href: null,
-            title: "Koneksi"
+            title: "Riwayat"
           }}
         />
       </Tabs>
