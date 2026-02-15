@@ -170,11 +170,11 @@ export default function LoginScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Email Input with React Hook Form */}
+                {/* Email/Username Input with React Hook Form */}
                 <FormInput
                     name="email"
                     control={control}
-                    label={loginType === 'EMPLOYEE' ? "Email Address" : "Username / ID Pelanggan"}
+                    label={loginType === 'EMPLOYEE' ? "Email Address" : "ID Pelanggan (Username)"}
                     placeholder={loginType === 'EMPLOYEE' ? "nama@perusahaan.com" : "Contoh: budi123"}
                     keyboardType={loginType === 'EMPLOYEE' ? "email-address" : "default"}
                     autoCapitalize="none"
