@@ -236,8 +236,9 @@ function RootLayoutNav() {
 
     const inAuthGroup = segments[0] === "(auth)";
     const inAppGroup = segments[0] === "(app)";
+    const inCustomerGroup = segments[0] === "(customer)";
 
-    logger.auth("Status:", { user: !!user, inAuthGroup, inAppGroup, segments });
+    logger.auth("Status:", { user: !!user, inAuthGroup, inAppGroup, inCustomerGroup, role: user?.role, segments });
 
     // Debounce redirects to prevent loops during initialization
     const redirectTimer = setTimeout(() => {
@@ -253,10 +254,21 @@ function RootLayoutNav() {
         if (!user && !inAuthGroup) {
           logger.auth("Redirecting to Login");
           router.replace("/(auth)/login");
-        } else if (user && !inAppGroup) {
-          // Redirect to dashboard if logged in but not in (app) group (e.g. at root or login page)
-          logger.auth("Redirecting to Dashboard");
-          router.replace("/(app)/dashboard");
+        } else if (user) {
+          // If User is Customer
+          if (user.role === 'CUSTOMER') {
+             if (!inCustomerGroup) {
+               logger.auth("Redirecting to Customer Dashboard");
+               router.replace("/(customer)/dashboard");
+             }
+          } 
+          // If User is Employee (Admin, Teknisi, Sales, etc)
+          else {
+             if (!inAppGroup) {
+               logger.auth("Redirecting to Employee Dashboard");
+               router.replace("/(app)/dashboard");
+             }
+          }
         }
     }, 100);
 

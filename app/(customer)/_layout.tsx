@@ -70,13 +70,13 @@ export default function CustomerLayout() {
         <Tabs.Screen
           name="profile"
           options={{
-            title: "Akun",
+            title: "Profil",
             tabBarIcon: ({ color }) => (
               <User size={24} color={color} />
             ),
           }}
         />
-        {/* Hidden Screens */}
+        {/* Hidden Screens - Explicitly disabled from tab bar */}
         <Tabs.Screen
           name="tickets/index"
           options={{
