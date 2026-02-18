@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import tw from 'twrnc';
-import { Wifi, Signal, Activity } from 'lucide-react-native';
+import { Wifi, Activity } from 'lucide-react-native';
 
 interface ServiceStatusCardProps {
   planName: string;

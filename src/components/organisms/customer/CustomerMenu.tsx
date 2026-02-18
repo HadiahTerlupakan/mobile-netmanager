@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import tw from 'twrnc';
 import { MessageCircle, FileText, User, HelpCircle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -22,7 +22,7 @@ export function CustomerMenu() {
       icon: FileText,
       color: '#3b82f6',
       bg: '#eff6ff',
-      action: () => router.push('/(customer)/history')
+      action: () => router.push('/(customer)/riwayat')
     },
     {
       id: 'profile',

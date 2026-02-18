@@ -105,7 +105,7 @@ export default function LoginScreen() {
         } finally {
             setLoading(false);
         }
-    }, [signIn]);
+    }, [signIn, loginType]);
 
     const handleLogin = handleValidatedSubmit(async (data: LoginFormData) => {
         await performLogin(data.email, data.password);

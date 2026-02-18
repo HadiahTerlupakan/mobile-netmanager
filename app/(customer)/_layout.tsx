@@ -2,9 +2,7 @@ import { Tabs } from "expo-router";
 import {
   Home,
   User,
-  MessageCircle,
   FileText,
-  Zap,
   Signal,
   Box
 } from "lucide-react-native";

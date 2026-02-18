@@ -3,12 +3,7 @@ import { useOfflineQuery } from '@/hooks/queries';
 import { queryKeys } from '@/lib/queryClient';
 import {
     addMonths,
-    eachDayOfInterval,
-    endOfMonth,
     formatDate,
-    getDay,
-    isSameDay,
-    startOfMonth,
     subMonths
 } from '@/utils/date';
 import { getUserFriendlyError } from '@/utils/errorHandling';
@@ -58,37 +53,6 @@ export default function HolidaysScreen() {
     const goToNextMonth = () => setCurrentDate(addMonths(currentDate, 1));
     const goToToday = () => setCurrentDate(new Date());
 
-    const monthStart = startOfMonth(currentDate);
-    const monthEnd = endOfMonth(currentDate);
-    const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
-    // Pad start of month for calendar grid
-    const startDayOfWeek = getDay(monthStart); // 0 = Sunday
-    const paddingDays = Array(startDayOfWeek).fill(null);
-
-    const getHolidayForDate = (date: Date): Holiday | undefined => {
-        return holidays.find(h => isSameDay(new Date(h.date), date));
-    };
-
-    const handleDayPress = (date: Date) => {
-        const holiday = getHolidayForDate(date);
-        if (holiday) {
-            setSelectedHoliday(holiday);
-            setModalVisible(true);
-        }
-    };
-
-    // Color helpers based on holiday type
-    const getHolidayBgColor = (holiday: Holiday | undefined) => {
-        if (!holiday) return '';
-        return holiday.isNational ? 'bg-red-500' : 'bg-orange-500';
-    };
-
-    const getHolidayDotColor = (holiday: Holiday | undefined) => {
-        if (!holiday) return 'bg-red-500';
-        return holiday.isNational ? 'bg-red-500' : 'bg-orange-500';
-    };
-
     const getListBgColor = (isNational: boolean) => {
         return isNational ? 'bg-red-50' : 'bg-orange-50';
     };
@@ -100,9 +64,6 @@ export default function HolidaysScreen() {
     const getListSubTextColor = (isNational: boolean) => {
         return isNational ? 'text-red-500' : 'text-orange-500';
     };
-
-    const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
-    const today = new Date();
 
     if (loading && holidays.length === 0) {
         return <HolidaySkeleton />;

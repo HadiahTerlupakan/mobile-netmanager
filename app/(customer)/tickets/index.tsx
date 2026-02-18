@@ -2,11 +2,10 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl, TextInput, Modal, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/services/api';
-import { ArrowLeft, Search, Ticket, CheckCircle, Clock, AlertCircle, XCircle, Plus, ChevronDown, ChevronRight, X, User } from 'lucide-react-native';
+import { ArrowLeft, Search, Ticket, CheckCircle, Clock, AlertCircle, XCircle, Plus, ChevronDown, X, User } from 'lucide-react-native';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/id';
@@ -14,7 +13,7 @@ import 'dayjs/locale/id';
 dayjs.extend(relativeTime);
 dayjs.locale('id');
 
-interface Ticket {
+interface SupportTicket {
   id: string;
   ticketNumber: string;
   subject: string;
@@ -28,7 +27,7 @@ interface Ticket {
 
 const fetchTickets = async () => {
   const res = await api.get('/api/customer/tickets?limit=50');
-  return res.data.tickets as Ticket[];
+  return res.data.tickets as SupportTicket[];
 };
 
 export default function CustomerTicketsScreen() {

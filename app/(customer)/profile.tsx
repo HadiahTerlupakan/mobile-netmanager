@@ -2,13 +2,11 @@ import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'expo-router';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
-import { LogOut, User, Lock, ChevronRight, Mail, Phone, MapPin } from 'lucide-react-native';
+import { LogOut, User, Lock, ChevronRight } from 'lucide-react-native';
 
 export default function CustomerProfileScreen() {
   const { user, signOut } = useAuth();
-  const router = useRouter();
 
   const handleLogout = () => {
     Alert.alert(

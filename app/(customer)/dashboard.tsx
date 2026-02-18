@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, RefreshControl, TouchableOpacity, ImageBackground } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { useAuth } from '@/context/AuthContext';
@@ -10,38 +10,11 @@ import api from '@/services/api';
 import { Router, Zap, CheckCircle, Receipt, ArrowRight, FileText, History, Rocket, Headset } from 'lucide-react-native';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 
-// Types matching API response
-interface CustomerProfile {
-  nama: string;
-  idPelanggan: string;
-  status: string;
-  jatuhTempo: string;
-  paket: {
-    nama: string;
-    bandwidth: { download: string; upload: string } | null;
-  } | null;
-}
-
-interface CustomerConnection {
-  isOnline: boolean;
-  ipAddress: string | null;
-}
-
 interface Invoice {
   id: string;
   status: string;
-  remainingAmount: string; // BigInt serialized as string usually
+  remainingAmount: string;
   dueDate: string;
-}
-
-interface DashboardData {
-  profile: CustomerProfile;
-  connection: CustomerConnection | null;
-  pendingInvoice: {
-    count: number;
-    totalAmount: number;
-    dueDate?: string;
-  } | null;
 }
 
 const fetchDashboardData = async () => {

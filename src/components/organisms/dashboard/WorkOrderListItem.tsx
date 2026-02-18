@@ -66,6 +66,8 @@ const PhoneButton = memo(({ phone }: { phone?: string | null }) => {
         let formattedPhone = phone.replace(/\D/g, '');
         if (formattedPhone.startsWith('0')) {
             formattedPhone = '62' + formattedPhone.substring(1);
+        } else if (formattedPhone.startsWith('8')) {
+            formattedPhone = '62' + formattedPhone;
         }
 
         Linking.openURL(`whatsapp://send?phone=${formattedPhone}`)

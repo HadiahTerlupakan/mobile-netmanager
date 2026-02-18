@@ -259,7 +259,7 @@ export default function WorkOrderDetailScreen() {
   useEffect(() => {
     setPartnerPage(1);
     fetchPartners(1, false);
-  }, [searchPartnerQuery, isPartnerModalVisible]);
+  }, [searchPartnerQuery, isPartnerModalVisible, fetchPartners]);
 
   const loadMorePartners = () => {
     if (!partnerLoading && !isFetchingMorePartners && hasMorePartners) {
@@ -773,6 +773,8 @@ export default function WorkOrderDetailScreen() {
                       let formattedPhone = phone.replace(/\D/g, "");
                       if (formattedPhone.startsWith("0")) {
                         formattedPhone = "62" + formattedPhone.substring(1);
+                      } else if (formattedPhone.startsWith("8")) {
+                        formattedPhone = "62" + formattedPhone;
                       }
 
                       Linking.openURL(

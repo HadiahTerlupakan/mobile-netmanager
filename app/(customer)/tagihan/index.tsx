@@ -5,7 +5,7 @@ import tw from 'twrnc';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import { ArrowLeft, Search, Receipt, Router, AlertCircle, XCircle, CheckCircle, Tag, CreditCard, RefreshCw } from 'lucide-react-native';
+import { ArrowLeft, Receipt, Router, AlertCircle, XCircle, CheckCircle, Tag } from 'lucide-react-native';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 
@@ -19,7 +19,7 @@ interface Invoice {
   status: string;
   dueDate: string;
   createdAt: string;
-  items: Array<{ description: string }>;
+  items: { description: string }[];
 }
 
 const fetchInvoices = async () => {
@@ -30,7 +30,6 @@ const fetchInvoices = async () => {
 export default function CustomerTagihanScreen() {
   const router = useRouter();
   const [filter, setFilter] = useState<'ALL' | 'PAID' | 'UNPAID' | 'FAILED'>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
   
   // Payment State
   const [couponCode, setCouponCode] = useState('');
@@ -48,9 +47,6 @@ export default function CustomerTagihanScreen() {
   }, [refetch]);
 
   const filteredInvoices = invoices?.filter(inv => {
-    const matchesSearch = inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase());
-    if (!matchesSearch) return false;
-
     if (filter === 'ALL') return true;
     if (filter === 'PAID') return inv.status === 'PAID';
     if (filter === 'UNPAID') return ['SENT', 'OVERDUE'].includes(inv.status);
@@ -98,7 +94,7 @@ export default function CustomerTagihanScreen() {
       } else {
         Alert.alert('Gagal', res.data.error || 'Kupon tidak valid');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Gagal memverifikasi kupon');
     } finally {
       setCouponLoading(false);
@@ -124,7 +120,7 @@ export default function CustomerTagihanScreen() {
       } else {
         Alert.alert('Gagal', res.data.error || 'Gagal membuat pembayaran');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Terjadi kesalahan saat memproses pembayaran');
     } finally {
       setPaymentLoading(false);

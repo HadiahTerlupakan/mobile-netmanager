@@ -31,9 +31,13 @@ const AvailableWorkOrderListItem = memo(({ item, onClaim, isClaiming }: Availabl
         const phone = item.contactPhone || item.pelanggan?.noTelp;
         if (phone) {
             let formatPhone = phone.replace(/\D/g, "");
-            if (formatPhone.startsWith("0"))
+            if (formatPhone.startsWith("0")) {
                 formatPhone = "62" + formatPhone.substring(1);
-            Linking.openURL(`whatsapp://send?phone=${formatPhone}`).catch(() => 
+            } else if (formatPhone.startsWith("8")) {
+                formatPhone = "62" + formatPhone;
+            }
+
+            Linking.openURL(`whatsapp://send?phone=${formatPhone}`).catch(() =>
                 Linking.openURL(`tel:${phone}`)
             );
         }

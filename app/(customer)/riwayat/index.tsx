@@ -5,7 +5,7 @@ import tw from 'twrnc';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import { ArrowLeft, Search, Receipt, Router, AlertCircle, XCircle, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Search, Receipt, Router, XCircle, CheckCircle } from 'lucide-react-native';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 
@@ -16,7 +16,7 @@ interface Invoice {
   invoiceNumber: string;
   totalAmount: number; // or string depending on API
   status: string; // 'PAID' | 'SENT' | 'OVERDUE' | 'VOID'
-  items: Array<{ description: string }>;
+  items: { description: string }[];
   issueDate: string;
   dueDate: string;
 }

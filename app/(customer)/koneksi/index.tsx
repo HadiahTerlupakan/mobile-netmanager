@@ -1,11 +1,11 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl, ImageBackground } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import { ArrowLeft, RefreshCw, Download, Upload, Activity, Zap, Power, Wrench, Lightbulb, Wifi, Router } from 'lucide-react-native';
+import { ArrowLeft, RefreshCw, Download, Upload, Activity, Zap, Power, Wrench, Lightbulb } from 'lucide-react-native';
 
 const fetchUsage = async () => {
   const res = await api.get('/api/customer/usage');

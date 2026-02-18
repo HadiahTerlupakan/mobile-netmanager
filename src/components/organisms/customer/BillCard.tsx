@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import tw from 'twrnc';
-import { CreditCard, Wallet, Calendar } from 'lucide-react-native';
+import { Wallet, Calendar } from 'lucide-react-native';
 
 interface BillCardProps {
   amount: number;
@@ -11,9 +11,6 @@ interface BillCardProps {
 }
 
 export function BillCard({ amount, status, dueDate, invoiceNumber }: BillCardProps) {
-  const { width } = useWindowDimensions();
-  const isSmallScreen = width < 380;
-
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',

@@ -69,19 +69,12 @@ const CustomerItem = memo(({ item, onDismantle }: { item: MixRadiusCustomer, onD
       let formattedPhone = phone.replace(/\D/g, '');
       if (formattedPhone.startsWith('0')) {
         formattedPhone = '62' + formattedPhone.substring(1);
-      }
-      if (formattedPhone.startsWith('8')) {
+      } else if (formattedPhone.startsWith('8')) {
         formattedPhone = '62' + formattedPhone;
       }
 
       const whatsappUrl = `whatsapp://send?phone=${formattedPhone}`;
-      Linking.canOpenURL(whatsappUrl).then(supported => {
-        if (supported) {
-          Linking.openURL(whatsappUrl);
-        } else {
-          Linking.openURL(`tel:${phone}`);
-        }
-      }).catch(() => {
+      Linking.openURL(whatsappUrl).catch(() => {
         Linking.openURL(`tel:${phone}`);
       });
     }

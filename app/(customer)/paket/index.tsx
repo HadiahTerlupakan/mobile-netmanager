@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl, ImageBackground } from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import { ArrowLeft, Wifi, Download, Upload, Calendar, Router, MapPin, CheckCircle, XCircle } from 'lucide-react-native';
+import { ArrowLeft, Wifi, Download, Upload, Calendar, Router, MapPin, CheckCircle } from 'lucide-react-native';
 
 const fetchProfile = async () => {
   const res = await api.get('/api/customer/profile');
