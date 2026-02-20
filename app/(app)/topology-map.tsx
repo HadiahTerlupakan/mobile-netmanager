@@ -359,8 +359,6 @@ const AnimatedConnectionLines = React.memo(
       >
         <MapLibreGL.LineLayer
           id="linesLayer"
-          // Ensure lines are rendered at the bottom, just above the satellite tiles
-          aboveLayerID="google-satellite-tiles"
           style={{
             lineColor: ["get", "color"],
             lineWidth: 4,
@@ -650,18 +648,26 @@ export default function TopologyMapScreen() {
         }
 
         try {
-          // Check if path is absolute
-          const url = file.kmlPath.startsWith("http")
+          // Fetch KML string, handling absolute vs relative paths
+          let text: string;
+          const isAbsolute = file.kmlPath.startsWith("http");
+          const url = isAbsolute
             ? file.kmlPath
-            : `${api.defaults.baseURL}${file.kmlPath.startsWith("/") ? "" : "/"}${file.kmlPath}`;
+            : `${api.defaults.baseURL || ''}${file.kmlPath.startsWith("/") ? "" : "/"}${file.kmlPath}`;
 
           logger.info(`Fetching KML from: ${url}`);
 
           // Use requestAnimationFrame to prevent blocking
           await new Promise((resolve) => requestAnimationFrame(resolve));
 
-          const response = await fetch(url);
-          const text = await response.text();
+          if (isAbsolute) {
+            const response = await fetch(url);
+            text = await response.text();
+          } else {
+            // Gunakan `api.get` agar token dikirim di header untuk file internal/private
+            const response = await api.get(file.kmlPath, { responseType: 'text' });
+            text = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+          }
 
           // Parse in next tick to avoid blocking main thread
           await new Promise((resolve) => setTimeout(resolve, 0));
@@ -1566,8 +1572,6 @@ export default function TopologyMapScreen() {
             <MapLibreGL.ShapeSource id="kmzSource" shape={kmzGeoJson as any}>
               <MapLibreGL.LineLayer
                 id="kmzLineLayer"
-                // Place KMZ lines above regular connection lines
-                aboveLayerID="linesLayer"
                 style={{
                   lineColor: ["get", "color"],
                   lineWidth: 3,
