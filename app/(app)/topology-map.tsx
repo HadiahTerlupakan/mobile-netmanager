@@ -53,6 +53,8 @@ import { FilterPanel } from "@/components/organisms/topology/FilterPanel";
 import { TopologyErrorBoundary } from "@/components/organisms/topology/TopologyErrorBoundary";
 import { WebMapView } from "@/components/organisms/topology/WebMapView";
 import tw from "twrnc";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 // Get MapLibre (will be null in Expo Go)
 const MapLibreGL = getMapLibre();
@@ -372,6 +374,8 @@ const AnimatedConnectionLines = React.memo(
 AnimatedConnectionLines.displayName = 'AnimatedConnectionLines';
 
 export default function TopologyMapScreen() {
+  useFeatureGuard(AppFeature.TOPOLOGY);
+
   const router = useRouter();
   const { token } = useAuth();
 
@@ -940,6 +944,7 @@ export default function TopologyMapScreen() {
         features.push({
           type: "Feature",
           properties: {
+            edgeId: edge.id,
             color: color,
             sourceName: sourceFeature.properties?.name || "Unknown",
             targetName: targetFeature.properties?.name || "Unknown",
@@ -964,17 +969,53 @@ export default function TopologyMapScreen() {
     return { type: "FeatureCollection", features: kmzFeatures };
   }, [visibility.kmz, kmzFeatures]);
 
+  const deleteEdge = useCallback(async (edgeId: string) => {
+    try {
+      await api.delete(`/api/map/edges/${edgeId}`);
+      Alert.alert("Berhasil", "Jalur fiber berhasil dihapus");
+      fetchData();
+    } catch (error) {
+      logger.error("topology", "Failed to delete edge", { edgeId, error });
+      const { message } = getUserFriendlyError(error);
+      Alert.alert("Error", message || "Gagal menghapus jalur fiber");
+    }
+  }, [fetchData]);
+
   const onLineSelected = useCallback((event: any) => {
     const feature = event.features[0];
     if (!feature) return;
 
-    const { sourceName, targetName, distance } = feature.properties;
+    const { edgeId, sourceName, targetName, distance } = feature.properties;
     Alert.alert(
       "Info Jalur Kabel",
       `Dari: ${sourceName}\nKe: ${targetName}\nJarak Estimasi: ${distance || "?"}`,
-      [{ text: "Tutup" }]
+      [
+        { text: "Tutup" },
+        {
+          text: "Hapus",
+          style: "destructive",
+          onPress: () => {
+            if (edgeId) {
+              Alert.alert(
+                "Konfirmasi",
+                "Apakah Anda yakin ingin menghapus jalur fiber ini?",
+                [
+                  { text: "Batal", style: "cancel" },
+                  {
+                    text: "Hapus",
+                    style: "destructive",
+                    onPress: () => deleteEdge(edgeId),
+                  },
+                ]
+              );
+            } else {
+              Alert.alert("Error", "ID jalur fiber tidak ditemukan");
+            }
+          },
+        },
+      ]
     );
-  }, []);
+  }, [deleteEdge]);
 
   const onAnnotationSelected = useCallback((feature: GeoJSONFeature) => {
     const {
@@ -1328,6 +1369,7 @@ export default function TopologyMapScreen() {
       coordinates.push([targetDevice.longitude, targetDevice.latitude]);
 
       return {
+        id: edge.id,
         coordinates,
         color: edge.color || '#FF0000',
         sourceName: sourceDevice.name,

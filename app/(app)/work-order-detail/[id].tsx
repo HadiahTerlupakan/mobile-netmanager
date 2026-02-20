@@ -49,8 +49,12 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 export default function WorkOrderDetailScreen() {
+  useFeatureGuard(AppFeature.WORK_ORDER);
+
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { token, user } = useAuth();

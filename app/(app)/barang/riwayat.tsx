@@ -12,10 +12,14 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 type FilterType = 'all' | 'masuk' | 'keluar';
 
 export default function RiwayatBarangScreen() {
+  useFeatureGuard(AppFeature.BARANG);
+
     const router = useRouter();
     const { token } = useAuth();
     const [filter, setFilter] = useState<FilterType>('all');

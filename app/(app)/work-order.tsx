@@ -31,6 +31,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { AppFeature } from '@/constants/features';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 
 type TabType = "tersedia" | "aktif" | "riwayat";
 
@@ -305,6 +307,7 @@ function WorkOrderScreenContent() {
 }
 
 export default function WorkOrderScreen() {
+  useFeatureGuard(AppFeature.WORK_ORDER);
   return (
     <ScreenErrorBoundary screenName="WorkOrder">
       <WorkOrderScreenContent />

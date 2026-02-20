@@ -34,6 +34,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 interface QuickAction {
   title: string;
@@ -111,6 +113,8 @@ interface Department {
 }
 
 export default function RequestWorkOrderScreen() {
+  useFeatureGuard(AppFeature.WORK_ORDER);
+
   const router = useRouter();
 
   // WO Mode: Customer vs Internal

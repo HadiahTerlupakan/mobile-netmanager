@@ -1,3 +1,4 @@
+import { AppFeature } from '@/constants/features';
 import { Href, useRouter } from "expo-router";
 import {
   Banknote,
@@ -41,7 +42,7 @@ const MENU_ITEMS: MenuItem[] = [
     color: "bg-sky-50",
     iconColor: "#0284c7",
     route: "/(app)/request-work-order",
-    requiredFeatures: ["m_work_order"], // Permission validated: m_work_order
+    requiredFeatures: [AppFeature.WORK_ORDER], // Permission validated: m_work_order
   },
   {
     title: "Topology Map",
@@ -50,7 +51,7 @@ const MENU_ITEMS: MenuItem[] = [
     color: "bg-cyan-50",
     iconColor: "#0891b2",
     route: "/(app)/topology-map",
-    requiredFeatures: ["m_topology"],
+    requiredFeatures: [AppFeature.TOPOLOGY],
   },
   {
     title: "Barang Keluar",
@@ -59,7 +60,7 @@ const MENU_ITEMS: MenuItem[] = [
     color: "bg-orange-50",
     iconColor: "#ea580c",
     route: "/(app)/barang/keluar",
-    requiredFeatures: ["m_barang_keluar"],
+    requiredFeatures: [AppFeature.BARANG_KELUAR],
   },
   {
     title: "Izin & Cuti",
@@ -68,7 +69,7 @@ const MENU_ITEMS: MenuItem[] = [
     color: "bg-teal-50",
     iconColor: "#0d9488",
     route: "/(app)/izin",
-    requiredFeatures: ["m_izin"],
+    requiredFeatures: [AppFeature.IZIN],
   },
 
   {
@@ -78,7 +79,7 @@ const MENU_ITEMS: MenuItem[] = [
     color: "bg-indigo-50",
     iconColor: "#4f46e5",
     route: "/(app)/lembur",
-    requiredFeatures: ["m_lembur"],
+    requiredFeatures: [AppFeature.LEMBUR],
   },
   {
     title: "Chat",
@@ -87,7 +88,7 @@ const MENU_ITEMS: MenuItem[] = [
     color: "bg-purple-50",
     iconColor: "#9333ea",
     route: "/(app)/chat",
-    requiredFeatures: ["m_chat"],
+    requiredFeatures: [AppFeature.CHAT],
   },
   {
     title: "Kalender Libur",
@@ -96,7 +97,7 @@ const MENU_ITEMS: MenuItem[] = [
     color: "bg-red-50",
     iconColor: "#dc2626",
     route: "/(app)/holidays",
-    requiredFeatures: ["m_holidays"],
+    requiredFeatures: [AppFeature.HOLIDAYS],
   },
   {
     title: "Canvasing",
@@ -105,7 +106,7 @@ const MENU_ITEMS: MenuItem[] = [
     color: "bg-blue-50",
     iconColor: "#2563eb",
     route: "/(app)/marketing/canvasing",
-    requiredFeatures: ["m_canvasing"],
+    requiredFeatures: [AppFeature.CANVASING],
     requiresSales: true,
   },
   {
@@ -115,7 +116,7 @@ const MENU_ITEMS: MenuItem[] = [
     color: "bg-red-100",
     iconColor: "#dc2626",
     route: "/(app)/mixradius/isolir",
-    requiredFeatures: ["m_mixradius"],
+    requiredFeatures: [AppFeature.MIXRADIUS],
   },
 ];
 

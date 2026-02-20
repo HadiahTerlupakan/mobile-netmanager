@@ -32,6 +32,8 @@ import { ActivityIndicator, Alert, Modal, RefreshControl, Text, TextInput, Touch
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 interface Overtime {
   id: string;
@@ -118,6 +120,8 @@ const DigitalClock = React.memo(() => {
 DigitalClock.displayName = 'DigitalClock';
 
 export default function LemburScreen() {
+  useFeatureGuard(AppFeature.LEMBUR);
+
   const { user, token } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);

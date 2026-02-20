@@ -16,8 +16,12 @@ import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 export default function ConversationScreen() {
+  useFeatureGuard(AppFeature.CHAT);
+
     const router = useRouter();
     const { conversationId } = useLocalSearchParams<{ conversationId: string }>();
     const { user } = useAuth();

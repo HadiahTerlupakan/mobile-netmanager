@@ -24,6 +24,8 @@ import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 interface Gudang {
   id: string;
@@ -55,6 +57,8 @@ const KONDISI_OPTIONS = [
 ];
 
 export default function BarangKeluarScreen() {
+  useFeatureGuard(AppFeature.BARANG_KELUAR);
+
   const router = useRouter();
   const { token, user } = useAuth();
 

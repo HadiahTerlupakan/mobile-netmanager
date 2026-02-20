@@ -36,6 +36,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 // Helper to safely parse dates
 const safeDate = (dateString?: string): Date | null => {
@@ -173,6 +175,8 @@ const CustomerItem = memo(({ item, onDismantle }: { item: MixRadiusCustomer, onD
 CustomerItem.displayName = 'CustomerItem';
 
 export default function MixRadiusIsolirScreen() {
+  useFeatureGuard(AppFeature.MIXRADIUS);
+
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState("");
   const [hasSelected, setHasSelected] = useState(false);

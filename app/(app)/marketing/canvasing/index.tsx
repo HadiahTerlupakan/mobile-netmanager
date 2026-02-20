@@ -18,6 +18,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { AppFeature } from '@/constants/features';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 
 interface PointClaim {
     id: string;
@@ -180,6 +182,7 @@ const CanvasingItem = React.memo(({
 CanvasingItem.displayName = 'CanvasingItem';
 
 export default function CanvasingListScreen() {
+  useFeatureGuard(AppFeature.CANVASING);
   const router = useRouter();
   const { token } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");

@@ -17,6 +17,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 // Memoized User Item
 const UserItem = React.memo(({ item, isSelected, onToggle }: { item: ChatUser, isSelected: boolean, onToggle: (id: string) => void }) => {
@@ -51,6 +53,8 @@ const UserItem = React.memo(({ item, isSelected, onToggle }: { item: ChatUser, i
 UserItem.displayName = 'UserItem';
 
 export default function NewChatScreen() {
+  useFeatureGuard(AppFeature.CHAT);
+
     const router = useRouter();
 
     const [selectedUsers, setSelectedUsers] = useState<string[]>([]);

@@ -14,6 +14,7 @@ import tw from "twrnc";
 import { useAuth } from "@/context/AuthContext";
 import { logger } from "@/utils/logger";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppFeature } from "@/constants/features";
 
 export default function AppLayout() {
   const router = useRouter();
@@ -27,7 +28,7 @@ export default function AppLayout() {
   }
 
   // Helper to check features
-  const hasFeature = (feature: string) => {
+  const hasFeature = (feature: AppFeature | string) => {
     if (!user) return false;
     if (user.role === "SUPER_ADMIN") return true; // Safety fallback
     return user.features?.includes(feature) ?? false;
@@ -57,9 +58,9 @@ export default function AppLayout() {
     resumeTrackingIfNeeded();
   }, [token]);
 
-  const handleTabPress = (e: any, feature: string) => {
+  const handleTabPress = (e: any, feature: AppFeature | string) => {
     // Check for leave status
-    if (user?.isOnLeave && feature !== "m_dashboard") {
+    if (user?.isOnLeave && feature !== AppFeature.DASHBOARD) {
       e.preventDefault();
       Alert.alert(
         "Mode Cuti Aktif",
@@ -72,7 +73,7 @@ export default function AppLayout() {
       return;
     }
 
-    if (feature !== "profile" && !hasFeature(feature)) {
+    if (feature !== AppFeature.PROFILE && !hasFeature(feature)) {
       e.preventDefault();
       Alert.alert(
         "Akses Terbatas",
@@ -82,7 +83,7 @@ export default function AppLayout() {
     }
   };
 
-  const getIconColor = (color: string, feature: string) => {
+  const getIconColor = (color: string, feature: AppFeature | string) => {
     return hasFeature(feature) ? color : "#9ca3af"; // gray-400 if locked
   };
 
@@ -107,24 +108,24 @@ export default function AppLayout() {
           options={{
             title: "Beranda",
             tabBarIcon: ({ color }) => (
-              <Home size={24} color={getIconColor(color, "m_dashboard")} />
+              <Home size={24} color={getIconColor(color, AppFeature.DASHBOARD)} />
             ),
           }}
           listeners={{
-            tabPress: (e) => handleTabPress(e, "m_dashboard"),
+            tabPress: (e) => handleTabPress(e, AppFeature.DASHBOARD),
           }}
         />
         <Tabs.Screen
           name="work-order"
           options={{
             title: "Work Order",
-            href: hasFeature("m_work_order") ? "/work-order" : null,
+            href: hasFeature(AppFeature.WORK_ORDER) ? "/work-order" : null,
             tabBarIcon: ({ color }) => (
               <ClipboardList size={24} color={color} />
             ),
           }}
           listeners={{
-            tabPress: (e) => handleTabPress(e, "m_work_order"),
+            tabPress: (e) => handleTabPress(e, AppFeature.WORK_ORDER),
           }}
         />
         <Tabs.Screen
@@ -132,18 +133,18 @@ export default function AppLayout() {
           options={{
             title: "Canvasing",
             href:
-              hasFeature("m_canvasing") && user?.isSales
+              hasFeature(AppFeature.CANVASING) && user?.isSales
                 ? "/marketing/canvasing"
                 : null,
             tabBarIcon: ({ color }) => (
               <DollarSign
                 size={24}
-                color={getIconColor(color, "m_canvasing")}
+                color={getIconColor(color, AppFeature.CANVASING)}
               />
             ),
           }}
           listeners={{
-            tabPress: (e) => handleTabPress(e, "m_canvasing"),
+            tabPress: (e) => handleTabPress(e, AppFeature.CANVASING),
           }}
         />
         <Tabs.Screen
@@ -153,12 +154,12 @@ export default function AppLayout() {
             tabBarIcon: ({ color }) => (
               <Package
                 size={24}
-                color={hasFeature("m_barang") ? color : "#9ca3af"}
+                color={hasFeature(AppFeature.BARANG) ? color : "#9ca3af"}
               />
             ),
           }}
           listeners={{
-            tabPress: (e) => handleTabPress(e, "m_barang"),
+            tabPress: (e) => handleTabPress(e, AppFeature.BARANG),
           }}
         />
         <Tabs.Screen
@@ -166,11 +167,11 @@ export default function AppLayout() {
           options={{
             title: "Absensi",
             tabBarIcon: ({ color }) => (
-              <ScanLine size={24} color={getIconColor(color, "m_absensi")} />
+              <ScanLine size={24} color={getIconColor(color, AppFeature.ABSENSI)} />
             ),
           }}
           listeners={{
-            tabPress: (e) => handleTabPress(e, "m_absensi"),
+            tabPress: (e) => handleTabPress(e, AppFeature.ABSENSI),
           }}
         />
         <Tabs.Screen
@@ -180,7 +181,7 @@ export default function AppLayout() {
             tabBarIcon: ({ color }) => <User size={24} color={color} />,
           }}
           listeners={{
-            tabPress: (e) => handleTabPress(e, "profile"),
+            tabPress: (e) => handleTabPress(e, AppFeature.PROFILE),
           }}
         />
 

@@ -12,6 +12,8 @@ import tw from 'twrnc';
 import { queryKeys } from '@/lib/queryClient';
 import { logger } from '@/utils/logger';
 import { useQueryClient } from '@tanstack/react-query';
+import { AppFeature } from '@/constants/features';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -31,6 +33,7 @@ interface MenuItem {
 }
 
 export default function BarangIndexScreen() {
+  useFeatureGuard(AppFeature.BARANG);
     const router = useRouter();
     const { token } = useAuth();
     const queryClient = useQueryClient();

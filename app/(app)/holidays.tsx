@@ -19,6 +19,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 interface Holiday {
     id: string;
@@ -28,6 +30,8 @@ interface Holiday {
 }
 
 export default function HolidaysScreen() {
+  useFeatureGuard(AppFeature.HOLIDAYS);
+
     const router = useRouter();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedHoliday, setSelectedHoliday] = useState<Holiday | null>(null);

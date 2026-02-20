@@ -33,6 +33,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 interface Barang {
   id: string;
@@ -121,6 +123,8 @@ const SelectedBarangItem = React.memo(({ item, onUpdate }: { item: SelectedItem,
 SelectedBarangItem.displayName = 'SelectedBarangItem';
 
 export default function KembalikanBarangScreen() {
+  useFeatureGuard(AppFeature.BARANG);
+
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const workOrderId = id;

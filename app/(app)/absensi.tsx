@@ -38,6 +38,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
+import { AppFeature } from '@/constants/features';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 
 // --- Types ---
 interface GeofenceZone {
@@ -231,6 +233,7 @@ const GeofenceWarning = React.memo(({ visible, onCancel, onContinue, geofenceSta
 GeofenceWarning.displayName = 'GeofenceWarning';
 
 export default function AbsensiScreen() {
+  useFeatureGuard(AppFeature.ABSENSI);
   const { user, token } = useAuth();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);

@@ -11,6 +11,8 @@ import { RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 interface GlobalChat {
     id: string;
@@ -60,6 +62,8 @@ const ConversationItem = React.memo(({ item, onPress }: { item: ChatConversation
 ConversationItem.displayName = 'ConversationItem';
 
 export default function ChatListScreen() {
+  useFeatureGuard(AppFeature.CHAT);
+
     const router = useRouter();
     const { user } = useAuth();
 

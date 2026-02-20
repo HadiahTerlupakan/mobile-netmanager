@@ -11,10 +11,14 @@ import tw from 'twrnc';
 import { Canvasing, CanvasingClaim } from '@/types/marketing';
 import { getUserFriendlyError } from '@/utils/errorHandling';
 import { ComponentProps } from 'react';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
 export default function CanvasingDetailScreen() {
+  useFeatureGuard(AppFeature.CANVASING);
+
     const { id } = useLocalSearchParams();
     const router = useRouter();
     const { token } = useAuth();

@@ -21,6 +21,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 interface LeaveRequest {
   id: string;
@@ -92,6 +94,8 @@ const LeaveItem = React.memo(({ item }: { item: LeaveRequest }) => {
 LeaveItem.displayName = 'LeaveItem';
 
 export default function IzinScreen() {
+  useFeatureGuard(AppFeature.IZIN);
+
   const { token } = useAuth();
   const router = useRouter();
 

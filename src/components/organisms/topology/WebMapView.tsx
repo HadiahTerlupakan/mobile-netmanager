@@ -29,6 +29,7 @@ interface WebMapViewProps {
     properties?: Record<string, any>;
   }[];
   lines: {
+    id?: string;
     coordinates: [number, number][];
     color: string;
     sourceName?: string;

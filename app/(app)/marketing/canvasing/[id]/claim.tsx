@@ -13,8 +13,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 export default function ClaimPointScreen() {
+  useFeatureGuard(AppFeature.CANVASING);
+
     const { id } = useLocalSearchParams();
     const router = useRouter();
     const queryClient = useQueryClient();

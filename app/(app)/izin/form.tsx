@@ -28,6 +28,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
 
 import { MarkedDates } from "react-native-calendars/src/types";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 const LEAVE_TYPES = [
   { value: "SAKIT", label: "Sakit" },
@@ -37,6 +39,8 @@ const LEAVE_TYPES = [
 ];
 
 export default function LeaveFormScreen() {
+  useFeatureGuard(AppFeature.IZIN);
+
   const { user } = useAuth();
   const router = useRouter();
 

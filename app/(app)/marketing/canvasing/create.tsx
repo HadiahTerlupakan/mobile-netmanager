@@ -31,8 +31,12 @@ import React, { useRef, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TextInputProps, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { AppFeature } from '@/constants/features';
 
 export default function CreateCanvasingScreen() {
+  useFeatureGuard(AppFeature.CANVASING);
+
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
