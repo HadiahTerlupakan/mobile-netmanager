@@ -132,6 +132,7 @@ export function useAppVersion(): UseAppVersionState {
                 latestVersion.id,
                 filename,
                 latestVersion.hash,
+                latestVersion.downloadUrl,
                 (progress) => {
                     setDownloadProgress(progress)
                 }
@@ -145,9 +146,16 @@ export function useAppVersion(): UseAppVersionState {
             setDownloadStatus('installing')
 
             // Try to install
-            await appVersionService.installApk(fileUri)
-            // Note: installApk checks permissions internally and might open settings.
-            // If it opens settings, the AppState listener above will catch the return.
+            const isInstalling = await appVersionService.installApk(fileUri)
+            
+            // If installApk returns false, it means it's waiting for permission or failed.
+            // We should NOT reset to idle if it's waiting for permission (pendingApkUri is set).
+            if (isInstalling) {
+                // Keep status as installing while the OS package installer takes over
+            } else if (!appVersionService.getPendingApkUri()) {
+                // If not pending and not installing, it failed.
+                setDownloadStatus('idle')
+            }
 
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Gagal update'
@@ -156,9 +164,6 @@ export function useAppVersion(): UseAppVersionState {
             setDownloadStatus('error')
             return
         }
-
-        // Reset to idle so user can retry
-        setDownloadStatus('idle')
     }, [latestVersion])
 
 
