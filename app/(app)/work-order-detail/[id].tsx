@@ -277,7 +277,7 @@ export default function WorkOrderDetailScreen() {
 
   const handleUpdateStatus = async (action: "START" | "PAUSE" | "COMPLETE") => {
     if (action === "COMPLETE") {
-      router.push(`/(app)/complete-work-order/${id}`);
+      router.push(`/(app)/complete-work-order/${id}` as any);
       return;
     }
 
@@ -1029,7 +1029,7 @@ export default function WorkOrderDetailScreen() {
         {/* Ambil Barang Button - Only for lead technician and approved partners */}
         <TouchableOpacity
           onPress={() =>
-            canInteract && router.push(`/(app)/ambil-barang/${id}`)
+            canInteract && router.push(`/(app)/ambil-barang/${id}` as any)
           }
           disabled={!canInteract}
           style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-blue-50 border-blue-200 active:bg-blue-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
@@ -1050,7 +1050,7 @@ export default function WorkOrderDetailScreen() {
         {(wo.type === "DISCONNECTION" || wo.type === "RELOCATION") && (
           <TouchableOpacity
             onPress={() =>
-              canInteract && router.push(`/(app)/kembalikan-barang/${id}`)
+              canInteract && router.push(`/(app)/kembalikan-barang/${id}` as any)
             }
             disabled={!canInteract}
             style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-green-50 border-green-200 active:bg-green-100" : "bg-gray-100 border-gray-200 opacity-60"}`}

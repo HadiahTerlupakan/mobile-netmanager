@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl, TextInput, ActivityIndicator, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { useRouter } from 'expo-router';
@@ -108,12 +108,24 @@ export default function CustomerTagihanScreen() {
       const res = await api.post('/api/customer/payments', {
         invoiceIds: pendingInvoices.map(inv => inv.id),
         couponCode: appliedDiscount?.code || null,
-        paymentMethod: 'MANUAL',
+        paymentMethod: '', // Kosongkan agar backend gateway manager menentukan provider prioritas
         notes: 'Payment via Mobile App'
       });
       
-      if (res.data.success) {
-        Alert.alert('Berhasil', 'Pembayaran berhasil dibuat! Silakan konfirmasi ke admin.');
+      if (res.data.success || res.status === 200) {
+        if (res.data.paymentUrl) {
+          Alert.alert(
+            'Konfirmasi Pembayaran', 
+            'Anda akan diarahkan ke halaman pembayaran.',
+            [
+              { text: 'Batal', style: 'cancel' },
+              { text: 'Lanjut Bayar', onPress: () => Linking.openURL(res.data.paymentUrl) }
+            ]
+          );
+        } else {
+          Alert.alert('Berhasil', 'Pembayaran berhasil dibuat! Silakan konfirmasi ke admin.');
+        }
+
         refetch();
         setAppliedDiscount(null);
         setCouponCode('');
