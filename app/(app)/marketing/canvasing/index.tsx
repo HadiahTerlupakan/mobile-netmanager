@@ -23,7 +23,9 @@ import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 
 interface PointClaim {
     id: string;
-    status: "PENDING" | "APPROVED" | "REJECTED";
+    status: "PENDING" | "APPROVED" | "INSTALASI" | "COMPLETE" | "CLAIM" | "REJECTED";
+    rejectReason?: string | null;
+    fotoInstalasi?: string | null;
     points: number;
 }
 
@@ -32,7 +34,9 @@ interface CanvasingRequest {
     nama: string;
     alamat: string;
     paket: string;
-    status: "PENDING" | "APPROVED" | "REJECTED";
+    status: "PENDING" | "APPROVED" | "INSTALASI" | "COMPLETE" | "CLAIM" | "REJECTED";
+    rejectReason?: string | null;
+    fotoInstalasi?: string | null;
     createdAt: string;
     workOrder?: {
         status: string;
@@ -77,6 +81,10 @@ interface StatusUI {
 }
 
 // Memoized List Item Component
+import { router } from 'expo-router';
+
+import { useRouter } from 'expo-router';
+
 const CanvasingItem = React.memo(({
     item,
     onPress,
@@ -97,6 +105,7 @@ const CanvasingItem = React.memo(({
   const statusUI = getStatusUI(item.status, item.workOrder?.status);
   
   return (
+    <View style={tw`mb-4`}>
     <TouchableOpacity
       activeOpacity={0.7}
       style={tw`bg-white rounded-3xl p-5 mb-4 shadow-sm border border-gray-100`}
@@ -177,6 +186,23 @@ const CanvasingItem = React.memo(({
         </View>
       </View>
     </TouchableOpacity>
+    
+    {/* Additional Action Buttons for New Statuses */}
+    {item.status === 'INSTALASI' && (
+      <TouchableOpacity 
+        style={tw`bg-amber-500 p-3 rounded-xl items-center mt-[-10px] mb-2 mx-2 shadow-sm z-10`}
+        onPress={() => router.push(`/(app)/marketing/canvasing/${item.id}/complete` as any)}
+      >
+        <Text style={tw`text-white font-bold text-sm`}>Lapor Pemasangan Selesai (Foto & SN)</Text>
+      </TouchableOpacity>
+    )}
+
+    {item.status === 'REJECTED' && item.rejectReason && (
+      <View style={tw`bg-red-50 p-2 rounded-xl mt-[-10px] mb-2 mx-2 border border-red-100`}>
+        <Text style={tw`text-red-600 text-xs italic`}>Alasan Ditolak: {item.rejectReason}</Text>
+      </View>
+    )}
+    </View>
   );
 });
 CanvasingItem.displayName = 'CanvasingItem';
@@ -214,7 +240,7 @@ export default function CanvasingListScreen() {
   });
 
   const requests = useMemo(() => {
-    return data?.pages.flatMap((page: any) => page.data || []) || [];
+    return data?.pages.flatMap((page: any) => page.data?.data || page.data || page || []) || [];
   }, [data]);
 
   const { data: profile, isPending: profilePending } = useApiQuery<UserProfile>({
@@ -272,16 +298,17 @@ export default function CanvasingListScreen() {
       return { color: "text-blue-700", bg: "bg-blue-50", icon: "construct", label: "Dikerjakan" };
     }
     switch (status) {
-      case "APPROVED": return { color: "text-emerald-700", bg: "bg-emerald-50", icon: "checkmark-circle", label: "Disetujui" };
+      case "APPROVED": return { color: "text-blue-700", bg: "bg-blue-50", icon: "checkmark-circle", label: "Disetujui" };
+      case "INSTALASI": return { color: "text-amber-700", bg: "bg-amber-50", icon: "build", label: "Perlu Laporan (Instalasi Selesai)" };
+      case "COMPLETE": return { color: "text-emerald-700", bg: "bg-emerald-50", icon: "checkmark-done", label: "Laporan Selesai" };
+      case "CLAIM": return { color: "text-purple-700", bg: "bg-purple-50", icon: "cash", label: "Komisi Dicairkan" };
       case "REJECTED": return { color: "text-rose-700", bg: "bg-rose-50", icon: "close-circle", label: "Ditolak" };
       default: return { color: "text-amber-700", bg: "bg-amber-50", icon: "time", label: "Pending" };
     }
   }, []);
 
   const canClaimPoints = useCallback((item: CanvasingRequest) => {
-    const woCompleted = !!(item.workOrder?.status && ["COMPLETED", "VERIFIED", "CLOSED"].includes(item.workOrder.status));
-    const hasNoClaim = !item.pointClaims || item.pointClaims.length === 0;
-    return woCompleted && hasNoClaim;
+    return item.status === "COMPLETE";
   }, []);
 
   const hasClaimPending = useCallback((item: CanvasingRequest) => item.pointClaims?.[0]?.status === "PENDING", []);
