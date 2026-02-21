@@ -116,6 +116,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, [token]);
 
+    const fetchProfile = useCallback(async () => {
+        try {
+            logger.auth('Fetching updated profile...');
+            const response = await api.get('/api/mobile/auth/me');
+            const userData = response.data.data;
+            
+            logger.auth('Updating user data in storage with new profile...');
+            await SecureStorage.setItem('user_data', JSON.stringify(userData));
+            setUser(userData);
+        } catch (error) {
+            logger.error('Failed to fetch updated profile', error);
+        }
+    }, []);
+
     const updateUser = useCallback(async (userData: User) => {
         try {
             logger.auth('Updating user data in storage...');
@@ -160,6 +174,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         initialize();
 
         // Listen for unauthorized events
+        const permissionSub = DeviceEventEmitter.addListener(Events.USER_PERMISSIONS_UPDATE, () => {
+            logger.auth('[Auth] Received permissions update event, refreshing profile...');
+            fetchProfile();
+        });
+
         authSubscription = DeviceEventEmitter.addListener(Events.AUTH_UNAUTHORIZED, () => {
             logger.warn('[Auth] Received unauthorized event, logging out...');
             signOut({ skipApi: true });
@@ -170,8 +189,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (authSubscription) {
                 authSubscription.remove();
             }
+            if (permissionSub) {
+                permissionSub.remove();
+            }
         };
-    }, [signOut]);
+    }, [signOut, fetchProfile]);
 
     // Memoize context value to prevent unnecessary re-renders
     const contextValue = useMemo<AuthContextType>(() => ({
