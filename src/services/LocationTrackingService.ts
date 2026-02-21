@@ -26,10 +26,10 @@ const STORAGE_KEY_LAST_SENT = '@last_sent_location'; // New key for movement che
 interface LocationData {
     latitude: number;
     longitude: number;
-    accuracy: number;
-    altitude: number;
-    speed: number;
-    heading: number;
+    accuracy: number | null;
+    altitude: number | null;
+    speed: number | null;
+    heading: number | null;
     batteryLevel?: number;
     isMoving?: boolean;
     recordedAt: string;
@@ -308,22 +308,13 @@ export class LocationTrackingService {
                 return true;
             }
 
-            // Sanitize data for backend Zod validation (replace nulls with 0)
-            const sanitizedData = {
-                ...locationData,
-                accuracy: locationData.accuracy ?? 0,
-                altitude: locationData.altitude ?? 0,
-                speed: locationData.speed ?? 0,
-                heading: locationData.heading ?? 0,
-            };
-
             logger.info(`[LocationTracking] Sending to server...`);
             // Only log summary in prod to save logs space, detailed in DEV
-            if (__DEV__) logger.info(`[LocationTracking] Data:`, JSON.stringify(sanitizedData));
+            if (__DEV__) logger.info(`[LocationTracking] Data:`, JSON.stringify(locationData));
 
-            const response = await api.post(
+            await api.post(
                 `/api/mobile/location`,
-                sanitizedData,
+                locationData,
                 {
                     headers: {
                         'Content-Type': 'application/json'
@@ -332,13 +323,6 @@ export class LocationTrackingService {
                     skipGlobalAuthHandler: true
                 }
             );
-
-            // Handle shouldStopTracking on success response (HTTP 200)
-            if (response.data?.shouldStopTracking) {
-                logger.info(`[LocationTracking] Server requested stop tracking (200 OK)`);
-                await this.stopTracking();
-                return false;
-            }
 
             logger.info(`[LocationTracking] ✅ Location sent successfully!`);
             return true;
@@ -402,20 +386,11 @@ export class LocationTrackingService {
             const token = await SecureStore.getItemAsync(STORAGE_KEY_TOKEN);
             if (!token) return 0;
 
-            // Sanitize all pending locations for backend Zod validation
-            const sanitizedLocations = pending.map(loc => ({
-                ...loc,
-                accuracy: loc.accuracy ?? 0,
-                altitude: loc.altitude ?? 0,
-                speed: loc.speed ?? 0,
-                heading: loc.heading ?? 0,
-            }));
-
             // Optional: Filter duplicates or optimize pending list before sending
             // For now, send all
-            const response = await api.post(
+            await api.post(
                 `/api/mobile/location`,
-                { locations: sanitizedLocations },
+                { locations: pending },
                 {
                     headers: {
                         'Content-Type': 'application/json'
@@ -424,12 +399,6 @@ export class LocationTrackingService {
                     skipGlobalAuthHandler: true
                 }
             );
-
-            // Handle shouldStopTracking during batch sync
-            if (response.data?.shouldStopTracking) {
-                logger.info(`[LocationTracking] Server requested stop tracking during sync (200 OK)`);
-                await this.stopTracking();
-            }
 
             // Clear pending queue
             await Storage.removeItem(STORAGE_KEY_PENDING);
@@ -454,10 +423,10 @@ export class LocationTrackingService {
             return {
                 latitude: location.coords.latitude,
                 longitude: location.coords.longitude,
-                accuracy: location.coords.accuracy ?? 0,
-                altitude: location.coords.altitude ?? 0,
-                speed: location.coords.speed ?? 0,
-                heading: location.coords.heading ?? 0,
+                accuracy: location.coords.accuracy,
+                altitude: location.coords.altitude,
+                speed: location.coords.speed,
+                heading: location.coords.heading,
                 recordedAt: new Date(location.timestamp).toISOString()
             };
         } catch (error) {
@@ -556,10 +525,10 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManage
                 const locationData: LocationData = {
                     latitude: location.coords.latitude,
                     longitude: location.coords.longitude,
-                    accuracy: location.coords.accuracy ?? 0,
-                    altitude: location.coords.altitude ?? 0,
-                    speed: location.coords.speed ?? 0,
-                    heading: location.coords.heading ?? 0,
+                    accuracy: location.coords.accuracy,
+                    altitude: location.coords.altitude,
+                    speed: location.coords.speed,
+                    heading: location.coords.heading,
                     batteryLevel,
                     isMoving,
                     recordedAt: new Date(location.timestamp).toISOString()

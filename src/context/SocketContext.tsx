@@ -155,12 +155,6 @@ export function SocketProvider({ children }: SocketProviderProps) {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
         });
 
-        // Listen for permission updates and notify AuthContext via DeviceEventEmitter
-        addListener('user:permissions_update', (data: any) => {
-            logger.info('[WS] Received user permissions update');
-            DeviceEventEmitter.emit('user:permissions_update');
-        });
-
         // Store cleanup function on socket instance
         (socketInstance as any).cleanup = () => {
             listeners.forEach(({ event, handler }) => {

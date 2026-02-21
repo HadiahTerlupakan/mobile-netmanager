@@ -111,7 +111,6 @@ class AppVersionService {
         versionId: string,
         filename: string,
         expectedHash?: string | null,
-        downloadUrlFromApi?: string | null,
         onProgress?: (progress: DownloadProgress) => void
     ): Promise<string | null> {
         if (Platform.OS !== 'android') {
@@ -120,14 +119,8 @@ class AppVersionService {
 
         try {
             const baseUrl = TenantService.getTenantUrl()
-            let downloadUrl = `${baseUrl}/api/mobile/app-version/download/${versionId}`
-            
-            if (downloadUrlFromApi && (downloadUrlFromApi.startsWith('http://') || downloadUrlFromApi.startsWith('https://'))) {
-                downloadUrl = downloadUrlFromApi;
-            }
-
-            // Use documentDirectory instead of cacheDirectory so Android Package Installer can access it
-            const fileUri = `${FileSystem.documentDirectory}${filename}`
+            const downloadUrl = `${baseUrl}/api/mobile/app-version/download/${versionId}`
+            const fileUri = `${FileSystem.cacheDirectory}${filename}`
 
             await FileSystem.deleteAsync(fileUri, { idempotent: true })
 
@@ -236,8 +229,9 @@ class AppVersionService {
             }
 
             // 2. Jika punya permission, langsung install
+            // Try native module first
             try {
-                // Try native module first
+                // Konversi file:// ke path biasa jika perlu, tapi native module handle itu
                 await installApkNative(fileUri)
                 logger.info('[APK] Native install launch success')
                 return true
