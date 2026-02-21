@@ -26,6 +26,7 @@ export default function CanvasingDetailScreen() {
     const { data: item, isPending, fetchStatus } = useApiQuery<Canvasing>({
         queryKey: [`marketing_canvasing_detail`, String(id)],
         endpoint: `/api/marketing/canvasing/${id}`,
+        select: (data: any) => data?.data || data,
         enabled: !!id && !!token
     });
 
@@ -39,6 +40,7 @@ export default function CanvasingDetailScreen() {
     const { data: claimData } = useApiQuery<ClaimResponse>({
         queryKey: [`marketing_canvasing_claim`, String(id)],
         endpoint: `/api/marketing/canvasing/${id}/claim`,
+        select: (data: any) => data?.data || data,
         enabled: !!id && !!token
     });
 

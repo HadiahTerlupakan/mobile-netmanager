@@ -40,7 +40,14 @@ function formatMessage(prefix: string, message: string, color: string = colors.r
 function safeStringify(obj: unknown): string {
   try {
     if (obj instanceof Error) {
-      return `${obj.message}\n${obj.stack}`;
+      const axiosErr = obj as any;
+      if (axiosErr.isAxiosError) {
+        const status = axiosErr.response?.status || 'Unknown';
+        const url = axiosErr.config?.url || 'Unknown URL';
+        const data = axiosErr.response?.data ? JSON.stringify(axiosErr.response.data) : 'No response data';
+        return `[AxiosError] ${obj.message} | Status: ${status} | URL: ${url} | Response: ${data}`;
+      }
+      return `[Error] ${obj.message}`;
     }
     if (typeof obj === 'object' && obj !== null) {
       return JSON.stringify(obj, (key, value) =>
