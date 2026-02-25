@@ -1,14 +1,14 @@
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
+import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
+import { useAuth } from '@/context/AuthContext';
+import api from '@/services/api';
+import { useQuery } from '@tanstack/react-query';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowRight, CheckCircle, FileText, Headset, History, Receipt, Rocket, Router, Zap } from 'lucide-react-native';
 import React, { useCallback } from 'react';
-import { View, Text, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'expo-router';
-import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/services/api';
-import { Router, Zap, CheckCircle, Receipt, ArrowRight, FileText, History, Rocket, Headset } from 'lucide-react-native';
-import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 
 interface Invoice {
   id: string;
@@ -49,12 +49,18 @@ const fetchDashboardData = async () => {
 export default function CustomerDashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['customer-dashboard-full'],
     queryFn: fetchDashboardData,
     enabled: !!user // Only run if user exists
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const onRefresh = useCallback(() => {
     refetch();
@@ -67,11 +73,11 @@ export default function CustomerDashboardScreen() {
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
       {/* Header */}
-      <DashboardHeader 
-        userName={user?.name || ''} 
+      <DashboardHeader
+        userName={user?.name || ''}
         userImage={user?.image}
-        notificationCount={0} 
-        onNotificationPress={() => {}} 
+        notificationCount={0}
+        onNotificationPress={() => { }}
         onProfilePress={() => router.push('/(customer)/profile')}
       />
 
@@ -97,7 +103,7 @@ export default function CustomerDashboardScreen() {
               <View style={tw`flex-1`}>
                 <Text style={tw`text-lg font-bold text-gray-900`}>Internet Rumah</Text>
                 <Text style={tw`text-sm text-gray-500 mt-0.5`}>{packageName}</Text>
-                
+
                 <View style={tw`flex-row items-center mt-2`}>
                   <View style={tw`w-2.5 h-2.5 mr-2 relative`}>
                     <View style={tw`absolute inset-0 rounded-full opacity-75 ${isOnline ? 'bg-green-400 animate-ping' : 'bg-red-400'}`} />
@@ -136,7 +142,7 @@ export default function CustomerDashboardScreen() {
             <View style={tw`bg-teal-700 p-5 relative`}>
               {/* Decorative Blur Circle */}
               <View style={tw`absolute -right-8 -top-8 w-32 h-32 rounded-full bg-white opacity-10`} />
-              
+
               <View style={tw`flex-row justify-between items-start mb-4`}>
                 <View>
                   <Text style={tw`text-teal-100 text-sm font-medium mb-1`}>Tagihan Bulan Ini</Text>
@@ -158,7 +164,7 @@ export default function CustomerDashboardScreen() {
                 </Text>
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => router.push('/(customer)/tagihan')} // Fixed route
                 style={tw`w-full bg-white py-3 px-4 rounded-lg flex-row items-center justify-center`}
               >
@@ -176,7 +182,7 @@ export default function CustomerDashboardScreen() {
           <Text style={tw`text-lg font-bold text-gray-900 mb-3`}>Menu Cepat</Text>
           <View style={tw`flex-row flex-wrap justify-between`}>
             {/* Detail Layanan */}
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => router.push('/(customer)/paket')}
               style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
             >
@@ -188,7 +194,7 @@ export default function CustomerDashboardScreen() {
             </TouchableOpacity>
 
             {/* Dukungan */}
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => router.push('/(customer)/tickets')}
               style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
             >
@@ -200,7 +206,7 @@ export default function CustomerDashboardScreen() {
             </TouchableOpacity>
 
             {/* Riwayat */}
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => router.push('/(customer)/riwayat')}
               style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
             >
