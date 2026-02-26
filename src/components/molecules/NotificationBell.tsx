@@ -1,9 +1,9 @@
-import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Bell } from 'lucide-react-native';
-import tw from 'twrnc';
-import { useRouter } from 'expo-router';
 import { useApiQuery } from '@/hooks/queries';
+import { useRouter } from 'expo-router';
+import { Bell } from 'lucide-react-native';
+import React from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
+import tw from 'twrnc';
 
 interface NotificationBellProps {
     color?: string;
@@ -16,8 +16,8 @@ function NotificationBellComponent({ color = '#ffffff' }: NotificationBellProps)
     const { data } = useApiQuery<{ unreadCount: number }>({
         queryKey: ['notifications', 'unread'],
         endpoint: '/api/mobile/notifications',
-        staleTime: 1000 * 60 * 2, // 2 minutes - consider data fresh
-        refetchInterval: 1000 * 60 * 2, // Refetch every 2 minutes (reduced from 30s)
+        staleTime: 1000 * 60 * 5, // 5 minutes
+        refetchInterval: 1000 * 60 * 15, // Refetch every 15 minutes as a slow fallback (relies on Push Notifications primarily)
         refetchOnWindowFocus: false,
         refetchOnMount: false, // Don't refetch on every mount
     });

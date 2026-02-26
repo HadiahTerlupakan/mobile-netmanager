@@ -1,14 +1,14 @@
+import api from '@/services/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import dayjs from 'dayjs';
+import 'dayjs/locale/id';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { useRouter } from 'expo-router';
+import { AlertCircle, ArrowLeft, CheckCircle, ChevronDown, Clock, Plus, Search, Ticket, User, X, XCircle } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl, TextInput, Modal, ActivityIndicator, Alert } from 'react-native';
+import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { useRouter } from 'expo-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/services/api';
-import { ArrowLeft, Search, Ticket, CheckCircle, Clock, AlertCircle, XCircle, Plus, ChevronDown, X, User } from 'lucide-react-native';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import 'dayjs/locale/id';
 
 dayjs.extend(relativeTime);
 dayjs.locale('id');
@@ -35,7 +35,7 @@ export default function CustomerTicketsScreen() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'ALL' | 'OPEN' | 'CLOSED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Create Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [category, setCategory] = useState('');
@@ -54,12 +54,21 @@ export default function CustomerTicketsScreen() {
       return res.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['customer-tickets'] });
+      // 1. Hide modal first
       setShowCreateModal(false);
-      setCategory('');
-      setSubject('');
-      setDescription('');
-      Alert.alert('Berhasil', `Tiket #${data.ticket.ticketNumber} berhasil dibuat.`);
+
+      // 2. Wait for modal animation to finish (approx 300ms) before touching other states
+      setTimeout(() => {
+        setCategory('');
+        setSubject('');
+        setDescription('');
+        queryClient.invalidateQueries({ queryKey: ['customer-tickets'] });
+
+        // 3. Show success alert after a tiny delay to ensure React commits state
+        setTimeout(() => {
+          Alert.alert('Berhasil', `Tiket #${data.ticket.ticketNumber} berhasil dibuat.`);
+        }, 100);
+      }, 400);
     },
     onError: (error: any) => {
       Alert.alert('Gagal', error.response?.data?.error || 'Gagal membuat tiket');
@@ -71,9 +80,9 @@ export default function CustomerTicketsScreen() {
   }, [refetch]);
 
   const filteredTickets = tickets?.filter(t => {
-    const matchesSearch = t.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          t.subject.toLowerCase().includes(searchQuery.toLowerCase());
-    
+    const matchesSearch = t.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.subject.toLowerCase().includes(searchQuery.toLowerCase());
+
     if (filter === 'ALL') return matchesSearch;
     if (filter === 'OPEN') return matchesSearch && ['OPEN', 'IN_PROGRESS', 'WAITING_CUSTOMER'].includes(t.status);
     if (filter === 'CLOSED') return matchesSearch && ['RESOLVED', 'CLOSED'].includes(t.status);
@@ -116,7 +125,7 @@ export default function CustomerTicketsScreen() {
           </TouchableOpacity>
           <Text style={tw`text-lg font-bold text-gray-900`}>Tiket Bantuan</Text>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => setShowCreateModal(true)}
           style={tw`bg-teal-600 px-3 py-1.5 rounded-lg flex-row items-center`}
         >
@@ -167,13 +176,13 @@ export default function CustomerTicketsScreen() {
           filteredTickets.map((ticket) => {
             const status = getStatusConfig(ticket.status);
             const StatusIcon = status.icon;
-            
+
             return (
               <TouchableOpacity
                 key={ticket.id}
                 onPress={() => {
-                    // Navigate to detail (placeholder for now)
-                    Alert.alert('Info', 'Detail tiket akan segera hadir');
+                  // Navigate to detail (placeholder for now)
+                  Alert.alert('Info', 'Detail tiket akan segera hadir');
                 }}
                 style={tw`bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
               >
@@ -186,19 +195,19 @@ export default function CustomerTicketsScreen() {
                     <Text style={tw`text-xs font-bold ${status.color}`}>{status.label}</Text>
                   </View>
                 </View>
-                
+
                 <Text style={tw`text-base font-bold text-gray-900 mb-1`} numberOfLines={1}>
                   {ticket.subject}
                 </Text>
-                
+
                 <View style={tw`flex-row justify-between items-center mt-3`}>
                   <Text style={tw`text-xs text-gray-500`}>
                     Update: {dayjs(ticket.updatedAt).fromNow()}
                   </Text>
-                  {ticket._count.replies > 0 && (
+                  {ticket._count?.replies > 0 && (
                     <View style={tw`flex-row items-center`}>
                       <View style={tw`bg-blue-100 w-5 h-5 rounded-full items-center justify-center mr-1`}>
-                        <Text style={tw`text-[10px] font-bold text-blue-600`}>{ticket._count.replies}</Text>
+                        <Text style={tw`text-[10px] font-bold text-blue-600`}>{ticket._count?.replies}</Text>
                       </View>
                       <Text style={tw`text-xs text-gray-500`}>Balasan</Text>
                     </View>
@@ -239,7 +248,7 @@ export default function CustomerTicketsScreen() {
                   </Text>
                   <ChevronDown size={20} color="#9ca3af" />
                 </TouchableOpacity>
-                
+
                 {showCategoryDropdown && (
                   <View style={tw`mt-1 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden`}>
                     {categories.map((cat) => (
