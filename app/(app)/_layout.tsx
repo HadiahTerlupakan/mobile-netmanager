@@ -6,15 +6,18 @@ import {
   Package,
   ScanLine,
   User,
+  Wallet,
 } from "lucide-react-native";
 import { Fragment, useEffect } from "react";
 import { Alert } from "react-native";
 import tw from "twrnc";
 
+import { MitraSalesTabBar } from '@/components/organisms/navigation/MitraSalesTabBar';
+import { MitraTeknisiTabBar } from '@/components/organisms/navigation/MitraTeknisiTabBar';
+import { AppFeature } from "@/constants/features";
 import { useAuth } from "@/context/AuthContext";
 import { logger } from "@/utils/logger";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AppFeature } from "@/constants/features";
 
 export default function AppLayout() {
   const router = useRouter();
@@ -25,7 +28,10 @@ export default function AppLayout() {
   logger.info("[Layout] User State loaded");
   if (__DEV__) {
     logger.info("[Layout] isSales:", user?.isSales);
+    logger.info("[Layout] employeeType:", user?.employeeType);
   }
+
+  const isMitra = user?.employeeType === 'MITRA_TEKNISI' || user?.employeeType === 'MITRA_SALES';
 
   // Helper to check features
   const hasFeature = (feature: AppFeature | string) => {
@@ -42,10 +48,10 @@ export default function AppLayout() {
       if (!pathname) return;
 
       const isAllowed = pathname === '/dashboard' || pathname.startsWith('/chat');
-      
+
       if (!isAllowed) {
-         // Redirect to dashboard if user is on restricted screen
-         router.replace('/dashboard');
+        // Redirect to dashboard if user is on restricted screen
+        router.replace('/dashboard');
       }
     }
   }, [user?.isOnLeave, pathname, router]);
@@ -65,13 +71,16 @@ export default function AppLayout() {
       Alert.alert(
         "Mode Cuti Aktif",
         "Fitur ini dinonaktifkan karena Anda sedang cuti.",
-        [{ 
-          text: "OK", 
-          onPress: () => router.replace("/dashboard") 
+        [{
+          text: "OK",
+          onPress: () => router.replace("/dashboard")
         }],
       );
       return;
     }
+
+    // Mitra users have fixed menus — no permission check needed
+    if (isMitra) return;
 
     if (feature !== AppFeature.PROFILE && !hasFeature(feature)) {
       e.preventDefault();
@@ -90,6 +99,11 @@ export default function AppLayout() {
   return (
     <Fragment>
       <Tabs
+        tabBar={(props) => {
+          if (user?.employeeType === 'MITRA_SALES') return <MitraSalesTabBar {...props} />;
+          if (user?.employeeType === 'MITRA_TEKNISI') return <MitraTeknisiTabBar {...props} />;
+          return undefined; // Let Expo Router use default BottomTabBar for Karyawan
+        }}
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
@@ -151,6 +165,7 @@ export default function AppLayout() {
           name="barang"
           options={{
             title: "Barang",
+            href: isMitra ? null : (hasFeature(AppFeature.BARANG) ? "/barang" : null),
             tabBarIcon: ({ color }) => (
               <Package
                 size={24}
@@ -166,6 +181,7 @@ export default function AppLayout() {
           name="absensi"
           options={{
             title: "Absensi",
+            href: isMitra ? null : (hasFeature(AppFeature.ABSENSI) ? "/absensi" : null),
             tabBarIcon: ({ color }) => (
               <ScanLine size={24} color={getIconColor(color, AppFeature.ABSENSI)} />
             ),
@@ -182,6 +198,18 @@ export default function AppLayout() {
           }}
           listeners={{
             tabPress: (e) => handleTabPress(e, AppFeature.PROFILE),
+          }}
+        />
+
+        {/* Mitra Wallet Tab - Only for MITRA users */}
+        <Tabs.Screen
+          name="mitra-wallet"
+          options={{
+            title: "Wallet",
+            href: isMitra ? ("/mitra-wallet" as any) : null,
+            tabBarIcon: ({ color }) => (
+              <Wallet size={24} color={color} />
+            ),
           }}
         />
 
@@ -283,6 +311,15 @@ export default function AppLayout() {
           name="change-password"
           options={{
             href: null,
+          }}
+        />
+
+        {/* Mitra Withdraw - Hidden, accessed from wallet */}
+        <Tabs.Screen
+          name="mitra-withdraw"
+          options={{
+            href: null,
+            tabBarStyle: { display: "none" },
           }}
         />
 

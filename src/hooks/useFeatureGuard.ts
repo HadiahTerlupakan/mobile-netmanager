@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
-import { Alert } from 'react-native';
-import { useAuth } from '@/context/AuthContext';
 import { AppFeature } from '@/constants/features';
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { Alert } from 'react-native';
 
 export function useFeatureGuard(
   requiredFeature: AppFeature | AppFeature[],
@@ -23,6 +23,10 @@ export function useFeatureGuard(
 
     // SUPER_ADMIN has access to everything
     if (user.role === 'SUPER_ADMIN') return;
+
+    // Mitra users have fixed menus — no permission check needed
+    const isMitra = user.employeeType === 'MITRA_TEKNISI' || user.employeeType === 'MITRA_SALES';
+    if (isMitra) return;
 
     // Check if user has required feature(s)
     const featuresArray = Array.isArray(requiredFeature)

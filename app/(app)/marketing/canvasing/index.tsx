@@ -1,54 +1,54 @@
 import { CanvasingSkeleton } from "@/components/molecules/CanvasingSkeleton";
+import { AppFeature } from '@/constants/features';
 import { useAuth } from "@/context/AuthContext";
 import { useApiQuery } from "@/hooks/queries";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { queryKeys } from "@/lib/queryClient";
 import api from "@/services/api"; // Use centralized API
 import { Ionicons } from "@expo/vector-icons";
 import { FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    RefreshControl,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { AppFeature } from '@/constants/features';
-import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 
 interface PointClaim {
-    id: string;
-    status: "PENDING" | "APPROVED" | "REJECTED";
-    points: number;
+  id: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  points: number;
 }
 
 interface CanvasingRequest {
-    id: string;
-    nama: string;
-    alamat: string;
-    paket: string;
-    status: "PENDING" | "APPROVED" | "REJECTED";
-    createdAt: string;
-    workOrder?: {
-        status: string;
-    };
-    pointClaims?: PointClaim[];
+  id: string;
+  nama: string;
+  alamat: string;
+  paket: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  createdAt: string;
+  workOrder?: {
+    status: string;
+  };
+  pointClaims?: PointClaim[];
 }
 
 interface PointSummary {
-    totalPoints: number;
-    pendingClaims: number;
+  totalPoints: number;
+  pendingClaims: number;
 }
 
 interface UserProfile {
-    features: string[];
-    isSales: boolean;
-    canvasingTarget?: number;
+  features: string[];
+  isSales: boolean;
+  canvasingTarget?: number;
 }
 
 // Memoized StatBox to prevent re-renders
@@ -70,75 +70,72 @@ const StatBox = React.memo(({ label, value, icon }: { label: string; value: stri
 StatBox.displayName = 'StatBox';
 
 interface StatusUI {
-    color: string;
-    bg: string;
-    icon: keyof typeof Ionicons.glyphMap;
-    label: string;
+  color: string;
+  bg: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
 }
 
 // Memoized List Item Component
 const CanvasingItem = React.memo(({
-    item,
-    onPress,
-    onClaimPress,
-    getStatusUI,
-    canClaimPoints,
-    hasClaimPending,
-    hasClaimApproved
+  item,
+  onPress,
+  onClaimPress,
+  getStatusUI,
+  canClaimPoints,
+  hasClaimPending,
+  hasClaimApproved
 }: {
-    item: CanvasingRequest;
-    onPress: (id: string) => void;
-    onClaimPress: (id: string) => void;
-    getStatusUI: (status: string, woStatus?: string) => StatusUI;
-    canClaimPoints: (item: CanvasingRequest) => boolean;
-    hasClaimPending: (item: CanvasingRequest) => boolean;
-    hasClaimApproved: (item: CanvasingRequest) => boolean;
+  item: CanvasingRequest;
+  onPress: (id: string) => void;
+  onClaimPress: (id: string) => void;
+  getStatusUI: (status: string, woStatus?: string) => StatusUI;
+  canClaimPoints: (item: CanvasingRequest) => boolean;
+  hasClaimPending: (item: CanvasingRequest) => boolean;
+  hasClaimApproved: (item: CanvasingRequest) => boolean;
 }) => {
   const statusUI = getStatusUI(item.status, item.workOrder?.status);
-  
+
   return (
     <TouchableOpacity
       activeOpacity={0.7}
-      style={tw`bg-white rounded-3xl p-5 mb-4 shadow-sm border border-gray-100`}
+      style={tw`bg-white rounded-[24px] p-4 mb-4 shadow-sm border border-slate-100/80`}
       onPress={() => onPress(item.id)}
     >
-      <View style={tw`flex-row justify-between items-start mb-4`}>
+      <View style={tw`flex-row justify-between items-start mb-3`}>
         <View style={tw`flex-1 mr-3`}>
-          <Text style={tw`text-lg font-bold text-gray-900 mb-1 leading-tight`}>
+          <Text style={tw`text-lg font-black text-slate-800 mb-0.5 leading-tight tracking-tight`}>
             {item.nama}
           </Text>
-          <View style={tw`flex-row items-center`}>
-            <View style={tw`w-2 h-2 rounded-full bg-blue-500 mr-2`} />
-            <Text style={tw`text-blue-600 font-bold text-xs uppercase tracking-tight`}>
-              {item.paket}
-            </Text>
-          </View>
+          <Text style={tw`text-slate-400 font-bold text-[10px] uppercase tracking-widest`}>
+            PAKET {item.paket}
+          </Text>
         </View>
-        <View style={tw`px-3 py-1.5 rounded-xl flex-row items-center ${statusUI.bg}`}>
+        <View style={tw`px-2.5 py-1 rounded-full flex-row items-center border border-white shadow-sm ${statusUI.bg}`}>
           <Ionicons
             name={statusUI.icon}
-            size={14}
+            size={12}
             color={tw.color(statusUI.color.replace("text-", ""))}
           />
-          <Text style={tw`ml-1.5 text-[11px] font-extrabold ${statusUI.color} uppercase`}>
+          <Text style={tw`ml-1.5 text-[10px] font-black ${statusUI.color} uppercase`}>
             {statusUI.label}
           </Text>
         </View>
       </View>
 
-      <View style={tw`bg-gray-50 rounded-2xl p-3 mb-4`}>
-        <View style={tw`flex-row items-start`}>
-          <Ionicons name="location" size={16} color="#4b5563" style={tw`mt-0.5`} />
-          <Text style={tw`text-xs text-gray-600 ml-2 flex-1 leading-4`} numberOfLines={2}>
-            {item.alamat}
-          </Text>
+      <View style={tw`border border-slate-100 bg-slate-50/50 rounded-[16px] p-3 mb-4 flex-row items-center`}>
+        <View style={tw`w-8 h-8 rounded-full bg-white items-center justify-center shadow-sm mr-3 border border-slate-50`}>
+          <Ionicons name="location" size={14} color="#64748b" />
         </View>
+        <Text style={tw`text-xs text-slate-500 flex-1 font-medium leading-relaxed`} numberOfLines={2}>
+          {item.alamat}
+        </Text>
       </View>
 
-      <View style={tw`flex-row items-center justify-between`}>
+      <View style={tw`flex-row items-center justify-between mt-1 pt-3 border-t border-slate-100`}>
         <View style={tw`flex-row items-center`}>
-          <Ionicons name="calendar-outline" size={14} color="#9ca3af" />
-          <Text style={tw`text-[11px] text-gray-400 font-medium ml-1.5`}>
+          <Ionicons name="calendar" size={14} color="#94a3b8" />
+          <Text style={tw`text-[11px] text-slate-400 font-bold ml-1.5 uppercase`}>
             {new Date(item.createdAt).toLocaleDateString("id-ID", {
               day: "2-digit",
               month: "short",
@@ -152,27 +149,27 @@ const CanvasingItem = React.memo(({
             <TouchableOpacity
               onPress={() => onClaimPress(item.id)}
               activeOpacity={0.7}
-              style={tw`flex-row items-center bg-purple-100 px-2 py-1 rounded-lg`}
+              style={tw`flex-row items-center bg-violet-50 px-3 py-1.5 rounded-full border border-violet-100`}
             >
               <Ionicons name="gift" size={14} color="#7c3aed" />
-              <Text style={tw`text-[10px] font-bold text-purple-600 ml-1`}>Claim</Text>
+              <Text style={tw`text-[10px] font-black text-violet-600 ml-1.5 uppercase`}>Klaim</Text>
             </TouchableOpacity>
           )}
           {hasClaimPending(item) && (
-            <View style={tw`flex-row items-center bg-pink-100 px-2 py-1 rounded-lg`}>
-              <Ionicons name="hourglass" size={12} color="#db2777" />
-              <Text style={tw`text-[10px] font-bold text-pink-600 ml-1`}>Pending</Text>
+            <View style={tw`flex-row items-center bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100`}>
+              <Ionicons name="hourglass" size={12} color="#e11d48" />
+              <Text style={tw`text-[10px] font-bold text-rose-600 ml-1.5`}>Menunggu</Text>
             </View>
           )}
           {hasClaimApproved(item) && (
-            <View style={tw`flex-row items-center bg-yellow-100 px-2 py-1 rounded-lg`}>
-              <Ionicons name="star" size={12} color="#d97706" />
-              <Text style={tw`text-[10px] font-bold text-yellow-600 ml-1`}>Diklaim</Text>
+            <View style={tw`flex-row items-center bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100`}>
+              <Ionicons name="star" size={12} color="#059669" />
+              <Text style={tw`text-[10px] font-bold text-emerald-600 ml-1.5`}>Selesai</Text>
             </View>
           )}
-          <View style={tw`flex-row items-center bg-blue-50 px-2 py-1 rounded-lg`}>
-            <Text style={tw`text-[10px] font-bold text-blue-600 mr-1`}>Detail</Text>
-            <Ionicons name="chevron-forward" size={12} color="#2563eb" />
+
+          <View style={tw`w-8 h-8 rounded-full bg-slate-50 items-center justify-center border border-slate-100`}>
+            <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
           </View>
         </View>
       </View>
@@ -289,7 +286,7 @@ export default function CanvasingListScreen() {
 
   const onLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
-        fetchNextPage();
+      fetchNextPage();
     }
   };
 
@@ -317,6 +314,8 @@ export default function CanvasingListScreen() {
   const targetMonthly = profile?.canvasingTarget || 50;
   const progressPerc = Math.min((stats.total / targetMonthly) * 100, 100);
 
+  const insets = useSafeAreaInsets();
+
   if (profilePending || (isPending && !requests)) {
     return <CanvasingSkeleton />;
   }
@@ -328,7 +327,7 @@ export default function CanvasingListScreen() {
           <Ionicons name="lock-closed" size={48} color="#dc2626" />
         </View>
         <Text style={tw`text-xl font-bold text-gray-900 text-center mb-2`}>Akses Terbatas</Text>
-        <TouchableOpacity onPress={() => router.back()} style={tw`bg-indigo-600 px-8 py-3 rounded-xl`}>
+        <TouchableOpacity onPress={() => router.back()} style={tw`bg-emerald-600 px-8 py-3 rounded-xl`}>
           <Text style={tw`text-white font-bold`}>Kembali</Text>
         </TouchableOpacity>
       </View>
@@ -336,42 +335,63 @@ export default function CanvasingListScreen() {
   }
 
   return (
-    <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={["top"]}>
-      <View style={tw`bg-indigo-700 pb-6 px-5 shadow-lg`}>
-        <View style={tw`flex-row items-center justify-between pt-4 mb-6`}>
+    <View style={tw`flex-1 bg-slate-50`}>
+      {/* Dynamic Header - Minimalist, blending into the background */}
+      <View style={[tw`px-5 pb-16 bg-slate-900 rounded-b-[40px]`, { paddingTop: insets.top + 16 }]}>
+        <View style={tw`flex-row items-center justify-between mb-6`}>
           <TouchableOpacity onPress={() => router.back()} style={tw`w-10 h-10 items-center justify-center bg-white/10 rounded-full`}>
             <Ionicons name="chevron-back" size={24} color="white" />
           </TouchableOpacity>
-          <Text style={tw`text-lg font-black text-white uppercase tracking-tighter`}>Dashboard Canvasing</Text>
-          <TouchableOpacity onPress={() => router.push("/(app)/marketing/canvasing/create")} style={tw`w-10 h-10 items-center justify-center bg-indigo-500 rounded-full shadow-md`}>
+          <Text style={tw`text-lg font-black text-white tracking-widest`}>CANVASING</Text>
+          <TouchableOpacity onPress={() => router.push("/(app)/marketing/canvasing/create")} style={tw`w-10 h-10 items-center justify-center bg-emerald-500 rounded-full shadow-md`}>
             <Ionicons name="add" size={28} color="white" />
           </TouchableOpacity>
         </View>
-
-        <View style={tw`flex-row items-center justify-between mb-6`}>
-          <View>
-            <Text style={tw`text-indigo-200 text-xs font-bold uppercase tracking-widest`}>Poin Terkumpul</Text>
-            <View style={tw`flex-row items-end`}>
-              <Text style={tw`text-white text-4xl font-black italic`}>{stats.points}</Text>
-              <Text style={tw`text-indigo-200 text-xs font-bold mb-1.5 ml-1`}>PTS</Text>
-            </View>
-          </View>
-          <View style={tw`items-end`}>
-            <View style={tw`bg-white/20 px-3 py-1 rounded-full mb-1`}>
-              <Text style={tw`text-white text-[10px] font-bold`}>TARGET BULANAN</Text>
-            </View>
-            <Text style={tw`text-white text-lg font-black`}>{stats.total} / {targetMonthly}</Text>
+        <View style={tw`items-center`}>
+          <Text style={tw`text-slate-400 font-bold tracking-widest text-xs mb-1`}>TOTAL POIN</Text>
+          <View style={tw`flex-row items-end`}>
+            <Text style={tw`text-5xl font-black text-white tracking-tighter`}>{stats.points}</Text>
+            <Text style={tw`text-emerald-400 font-bold mb-2 ml-1`}>PTS</Text>
           </View>
         </View>
+      </View>
 
-        <View style={tw`h-2 bg-indigo-900/50 rounded-full overflow-hidden mb-6`}>
-          <View style={[tw`h-full bg-emerald-400 rounded-full shadow-sm`, { width: `${progressPerc}%` }]} />
-        </View>
+      {/* Floating Target Card Overlapping Header */}
+      <View style={tw`px-5 -mt-10 z-10`}>
+        <View style={tw`bg-white rounded-[32px] p-6 shadow-sm border border-slate-100`}>
+          <View style={tw`flex-row items-center justify-between mb-4`}>
+            <View>
+              <Text style={tw`text-slate-400 text-xs font-bold uppercase`}>Progress Target</Text>
+              <Text style={tw`text-slate-800 text-xl font-black`}>{stats.total} <Text style={tw`text-slate-400 text-sm`}>/ {targetMonthly}</Text></Text>
+            </View>
+            <View style={tw`bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100`}>
+              <Text style={tw`text-emerald-600 font-black text-xs`}>{Math.round(progressPerc)}%</Text>
+            </View>
+          </View>
 
-        <View style={tw`flex-row gap-3`}>
-          <StatBox label="APPROVED" value={stats.approved} icon="checkmark-done" />
-          <StatBox label="CONV RATE" value={`${stats.rate}%`} icon="trending-up" />
-          <StatBox label="PENDING" value={stats.pending} icon="hourglass" />
+          {/* Sleek rounded progress bar */}
+          <View style={tw`h-3 bg-slate-100 rounded-full overflow-hidden mb-6`}>
+            <View style={[tw`h-full bg-emerald-500 rounded-full`, { width: `${progressPerc}%` }]} />
+          </View>
+
+          {/* Micro Cards for Sub-stats */}
+          <View style={tw`flex-row justify-between gap-3`}>
+            <View style={tw`flex-1 bg-emerald-50 rounded-2xl p-3 border border-emerald-100/50`}>
+              <Ionicons name="checkmark-circle" size={16} color="#059669" style={tw`mb-1`} />
+              <Text style={tw`text-emerald-800 font-black text-lg`}>{stats.approved}</Text>
+              <Text style={tw`text-emerald-600/70 text-[10px] uppercase font-bold`}>Approved</Text>
+            </View>
+            <View style={tw`flex-1 bg-blue-50 rounded-2xl p-3 border border-blue-100/50`}>
+              <Ionicons name="trending-up" size={16} color="#2563eb" style={tw`mb-1`} />
+              <Text style={tw`text-blue-800 font-black text-lg`}>{stats.rate}%</Text>
+              <Text style={tw`text-blue-600/70 text-[10px] uppercase font-bold`}>Win Rate</Text>
+            </View>
+            <View style={tw`flex-1 bg-amber-50 rounded-2xl p-3 border border-amber-100/50`}>
+              <Ionicons name="hourglass" size={16} color="#d97706" style={tw`mb-1`} />
+              <Text style={tw`text-amber-800 font-black text-lg`}>{stats.pending}</Text>
+              <Text style={tw`text-amber-600/70 text-[10px] uppercase font-bold`}>Pending</Text>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -412,9 +432,9 @@ export default function CanvasingListScreen() {
           }
           ListFooterComponent={
             isFetchingNextPage ? (
-                <View style={tw`py-4`}>
-                    <ActivityIndicator size="small" color="#2563eb" />
-                </View>
+              <View style={tw`py-4`}>
+                <ActivityIndicator size="small" color="#2563eb" />
+              </View>
             ) : null
           }
           ListEmptyComponent={
@@ -430,6 +450,6 @@ export default function CanvasingListScreen() {
           }
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }

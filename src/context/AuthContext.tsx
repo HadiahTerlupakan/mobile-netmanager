@@ -1,7 +1,7 @@
 import { Events } from '@/constants/Events';
 import { registerForPushNotificationsAsync } from '@/services/PushNotificationService';
-import { TokenService } from '@/services/TokenService';
 import { RefreshTokenService } from '@/services/RefreshTokenService';
+import { TokenService } from '@/services/TokenService';
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { SecureStorage } from '@/utils/storage';
@@ -15,6 +15,7 @@ export type User = {
     email: string;
     role: string;
     features?: string[];
+    employeeType?: 'KARYAWAN' | 'MITRA_TEKNISI' | 'MITRA_SALES';
     isSales?: boolean;
     image?: string | null;
     workDays?: string | null;
@@ -121,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logger.auth('Fetching updated profile...');
             const response = await api.get('/api/mobile/auth/me');
             const userData = response.data.data;
-            
+
             logger.auth('Updating user data in storage with new profile...');
             await SecureStorage.setItem('user_data', JSON.stringify(userData));
             setUser(userData);

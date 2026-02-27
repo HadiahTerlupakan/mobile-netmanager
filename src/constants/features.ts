@@ -32,6 +32,10 @@ export enum AppFeature {
   // Partners
   PARTNERS = 'm_partners',
 
+  // Mitra Wallet & Withdraw
+  MITRA_WALLET = 'm_mitra_wallet',
+  MITRA_WITHDRAW = 'm_mitra_withdraw',
+
   // Non-permission based (always available)
   PROFILE = 'profile',
 }

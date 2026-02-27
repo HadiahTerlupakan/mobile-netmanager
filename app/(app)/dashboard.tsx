@@ -1,15 +1,17 @@
+import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { DashboardSkeleton } from '@/components/molecules/DashboardSkeleton';
 import { CanvasingCard } from '@/components/organisms/dashboard/CanvasingCard';
 import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
 import { PerformanceStats } from '@/components/organisms/dashboard/PerformanceStats';
 import { QuickMenu } from '@/components/organisms/dashboard/QuickMenu';
 import { WorkOrderCard } from '@/components/organisms/dashboard/WorkOrderCard';
-import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
-import { TenantService } from '@/services/TenantService';
+import { MitraSalesDashboardScreen } from '@/components/screens/MitraSalesDashboardScreen';
+import { MitraTeknisiDashboardScreen } from '@/components/screens/MitraTeknisiDashboardScreen';
 import { useAuth } from '@/context/AuthContext';
 import { useOfflineQuery } from '@/hooks/queries';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { queryKeys } from '@/lib/queryClient';
+import { TenantService } from '@/services/TenantService';
 import { FlashList } from '@shopify/flash-list';
 import { Href, useRouter } from 'expo-router';
 import { Clock, MessageCircle } from 'lucide-react-native';
@@ -121,7 +123,7 @@ function DashboardScreen() {
 
     const renderCarouselItem: ListRenderItem<CarouselItem> = useCallback(({ item }) => {
         const containerStyle = { width };
-        
+
         let content;
         if (item.type === 'wo') {
             content = (
@@ -212,7 +214,7 @@ function DashboardScreen() {
                     userName={profileData?.name || user?.name || 'Karyawan'}
                     userImage={getImageUrl(profileData?.image)}
                 />
-                
+
                 <View style={tw`flex-1 items-center justify-center p-6`}>
                     <View style={tw`w-24 h-24 bg-yellow-100 rounded-full items-center justify-center mb-6`}>
                         <Clock size={48} color="#ca8a04" />
@@ -223,7 +225,7 @@ function DashboardScreen() {
                     <Text style={tw`text-gray-500 text-center mb-8`}>
                         Anda sedang dalam masa cuti/izin. Akses fitur dibatasi untuk kenyamanan istirahat Anda.
                     </Text>
-                    
+
                     <TouchableOpacity
                         onPress={() => router.push('/(app)/chat' as Href)}
                         style={tw`bg-purple-600 w-full py-4 rounded-xl flex-row items-center justify-center gap-2`}
@@ -277,11 +279,10 @@ function DashboardScreen() {
                             {carouselData.map((_, index) => (
                                 <View
                                     key={index}
-                                    style={tw`h-2 rounded-full ${
-                                        index === activeIndex
-                                            ? 'bg-blue-600 w-6'
-                                            : 'bg-gray-300 w-2'
-                                    }`}
+                                    style={tw`h-2 rounded-full ${index === activeIndex
+                                        ? 'bg-blue-600 w-6'
+                                        : 'bg-gray-300 w-2'
+                                        }`}
                                 />
                             ))}
                         </View>
@@ -305,13 +306,31 @@ function DashboardScreen() {
                     />
                 )}
 
-                <QuickMenu features={profileData?.features || user?.features || []} isSales={user?.isSales ?? false} role={user?.role} />
+                <QuickMenu
+                    features={profileData?.features || user?.features || []}
+                    isSales={user?.isSales ?? false}
+                    role={user?.role}
+                    isMitra={user?.employeeType === 'MITRA_TEKNISI' || user?.employeeType === 'MITRA_SALES'}
+                />
             </ScrollView>
         </SafeAreaView>
     );
 }
 
+
 export default function Dashboard() {
+    const { user } = useAuth();
+
+    // Explicit multiplexing for 3 entirely distinct UI experiences
+    if (user?.employeeType === 'MITRA_SALES') {
+        return <MitraSalesDashboardScreen />;
+    }
+
+    if (user?.employeeType === 'MITRA_TEKNISI') {
+        return <MitraTeknisiDashboardScreen />;
+    }
+
+    // Default 
     return (
         <ScreenErrorBoundary screenName="Dashboard">
             <DashboardScreen />

@@ -1,6 +1,6 @@
 import api from '@/services/api'; // Use centralized API
-import { uploadService } from '@/services/UploadService';
 import { TenantService } from '@/services/TenantService';
+import { uploadService } from '@/services/UploadService';
 import { logger } from '@/utils/logger';
 import * as SecureStore from 'expo-secure-store';
 import { io, Socket } from 'socket.io-client';
@@ -144,7 +144,11 @@ class ChatService {
         try {
             const response = await api.get('/api/mobile/chat/global');
             return response.data.data;
-        } catch (error) {
+        } catch (error: any) {
+            if (error.response?.status === 403) {
+                logger.info('[Chat] Chat feature is not available for this user');
+                return { id: '', name: 'Not Available', participantCount: 0 };
+            }
             logger.error('[Chat] Error getting global chat:', error);
             throw error;
         }
