@@ -29,6 +29,9 @@ interface DashboardStats {
     woCompletedMonth: number;
     barangKeluarToday: number;
     barangMasukToday: number;
+    targetHarian?: number;
+    suksesClosingMonth?: number;
+    saldoKomisi?: number;
 }
 
 interface CanvasingSummary {

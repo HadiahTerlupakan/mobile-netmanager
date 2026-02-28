@@ -115,7 +115,7 @@ export function MitraTeknisiProfileScreen() {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             >
                 {/* Header */}
-                <View style={tw`bg-amber-500 px-6 pt-6 pb-16 rounded-b-[32px]`}>
+                <View style={tw`bg-blue-600 px-6 pt-6 pb-16 rounded-b-[32px]`}>
                     <View style={tw`items-center`}>
                         {profileData?.image ? (
                             <ImageWithCache
@@ -126,14 +126,14 @@ export function MitraTeknisiProfileScreen() {
                             />
                         ) : (
                             <View style={tw`w-24 h-24 bg-white rounded-2xl items-center justify-center mb-4 shadow-sm`}>
-                                <Text style={tw`text-amber-500 text-4xl font-black`}>{getInitials(displayName)}</Text>
+                                <Text style={tw`text-blue-600 text-4xl font-black`}>{getInitials(displayName)}</Text>
                             </View>
                         )}
                         <Text style={tw`text-white font-black tracking-tight text-2xl`}>{displayName}</Text>
-                        <Text style={tw`text-amber-100 font-bold uppercase tracking-widest text-xs mt-1`}>{displayEmail}</Text>
+                        <Text style={tw`text-blue-100 font-bold uppercase tracking-widest text-xs mt-1`}>{displayEmail}</Text>
                         {profileData?.role?.name && (
                             <View style={tw`bg-black/20 px-4 py-1.5 rounded-xl mt-3`}>
-                                <Text style={tw`text-amber-50 text-xs font-black tracking-widest uppercase`}>{profileData.role.name}</Text>
+                                <Text style={tw`text-blue-50 text-xs font-black tracking-widest uppercase`}>{profileData.role.name}</Text>
                             </View>
                         )}
                     </View>

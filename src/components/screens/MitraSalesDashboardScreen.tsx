@@ -1,6 +1,8 @@
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
 import { useAuth } from '@/context/AuthContext';
+import { useOfflineQuery } from '@/hooks/queries';
+import { queryKeys } from '@/lib/queryClient';
 import { useRouter } from 'expo-router';
 import { CreditCard, MapPin, Search, Target, TrendingUp } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
@@ -16,19 +18,28 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
+// Define stats interface locally or import if shared
+interface DashboardStats {
+    targetHarian?: number;
+    suksesClosingMonth?: number;
+    saldoKomisi?: number;
+}
+
 export function MitraSalesDashboardScreen() {
     const { user } = useAuth();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [refreshing, setRefreshing] = useState(false);
 
-    // Mocking for now since MitraService/Wallet is not implemented yet
-    const loadingStats = false;
-    const commissionData = { summary: { pendingCommission: 0, totalCanvasing: 0 } };
+    const { data: statsData, isPending: loadingStats, refetch: refetchStats } = useOfflineQuery<DashboardStats>({
+        queryKey: queryKeys.dashboard.stats(),
+        endpoint: '/api/mobile/dashboard',
+        enabled: !!user,
+    });
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        // Simulation
+        await refetchStats();
         setTimeout(() => setRefreshing(false), 500);
     }, []);
 
@@ -43,8 +54,9 @@ export function MitraSalesDashboardScreen() {
             );
         }
 
-        const pendingCommission = commissionData?.summary?.pendingCommission || 0;
-        const totalSuccessful = commissionData?.summary?.totalCanvasing || 0; // Or specific sales metric
+        const pendingCommission = statsData?.saldoKomisi || 0;
+        const totalSuccessful = statsData?.suksesClosingMonth || 0;
+        const targetHarian = statsData?.targetHarian || 0;
 
         return (
             <View style={[tw`mt-6 px-4 py-6 rounded-3xl bg-[#1e1e24] shadow-lg`, styles.premiumCard]}>
@@ -69,7 +81,7 @@ export function MitraSalesDashboardScreen() {
                         <Text style={tw`text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1`}>Target Harian</Text>
                         <View style={tw`flex-row items-center gap-1.5`}>
                             <Target size={16} color="#fbbf24" />
-                            <Text style={tw`text-white font-bold text-lg`}>5</Text>
+                            <Text style={tw`text-white font-bold text-lg`}>{targetHarian}</Text>
                         </View>
                     </View>
                     <View style={tw`flex-1 items-center justify-center py-3`}>

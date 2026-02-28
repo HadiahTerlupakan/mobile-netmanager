@@ -99,11 +99,13 @@ export default function AppLayout() {
   return (
     <Fragment>
       <Tabs
-        tabBar={(props) => {
-          if (user?.employeeType === 'MITRA_SALES') return <MitraSalesTabBar {...props} />;
-          if (user?.employeeType === 'MITRA_TEKNISI') return <MitraTeknisiTabBar {...props} />;
-          return undefined; // Let Expo Router use default BottomTabBar for Karyawan
-        }}
+        tabBar={
+          user?.employeeType === 'MITRA_SALES'
+            ? (props) => <MitraSalesTabBar {...props} />
+            : user?.employeeType === 'MITRA_TEKNISI'
+              ? (props) => <MitraTeknisiTabBar {...props} />
+              : undefined
+        }
         screenOptions={{
           headerShown: false,
           tabBarStyle: {

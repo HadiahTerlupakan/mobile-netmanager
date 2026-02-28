@@ -38,6 +38,7 @@ export default function CreateCanvasingScreen() {
   useFeatureGuard(AppFeature.CANVASING);
 
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
 
   const [form, setForm] = useState<{
@@ -407,7 +408,7 @@ export default function CreateCanvasingScreen() {
     );
   }
 
-  const insets = useSafeAreaInsets();
+
 
   return (
     <View style={tw`flex-1 bg-slate-50`}>
