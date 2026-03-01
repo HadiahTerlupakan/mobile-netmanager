@@ -1,4 +1,3 @@
-import { useAuth } from '@/context/AuthContext';
 import api from '@/services/api';
 import { useRouter } from 'expo-router';
 import {
@@ -67,7 +66,6 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 
 export default function MitraWithdrawScreen() {
     const router = useRouter();
-    const { user } = useAuth();
     const [data, setData] = useState<WithdrawData | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -104,7 +102,7 @@ export default function MitraWithdrawScreen() {
         }
     }, []);
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { fetchData(); }, [fetchData]);
 
     const handleSubmit = async () => {
         const numAmount = parseFloat(amount);

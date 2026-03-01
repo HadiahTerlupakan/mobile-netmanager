@@ -8,14 +8,16 @@ import {
   User,
   Wallet,
 } from "lucide-react-native";
-import { Fragment, useEffect } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Alert } from "react-native";
 import tw from "twrnc";
 
+import { FaceVerificationModal } from '@/components/organisms/FaceVerificationModal';
 import { MitraSalesTabBar } from '@/components/organisms/navigation/MitraSalesTabBar';
 import { MitraTeknisiTabBar } from '@/components/organisms/navigation/MitraTeknisiTabBar';
 import { AppFeature } from "@/constants/features";
 import { useAuth } from "@/context/AuthContext";
+import { useProfileSync } from "@/hooks/useProfileSync";
 import { logger } from "@/utils/logger";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,7 +25,22 @@ export default function AppLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+
+  // This hook ensures Profile Data is background-synced on App Load/Active
+  const { profileData } = useProfileSync();
   const { token, user } = useAuth();
+
+  const [showFaceVerification, setShowFaceVerification] = useState(false);
+
+  // Check if camera is required
+  useEffect(() => {
+    // Check both Auth context and fresh profile data
+    if (user?.requiresFaceVerification || profileData?.requiresFaceVerification) {
+      setShowFaceVerification(true);
+    } else {
+      setShowFaceVerification(false);
+    }
+  }, [user?.requiresFaceVerification, profileData?.requiresFaceVerification]);
 
   logger.info("[Layout] User State loaded");
   if (__DEV__) {
@@ -98,6 +115,11 @@ export default function AppLayout() {
 
   return (
     <Fragment>
+      <FaceVerificationModal
+        visible={showFaceVerification}
+        onVerificationComplete={() => setShowFaceVerification(false)}
+      />
+
       <Tabs
         tabBar={
           user?.employeeType === 'MITRA_SALES'
@@ -319,6 +341,15 @@ export default function AppLayout() {
         {/* Mitra Withdraw - Hidden, accessed from wallet */}
         <Tabs.Screen
           name="mitra-withdraw"
+          options={{
+            href: null,
+            tabBarStyle: { display: "none" },
+          }}
+        />
+
+        {/* ID Card WebView Screen */}
+        <Tabs.Screen
+          name="id-card/[id]"
           options={{
             href: null,
             tabBarStyle: { display: "none" },

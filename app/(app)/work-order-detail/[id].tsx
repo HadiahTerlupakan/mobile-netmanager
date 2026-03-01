@@ -2,6 +2,7 @@ import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { ImageViewerModal } from '@/components/molecules/ImageViewerModal';
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { WorkOrderDetailSkeleton } from '@/components/molecules/WorkOrderDetailSkeleton';
+import { AppFeature } from '@/constants/features';
 import { useAuth } from "@/context/AuthContext";
 import { useSocketEvent, useSocketRoom } from "@/context/SocketContext";
 import { SOCKET_EVENTS, WorkOrderActivityPayload } from "@/context/socketTypes";
@@ -10,6 +11,7 @@ import {
   useApiMutation,
   useWorkOrder,
 } from "@/hooks/queries";
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { TenantService } from "@/services/TenantService";
 import { uploadService } from "@/services/UploadService";
 import api from "@/services/api"; // Use centralized API
@@ -49,8 +51,6 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { useFeatureGuard } from '@/hooks/useFeatureGuard';
-import { AppFeature } from '@/constants/features';
 
 export default function WorkOrderDetailScreen() {
   useFeatureGuard(AppFeature.WORK_ORDER);
@@ -76,7 +76,8 @@ export default function WorkOrderDetailScreen() {
   const isWorkStarted = wo?.status === "IN_PROGRESS";
 
   // Role checks - determine user's relationship to this work order
-  const isAssignedToMe = wo?.assignedToId === user?.id;
+  const isMitraTeknisi = user?.employeeType === "MITRA_TEKNISI" || user?.role === "MITRA";
+  const isAssignedToMe = wo?.assignedToId === user?.id || wo?.assignedMitraId === user?.id;
   const myAssignment = wo?.assignments?.find((a) => a.userId === user?.id);
   const isApprovedPartner = myAssignment?.role === "PARTNER" && myAssignment?.status === "APPROVED";
   const isPendingPartner = myAssignment?.role === "PARTNER" && myAssignment?.status === "PENDING";
@@ -620,6 +621,29 @@ export default function WorkOrderDetailScreen() {
   const renderInfoTab = () => (
     <View>
       <View>
+        {/* Warranty Banner */}
+        {wo.isWarranty && wo.warrantyOwnerId === user?.id && (
+          <View style={tw`bg-red-50 p-4 rounded-xl shadow-sm mb-4 border border-red-200`}>
+            <View style={tw`flex-row items-center mb-2`}>
+              <Text style={tw`text-red-600 font-bold ml-1`}>⚠️ Tiket Garansi SLA</Text>
+            </View>
+            <Text style={tw`text-sm text-red-700 mb-2 leading-5`}>
+              Pekerjaan ini merupakan garansi dari perbaikan Anda sebelumnya. Silahkan selesaikan sebelum batas waktu SLA habis.
+            </Text>
+            {wo.warrantySla && (
+              <View style={tw`bg-red-100 p-2 rounded flex-row items-center`}>
+                <Clock size={14} color="#dc2626" style={tw`mr-2`} />
+                <Text style={tw`text-xs font-bold text-red-600`}>
+                  Batas Waktu: {formatDate(wo.warrantySla, "dd MMM yyyy, HH:mm")}
+                </Text>
+              </View>
+            )}
+            <Text style={tw`text-xs text-red-500 mt-2 italic flex-row flex-wrap`}>
+              * Jika melewati batas SLA, tiket akan dilelang. Dan jika diambil mitra lain, Anda akan dikenakan denda.
+            </Text>
+          </View>
+        )}
+
         {/* Status Card */}
         <View
           style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}
@@ -803,138 +827,140 @@ export default function WorkOrderDetailScreen() {
           )}
 
         {/* Team & Partners Card */}
-        <View
-          style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}
-        >
-          <View style={tw`flex-row justify-between items-center mb-3`}>
-            <Text style={tw`text-xs text-gray-400 font-bold uppercase`}>
-              Tim Pengerjaan
-            </Text>
-            {wo.status !== "COMPLETED" && wo.status !== "CLOSED" && (
-              <TouchableOpacity onPress={() => setIsPartnerModalVisible(true)}>
-                <Text style={tw`text-xs font-bold text-blue-600`}>
-                  + Tambah
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Primary Assigned */}
-          {wo.assignedTo && (
-            <View
-              style={tw`flex-row items-center mb-3 bg-blue-50 p-2 rounded-lg`}
-            >
-              <View
-                style={tw`w-8 h-8 bg-blue-200 rounded-full items-center justify-center mr-3`}
-              >
-                <Text style={tw`font-bold text-blue-700`}>
-                  {wo.assignedTo.name?.charAt(0)}
-                </Text>
-              </View>
-              <View style={tw`flex-1`}>
-                <Text style={tw`font-bold text-gray-800 text-sm`}>
-                  {wo.assignedTo.name}
-                </Text>
-                <Text style={tw`text-xs text-blue-600`}>Lead Teknisi</Text>
-              </View>
+        {!isMitraTeknisi && (
+          <View
+            style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}
+          >
+            <View style={tw`flex-row justify-between items-center mb-3`}>
+              <Text style={tw`text-xs text-gray-400 font-bold uppercase`}>
+                Tim Pengerjaan
+              </Text>
+              {wo.status !== "COMPLETED" && wo.status !== "CLOSED" && !isMitraTeknisi && (
+                <TouchableOpacity onPress={() => setIsPartnerModalVisible(true)}>
+                  <Text style={tw`text-xs font-bold text-blue-600`}>
+                    + Tambah
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
-          )}
 
-          {/* Partners */}
-          {wo.assignments
-            ?.filter((a) => a.userId !== wo.assignedToId)
-            .map((assignment, idx: number) => (
+            {/* Primary Assigned */}
+            {(wo.assignedTo || wo.assignedMitra) && (
               <View
-                key={idx}
-                style={tw`flex-row items-center justify-between mb-2 pb-2 border-b border-gray-50 last:border-0`}
+                style={tw`flex-row items-center mb-3 bg-blue-50 p-2 rounded-lg`}
               >
-                <View style={tw`flex-row items-center flex-1`}>
-                  <View
-                    style={tw`w-8 h-8 rounded-full bg-blue-100 items-center justify-center mr-3`}
-                  >
-                    <Text style={tw`font-bold text-blue-600`}>
-                      {assignment.user?.name?.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={tw`flex-1`}>
-                    <Text style={tw`font-bold text-gray-800 text-sm`}>
-                      {assignment.user?.name}
-                    </Text>
-                    <View style={tw`flex-row items-center mt-0.5`}>
-                      <Text style={tw`text-xs text-gray-500 mr-2`}>
-                        {assignment.role || "Partner"}
+                <View
+                  style={tw`w-8 h-8 bg-blue-200 rounded-full items-center justify-center mr-3`}
+                >
+                  <Text style={tw`font-bold text-blue-700`}>
+                    {(wo.assignedTo || wo.assignedMitra)?.name?.charAt(0)}
+                  </Text>
+                </View>
+                <View style={tw`flex-1`}>
+                  <Text style={tw`font-bold text-gray-800 text-sm`}>
+                    {(wo.assignedTo || wo.assignedMitra)?.name}
+                  </Text>
+                  <Text style={tw`text-xs text-blue-600`}>{wo.assignedMitra ? 'Mitra Lead Teknisi' : 'Lead Teknisi'}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Partners */}
+            {wo.assignments
+              ?.filter((a) => a.userId !== wo.assignedToId)
+              .map((assignment, idx: number) => (
+                <View
+                  key={idx}
+                  style={tw`flex-row items-center justify-between mb-2 pb-2 border-b border-gray-50 last:border-0`}
+                >
+                  <View style={tw`flex-row items-center flex-1`}>
+                    <View
+                      style={tw`w-8 h-8 rounded-full bg-blue-100 items-center justify-center mr-3`}
+                    >
+                      <Text style={tw`font-bold text-blue-600`}>
+                        {assignment.user?.name?.charAt(0).toUpperCase()}
                       </Text>
-                      <View
-                        style={tw`px-2 py-0.5 rounded-full ${assignment.status === "APPROVED"
-                          ? "bg-green-100"
-                          : assignment.status === "REJECTED"
-                            ? "bg-red-100"
-                            : "bg-yellow-100"
-                          }`}
-                      >
-                        <Text
-                          style={tw`text-[10px] font-bold ${assignment.status === "APPROVED"
-                            ? "text-green-700"
+                    </View>
+                    <View style={tw`flex-1`}>
+                      <Text style={tw`font-bold text-gray-800 text-sm`}>
+                        {assignment.user?.name}
+                      </Text>
+                      <View style={tw`flex-row items-center mt-0.5`}>
+                        <Text style={tw`text-xs text-gray-500 mr-2`}>
+                          {assignment.role || "Partner"}
+                        </Text>
+                        <View
+                          style={tw`px-2 py-0.5 rounded-full ${assignment.status === "APPROVED"
+                            ? "bg-green-100"
                             : assignment.status === "REJECTED"
-                              ? "text-red-700"
-                              : "text-yellow-700"
+                              ? "bg-red-100"
+                              : "bg-yellow-100"
                             }`}
                         >
-                          {assignment.status === "APPROVED"
-                            ? "Setuju"
-                            : assignment.status === "REJECTED"
-                              ? "Tolak"
-                              : "Menunggu"}
-                        </Text>
+                          <Text
+                            style={tw`text-[10px] font-bold ${assignment.status === "APPROVED"
+                              ? "text-green-700"
+                              : assignment.status === "REJECTED"
+                                ? "text-red-700"
+                                : "text-yellow-700"
+                              }`}
+                          >
+                            {assignment.status === "APPROVED"
+                              ? "Setuju"
+                              : assignment.status === "REJECTED"
+                                ? "Tolak"
+                                : "Menunggu"}
+                          </Text>
+                        </View>
                       </View>
                     </View>
                   </View>
-                </View>
 
-                {/* Action Buttons for Pending Partner (Only if it's me) */}
-                {assignment.status === "PENDING" &&
-                  assignment.userId === user?.id && (
-                    <View style={tw`flex-row gap-2`}>
+                  {/* Action Buttons for Pending Partner (Only if it's me) */}
+                  {assignment.status === "PENDING" &&
+                    assignment.userId === user?.id && (
+                      <View style={tw`flex-row gap-2`}>
+                        <TouchableOpacity
+                          onPress={() => handlePartnerResponse("REJECTED")}
+                          disabled={actionLoading}
+                          style={tw`bg-red-50 p-2 rounded-lg border border-red-100`}
+                        >
+                          <X size={16} color="#ef4444" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handlePartnerResponse("APPROVED")}
+                          disabled={actionLoading}
+                          style={tw`bg-green-50 p-2 rounded-lg border border-green-100`}
+                        >
+                          <CheckCircle size={16} color="#16a34a" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                  {/* Delete Button (Only for Creator/Assigner or if not me) */}
+                  {(!assignment.status ||
+                    assignment.status === "APPROVED" ||
+                    assignment.status === "PENDING") &&
+                    assignment.userId !== user?.id &&
+                    wo.status !== "COMPLETED" && (
                       <TouchableOpacity
-                        onPress={() => handlePartnerResponse("REJECTED")}
-                        disabled={actionLoading}
-                        style={tw`bg-red-50 p-2 rounded-lg border border-red-100`}
+                        onPress={() => handleRemovePartner(assignment.id)}
+                        style={tw`p-2`}
                       >
                         <X size={16} color="#ef4444" />
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handlePartnerResponse("APPROVED")}
-                        disabled={actionLoading}
-                        style={tw`bg-green-50 p-2 rounded-lg border border-green-100`}
-                      >
-                        <CheckCircle size={16} color="#16a34a" />
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                    )}
+                </View>
+              ))}
 
-                {/* Delete Button (Only for Creator/Assigner or if not me) */}
-                {(!assignment.status ||
-                  assignment.status === "APPROVED" ||
-                  assignment.status === "PENDING") &&
-                  assignment.userId !== user?.id &&
-                  wo.status !== "COMPLETED" && (
-                    <TouchableOpacity
-                      onPress={() => handleRemovePartner(assignment.id)}
-                      style={tw`p-2`}
-                    >
-                      <X size={16} color="#ef4444" />
-                    </TouchableOpacity>
-                  )}
-              </View>
-            ))}
-
-          {(!wo.assignments || wo.assignments.length <= 1) &&
-            !wo.assignedTo && (
-              <Text style={tw`text-gray-400 text-xs italic`}>
-                Belum ada tim yang ditugaskan
-              </Text>
-            )}
-        </View>
+            {(!wo.assignments || wo.assignments.length <= 1) &&
+              !wo.assignedTo && (
+                <Text style={tw`text-gray-400 text-xs italic`}>
+                  Belum ada tim yang ditugaskan
+                </Text>
+              )}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -1202,18 +1228,18 @@ export default function WorkOrderDetailScreen() {
                       <TouchableOpacity
                         onPress={() => {
                           if (item.filePath) {
-                            const imageUrl = item.filePath.startsWith('http') 
-                              ? item.filePath 
+                            const imageUrl = item.filePath.startsWith('http')
+                              ? item.filePath
                               : `${TenantService.getTenantUrl()}${item.filePath}`;
                             openImageViewer(imageUrl);
                           }
                         }}
                         activeOpacity={0.9}
                       >
-                        <ImageWithCache 
+                        <ImageWithCache
                           source={
-                            item.filePath?.startsWith('http') 
-                              ? item.filePath 
+                            item.filePath?.startsWith('http')
+                              ? item.filePath
                               : `${TenantService.getTenantUrl()}${item.filePath}`
                           }
                           style={tw`w-48 h-64 bg-gray-200 rounded-lg`}
@@ -1493,8 +1519,10 @@ export default function WorkOrderDetailScreen() {
       </View>
 
       {/* Role Indicator Banner */}
-      {(isAssignedToMe || isApprovedPartner) && (
-        <View style={tw`px-4 py-2 ${isAssignedToMe ? 'bg-blue-50 border-b border-blue-100' : 'bg-indigo-50 border-b border-indigo-100'}`}>
+      {(isAssignedToMe || isApprovedPartner) && !isMitraTeknisi && (
+        <View
+          style={tw`px-4 py-2 ${isAssignedToMe ? 'bg-blue-50 border-b border-blue-100' : 'bg-indigo-50 border-b border-indigo-100'}`}
+        >
           <View style={tw`flex-row items-center justify-center`}>
             <User size={14} color={isAssignedToMe ? '#2563eb' : '#6366f1'} style={tw`mr-1.5`} />
             <Text style={tw`text-xs font-bold ${isAssignedToMe ? 'text-blue-700' : 'text-indigo-700'}`}>
@@ -1619,7 +1647,7 @@ export default function WorkOrderDetailScreen() {
             <View
               style={[
                 tw`absolute bottom-0 left-0 right-0 bg-yellow-50 p-4 border-t border-yellow-200 shadow-lg z-20`,
-                { paddingBottom: Math.max(insets.bottom, 16) },
+                { paddingBottom: Math.max(insets.bottom, 100) },
               ]}
             >
               <Text
@@ -1655,7 +1683,7 @@ export default function WorkOrderDetailScreen() {
             <View
               style={[
                 tw`absolute bottom-0 left-0 right-0 bg-white p-4 border-t border-gray-200 flex-row gap-3 shadow-lg z-20`,
-                { paddingBottom: Math.max(insets.bottom, 16) },
+                { paddingBottom: Math.max(insets.bottom, 100) },
               ]}
             >
               <TouchableOpacity
@@ -1684,7 +1712,7 @@ export default function WorkOrderDetailScreen() {
             <View
               style={[
                 tw`absolute bottom-0 left-0 right-0 bg-white p-4 border-t border-gray-200 shadow-lg z-20`,
-                { paddingBottom: Math.max(insets.bottom, 16) },
+                { paddingBottom: Math.max(insets.bottom, 100) },
               ]}
             >
               <TouchableOpacity
@@ -1709,7 +1737,7 @@ export default function WorkOrderDetailScreen() {
             <View
               style={[
                 tw`absolute bottom-0 left-0 right-0 bg-yellow-50 p-4 border-t border-yellow-200 shadow-lg z-20`,
-                { paddingBottom: Math.max(insets.bottom, 16) },
+                { paddingBottom: Math.max(insets.bottom, 100) },
               ]}
             >
               <Text style={tw`text-sm text-yellow-800 font-medium text-center`}>
@@ -1725,7 +1753,7 @@ export default function WorkOrderDetailScreen() {
             <View
               style={[
                 tw`absolute bottom-0 left-0 right-0 bg-white p-4 border-t border-gray-200 shadow-lg z-20`,
-                { paddingBottom: Math.max(insets.bottom, 16) },
+                { paddingBottom: Math.max(insets.bottom, 100) },
               ]}
             >
               <TouchableOpacity

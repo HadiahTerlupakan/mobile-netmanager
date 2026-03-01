@@ -21,6 +21,7 @@ export type User = {
     workDays?: string | null;
     workingHourMode?: string | null;
     isOnLeave?: boolean;
+    requiresFaceVerification?: boolean;
 };
 
 export type AuthContextType = {

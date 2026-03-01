@@ -74,12 +74,17 @@ export interface WorkOrder {
   contactPhone: string | null;
   assignedToId: string | null;
   assignedTo: UserSummary | null;
+  assignedMitraId?: string | null;
+  assignedMitra?: UserSummary | null;
   tasks: WorkOrderTask[];
   assignments: WorkOrderAssignment[];
   updates: WorkOrderUpdate[];
   attachments: WorkOrderAttachment[];
   usedMaterials: UsedMaterial[];
   returnedMaterials: UsedMaterial[];
+  isWarranty?: boolean;
+  warrantyOwnerId?: string | null;
+  warrantySla?: string | null;
   pelanggan?: {
     nama?: string;
     noTelp?: string;

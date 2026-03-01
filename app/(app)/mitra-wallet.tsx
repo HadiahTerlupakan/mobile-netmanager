@@ -81,7 +81,7 @@ export default function MitraWalletScreen() {
         }
     }, [data]);
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { fetchData(); }, [fetchData]);
 
     const onRefresh = () => fetchData(1, true);
 

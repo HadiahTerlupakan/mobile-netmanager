@@ -9,7 +9,7 @@ import { TenantService } from '@/services/TenantService';
 import { logger } from '@/utils/logger';
 import Constants from 'expo-constants';
 import { Href, router } from 'expo-router';
-import { Edit3, LogOut, Mail, MapPin } from 'lucide-react-native';
+import { BadgeCheck, LogOut, Mail, MapPin } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -166,14 +166,16 @@ export function MitraTeknisiProfileScreen() {
                         </View>
                     </View>
 
-                    {/* Edit Profile Button */}
-                    <TouchableOpacity
-                        onPress={() => router.push('/(app)/edit-profile' as Href)}
-                        style={tw`mt-6 bg-stone-800 rounded-xl p-4 flex-row items-center justify-center`}
-                    >
-                        <Edit3 size={20} color="white" />
-                        <Text style={tw`text-white font-black ml-2 uppercase tracking-widest text-xs`}>Edit Profil & Password</Text>
-                    </TouchableOpacity>
+                    {/* View ID Card Button */}
+                    {profileData?.id && (
+                        <TouchableOpacity
+                            onPress={() => router.push(`/(app)/id-card/${profileData.id}` as Href)}
+                            style={tw`mt-6 bg-blue-600 rounded-[20px] p-4 flex-row items-center justify-center shadow-sm`}
+                        >
+                            <BadgeCheck size={20} color="white" />
+                            <Text style={tw`text-white font-black ml-2 tracking-widest text-xs uppercase`}>LIHAT ID CARD RESMI</Text>
+                        </TouchableOpacity>
+                    )}
 
                     {/* Logout Button */}
                     <TouchableOpacity

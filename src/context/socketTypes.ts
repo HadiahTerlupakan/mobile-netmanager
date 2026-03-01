@@ -16,6 +16,9 @@ export const SOCKET_EVENTS = {
     PARTNER_INVITATION: 'partner:invitation',
     PARTNER_RESPONSE: 'partner:response',
 
+    // Profile updates (pushed from admin)
+    PROFILE_REFRESH: 'profile:refresh',
+
     // Connection management
     JOIN_ROOM: 'join:room',
     LEAVE_ROOM: 'leave:room',

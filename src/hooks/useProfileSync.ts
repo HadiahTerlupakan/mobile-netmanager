@@ -1,13 +1,21 @@
 import { useAuth, User } from '@/context/AuthContext';
+import { useSocketEvent } from '@/context/SocketContext';
+import { SOCKET_EVENTS } from '@/context/socketTypes';
 import { useOfflineQuery } from '@/hooks/queries';
 import { queryKeys } from '@/lib/queryClient';
 import { logger } from '@/utils/logger';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 
 interface UserProfile {
+    id?: string;
     name: string | null;
     email: string | null;
     image: string | null;
+    nik?: string | null;
+    fotoDiri?: string | null;
+    createdAt?: string;
+    mitraType?: string;
     features?: string[];
     role?: {
         id: string;
@@ -26,6 +34,7 @@ interface UserProfile {
     endWorkTime?: string | null;
     workDays?: string | null;
     isOnLeave?: boolean;
+    requiresFaceVerification?: boolean;
 }
 
 export function useProfileSync() {
@@ -33,14 +42,38 @@ export function useProfileSync() {
 
     // Use offline query to persist user profile and features
     // This ensures app works offline even after restart
+    // NO polling — profile updates are pushed via Socket.IO (profile:refresh event)
     const query = useOfflineQuery<any, Error, UserProfile>({
         queryKey: queryKeys.profile.detail(),
         endpoint: '/api/mobile/profile',
         select: (data: any) => data?.data || data, // Handle wrapped response
-        enabled: !!token
+        enabled: !!token,
+        staleTime: 5 * 60 * 1000, // 5 minutes — we only refetch on demand via socket or app focus
     });
 
     const profileData = query.data;
+
+    // Listen for real-time profile refresh pushed by admin (e.g. requiresFaceVerification toggled)
+    const handleProfileRefresh = useCallback(() => {
+        logger.info('[useProfileSync] Received profile:refresh via Socket.IO — refetching...');
+        query.refetch();
+    }, [query]);
+
+    useSocketEvent<{ timestamp: string }>(SOCKET_EVENTS.PROFILE_REFRESH, handleProfileRefresh);
+
+    // Refetch on app focus so it gets instant trigger
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+            if (nextAppState === 'active' && token) {
+                query.refetch();
+            }
+        });
+
+        return () => {
+            subscription.remove();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [token, query.refetch]);
 
     useEffect(() => {
         if (profileData && user) {
@@ -53,8 +86,9 @@ export function useProfileSync() {
             const hasFeaturesChanged = currentFeatures !== newFeatures;
             const hasImageChanged = user.image !== profileData.image;
             const hasLeaveStatusChanged = user.isOnLeave !== profileData.isOnLeave;
+            const hasVerificationChanged = user.requiresFaceVerification !== profileData.requiresFaceVerification;
 
-            if (hasNameChanged || hasFeaturesChanged || hasImageChanged || hasLeaveStatusChanged) {
+            if (hasNameChanged || hasFeaturesChanged || hasImageChanged || hasLeaveStatusChanged || hasVerificationChanged) {
                 logger.info('[useProfileSync] Syncing fresh profile data to AuthContext');
 
                 const updatedUser: User = {
@@ -62,7 +96,8 @@ export function useProfileSync() {
                     name: safeName,
                     features: profileData.features || user.features,
                     image: profileData.image,
-                    isOnLeave: profileData.isOnLeave
+                    isOnLeave: profileData.isOnLeave,
+                    requiresFaceVerification: profileData.requiresFaceVerification
                 };
 
                 updateUser(updatedUser);

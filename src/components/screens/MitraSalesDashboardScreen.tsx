@@ -41,7 +41,7 @@ export function MitraSalesDashboardScreen() {
         setRefreshing(true);
         await refetchStats();
         setTimeout(() => setRefreshing(false), 500);
-    }, []);
+    }, [refetchStats]);
 
     const formatCurrency = (val: number) => `Rp ${val.toLocaleString('id-ID')}`;
 

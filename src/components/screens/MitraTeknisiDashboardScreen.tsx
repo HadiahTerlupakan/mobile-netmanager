@@ -2,6 +2,8 @@ import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'expo-router';
+import { useOfflineQuery } from '@/hooks/queries';
+import { queryKeys } from '@/lib/queryClient';
 import { Activity, CheckCircle2, ClipboardList, MessageCircle, Timer } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
@@ -16,21 +18,41 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
+
+interface MitraDashboardStats {
+    totalTickets: number;
+    pendingCommission: number;
+    ratePsb: number;
+    rateMaintenance: number;
+    minWithdrawal: number;
+}
+
 export function MitraTeknisiDashboardScreen() {
     const { user } = useAuth();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { token } = useAuth();
     const [refreshing, setRefreshing] = useState(false);
 
-    // Mocking for now since MitraService/Wallet is not implemented
-    const loadingStats = false;
-    const requestData = { summary: { pendingCommission: 0, totalTickets: 0 } };
+    const { data: statsData, isPending: loadingStats, refetch } = useOfflineQuery<MitraDashboardStats>({
+        queryKey: queryKeys.dashboard.stats(),
+        endpoint: '/api/mobile/mitra/dashboard',
+        enabled: !!token
+    });
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        // Simulation
-        setTimeout(() => setRefreshing(false), 500);
-    }, []);
+        await refetch();
+        setRefreshing(false);
+    }, [refetch]);
+
+    const formatRupiah = (amount: number) => {
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+        }).format(amount);
+    };
 
     const renderTeknisiMetrics = () => {
         if (loadingStats) {
@@ -41,8 +63,10 @@ export function MitraTeknisiDashboardScreen() {
             );
         }
 
-        const totalTickets = requestData?.summary?.totalTickets || 0;
-        const pendingCommission = requestData?.summary?.pendingCommission || 0; // Still show them their pay
+        const totalTickets = statsData?.totalTickets || 0;
+        const ratePsb = statsData?.ratePsb || 0;
+        const rateMaintenance = statsData?.rateMaintenance || 0;
+        const minWithdrawal = statsData?.minWithdrawal || 100000; // Still show them their pay
 
         return (
             <View style={[tw`mt-6 px-4 py-6 rounded-3xl bg-[#0f172a] shadow-lg`, styles.techCard]}>
@@ -77,6 +101,18 @@ export function MitraTeknisiDashboardScreen() {
                     </View>
                 </View>
 
+                
+                <View style={tw`flex-row justify-between mb-4`}>
+                    <View style={tw`bg-[#1e293b] p-3 rounded-xl flex-1 mr-2 border border-white/5`}>
+                        <Text style={tw`text-slate-400 text-xs mb-1`}>Rate PSB</Text>
+                        <Text style={tw`text-emerald-400 font-bold`}>{formatRupiah(ratePsb)}</Text>
+                    </View>
+                    <View style={tw`bg-[#1e293b] p-3 rounded-xl flex-1 ml-2 border border-white/5`}>
+                        <Text style={tw`text-slate-400 text-xs mb-1`}>Rate MTc</Text>
+                        <Text style={tw`text-blue-400 font-bold`}>{formatRupiah(rateMaintenance)}</Text>
+                    </View>
+                </View>
+
                 <TouchableOpacity
                     onPress={() => router.push('/mitra-wallet')}
                     style={tw`w-full bg-[#1e293b] border border-[#334155] rounded-xl py-4 flex-row justify-between items-center px-5 shadow-lg`}
@@ -86,10 +122,14 @@ export function MitraTeknisiDashboardScreen() {
                         <View style={tw`bg-emerald-500/20 p-2 rounded-lg`}>
                             <Text style={tw`text-emerald-400 font-bold`}>Rp</Text>
                         </View>
-                        <Text style={tw`text-slate-300 font-medium text-sm`}>Wallet Fee</Text>
+                        <View>
+                            <Text style={tw`text-slate-300 font-medium text-sm`}>Wallet Teknisi</Text>
+                            <Text style={tw`text-slate-500 text-xs`}>Min WD: {formatRupiah(minWithdrawal)}</Text>
+                        </View>
                     </View>
                     <Text style={tw`text-white font-bold text-base`}>Cek Saldo ➔</Text>
                 </TouchableOpacity>
+
             </View>
         );
     };

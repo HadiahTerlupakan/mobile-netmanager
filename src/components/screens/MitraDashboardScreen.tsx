@@ -16,7 +16,7 @@ import {
     Wallet
 } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
-import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Image, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -53,7 +53,7 @@ function MitraDashboardScreenContent() {
     });
 
     // Fetch canvasing summary
-    const { data: canvasingSummary, isPending: loadingCanvasing, refetch: refetchCanvasing } = useOfflineQuery<CanvasingSummary>({
+    const { data: canvasingSummary, refetch: refetchCanvasing } = useOfflineQuery<CanvasingSummary>({
         queryKey: queryKeys.canvasing.summary(),
         endpoint: '/api/marketing/canvasing/summary',
         enabled: !!token
@@ -80,8 +80,6 @@ function MitraDashboardScreenContent() {
 
     if (isLoading) return <DashboardSkeleton />;
 
-    const isSalesOnly = user?.employeeType === 'MITRA_SALES';
-
     return (
         <SafeAreaView style={tw`flex-1 bg-slate-50`}>
             {/* Custom Modern Header */}
@@ -90,13 +88,10 @@ function MitraDashboardScreenContent() {
                     <Text style={tw`text-sm font-medium text-slate-500 mb-1`}>Halo Mitra,</Text>
                     <Text style={tw`text-2xl font-black text-slate-900`}>{profileData?.name || user?.name || 'User'}</Text>
                 </View>
-                <TouchableOpacity onPress={() => router.push('/(app)/profil' as Href)}>
-                    {profileData?.image || user?.image ? (
+                <TouchableOpacity onPress={() => router.push('/(app)/profile' as Href)}>
+                    {getImageUrl(profileData?.image || user?.image) ? (
                         <View style={tw`w-12 h-12 rounded-full overflow-hidden border-2 border-indigo-500`}>
-                            {/* Standard image rendering logic here, simplified for safety */}
-                            <View style={tw`flex-1 bg-indigo-100 items-center justify-center`}>
-                                <Text style={tw`font-bold text-indigo-500`}>{(profileData?.name || 'M').charAt(0)}</Text>
-                            </View>
+                            <Image source={{ uri: getImageUrl(profileData?.image || user?.image)! }} style={tw`w-full h-full`} resizeMode="cover" />
                         </View>
                     ) : (
                         <View style={tw`w-12 h-12 rounded-full bg-slate-200 items-center justify-center border-2 border-slate-300`}>
