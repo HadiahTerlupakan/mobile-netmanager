@@ -10,5 +10,12 @@ import 'react-native-reanimated';
 // Import the background task first - this registers the task
 // import "./src/services/LocationTrackingService";
 
+import messaging from '@react-native-firebase/messaging';
+
+// Registrasi handler background FCM
+messaging().setBackgroundMessageHandler(async remoteMessage => {
+    console.log('FCM Message handled in the background!', remoteMessage);
+});
+
 // Then import the expo-router entry
 import "expo-router/entry";

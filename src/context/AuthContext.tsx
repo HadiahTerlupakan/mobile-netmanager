@@ -1,4 +1,5 @@
 import { Events } from '@/constants/Events';
+import { fcmService } from '@/services/FirebaseMessagingService';
 import { registerForPushNotificationsAsync } from '@/services/PushNotificationService';
 import { RefreshTokenService } from '@/services/RefreshTokenService';
 import { TokenService } from '@/services/TokenService';
@@ -80,6 +81,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logger.auth('Registering push notifications (background)...');
             registerPush(newToken);
 
+            // FCM Target for Mitra
+            if (userData.role === 'MITRA' || userData.employeeType === 'MITRA_TEKNISI' || userData.employeeType === 'MITRA_SALES') {
+                fcmService.syncFCMTokenToBackend('add').catch((e: any) => logger.error('FCM Add error', e));
+                fcmService.onTokenRefresh();
+            }
+
             logger.auth('signIn complete');
         } catch (error) {
             logger.error('[AuthContext] Sign in error', error);
@@ -101,6 +108,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     // Ignore errors during signout
                     logger.warn('Failed to remove push token during signout:', e);
                 }
+
+                // FCM Target Logout for Mitra (using current user state)
+                if (user?.role === 'MITRA' || user?.employeeType === 'MITRA_TEKNISI' || user?.employeeType === 'MITRA_SALES') {
+                    fcmService.syncFCMTokenToBackend('remove').catch((e: any) => logger.warn('Failed to remove FCM token', e));
+                }
             }
 
             // Optimization: Clear in-memory token
@@ -116,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
             logger.error('Sign out error', error);
         }
-    }, [token]);
+    }, [token, user]);
 
     const fetchProfile = useCallback(async () => {
         try {
