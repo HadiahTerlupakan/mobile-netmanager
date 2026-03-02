@@ -20,7 +20,7 @@ import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
 
 export default function ConversationScreen() {
-  useFeatureGuard(AppFeature.CHAT);
+    useFeatureGuard(AppFeature.CHAT);
 
     const router = useRouter();
     const { conversationId } = useLocalSearchParams<{ conversationId: string }>();
@@ -29,8 +29,10 @@ export default function ConversationScreen() {
 
     const [newMessage, setNewMessage] = useState('');
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [typingUsers, setTypingUsers] = useState<string[]>([]);
 
     const flashListRef = useRef<any>(null);
+    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const insets = useSafeAreaInsets();
 
     const {
@@ -166,6 +168,25 @@ export default function ConversationScreen() {
 
                 queryClient.invalidateQueries({ queryKey: queryKeys.chat.list() });
             });
+
+            chatService.onTyping((data) => {
+                if (data.userId !== user.id) {
+                    setTypingUsers((prev) => {
+                        if (!prev.includes(data.senderName)) {
+                            return [...prev, data.senderName];
+                        }
+                        return prev;
+                    });
+                }
+            });
+
+            chatService.onStopTyping((data) => {
+                if (data.userId !== user.id) {
+                    // Mencegah memory leak dan menjaga state sinkron dengan senderName, kita perlu mapping
+                    // Tapi karena hanya string, kita biarkan saja timer dari client-side yang handle
+                    setTypingUsers([]);
+                }
+            });
         }
 
         return () => {
@@ -175,6 +196,22 @@ export default function ConversationScreen() {
             chatService.offNewMessage();
         };
     }, [conversationId, user?.id, queryClient]);
+
+    const handleTextChange = (text: string) => {
+        setNewMessage(text);
+
+        if (conversationId) {
+            chatService.sendTyping(conversationId, user?.name);
+
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+
+            typingTimeoutRef.current = setTimeout(() => {
+                chatService.sendStopTyping(conversationId);
+            }, 2000);
+        }
+    };
 
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -294,7 +331,7 @@ export default function ConversationScreen() {
                 {selectedImage && (
                     <View style={tw`bg-white px-4 py-2 border-t border-gray-200`}>
                         <View style={tw`relative`}>
-                            <ImageWithCache source={selectedImage} style={tw`w-20 h-20 rounded-lg`} contentFit="cover" transition={1000}      />
+                            <ImageWithCache source={selectedImage} style={tw`w-20 h-20 rounded-lg`} contentFit="cover" transition={1000} />
                             <TouchableOpacity
                                 onPress={() => setSelectedImage(null)}
                                 style={tw`absolute -top-2 -right-2 bg-red-500 rounded-full p-1`}
@@ -302,6 +339,15 @@ export default function ConversationScreen() {
                                 <X size={14} color="white" />
                             </TouchableOpacity>
                         </View>
+                    </View>
+                )}
+
+                {/* Typing Indicator */}
+                {typingUsers.length > 0 && (
+                    <View style={tw`px-4 py-1 bg-white border-t border-gray-100`}>
+                        <Text style={tw`text-xs text-gray-400 italic`}>
+                            {typingUsers.join(', ')} sedang mengetik...
+                        </Text>
                     </View>
                 )}
 
@@ -321,16 +367,15 @@ export default function ConversationScreen() {
                             style={tw`flex-1 bg-gray-100 rounded-full px-4 py-3 mr-2 max-h-24`}
                             placeholder="Ketik pesan..."
                             value={newMessage}
-                            onChangeText={setNewMessage}
+                            onChangeText={handleTextChange}
                             multiline
                             maxLength={1000}
                         />
                         <TouchableOpacity
                             onPress={handleSend}
                             disabled={(!newMessage.trim() && !selectedImage) || sendMessageMutation.isPending}
-                            style={tw`h-11 w-11 rounded-full items-center justify-center ${
-                                (newMessage.trim() || selectedImage) && !sendMessageMutation.isPending ? 'bg-purple-500' : 'bg-gray-300'
-                            }`}
+                            style={tw`h-11 w-11 rounded-full items-center justify-center ${(newMessage.trim() || selectedImage) && !sendMessageMutation.isPending ? 'bg-purple-500' : 'bg-gray-300'
+                                }`}
                         >
                             {sendMessageMutation.isPending ? (
                                 <ActivityIndicator size="small" color="white" />

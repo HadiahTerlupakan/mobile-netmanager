@@ -112,10 +112,42 @@ class ChatService {
         }
     }
 
+    // Listen for typing events
+    onTyping(callback: (data: { userId: string; senderName: string; room: string }) => void) {
+        if (this.socket) {
+            this.socket.off('chat:typing');
+            this.socket.on('chat:typing', callback);
+        }
+    }
+
+    // Listen for stop typing events
+    onStopTyping(callback: (data: { userId: string; room: string }) => void) {
+        if (this.socket) {
+            this.socket.off('chat:stop_typing');
+            this.socket.on('chat:stop_typing', callback);
+        }
+    }
+
+    // Emit typing status
+    sendTyping(conversationId: string, senderName?: string) {
+        if (this.socket) {
+            this.socket.emit('chat:typing', { room: `chat:${conversationId}`, senderName });
+        }
+    }
+
+    // Emit stop typing status
+    sendStopTyping(conversationId: string) {
+        if (this.socket) {
+            this.socket.emit('chat:stop_typing', { room: `chat:${conversationId}` });
+        }
+    }
+
     // Remove message listener
     offNewMessage() {
         if (this.socket) {
             this.socket.off('chat:message');
+            this.socket.off('chat:typing');
+            this.socket.off('chat:stop_typing');
         }
     }
 

@@ -3,6 +3,8 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import { router } from 'expo-router';
+
 
 export interface PushNotificationState {
     expoPushToken?: Notifications.ExpoPushToken;
@@ -90,7 +92,20 @@ export const usePushNotifications = (): PushNotificationState => {
 
         responseListener.current =
             Notifications.addNotificationResponseReceivedListener((response) => {
-                // console.log("Notification Response: ", response);
+                const data = response.notification.request.content.data;
+                // Add console.log to debug received push notification deep linking
+                console.log("[PushNotification] Response Received: ", JSON.stringify(data));
+
+                // Deep link handling for chat messages
+                if (data?.type === 'chat_message' && data?.conversationId) {
+                    try {
+                        router.push(`/chat/${data.conversationId}`);
+
+                        console.log(`[PushNotification] Redirected to chat: ${data.conversationId}`);
+                    } catch (error) {
+                        console.error('[PushNotification] Error routing to chat:', error);
+                    }
+                }
             });
 
         return () => {
