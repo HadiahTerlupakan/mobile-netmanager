@@ -154,10 +154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
-    // Unified initialization effect with cleanup
+    // Initialization effect (runs only once on mount)
     useEffect(() => {
         let isMounted = true;
-        let authSubscription: any;
 
         const initialize = async () => {
             // Load storage data
@@ -187,19 +186,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         initialize();
 
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    // Event listeners effect (re-binds when signOut/fetchProfile changes)
+    useEffect(() => {
         // Listen for unauthorized events
         const permissionSub = DeviceEventEmitter.addListener(Events.USER_PERMISSIONS_UPDATE, () => {
             logger.auth('[Auth] Received permissions update event, refreshing profile...');
             fetchProfile();
         });
 
-        authSubscription = DeviceEventEmitter.addListener(Events.AUTH_UNAUTHORIZED, () => {
+        const authSubscription = DeviceEventEmitter.addListener(Events.AUTH_UNAUTHORIZED, () => {
             logger.warn('[Auth] Received unauthorized event, logging out...');
             signOut({ skipApi: true });
         });
 
         return () => {
-            isMounted = false;
             if (authSubscription) {
                 authSubscription.remove();
             }

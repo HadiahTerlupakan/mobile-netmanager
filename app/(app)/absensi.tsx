@@ -391,20 +391,26 @@ export default function AbsensiScreen() {
         const today = new Date().toDateString();
         const attendanceDate = new Date(lastAttendance.checkIn).toDateString();
 
-        if (today === attendanceDate) {
+        if (!lastAttendance.checkOut) {
+          // ACTIVE SESSION (Belum check-out) walau dari hari kemaren
+          setStatus("checked-in");
           setCheckInTime(formatDate(lastAttendance.checkIn, "HH:mm"));
-          if (lastAttendance.checkOut) {
+          setCheckOutTime(null);
+          LocationTrackingService.startTracking().catch(err => logger.error('Start tracking error', err));
+        } else {
+          // CLOSED SESSION (Sudah check-out)
+          if (today === attendanceDate) {
+            // Sesi ditutup hari ini, tampilkan jamnya
             setStatus("checked-out");
+            setCheckInTime(formatDate(lastAttendance.checkIn, "HH:mm"));
             setCheckOutTime(formatDate(lastAttendance.checkOut, "HH:mm"));
             LocationTrackingService.stopTracking().catch(err => logger.error('Stop tracking error', err));
           } else {
-            setStatus("checked-in");
-            LocationTrackingService.startTracking().catch(err => logger.error('Start tracking error', err));
+            // Sesi kemarin sudah mandek tertutup, hari ini adalah "idle" baru
+            setStatus("idle");
+            setCheckInTime(null);
+            setCheckOutTime(null);
           }
-        } else {
-          setStatus("idle");
-          setCheckInTime(null);
-          setCheckOutTime(null);
         }
       }
     }

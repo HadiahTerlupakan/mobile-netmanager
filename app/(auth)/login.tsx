@@ -9,7 +9,7 @@ import { LoginSchema } from '@/utils/validation';
 import { AxiosError } from 'axios';
 import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
-import { Fingerprint, Lock, Mail, User } from 'lucide-react-native';
+import { Fingerprint, Lock, User } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
@@ -22,9 +22,6 @@ export default function LoginScreen() {
     const [biometricAvailable, setBiometricAvailable] = useState(false);
     const [biometricEnabled, setBiometricEnabled] = useState(false);
     const [biometricTypes, setBiometricTypes] = useState<string[]>([]);
-    // Login Type State: EMPLOYEE (Karyawan) vs CUSTOMER (Pelanggan)
-    // Default to CUSTOMER since it's the first tab now
-    const [loginType, setLoginType] = useState<'EMPLOYEE' | 'CUSTOMER'>('CUSTOMER');
     const { signIn } = useAuth();
 
     const {
@@ -67,8 +64,7 @@ export default function LoginScreen() {
                 email,
                 password,
                 versionCode: versionCode.toString(),
-                versionName: versionName,
-                loginType // Send the selected login type
+                versionName: versionName
             }, {
                 // IMPORTANT: Prevent global 401 interceptor from hanging the request
                 // We want to handle 401 manually (Invalid Password) in this component
@@ -77,14 +73,14 @@ export default function LoginScreen() {
 
             if (res.data.success) {
                 logger.auth('[LoginScreen] Login success, calling signIn...');
-                
+
                 // Add robust token saving and state update
                 await signIn(
                     res.data.token,
                     res.data.user,
                     res.data.refreshToken
                 );
-                
+
                 // Note: AuthContext handles navigation via Effect based on user state
                 logger.auth('[LoginScreen] signIn completed, waiting for redirect...');
             } else {
@@ -105,7 +101,7 @@ export default function LoginScreen() {
         } finally {
             setLoading(false);
         }
-    }, [signIn, loginType]);
+    }, [signIn]);
 
     const handleLogin = handleValidatedSubmit(async (data: LoginFormData) => {
         await performLogin(data.email, data.password);
@@ -141,52 +137,20 @@ export default function LoginScreen() {
                 />
                 <Text style={tw`text-2xl font-bold text-gray-900`}>SBL NET</Text>
                 <Text style={tw`text-gray-500 mt-1`}>
-                    {loginType === 'EMPLOYEE' ? 'Employee Portal' : 'Customer Portal'}
+                    Client & Staff Portal
                 </Text>
             </View>
 
             <View style={tw`w-full max-w-sm`}>
-                {/* Login Type Tabs */}
-                <View style={tw`flex-row bg-gray-100 p-1 rounded-xl mb-6`}>
-                    <TouchableOpacity
-                        onPress={() => setLoginType('CUSTOMER')}
-                        style={[
-                            tw`flex-1 py-2.5 items-center rounded-lg`,
-                            loginType === 'CUSTOMER' ? tw`bg-white shadow-sm` : tw`bg-transparent`
-                        ]}
-                    >
-                        <Text style={[
-                            tw`font-semibold text-sm`,
-                            loginType === 'CUSTOMER' ? tw`text-blue-600` : tw`text-gray-500`
-                        ]}>
-                            Pelanggan
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={() => setLoginType('EMPLOYEE')}
-                        style={[
-                            tw`flex-1 py-2.5 items-center rounded-lg`,
-                            loginType === 'EMPLOYEE' ? tw`bg-white shadow-sm` : tw`bg-transparent`
-                        ]}
-                    >
-                        <Text style={[
-                            tw`font-semibold text-sm`,
-                            loginType === 'EMPLOYEE' ? tw`text-blue-600` : tw`text-gray-500`
-                        ]}>
-                            Karyawan
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
                 {/* Email/Username Input with React Hook Form */}
                 <FormInput
                     name="email"
                     control={control}
-                    label={loginType === 'EMPLOYEE' ? "Email Address" : "ID Pelanggan (Username)"}
-                    placeholder={loginType === 'EMPLOYEE' ? "nama@perusahaan.com" : "Contoh: budi123"}
-                    keyboardType={loginType === 'EMPLOYEE' ? "email-address" : "default"}
+                    label="Email / Username / ID Pelanggan"
+                    placeholder="Contoh: budi123 atau nama@email.com"
+                    keyboardType="default"
                     autoCapitalize="none"
-                    leftIcon={loginType === 'EMPLOYEE' ? <Mail color="#9ca3af" size={20} /> : <User color="#9ca3af" size={20} />}
+                    leftIcon={<User color="#9ca3af" size={20} />}
                     error={errors.email?.message}
                     testID="email-input"
                 />
