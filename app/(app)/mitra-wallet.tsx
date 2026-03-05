@@ -62,13 +62,16 @@ export default function MitraWalletScreen() {
 
             if (pageNum === 1) {
                 setData(result);
-            } else if (data) {
-                setData({
-                    ...result,
-                    transactions: {
-                        ...result.transactions,
-                        transactions: [...data.transactions.transactions, ...result.transactions.transactions],
-                    },
+            } else {
+                setData((prevData) => {
+                    if (!prevData) return result;
+                    return {
+                        ...result,
+                        transactions: {
+                            ...result.transactions,
+                            transactions: [...prevData.transactions.transactions, ...result.transactions.transactions],
+                        },
+                    };
                 });
             }
             setPage(pageNum);
@@ -79,7 +82,7 @@ export default function MitraWalletScreen() {
             setRefreshing(false);
             setLoadingMore(false);
         }
-    }, [data]);
+    }, []);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 

@@ -23,6 +23,8 @@ interface DashboardStats {
     targetHarian?: number;
     suksesClosingMonth?: number;
     saldoKomisi?: number;
+    enableFeePelanggan?: boolean;
+    activeCustomers?: number;
 }
 
 export function MitraSalesDashboardScreen() {
@@ -78,11 +80,23 @@ export function MitraSalesDashboardScreen() {
                 {/* Sales specific KPI split */}
                 <View style={tw`flex-row bg-[#2a2a30] rounded-2xl p-1 mb-6 border border-white/5`}>
                     <View style={tw`flex-1 items-center justify-center py-3 border-r border-white/10`}>
-                        <Text style={tw`text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1`}>Target Harian</Text>
-                        <View style={tw`flex-row items-center gap-1.5`}>
-                            <Target size={16} color="#fbbf24" />
-                            <Text style={tw`text-white font-bold text-lg`}>{targetHarian}</Text>
-                        </View>
+                        {statsData?.enableFeePelanggan ? (
+                            <>
+                                <Text style={tw`text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1 text-center`}>Pelanggan Aktif</Text>
+                                <View style={tw`flex-row items-center gap-1.5`}>
+                                    <Target size={16} color="#60a5fa" />
+                                    <Text style={tw`text-white font-bold text-lg`}>{statsData.activeCustomers || 0}</Text>
+                                </View>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={tw`text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1`}>Target Harian</Text>
+                                <View style={tw`flex-row items-center gap-1.5`}>
+                                    <Target size={16} color="#fbbf24" />
+                                    <Text style={tw`text-white font-bold text-lg`}>{targetHarian}</Text>
+                                </View>
+                            </>
+                        )}
                     </View>
                     <View style={tw`flex-1 items-center justify-center py-3`}>
                         <Text style={tw`text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1`}>Sukses Closing</Text>
