@@ -12,6 +12,7 @@ import { useOfflineQuery } from '@/hooks/queries';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { queryKeys } from '@/lib/queryClient';
 import { TenantService } from '@/services/TenantService';
+import api from '@/services/api';
 import { FlashList } from '@shopify/flash-list';
 import { Href, useRouter } from 'expo-router';
 import { Clock, MessageCircle } from 'lucide-react-native';
@@ -32,6 +33,9 @@ interface DashboardStats {
     targetHarian?: number;
     suksesClosingMonth?: number;
     saldoKomisi?: number;
+    canvasingTarget?: number;
+    unclaimedCanvasing?: number;
+    targetSchema?: 'MONTHLY_RESET' | 'ACCUMULATED';
 }
 
 interface CanvasingSummary {
@@ -301,12 +305,82 @@ function DashboardScreen() {
                     />
                 )}
                 {currentItem?.type === 'canvasing' && (
-                    <PerformanceStats
-                        title="Canvasing Selesai"
-                        today={canvasingStatsProps.today}
-                        week={canvasingStatsProps.week}
-                        month={canvasingStatsProps.month}
-                    />
+                    <>
+                        <PerformanceStats
+                            title="Canvasing Selesai"
+                            today={canvasingStatsProps.today}
+                            week={canvasingStatsProps.week}
+                            month={canvasingStatsProps.month}
+                        />
+
+                        {user?.isSales && (
+                            <View style={tw`mx-4 mb-4 bg-white rounded-2xl p-5 shadow-sm border border-gray-100`}>
+                                <View style={tw`flex-row justify-between items-center mb-3`}>
+                                    <Text style={tw`text-base font-bold text-gray-900`}>Target & Pencairan</Text>
+                                    <View style={tw`px-2 py-1 rounded-md ${statsData?.targetSchema === 'ACCUMULATED' ? 'bg-amber-50' : 'bg-blue-50'}`}>
+                                        <Text style={tw`text-[10px] font-bold ${statsData?.targetSchema === 'ACCUMULATED' ? 'text-amber-600' : 'text-blue-600'}`}>
+                                            {statsData?.targetSchema === 'ACCUMULATED' ? 'AKUMULASI' : 'BULANAN'}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <View style={tw`flex-row justify-between items-center mb-2`}>
+                                    <Text style={tw`text-sm text-gray-600`}>
+                                        {statsData?.targetSchema === 'ACCUMULATED' ? 'Progress Pencairan' : 'Progress Bulan Ini'}
+                                    </Text>
+                                    <Text style={tw`text-sm font-bold ${statsData?.unclaimedCanvasing !== undefined && statsData?.canvasingTarget && statsData.unclaimedCanvasing >= statsData.canvasingTarget ? 'text-emerald-600' : 'text-blue-600'}`}>
+                                        {statsData?.unclaimedCanvasing || 0} / {statsData?.canvasingTarget || 30}
+                                    </Text>
+                                </View>
+                                <View style={tw`h-2 bg-gray-100 rounded-full overflow-hidden mb-4`}>
+                                    <View
+                                        style={[
+                                            { width: `${Math.min(((statsData?.unclaimedCanvasing || 0) / (statsData?.canvasingTarget || 30)) * 100, 100)}%` },
+                                            tw`h-full ${statsData?.unclaimedCanvasing !== undefined && statsData?.canvasingTarget && statsData.unclaimedCanvasing >= statsData.canvasingTarget ? 'bg-emerald-500' : 'bg-blue-500'}`
+                                        ]}
+                                    />
+                                </View>
+
+                                {statsData?.targetSchema === 'ACCUMULATED' ? (
+                                    <TouchableOpacity
+                                        disabled={statsData?.unclaimedCanvasing === undefined || !statsData?.canvasingTarget || statsData.unclaimedCanvasing < statsData.canvasingTarget}
+                                        onPress={() => {
+                                            Alert.alert(
+                                                'Konfirmasi Pencairan',
+                                                `Anda memiliki ${statsData?.unclaimedCanvasing || 0} bonus canvasing yang siap dicairkan. Yakin ingin mencairkan semuanya sekarang?`,
+                                                [
+                                                    { text: 'Batal', style: 'cancel' },
+                                                    {
+                                                        text: 'Cairkan',
+                                                        onPress: async () => {
+                                                            try {
+                                                                await api.post('/api/marketing/claims/cashout');
+                                                                Alert.alert('Berhasil', 'Bonus canvasing berhasil dicairkan! Saldo akan direset menjadi 0.');
+                                                                refetchStats();
+                                                            } catch (error: any) {
+                                                                Alert.alert('Gagal', error?.response?.data?.error || 'Terjadi kesalahan saat mencairkan bonus');
+                                                            }
+                                                        }
+                                                    }
+                                                ]
+                                            );
+                                        }}
+                                        style={tw`w-full py-3 rounded-xl items-center justify-center ${statsData?.unclaimedCanvasing !== undefined && statsData?.canvasingTarget && statsData.unclaimedCanvasing >= statsData.canvasingTarget ? 'bg-emerald-600' : 'bg-gray-200'}`}
+                                    >
+                                        <Text style={tw`font-bold ${statsData?.unclaimedCanvasing !== undefined && statsData?.canvasingTarget && statsData.unclaimedCanvasing >= statsData.canvasingTarget ? 'text-white' : 'text-gray-400'}`}>
+                                            Cairkan Bonus Belum Diklaim
+                                        </Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <View style={tw`bg-blue-50 p-3 rounded-xl`}>
+                                        <Text style={tw`text-xs text-blue-700 text-center leading-4`}>
+                                            Target Anda direset otomatis setiap awal bulan. Bonus akan diproses langsung oleh Admin.
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+                        )}
+                    </>
                 )}
 
                 <QuickMenu
