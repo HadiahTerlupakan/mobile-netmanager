@@ -1,5 +1,8 @@
 // Jest setup file - runs after test framework is installed
-import '@testing-library/jest-native/extend-expect';
+try {
+  require('@testing-library/jest-native/extend-expect');
+} catch {
+}
 
 // Define __DEV__
 global.__DEV__ = false;

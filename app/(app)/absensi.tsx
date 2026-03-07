@@ -1,15 +1,23 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { AttendanceSkeleton } from "@/components/molecules/AttendanceSkeleton";
 import LoadingModal from "@/components/molecules/LoadingModal";
+import { PendingSyncBadge } from "@/components/organisms/attendance/PendingSyncBadge";
 import { useAuth } from "@/context/AuthContext";
 import {
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
 import { queryKeys } from "@/lib/queryClient";
+import { AttendanceTelemetryService } from "@/services/AttendanceTelemetryService";
+import { DatabaseService } from "@/services/DatabaseService";
 import { LocationTrackingService } from "@/services/LocationTrackingService";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
+import { ensureAttendanceRequestId } from "@/utils/attendanceIdempotency";
+import {
+  AttendanceGeofencePolicy,
+  resolveAttendanceGeofenceAction,
+} from "@/utils/attendanceGeofencePolicy";
 import { generateSignature } from "@/utils/crypto";
 import { formatDate } from "@/utils/date";
 import { getUserFriendlyError } from "@/utils/errorHandling";
@@ -30,6 +38,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Modal,
+  RefreshControl,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -244,6 +253,7 @@ export default function AbsensiScreen() {
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
   const [checkOutTime, setCheckOutTime] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // UI State
   const [showCamera, setShowCamera] = useState(false);
@@ -260,7 +270,7 @@ export default function AbsensiScreen() {
   const [isTukarLiburLeaveDay, setIsTukarLiburLeaveDay] = useState(false);
 
   // Geofence State
-  const { data: geofenceData } = useApiQuery<{ zones: GeofenceZone[] }>({
+  const { data: geofenceData } = useApiQuery<{ zones: GeofenceZone[]; policy?: AttendanceGeofencePolicy }>({
     queryKey: queryKeys.attendance.geofence(),
     endpoint: "/api/mobile/geofence",
     select: (data: any) => data?.data,
@@ -268,6 +278,7 @@ export default function AbsensiScreen() {
   });
 
   const geofenceZones = React.useMemo(() => geofenceData?.zones || [], [geofenceData]);
+  const geofencePolicy: AttendanceGeofencePolicy = geofenceData?.policy ?? "WARN";
 
   const [geofenceStatus, setGeofenceStatus] = useState<{
     isInside: boolean;
@@ -278,6 +289,7 @@ export default function AbsensiScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Memproses...");
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
 
   // --- Handlers ---
 
@@ -376,6 +388,24 @@ export default function AbsensiScreen() {
     enabled: !!token,
   });
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetchStatus();
+    await getLocation();
+    const pendingQueue = await DatabaseService.getPendingQueue();
+    setPendingSyncCount(pendingQueue.length);
+    setRefreshing(false);
+  }, [refetchStatus, getLocation]);
+
+  const refreshPendingSyncCount = useCallback(async () => {
+    try {
+      const pendingQueue = await DatabaseService.getPendingQueue();
+      setPendingSyncCount(pendingQueue.length);
+    } catch (error) {
+      logger.warn("Failed to load pending sync queue", error);
+    }
+  }, []);
+
   useEffect(() => {
     if (statusData?.success) {
       setTodayHoliday({
@@ -418,13 +448,22 @@ export default function AbsensiScreen() {
 
   useEffect(() => {
     getLocation();
-  }, [token, getLocation]);
+  }, [getLocation]);
 
   useEffect(() => {
     if (location && geofenceZones.length > 0) {
       checkGeofence(location.coords.latitude, location.coords.longitude, geofenceZones);
     }
   }, [geofenceZones, location, checkGeofence]);
+
+  useEffect(() => {
+    refreshPendingSyncCount();
+    const timer = setInterval(() => {
+      refreshPendingSyncCount();
+    }, 15000);
+
+    return () => clearInterval(timer);
+  }, [refreshPendingSyncCount]);
 
   const handleCaptureURI = useCallback(async () => {
     if (cameraRef.current) {
@@ -467,18 +506,32 @@ export default function AbsensiScreen() {
     }
 
     const isOnline = await SyncService.isOnline();
-    const payload = {
+    const payload = ensureAttendanceRequestId({
       location: locationName,
       latitude: location.coords.latitude,
       longitude: location.coords.longitude,
       capturedAt: (capturedTime || new Date()).toISOString(),
-    };
+    });
+
+    AttendanceTelemetryService.track("attendance_submit_started", {
+      requestId: payload.requestId,
+      userId: user?.id,
+      action: status === "idle" ? "check-in" : "check-out",
+      networkState: isOnline ? "online" : "offline",
+      queueDepth: pendingSyncCount,
+    });
 
     if (isOnline) {
       setLoading(true);
       setUploadProgress(0);
       try {
         setLoadingMessage("Mengupload foto...");
+        AttendanceTelemetryService.track("attendance_photo_upload_started", {
+          requestId: payload.requestId,
+          userId: user?.id,
+          action: status === "idle" ? "check-in" : "check-out",
+          networkState: "online",
+        });
         const uploadedUrls = await uploadService.uploadBatch(
           [processedUri],
           "employee-attendance",
@@ -488,6 +541,13 @@ export default function AbsensiScreen() {
         );
         const photoUrl = uploadedUrls[0];
         if (!photoUrl) throw new Error("Gagal upload foto.");
+
+        AttendanceTelemetryService.track("attendance_photo_upload_succeeded", {
+          requestId: payload.requestId,
+          userId: user?.id,
+          action: status === "idle" ? "check-in" : "check-out",
+          networkState: "online",
+        });
 
         setLoadingMessage("Mengirim data...");
         setUploadProgress(0); // Indeterminate
@@ -512,6 +572,7 @@ export default function AbsensiScreen() {
             Alert.alert("Berhasil", status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
             refetchStatus();
             setPhoto(null);
+            refreshPendingSyncCount();
           },
           onError: (e) => {
             setIsProcessing(false);
@@ -521,6 +582,13 @@ export default function AbsensiScreen() {
           },
         });
       } catch (error) {
+        AttendanceTelemetryService.track("attendance_photo_upload_failed", {
+          requestId: payload.requestId,
+          userId: user?.id,
+          action: status === "idle" ? "check-in" : "check-out",
+          networkState: "online",
+          reason: error instanceof Error ? error.message : "Unknown error",
+        });
         setIsProcessing(false);
         setLoading(false);
         const { title, message } = getUserFriendlyError(error);
@@ -531,7 +599,13 @@ export default function AbsensiScreen() {
       await mutation.mutate({
         ...payload,
         photoUrl: null,
-        meta: { photos: [processedUri], targetField: "photoUrl", singleFile: true, photoType: "employee-attendance" },
+        meta: {
+          photos: [processedUri],
+          targetField: "photoUrl",
+          singleFile: true,
+          photoType: "employee-attendance",
+          requestId: payload.requestId,
+        },
         _offline_meta: {
           capturedAt: payload.capturedAt,
           signature: generateSignature({ userId: user?.id, timestamp: payload.capturedAt, latitude: payload.latitude, longitude: payload.longitude }),
@@ -550,12 +624,19 @@ export default function AbsensiScreen() {
           if (isOfflineQueued) {
             setPhoto(null);
             Alert.alert("Offline", "Data disimpan offline.");
+            AttendanceTelemetryService.track("attendance_queued_offline", {
+              requestId: payload.requestId,
+              userId: user?.id,
+              action: status === "idle" ? "check-in" : "check-out",
+              networkState: "offline",
+            });
           } else {
             // If it surprisingly succeeded online
             setPhoto(null);
             Alert.alert("Berhasil", "Data berhasil dikirim.");
             refetchStatus();
           }
+          refreshPendingSyncCount();
         },
         onError: (e) => {
           setIsProcessing(false);
@@ -564,7 +645,7 @@ export default function AbsensiScreen() {
         }
       });
     }
-  }, [photo, location, status, isProcessing, captureWatermarkedPhoto, locationName, capturedTime, checkInMutation, checkOutMutation, user?.id, refetchStatus]);
+  }, [photo, location, status, isProcessing, captureWatermarkedPhoto, locationName, capturedTime, checkInMutation, checkOutMutation, user?.id, refetchStatus, pendingSyncCount, refreshPendingSyncCount]);
 
   const handleSubmit = useCallback(async () => {
     if (!photo || !location) {
@@ -572,11 +653,21 @@ export default function AbsensiScreen() {
       return;
     }
     if (geofenceStatus && !geofenceStatus.isInside) {
+      const geofenceAction = resolveAttendanceGeofenceAction(geofencePolicy, geofenceStatus.isInside);
+
+      if (geofenceAction === "allow") {
+        await submitAttendance();
+        return;
+      }
+      if (geofenceAction === "block") {
+        Alert.alert("Di Luar Area Kantor", "Anda wajib berada di dalam area site untuk melakukan absensi.");
+        return;
+      }
       setShowOutsideWarning(true);
       return;
     }
     await submitAttendance();
-  }, [photo, location, geofenceStatus, submitAttendance]);
+  }, [photo, location, geofencePolicy, geofenceStatus, submitAttendance]);
 
   const handleConfirmOutsideSubmit = useCallback(async () => {
     setShowOutsideWarning(false);
@@ -626,7 +717,10 @@ export default function AbsensiScreen() {
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
-      <ScrollView contentContainerStyle={tw`pb-20`}>
+      <ScrollView
+        contentContainerStyle={tw`pb-20`}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         <AttendanceHeader
           todayHoliday={todayHoliday}
           isTukarLiburWorkDay={isTukarLiburWorkDay}
@@ -636,6 +730,7 @@ export default function AbsensiScreen() {
 
         <View style={tw`px-4 -mt-8`}>
           <View style={tw`bg-white rounded-2xl shadow-sm p-4 border border-gray-100`}>
+            <PendingSyncBadge pendingCount={pendingSyncCount} />
             <LocationCard locationName={locationName} onRefresh={getLocation} />
             <AttendanceStatusInfo checkInTime={checkInTime} checkOutTime={checkOutTime} />
 
@@ -669,10 +764,18 @@ export default function AbsensiScreen() {
               <TouchableOpacity
                 onPress={() => setShowCamera(true)}
                 disabled={status === "checked-out" || todayHoliday.isHoliday || isOffDay}
-                style={tw`${todayHoliday.isHoliday ? "bg-red-50 border-red-200" : isTukarLiburLeaveDay ? "bg-purple-50 border-purple-200" : isOffDay ? "bg-amber-50 border-amber-200" : isTukarLiburWorkDay ? "bg-green-50 border-green-200" : "bg-blue-50 border-blue-200"} border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
+                style={tw`${status === "checked-out" ? "bg-gray-100 border-gray-300" :
+                  todayHoliday.isHoliday ? "bg-red-50 border-red-200" :
+                    isTukarLiburLeaveDay ? "bg-purple-50 border-purple-200" :
+                      isOffDay ? "bg-amber-50 border-amber-200" :
+                        isTukarLiburWorkDay ? "bg-green-50 border-green-200" :
+                          "bg-blue-50 border-blue-200"
+                  } border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
               >
                 {todayHoliday.isHoliday ? (
                   <View style={tw`items-center`}><CalendarOff size={32} color="#dc2626" /><Text style={tw`text-red-600 font-bold mt-2`}>Libur Nasional</Text></View>
+                ) : status === "checked-out" ? (
+                  <View style={tw`items-center`}><Text style={tw`text-gray-500 font-bold text-lg`}>🎉 Absensi Selesai</Text><Text style={tw`text-gray-400 text-sm mt-1`}>Terima kasih untuk hari ini</Text></View>
                 ) : (
                   <View style={tw`items-center`}><Camera size={32} color="#2563eb" /><Text style={tw`text-blue-600 font-bold mt-2`}>{status === "idle" ? "Ambil Foto Masuk" : "Ambil Foto Keluar"}</Text></View>
                 )}
@@ -683,7 +786,7 @@ export default function AbsensiScreen() {
       </ScrollView>
 
       <GeofenceWarning
-        visible={showOutsideWarning}
+        visible={showOutsideWarning && geofencePolicy === "WARN"}
         onCancel={() => setShowOutsideWarning(false)}
         onContinue={handleConfirmOutsideSubmit}
         geofenceStatus={geofenceStatus}
