@@ -14,6 +14,7 @@ import { LocationTrackingService } from "@/services/LocationTrackingService";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import { ensureAttendanceRequestId } from "@/utils/attendanceIdempotency";
+import { deriveAttendanceStatus } from "@/utils/attendanceStatus";
 import {
   AttendanceGeofencePolicy,
   resolveAttendanceGeofenceAction,
@@ -196,6 +197,26 @@ const AttendanceStatusInfo = React.memo(({ checkInTime, checkOutTime }: Attendan
 ));
 AttendanceStatusInfo.displayName = 'AttendanceStatusInfo';
 
+interface AttendanceWarningProps {
+  message: string | null;
+}
+
+const AttendanceWarning = React.memo(({ message }: AttendanceWarningProps) => {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <View style={tw`flex-row items-start bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4`}>
+      <AlertTriangle size={18} color="#d97706" />
+      <Text style={tw`flex-1 text-amber-800 text-sm ml-2`}>
+        {message}
+      </Text>
+    </View>
+  );
+});
+AttendanceWarning.displayName = 'AttendanceWarning';
+
 interface GeofenceWarningProps {
   visible: boolean;
   onCancel: () => void;
@@ -252,6 +273,7 @@ export default function AbsensiScreen() {
   const [status, setStatus] = useState<"idle" | "checked-in" | "checked-out">("idle");
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
   const [checkOutTime, setCheckOutTime] = useState<string | null>(null);
+  const [attendanceWarning, setAttendanceWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -381,6 +403,16 @@ export default function AbsensiScreen() {
     data: {
       checkIn: string;
       checkOut?: string;
+      sessionMeta?: {
+        isStaleFlexibleSession?: boolean;
+      };
+      user?: {
+        workingHourMode?: "FIXED" | "SHIFT" | "FLEXIBLE" | null;
+        shift?: {
+          startTime: string;
+          endTime: string;
+        } | null;
+      };
     }[];
   }>({
     queryKey: queryKeys.attendance.status(),
@@ -416,32 +448,16 @@ export default function AbsensiScreen() {
       setIsTukarLiburWorkDay(!!statusData.today?.isTukarLiburWorkDay);
       setIsTukarLiburLeaveDay(!!statusData.today?.isTukarLiburLeaveDay);
 
-      if (statusData.data.length > 0) {
-        const lastAttendance = statusData.data[0];
-        const today = new Date().toDateString();
-        const attendanceDate = new Date(lastAttendance.checkIn).toDateString();
+      const derivedStatus = deriveAttendanceStatus(statusData.data[0]);
+      setStatus(derivedStatus.status);
+      setCheckInTime(derivedStatus.checkInTime);
+      setCheckOutTime(derivedStatus.checkOutTime);
+      setAttendanceWarning(derivedStatus.warningMessage);
 
-        if (!lastAttendance.checkOut) {
-          // ACTIVE SESSION (Belum check-out) walau dari hari kemaren
-          setStatus("checked-in");
-          setCheckInTime(formatDate(lastAttendance.checkIn, "HH:mm"));
-          setCheckOutTime(null);
-          LocationTrackingService.startTracking().catch(err => logger.error('Start tracking error', err));
-        } else {
-          // CLOSED SESSION (Sudah check-out)
-          if (today === attendanceDate) {
-            // Sesi ditutup hari ini, tampilkan jamnya
-            setStatus("checked-out");
-            setCheckInTime(formatDate(lastAttendance.checkIn, "HH:mm"));
-            setCheckOutTime(formatDate(lastAttendance.checkOut, "HH:mm"));
-            LocationTrackingService.stopTracking().catch(err => logger.error('Stop tracking error', err));
-          } else {
-            // Sesi kemarin sudah mandek tertutup, hari ini adalah "idle" baru
-            setStatus("idle");
-            setCheckInTime(null);
-            setCheckOutTime(null);
-          }
-        }
+      if (derivedStatus.status === "checked-in") {
+        LocationTrackingService.startTracking().catch(err => logger.error('Start tracking error', err));
+      } else {
+        LocationTrackingService.stopTracking().catch(err => logger.error('Stop tracking error', err));
       }
     }
   }, [statusData]);
@@ -733,6 +749,7 @@ export default function AbsensiScreen() {
             <PendingSyncBadge pendingCount={pendingSyncCount} />
             <LocationCard locationName={locationName} onRefresh={getLocation} />
             <AttendanceStatusInfo checkInTime={checkInTime} checkOutTime={checkOutTime} />
+            <AttendanceWarning message={attendanceWarning} />
 
             {photo ? (
               <View style={tw`mb-4`}>

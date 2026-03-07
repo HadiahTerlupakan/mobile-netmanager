@@ -49,6 +49,51 @@ Join our community of developers creating universal apps.
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
 
+## Environment Management
+
+Project ini mendukung 3 environment (Local, Staging, Production) yang diatur melalui variabel `EXPO_PUBLIC_APP_VARIANT`.
+
+### 1. Menjalankan di Emulator/HP (Development)
+
+Secara default, jika Anda menjalankan `npx expo start`, aplikasi akan menggunakan **Local Dev** (IP komputer Anda).
+
+Untuk mengetes environment lain tanpa build:
+
+- **Local Development**:
+  ```bash
+  npx expo start
+  ```
+- **Staging (Beta Test Server)**:
+  ```bash
+  EXPO_PUBLIC_APP_VARIANT=staging npx expo start
+  ```
+- **Production Server**:
+  ```bash
+  EXPO_PUBLIC_APP_VARIANT=production npx expo start
+  ```
+
+### 2. Melakukan Build (EAS)
+
+Environment akan otomatis dipilih berdasarkan profile build:
+
+- **Build Staging (Preview)**:
+  ```bash
+  eas build --profile preview
+  ```
+- **Build Production**:
+  ```bash
+  eas build --profile production
+  ```
+
+### 3. Visual Environment Indicator
+
+Untuk menghindari kesalahan penggunaan environment, aplikasi akan menampilkan badge di pojok kanan bawah:
+- **Badge Biru (LOCAL DEV)**: Muncul saat menjalankan di local development.
+- **Badge Oranye (BETA / STAGING)**: Muncul saat menggunakan variant staging.
+- **Tanpa Badge**: Saat aplikasi berjalan di environment production.
+
+---
+
 ## Development Build (Native)
 
 Since this app uses native modules (sqlite, netinfo, camera), you must use a **Development Build**, not Expo Go.

@@ -2,35 +2,70 @@
 trigger: always_on
 ---
 
-MANDATORY AGENT RULES:
+# AI Agent Mandatory Rules
 
-1. LANGUAGE
+## 1. Language
 
-   - Always use Indonesian (Bahasa Indonesia) for all responses and communication
-   - Use English only for code, technical documentation, or when explicitly requested
+- Selalu gunakan **Bahasa Indonesia** untuk semua komunikasi dan respons.
+- Gunakan **Bahasa Inggris hanya untuk:**
+  - Code
 
-2. MCP VERIFICATION
+---
 
-   - Must check with MCP servers before providing answers
-   - Use filesystem to read project structure
-   - Use memory to retain conversation context
-   - Use postgres/prisma for database operations
+# 2. MCP Verification
 
-3. DOCUMENTATION & REFERENCE
+Sebelum memberikan jawaban atau solusi, **WAJIB memverifikasi menggunakan MCP servers.**
 
-   - Context7 is the primary source for documentation and references
-   - Always check Context7 before providing solutions or recommendations
-   - If information is not in Context7, search filesystem or other MCP servers
+Gunakan MCP sesuai kebutuhan:
 
-4. CODE ARCHITECTURE
+### Filesystem
+Digunakan untuk:
 
-   - MUST follow existing Modular Monolith architecture
-   - Structure must be consistent: Module → Service → Repository
-   - Do not create new patterns without explicit approval
-   - Every change must maintain consistency with existing structure
+- Membaca struktur project
+- Melihat source code
+- Memahami module yang ada
+- Mengecek implementasi yang sudah ada
 
-5. WORKFLOW
-   - Step 1: Read context from MCP (filesystem/memory/context7)
-   - Step 2: Understand existing architecture
-   - Step 3: Provide solutions consistent with existing patterns
-   - Step 4: Save important context to memory
+### Memory
+Digunakan untuk:
+
+- Menyimpan context penting dari percakapan
+- Mengingat keputusan arsitektur
+- Menyimpan preferensi user
+- Menyimpan informasi project
+
+### Postgres / Prisma
+Digunakan untuk:
+
+- Operasi database
+- Membaca schema database
+- Validasi struktur data
+- Analisis relasi tabel
+
+---
+
+# 3. Documentation & Reference
+
+- **Context7 adalah sumber dokumentasi utama.**
+- Selalu **cek Context7 terlebih dahulu** sebelum memberikan:
+  - solusi teknis
+  - rekomendasi library
+  - implementasi code
+  - best practice
+
+Jika informasi **tidak ditemukan di Context7**, maka lakukan pencarian berikut:
+
+1. Cari di **filesystem project**
+2. Cari di **MCP server lain yang relevan**
+
+---
+
+# 4. Code Architecture
+
+Semua implementasi **WAJIB mengikuti arsitektur yang sudah ada.**
+
+Arsitektur yang digunakan:
+
+**Modular Monolith**
+
+Struktur standar:

@@ -14,9 +14,24 @@ const getDevApiUrl = () => {
   return 'http://192.168.18.41:3000';
 };
 
+const getApiUrl = () => {
+  const variant = process.env.EXPO_PUBLIC_APP_VARIANT;
+
+  if (variant === 'production') {
+    return "https://radpro.id";
+  }
+
+  if (variant === 'staging') {
+    return "https://staging.radpro.id";
+  }
+
+  // Default to development logic if no variant is specified
+  return getDevApiUrl();
+};
+
 export const Config = {
-  // Automatically switch between Dev and Prod based on environment
-  API_URL: __DEV__
-    ? getDevApiUrl()
-    : "https://radpro.id",
+  // Automatically switch between Dev, Staging, and Prod based on environment variant
+  API_URL: getApiUrl(),
+  VARIANT: process.env.EXPO_PUBLIC_APP_VARIANT || 'development',
+  IS_PRODUCTION: process.env.EXPO_PUBLIC_APP_VARIANT === 'production',
 };

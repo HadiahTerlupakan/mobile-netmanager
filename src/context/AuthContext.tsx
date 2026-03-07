@@ -5,7 +5,8 @@ import { RefreshTokenService } from '@/services/RefreshTokenService';
 import { TokenService } from '@/services/TokenService';
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
-import { SecureStorage } from '@/utils/storage';
+import { SecureStorage, Storage } from '@/utils/storage';
+import { queryClient } from '@/lib/queryClient';
 import { isAxiosError } from 'axios';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
@@ -120,6 +121,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // Clear refresh token
             await RefreshTokenService.clearRefreshToken();
+
+            // Clear React Query Cache and AsyncStorage 
+            queryClient.clear();
+            await Storage.removeItem('TANSTACK_QUERY_CACHE');
 
             await SecureStorage.removeItem('session_token');
             await SecureStorage.removeItem('user_data');

@@ -1,3 +1,4 @@
+import { EnvironmentIndicator } from "@/components/atoms/EnvironmentIndicator";
 import { ErrorBoundary } from "@/components/atoms/ErrorBoundary";
 import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModal";
 import { UpdateRequiredScreen } from "@/components/templates/UpdateRequiredScreen";
@@ -89,13 +90,13 @@ function RootLayoutNav() {
   // Check for app updates on mount (Android APK only)
   useEffect(() => {
     const checkUpdate = async () => {
-        try {
-            await checkForUpdate(CURRENT_VERSION_CODE);
-        } catch (e) {
-            logger.error('Failed to check for updates:', e);
-        } finally {
-            setVersionChecked(true);
-        }
+      try {
+        await checkForUpdate(CURRENT_VERSION_CODE);
+      } catch (e) {
+        logger.error('Failed to check for updates:', e);
+      } finally {
+        setVersionChecked(true);
+      }
     };
     checkUpdate();
   }, [checkForUpdate]);
@@ -242,34 +243,34 @@ function RootLayoutNav() {
 
     // Debounce redirects to prevent loops during initialization
     const redirectTimer = setTimeout(() => {
-        // Multi-tenant disabled, skip tenant check
-        /*
-        if (!tenantUrl && !inAuthGroup && segments[0] !== 'tenant-selection') {
-          logger.auth("No tenant, redirecting to Tenant Selection");
-          router.replace("/tenant-selection");
-          return;
-        }
-        */
+      // Multi-tenant disabled, skip tenant check
+      /*
+      if (!tenantUrl && !inAuthGroup && segments[0] !== 'tenant-selection') {
+        logger.auth("No tenant, redirecting to Tenant Selection");
+        router.replace("/tenant-selection");
+        return;
+      }
+      */
 
-        if (!user && !inAuthGroup) {
-          logger.auth("Redirecting to Login");
-          router.replace("/(auth)/login");
-        } else if (user) {
-          // If User is Customer
-          if (user.role === 'CUSTOMER') {
-             if (!inCustomerGroup) {
-               logger.auth("Redirecting to Customer Dashboard");
-               router.replace("/(customer)/dashboard");
-             }
-          } 
-          // If User is Employee (Admin, Teknisi, Sales, etc)
-          else {
-             if (!inAppGroup) {
-               logger.auth("Redirecting to Employee Dashboard");
-               router.replace("/(app)/dashboard");
-             }
+      if (!user && !inAuthGroup) {
+        logger.auth("Redirecting to Login");
+        router.replace("/(auth)/login");
+      } else if (user) {
+        // If User is Customer
+        if (user.role === 'CUSTOMER') {
+          if (!inCustomerGroup) {
+            logger.auth("Redirecting to Customer Dashboard");
+            router.replace("/(customer)/dashboard");
           }
         }
+        // If User is Employee (Admin, Teknisi, Sales, etc)
+        else {
+          if (!inAppGroup) {
+            logger.auth("Redirecting to Employee Dashboard");
+            router.replace("/(app)/dashboard");
+          }
+        }
+      }
     }, 100);
 
     return () => clearTimeout(redirectTimer);
@@ -277,9 +278,9 @@ function RootLayoutNav() {
 
   // Show update modal when available (and not forced)
   useEffect(() => {
-      if (updateAvailable && !isForceUpdate) {
-          setShowOptionalUpdate(true);
-      }
+    if (updateAvailable && !isForceUpdate) {
+      setShowOptionalUpdate(true);
+    }
   }, [updateAvailable, isForceUpdate]);
 
   // Show loading while checking auth or version
@@ -312,6 +313,8 @@ function RootLayoutNav() {
         <Slot />
       </SocketProvider>
 
+      <EnvironmentIndicator />
+
       {/* Optional Update Modal */}
       {showOptionalUpdate && latestVersion && (
         <UpdateAvailableModal
@@ -322,8 +325,8 @@ function RootLayoutNav() {
           error={versionError}
           onStartUpdate={startUpdate}
           onLater={() => {
-              ignoreUpdate();
-              setShowOptionalUpdate(false);
+            ignoreUpdate();
+            setShowOptionalUpdate(false);
           }}
           onDismissError={dismissError}
         />

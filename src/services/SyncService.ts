@@ -8,6 +8,8 @@ import { NotificationService } from './NotificationService';
 import { logger } from '../utils/logger';
 import { uploadService, UploadType } from './UploadService';
 import { eventManager } from '@/utils/EventManager';
+import { AttendanceTelemetryService } from './AttendanceTelemetryService';
+import { buildAttendanceIdempotencyHeaders } from '@/utils/attendanceIdempotency';
 
 // Helper for upload (outside component)
 const uploadFile = async (uri: string, type: string, watermarkLines?: string[]): Promise<string | null> => {
@@ -185,11 +187,15 @@ export const SyncService = {
       let attempt = 0;
 
       while (attempt < MAX_RETRIES) {
+          let requestId: string | undefined;
+          const attendanceReplay = item.url.includes('/attendance/');
+
           try {
             logger.sync(`Processing item ${item.id} (Attempt ${attempt + 1}/${MAX_RETRIES}): ${item.method} ${item.url}`);
 
             const body = item.body ? JSON.parse(item.body) : {};
             const meta = item.meta ? JSON.parse(item.meta) : {};
+            requestId = typeof body.requestId === 'string' ? body.requestId : (typeof meta.requestId === 'string' ? meta.requestId : undefined);
 
             // 1. Legacy: Support Photo Uploads (Parallel if multiple)
             if (meta.photos && Array.isArray(meta.photos) && meta.photos.length > 0) {
@@ -245,6 +251,11 @@ export const SyncService = {
               headers['Authorization'] = `Bearer ${token}`;
             }
 
+            const idempotencyHeaders = buildAttendanceIdempotencyHeaders(requestId);
+            if (idempotencyHeaders) {
+              headers['Idempotency-Key'] = idempotencyHeaders['Idempotency-Key'];
+            }
+
             const response = await axios({
               method: item.method,
               url: item.url.startsWith('http') ? item.url : `${TenantService.getTenantUrl()}${item.url}`,
@@ -255,6 +266,13 @@ export const SyncService = {
             if (response.status >= 200 && response.status < 300) {
               logger.sync(`Item ${item.id} synced successfully.`);
               await DatabaseService.removeFromQueue(item.id);
+              if (attendanceReplay) {
+                AttendanceTelemetryService.track('attendance_replay_succeeded', {
+                  requestId,
+                  endpoint: item.url,
+                  networkState: 'online',
+                });
+              }
               return; // Success, exit function
             } else {
                 logger.warn(`[SyncService] Item ${item.id} failed with status ${response.status}`);
@@ -271,6 +289,22 @@ export const SyncService = {
                 // 4xx Errors -> Permanent Failure -> Remove from Queue
                 if (status >= 400 && status < 500) {
                      logger.sync(`Client Error (${status}). Removing item ${item.id}.`);
+
+                     if (attendanceReplay) {
+                        if (status === 409) {
+                          AttendanceTelemetryService.track('attendance_duplicate_blocked', {
+                            requestId,
+                            endpoint: item.url,
+                            reason: 'Conflict/duplicate detected during replay',
+                          });
+                        } else {
+                          AttendanceTelemetryService.track('attendance_replay_failed', {
+                            requestId,
+                            endpoint: item.url,
+                            reason: `Client error ${status}`,
+                          });
+                        }
+                     }
 
                      await DatabaseService.removeFromQueue(item.id);
 
@@ -304,6 +338,14 @@ export const SyncService = {
                 // Max retries reached, mark as RETRY in DB for next batch
                 logger.warn(`[SyncService] Max retries reached for item ${item.id}. Marking for later.`);
                 await DatabaseService.markAsRetry(item.id);
+                if (attendanceReplay) {
+                  AttendanceTelemetryService.track('attendance_replay_failed', {
+                    requestId,
+                    endpoint: item.url,
+                    reason: 'Max retries reached',
+                    retryCount: MAX_RETRIES,
+                  });
+                }
             }
           }
       }

@@ -10,9 +10,15 @@
  */
 
 import api from "@/services/api";
+import { AttendanceTelemetryService } from "@/services/AttendanceTelemetryService";
 import { DatabaseService } from "@/services/DatabaseService";
 import { SyncService } from "@/services/SyncService";
 import { uploadService, UploadType } from "@/services/UploadService";
+import {
+  buildAttendanceIdempotencyHeaders,
+  ensureAttendanceRequestId,
+  isAttendanceEndpoint,
+} from "@/utils/attendanceIdempotency";
 import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import {
@@ -36,6 +42,7 @@ export interface MutationMeta {
   targetField?: string;
   singleFile?: boolean;
   photoMap?: Record<string, string>;
+  requestId?: string;
 }
 
 // Interface standar untuk variables yang memiliki meta data
@@ -159,7 +166,20 @@ export function useApiMutation<
   return useMutation<TData, AxiosError<ApiErrorResponse>, TVariables>({
     ...mutationOptions,
     mutationFn: async (variables) => {
-      const payload: Record<string, unknown> = { ...variables };
+      const startedAt = Date.now();
+      const attendanceMutation = isAttendanceEndpoint(endpoint);
+      const payload: Record<string, unknown> = attendanceMutation
+        ? ensureAttendanceRequestId({ ...variables })
+        : { ...variables };
+      const requestId = typeof payload.requestId === "string" ? payload.requestId : undefined;
+
+      if (attendanceMutation) {
+        AttendanceTelemetryService.track("attendance_submit_started", {
+          requestId,
+          endpoint,
+          networkState: "online",
+        });
+      }
 
       try {
         // Handle photoMap uploads
@@ -198,7 +218,17 @@ export function useApiMutation<
           method,
           data: payload,
           timeout: 15000, // Timeout for mobile networks
+          headers: buildAttendanceIdempotencyHeaders(requestId),
         });
+
+        if (attendanceMutation) {
+          AttendanceTelemetryService.track("attendance_api_succeeded", {
+            requestId,
+            endpoint,
+            networkState: "online",
+            latencyMs: Date.now() - startedAt,
+          });
+        }
 
         return response.data;
       } catch (error) {
@@ -215,16 +245,40 @@ export function useApiMutation<
             `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${endpoint}`,
           );
 
+          const queueMeta = {
+            ...((variables.meta as Record<string, unknown>) || {}),
+            ...(requestId ? { requestId } : {}),
+          };
+
           // Add to offline queue
           await DatabaseService.addToQueue(
             endpoint,
             method,
             payload,
-            (variables.meta as Record<string, unknown>) || {},
+            queueMeta,
           );
+
+          if (attendanceMutation) {
+            const queueDepth = (await DatabaseService.getPendingQueue()).length;
+            AttendanceTelemetryService.track("attendance_queued_offline", {
+              requestId,
+              endpoint,
+              networkState: "offline",
+              queueDepth,
+            });
+          }
 
           // Return dummy data to satisfy TData and trigger onSuccess
           return { __offline_queued__: true } as unknown as TData;
+        }
+
+        if (attendanceMutation) {
+          AttendanceTelemetryService.track("attendance_api_failed", {
+            requestId,
+            endpoint,
+            reason: error instanceof Error ? error.message : "Unknown error",
+            latencyMs: Date.now() - startedAt,
+          });
         }
 
         throw error;
@@ -287,4 +341,3 @@ export function useApiMutation<
     },
   });
 }
-

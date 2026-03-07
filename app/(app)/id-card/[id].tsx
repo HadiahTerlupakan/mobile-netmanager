@@ -1,3 +1,4 @@
+import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { TenantService } from '@/services/TenantService';
@@ -36,7 +37,7 @@ export default function NativeIDCardScreen() {
     const boundingHeight = cardWidth * targetScale;
 
     const isSales = profile?.mitraType === 'MITRA_SALES';
-    const verifyUrl = `https://radpro.id/mitra-id/${profile?.id || user?.id}`;
+    const verifyUrl = `${Config.API_URL}/mitra-id/${profile?.id || user?.id}`;
 
     const formatDate = (dateString?: string) => {
         if (!dateString) return '-';

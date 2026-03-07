@@ -4,6 +4,15 @@ import * as SecureStore from 'expo-secure-store';
 import { DatabaseService } from '@/services/DatabaseService';
 import { SyncService } from '@/services/SyncService';
 
+jest.mock('axios', () => {
+  const axiosMock = jest.fn();
+  return {
+    __esModule: true,
+    default: axiosMock,
+    isAxiosError: (error: unknown) => Boolean((error as { isAxiosError?: boolean })?.isAxiosError),
+  };
+});
+
 // Mock logger to suppress console output
 jest.mock('@/utils/logger', () => ({
   logger: {
@@ -36,7 +45,13 @@ beforeEach(() => {
   jest.clearAllMocks();
   SyncService.isMonitoring = false;
   SyncService.isProcessing = false;
+  (NetInfo.fetch as jest.Mock).mockResolvedValue({
+    isConnected: true,
+    isInternetReachable: true,
+  });
 });
+
+const mockedAxios = axios as unknown as jest.Mock;
 
 describe('SyncService', () => {
   describe('isOnline', () => {
@@ -88,13 +103,17 @@ describe('SyncService', () => {
   });
 
   describe('processQueue', () => {
+    beforeEach(() => {
+      jest.spyOn(SyncService, 'isOnline').mockResolvedValue(true);
+    });
+
     it('should do nothing when queue is empty', async () => {
       (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([]);
       
       await SyncService.processQueue();
       
       expect(DatabaseService.getPendingQueue).toHaveBeenCalled();
-      expect(axios).not.toHaveBeenCalled();
+      expect(mockedAxios).not.toHaveBeenCalled();
     });
 
     it('should process items and remove on success', async () => {
@@ -109,11 +128,11 @@ describe('SyncService', () => {
       
       (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([mockItem]);
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('test-token');
-      (axios as unknown as jest.Mock).mockResolvedValue({ status: 200, data: { success: true } });
+      mockedAxios.mockResolvedValue({ status: 200, data: { success: true } });
       
       await SyncService.processQueue();
       
-      expect(axios).toHaveBeenCalledWith(expect.objectContaining({
+      expect(mockedAxios).toHaveBeenCalledWith(expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
           'Authorization': 'Bearer test-token'
@@ -122,7 +141,33 @@ describe('SyncService', () => {
       expect(DatabaseService.removeFromQueue).toHaveBeenCalledWith(1);
     });
 
+    it('should forward idempotency key header from queued request body', async () => {
+      const mockItem = {
+        id: 2,
+        url: '/api/mobile/attendance/check-in',
+        method: 'POST',
+        body: JSON.stringify({ requestId: 'att-222-abc123', data: 'test' }),
+        status: 'PENDING',
+        meta: '{}'
+      };
+
+      (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([mockItem]);
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('test-token');
+      mockedAxios.mockResolvedValue({ status: 200, data: { success: true } });
+
+      await SyncService.processQueue();
+
+      expect(mockedAxios).toHaveBeenCalledWith(expect.objectContaining({
+        headers: expect.objectContaining({
+          'Authorization': 'Bearer test-token',
+          'Idempotency-Key': 'att-222-abc123'
+        })
+      }));
+    });
+
     it('should mark as retry on failure', async () => {
+      jest.useFakeTimers();
+
       const mockItem = {
         id: 1,
         url: '/api/test',
@@ -134,11 +179,15 @@ describe('SyncService', () => {
 
       (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([mockItem]);
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('test-token');
-      (axios as unknown as jest.Mock).mockRejectedValue(new Error('Network error'));
+      mockedAxios.mockRejectedValue(new Error('Network error'));
 
-      await SyncService.processQueue();
+      const processingPromise = SyncService.processQueueItem(mockItem as any, 'test-token');
+      await jest.runAllTimersAsync();
+      await processingPromise;
 
       expect(DatabaseService.markAsRetry).toHaveBeenCalledWith(1);
+
+      jest.useRealTimers();
     }, 15000); // Increase timeout for backoff delays (2s + 4s + processing time)
 
     it('should wait for database if not ready', async () => {
