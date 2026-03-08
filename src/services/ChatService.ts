@@ -2,6 +2,7 @@ import api from '@/services/api'; // Use centralized API
 import { TenantService } from '@/services/TenantService';
 import { uploadService } from '@/services/UploadService';
 import { logger } from '@/utils/logger';
+import { CHAT_JOIN_ROOM_EVENT, CHAT_LEAVE_ROOM_EVENT, getChatRoomName } from '@/services/chatSocketEvents';
 import * as SecureStore from 'expo-secure-store';
 import { io, Socket } from 'socket.io-client';
 
@@ -91,15 +92,16 @@ class ChatService {
     // Join a conversation room for real-time updates
     joinConversation(conversationId: string) {
         if (this.socket) {
-            this.socket.emit('join_room', `chat:${conversationId}`);
-            logger.info('[Chat] Joined room:', `chat:${conversationId}`);
+            const room = getChatRoomName(conversationId)
+            this.socket.emit(CHAT_JOIN_ROOM_EVENT, room);
+            logger.info('[Chat] Joined room:', room);
         }
     }
 
     // Leave a conversation room
     leaveConversation(conversationId: string) {
         if (this.socket) {
-            this.socket.emit('leave_room', `chat:${conversationId}`);
+            this.socket.emit(CHAT_LEAVE_ROOM_EVENT, getChatRoomName(conversationId));
         }
     }
 
