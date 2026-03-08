@@ -1,5 +1,7 @@
 import { FormInput } from '@/components/atoms/FormInput';
+import { CURRENT_VERSION_CODE, CURRENT_VERSION_NAME } from '@/constants/appVersion';
 import { useAuth } from '@/context/AuthContext';
+import { Events } from '@/constants/Events';
 import { useFormWithValidation } from '@/hooks/useFormWithValidation';
 import { biometricService } from '@/services/BiometricService';
 import api from '@/services/api';
@@ -7,11 +9,10 @@ import { getUserFriendlyError } from '@/utils/errorHandling';
 import { logger } from '@/utils/logger';
 import { LoginSchema } from '@/utils/validation';
 import { AxiosError } from 'axios';
-import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import { Fingerprint, Lock, User } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, DeviceEventEmitter, Image, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 import { z } from 'zod';
 
@@ -56,15 +57,12 @@ export default function LoginScreen() {
     const performLogin = useCallback(async (email: string, password: string) => {
         setLoading(true);
         try {
-            const versionCode = Constants.expoConfig?.extra?.versionCode || 15;
-            const versionName = Constants.expoConfig?.version || '1.0.0';
-
             logger.auth('Attempting login...');
             const res = await api.post('/api/mobile/auth/login', {
                 email,
                 password,
-                versionCode: versionCode.toString(),
-                versionName: versionName
+                versionCode: CURRENT_VERSION_CODE.toString(),
+                versionName: CURRENT_VERSION_NAME
             }, {
                 // IMPORTANT: Prevent global 401 interceptor from hanging the request
                 // We want to handle 401 manually (Invalid Password) in this component
@@ -94,6 +92,8 @@ export default function LoginScreen() {
 
             if (status === 401) {
                 Alert.alert('Login Gagal', 'Email atau password salah.');
+            } else if (status === 426) {
+                DeviceEventEmitter.emit(Events.APP_VERSION_UNSUPPORTED, isAxiosErr ? error.response?.data : undefined);
             } else {
                 const errIdx = getUserFriendlyError(error);
                 Alert.alert(errIdx.title || 'Error', errIdx.message || 'Terjadi kesalahan');

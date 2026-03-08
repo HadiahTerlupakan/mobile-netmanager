@@ -1,4 +1,5 @@
 import { Events } from '@/constants/Events';
+import { CURRENT_VERSION_CODE_LABEL, CURRENT_VERSION_NAME } from '@/constants/appVersion';
 import { performanceMonitor } from '@/services/PerformanceMonitor'; // Import PerformanceMonitor
 import { RefreshTokenService } from '@/services/RefreshTokenService';
 import { TenantService } from '@/services/TenantService';
@@ -43,6 +44,8 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    config.headers['X-App-Version-Code'] = CURRENT_VERSION_CODE_LABEL;
+    config.headers['X-App-Version-Name'] = CURRENT_VERSION_NAME;
     return config;
   },
   (error) => {
@@ -98,6 +101,12 @@ api.interceptors.response.use(
 
     // Initialize retry count
     config._retryCount = config._retryCount || 0;
+
+    if (error.response?.status === 426) {
+      logger.warn(`[API] 426 from ${config.url}. Emitting APP_VERSION_UNSUPPORTED.`);
+      DeviceEventEmitter.emit(Events.APP_VERSION_UNSUPPORTED, error.response.data);
+      return Promise.reject(error);
+    }
 
     // Check if we should retry
     if (config._retryCount < MAX_RETRIES && shouldRetry(error)) {
