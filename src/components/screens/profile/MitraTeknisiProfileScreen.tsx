@@ -2,12 +2,12 @@ import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { ProfileSkeleton } from '@/components/molecules/ProfileSkeleton';
 import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModal";
+import { CURRENT_VERSION_CODE, CURRENT_VERSION_CODE_LABEL, CURRENT_VERSION_NAME } from '@/constants/appVersion';
 import { useAuth } from '@/context/AuthContext';
 import { useAppVersion } from "@/hooks/useAppVersion";
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { TenantService } from '@/services/TenantService';
 import { logger } from '@/utils/logger';
-import Constants from 'expo-constants';
 import { Href, router } from 'expo-router';
 import { BadgeCheck, LogOut, Mail, MapPin } from 'lucide-react-native';
 import { useState } from 'react';
@@ -39,10 +39,8 @@ export function MitraTeknisiProfileScreen() {
             return;
         }
 
-        const currentVersionCode = Constants.expoConfig?.extra?.versionCode || 53;
-
         try {
-            const result = await checkForUpdate(currentVersionCode);
+            const result = await checkForUpdate(CURRENT_VERSION_CODE);
 
             if (result.success && result.updateAvailable) {
                 setShowUpdateModal(true);
@@ -203,7 +201,7 @@ export function MitraTeknisiProfileScreen() {
                             <ActivityIndicator size="small" color="#a8a29e" />
                         ) : (
                             <Text style={tw`text-center text-stone-400 text-[10px] font-bold uppercase tracking-widest`}>
-                                NetManager Mobile v{Constants.expoConfig?.version || '1.0.0'} (Build {Constants.expoConfig?.extra?.versionCode || '1'})
+                                NetManager Mobile v{CURRENT_VERSION_NAME} (Build {CURRENT_VERSION_CODE_LABEL})
                                 {'\n'}Ketuk untuk cek update
                             </Text>
                         )}
