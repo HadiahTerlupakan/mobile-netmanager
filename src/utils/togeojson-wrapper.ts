@@ -1,3 +1,4 @@
+import { gpx, kml } from '@tmcw/togeojson';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 
 // Polyfills for togeojson
@@ -15,24 +16,23 @@ if (!globalWithPolyfills.XMLSerializer) {
   globalWithPolyfills.XMLSerializer = XMLSerializer;
 }
 
-// GeoJSON types for togeojson output
-interface GeoJSONFeatureCollection {
+type GeoJSONFeatureCollection = {
   type: "FeatureCollection";
   features: {
     type: "Feature";
-    properties: Record<string, any>;
+    properties: Record<string, unknown>;
     geometry: {
       type: string;
       coordinates: number[] | number[][] | number[][][];
     };
   }[];
-}
+};
+const rawToGeoJSON = {
+  kml,
+  gpx,
+} as const;
 
-/**
- * @types/togeojson is not available, using require and declaring a basic type
- */
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const toGeoJSON = require('togeojson') as {
+const toGeoJSON = rawToGeoJSON as unknown as {
   kml: (doc: Document) => GeoJSONFeatureCollection;
   gpx: (doc: Document) => GeoJSONFeatureCollection;
 };

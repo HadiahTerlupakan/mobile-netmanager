@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "netmanager",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "jsEngine": "hermes",
     "ios": {
       "supportsTablet": true,
@@ -89,6 +88,7 @@
         "expo-build-properties",
         {
           "android": {
+            "minSdkVersion": 26,
             "gradleProperties": [
               {
                 "key": "org.gradle.jvmargs",
@@ -98,8 +98,8 @@
           }
         }
       ],
-      "@react-native-firebase/app",
-      "@react-native-firebase/messaging"
+      "@react-native-firebase/app/app.plugin.js",
+      "@react-native-firebase/messaging/app.plugin.js"
     ],
     "experiments": {
       "typedRoutes": true
