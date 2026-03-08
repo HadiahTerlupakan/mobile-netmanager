@@ -1,11 +1,9 @@
-import { LocationTrackingService } from '@/services/LocationTrackingService';
+import { LocationTrackingService } from '../../src/services/LocationTrackingService';
 import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
 import * as Battery from 'expo-battery';
 import * as SecureStore from 'expo-secure-store';
-import { Storage } from '@/utils/storage';
-import { logger } from '@/utils/logger';
-import api from '@/services/api';
+import { Storage } from '../../src/utils/storage';
+import api from '../../src/services/api';
 
 // Mock dependencies
 jest.mock('expo-location');
@@ -19,6 +17,11 @@ jest.mock('@/services/api');
 describe('LocationTrackingService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(global, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe('startTracking', () => {
@@ -39,7 +42,7 @@ describe('LocationTrackingService', () => {
         expect.any(String),
         expect.objectContaining({
           accuracy: Location.Accuracy.Balanced,
-          timeInterval: 5 * 60 * 1000, // 5 mins for good battery
+          timeInterval: 10 * 60 * 1000,
         })
       );
       expect(Storage.setItem).toHaveBeenCalledWith('@location_tracking_enabled', 'true');

@@ -1,7 +1,7 @@
 import { act, render, waitFor } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
 import React from 'react';
-import { AuthContextType, AuthProvider, useAuth } from '@/context/AuthContext';
+import { AuthContextType, AuthProvider, useAuth } from '../../src/context/AuthContext';
 
 // Mock logger to suppress console output
 jest.mock('@/utils/logger', () => {
@@ -92,15 +92,20 @@ describe('AuthContext', () => {
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
 
       let authContext: AuthContextType | undefined;
-      
-      render(
+
+      const { unmount } = render(
         <AuthProvider>
           <TestConsumer onMount={(auth) => { authContext = auth; }} />
         </AuthProvider>
       );
 
-      // Initial state should be loading
       expect(authContext?.isLoading).toBe(true);
+
+      await waitFor(() => {
+        expect(authContext?.isLoading).toBe(false);
+      });
+
+      unmount();
     });
 
     it('should load stored session on mount', async () => {

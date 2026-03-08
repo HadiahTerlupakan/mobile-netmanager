@@ -1,7 +1,6 @@
 import { uploadService } from '../../src/services/UploadService';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
-import { Config } from '../../src/constants/Config';
 
 // Mock dependencies
 jest.mock('../../src/constants/Config', () => ({
@@ -22,11 +21,7 @@ jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
 }));
 
-jest.mock('../../src/utils/logger', () => ({
-  info: jest.fn(),
-  error: jest.fn(),
-  warn: jest.fn(),
-}));
+jest.mock('@/utils/logger', () => require('../../__mocks__/logger'));
 
 jest.mock('../../src/utils/errorHandling', () => ({
   getUserFriendlyError: jest.fn((error) => ({
@@ -92,7 +87,7 @@ describe('UploadService', () => {
 
       // Mock createUploadTask to call the progress callback
       (FileSystem.createUploadTask as jest.Mock).mockImplementation(
-        (url, uri, options, onProgress) => {
+        (_url, _uri, _options, onProgress) => {
           // Simulate progress
           if (onProgress) {
             onProgress({
@@ -123,7 +118,6 @@ describe('UploadService', () => {
     });
 
     it('should retry on failure', async () => {
-      const errorResponse = { status: 500, body: 'Server Error' };
       const successResponse = { status: 200, body: JSON.stringify({ url: mockUrl }) };
 
       (FileSystem.uploadAsync as jest.Mock)
