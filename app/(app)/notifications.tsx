@@ -223,6 +223,7 @@ export default function NotificationsScreen() {
       case "WORK_ORDER":
         router.push(notification.sourceId ? `/(app)/work-order-detail/${notification.sourceId}` : "/(app)/work-order");
         break;
+      case "ATTENDANCE": router.push("/(app)/absensi"); break;
       case "LEAVE": router.push("/(app)/izin"); break;
       case "OVERTIME": router.push("/(app)/lembur"); break;
       case "INVENTORY": router.push("/(app)/barang"); break;
