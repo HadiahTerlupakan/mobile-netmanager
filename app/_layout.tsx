@@ -12,23 +12,20 @@ import { DatabaseService } from "@/services/DatabaseService"; // Import Database
 import { errorReportingService } from "@/services/ErrorReportingService"; // Import ErrorReportingService
 import { performanceMonitor } from "@/services/PerformanceMonitor"; // Import PerformanceMonitor
 import { SyncService } from "@/services/SyncService";
+import { CURRENT_VERSION_CODE, CURRENT_VERSION_NAME } from "@/constants/appVersion";
 import { eventManager } from "@/utils/EventManager";
 import { logger } from "@/utils/logger";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Href, Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, DeviceEventEmitter, Platform, View } from "react-native";
+import { Events } from "@/constants/Events";
 import tw from "twrnc";
 
 // Initialize error reporting as early as possible
 errorReportingService.init();
-
-// Get current version from app.json
-const CURRENT_VERSION_CODE = Constants.expoConfig?.extra?.versionCode || 53;
-const CURRENT_VERSION_NAME = Constants.expoConfig?.version || "1.0.0";
 
 function RootLayoutNav() {
   const { user, token, isLoading: isAuthLoading } = useAuth();
@@ -60,6 +57,7 @@ function RootLayoutNav() {
     error: versionError,
     checkForUpdate,
     startUpdate,
+    applyVersionRequirement,
     dismissError,
     ignoreUpdate,
   } = useAppVersion();
@@ -130,6 +128,20 @@ function RootLayoutNav() {
       if (reportTimer) clearTimeout(reportTimer);
     };
   }, [user, token]);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(Events.APP_VERSION_UNSUPPORTED, (payload?: {
+      details?: { latestVersion?: typeof latestVersion }
+      latestVersion?: typeof latestVersion
+    }) => {
+      const forcedVersion = payload?.details?.latestVersion ?? payload?.latestVersion ?? null;
+      applyVersionRequirement(forcedVersion ?? null);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [applyVersionRequirement]);
 
   // Handle Push Notifications
   useEffect(() => {
