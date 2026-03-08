@@ -18,6 +18,7 @@ import { MitraTeknisiTabBar } from '@/components/organisms/navigation/MitraTekni
 import { AppFeature } from "@/constants/features";
 import { useAuth } from "@/context/AuthContext";
 import { useProfileSync } from "@/hooks/useProfileSync";
+import { isRouteAllowedDuringLeave } from '@/utils/leaveAccess';
 import { logger } from "@/utils/logger";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -28,7 +29,7 @@ export default function AppLayout() {
 
   // This hook ensures Profile Data is background-synced on App Load/Active
   const { profileData } = useProfileSync();
-  const { token, user } = useAuth();
+  const { user } = useAuth();
 
   const [showFaceVerification, setShowFaceVerification] = useState(false);
 
@@ -64,7 +65,7 @@ export default function AppLayout() {
       // Also allow null/undefined pathname during initial load
       if (!pathname) return;
 
-      const isAllowed = pathname === '/dashboard' || pathname.startsWith('/chat');
+      const isAllowed = isRouteAllowedDuringLeave(pathname);
 
       if (!isAllowed) {
         // Redirect to dashboard if user is on restricted screen
@@ -79,11 +80,11 @@ export default function AppLayout() {
       // Logic for tracking
     };
     resumeTrackingIfNeeded();
-  }, [token]);
+  }, []);
 
   const handleTabPress = (e: any, feature: AppFeature | string) => {
     // Check for leave status
-    if (user?.isOnLeave && feature !== AppFeature.DASHBOARD) {
+    if (user?.isOnLeave && feature !== AppFeature.DASHBOARD && feature !== AppFeature.IZIN) {
       e.preventDefault();
       Alert.alert(
         "Mode Cuti Aktif",
