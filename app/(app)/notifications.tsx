@@ -226,6 +226,10 @@ export default function NotificationsScreen() {
       case "ATTENDANCE": router.push("/(app)/absensi"); break;
       case "LEAVE": router.push("/(app)/izin"); break;
       case "OVERTIME": router.push("/(app)/lembur"); break;
+      case "CANVASING":
+      case "POINT_CLAIM":
+        router.push(notification.link || "/(app)/marketing/canvasing");
+        break;
       case "INVENTORY": router.push("/(app)/barang"); break;
       default: router.push("/(app)/dashboard"); break;
     }
