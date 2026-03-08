@@ -7,7 +7,7 @@ import { formatTimeAgo } from "@/utils/date";
 import { getUserFriendlyError } from "@/utils/errorHandling";
 import { FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Href, useFocusEffect, useRouter } from "expo-router";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -228,7 +228,11 @@ export default function NotificationsScreen() {
       case "OVERTIME": router.push("/(app)/lembur"); break;
       case "CANVASING":
       case "POINT_CLAIM":
-        router.push(notification.link || "/(app)/marketing/canvasing");
+        if (notification.link?.startsWith('/')) {
+          router.push(notification.link as Href);
+        } else {
+          router.push("/(app)/marketing/canvasing");
+        }
         break;
       case "INVENTORY": router.push("/(app)/barang"); break;
       default: router.push("/(app)/dashboard"); break;

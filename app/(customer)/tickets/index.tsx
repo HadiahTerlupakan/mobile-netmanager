@@ -1,5 +1,7 @@
 import api from '@/services/api';
+import { extractApiErrorMessage, getUserFriendlyError } from '@/utils/errorHandling';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -54,6 +56,8 @@ export default function CustomerTicketsScreen() {
       return res.data;
     },
     onSuccess: (data) => {
+      const ticketNumber = typeof data?.ticket?.ticketNumber === 'string' ? data.ticket.ticketNumber : null;
+
       // 1. Hide modal first
       setShowCreateModal(false);
 
@@ -66,12 +70,24 @@ export default function CustomerTicketsScreen() {
 
         // 3. Show success alert after a tiny delay to ensure React commits state
         setTimeout(() => {
-          Alert.alert('Berhasil', `Tiket #${data.ticket.ticketNumber} berhasil dibuat.`);
+          Alert.alert(
+            'Berhasil',
+            ticketNumber
+              ? `Tiket #${ticketNumber} berhasil dibuat.`
+              : 'Tiket berhasil dibuat.'
+          );
         }, 100);
       }, 400);
     },
-    onError: (error: any) => {
-      Alert.alert('Gagal', error.response?.data?.error || 'Gagal membuat tiket');
+    onError: (error) => {
+      const backendMessage = isAxiosError(error) ? extractApiErrorMessage(error.response?.data) : undefined;
+      if (backendMessage) {
+        Alert.alert('Gagal', backendMessage);
+        return;
+      }
+
+      const friendlyError = getUserFriendlyError(error);
+      Alert.alert(friendlyError.title, friendlyError.message);
     }
   });
 

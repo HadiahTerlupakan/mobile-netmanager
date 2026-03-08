@@ -64,12 +64,17 @@ export class ScreenErrorBoundary extends Component<Props, State> {
     });
   };
 
-  goHome = () => {
+  goBackSafely = () => {
     this.setState({
       hasError: false,
       error: null,
     });
-    router.replace('/(app)/dashboard');
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/');
   };
 
   render() {
@@ -86,7 +91,7 @@ export class ScreenErrorBoundary extends Component<Props, State> {
             </Text>
 
             <Text style={tw`text-gray-500 text-center mb-6 leading-5`}>
-              Maaf, halaman ini mengalami masalah. Silakan coba lagi atau kembali ke beranda.
+              Maaf, halaman ini mengalami masalah. Silakan coba lagi atau kembali ke layar sebelumnya.
             </Text>
 
             {__DEV__ && this.state.error && (
@@ -99,11 +104,11 @@ export class ScreenErrorBoundary extends Component<Props, State> {
 
             <View style={tw`flex-row w-full gap-3`}>
               <TouchableOpacity
-                onPress={this.goHome}
+                onPress={this.goBackSafely}
                 style={tw`flex-1 flex-row items-center justify-center bg-gray-200 py-3 rounded-xl`}
               >
                 <Home size={18} color="#374151" style={tw`mr-2`} />
-                <Text style={tw`text-gray-700 font-bold`}>Beranda</Text>
+                <Text style={tw`text-gray-700 font-bold`}>Kembali</Text>
               </TouchableOpacity>
 
               <TouchableOpacity

@@ -6,6 +6,7 @@ node_modules/
 # Expo
 .expo/
 dist/
+dist-audit-error-handling/
 web-build/
 expo-env.d.ts
 

@@ -74,7 +74,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </Text>
 
             <Text style={tw`text-gray-500 text-center mb-6 leading-5`}>
-              Maaf, aplikasi mengalami masalah tak terduga. Kami telah mencatat error ini.
+              Maaf, aplikasi mengalami masalah tak terduga. Detail error disimpan di log diagnostik aplikasi.
             </Text>
 
             {__DEV__ && this.state.error && (

@@ -1,5 +1,6 @@
 import React, { ErrorInfo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { errorReportingService } from '@/services/ErrorReportingService';
 import { logger } from '@/utils/logger';
 
 interface Props {
@@ -24,6 +25,13 @@ export class TopologyErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     logger.error('[TopologyErrorBoundary] Caught:', error, errorInfo);
+    errorReportingService.captureException(error, {
+      boundary: 'topology',
+      componentStack: errorInfo.componentStack,
+    });
+    errorReportingService.addBreadcrumb('error', 'Topology view crashed', {
+      errorMessage: error.message,
+    });
   }
 
   handleReset = () => {
@@ -40,7 +48,9 @@ export class TopologyErrorBoundary extends React.Component<Props, State> {
         <View style={styles.container}>
           <Text style={styles.title}>Peta Topologi Error</Text>
           <Text style={styles.message}>
-            {this.state.error?.message || 'Terjadi kesalahan saat memuat peta'}
+            {__DEV__ && this.state.error?.message
+              ? this.state.error.message
+              : 'Terjadi kesalahan saat memuat peta. Silakan coba lagi.'}
           </Text>
           <TouchableOpacity
             onPress={this.handleReset}

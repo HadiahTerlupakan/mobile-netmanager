@@ -67,6 +67,8 @@ function RootLayoutNav() {
 
   // Initialize Offline Services
   useEffect(() => {
+    let syncTimer: ReturnType<typeof setTimeout> | undefined;
+
     const initServices = async () => {
       try {
         // Phase 1: Critical services
@@ -75,14 +77,30 @@ function RootLayoutNav() {
 
         // Phase 2: Non-critical services (delayed)
         logger.info("[Init] Phase 2: Starting sync monitoring");
-        setTimeout(() => {
-          SyncService.startMonitoring();
+        syncTimer = setTimeout(() => {
+          try {
+            SyncService.startMonitoring();
+          } catch (error) {
+            logger.error('[Init] Failed to start sync monitoring:', error);
+            errorReportingService.captureException(error instanceof Error ? error : new Error('Failed to start sync monitoring'), {
+              source: 'root.initServices.syncMonitoring',
+            });
+          }
         }, 1000);
       } catch (error) {
         logger.error("[Init] Service initialization failed:", error);
+        errorReportingService.captureException(error instanceof Error ? error : new Error('Service initialization failed'), {
+          source: 'root.initServices',
+        });
       }
     };
     initServices();
+
+    return () => {
+      if (syncTimer) {
+        clearTimeout(syncTimer);
+      }
+    };
   }, []);
 
   // Check for app updates on mount (Android APK only)
@@ -92,6 +110,9 @@ function RootLayoutNav() {
         await checkForUpdate(CURRENT_VERSION_CODE);
       } catch (e) {
         logger.error('Failed to check for updates:', e);
+        errorReportingService.captureException(e instanceof Error ? e : new Error('Failed to check for updates'), {
+          source: 'root.checkUpdate',
+        });
       } finally {
         setVersionChecked(true);
       }
@@ -145,6 +166,8 @@ function RootLayoutNav() {
 
   // Handle Push Notifications
   useEffect(() => {
+    let notificationNavigationTimer: ReturnType<typeof setTimeout> | undefined;
+
     const validRoutes = [
       "/dashboard",
       "/work-order",
@@ -184,6 +207,10 @@ function RootLayoutNav() {
         }
       } catch (e) {
         logger.error("Navigation failed:", e);
+        errorReportingService.captureException(e instanceof Error ? e : new Error('Notification navigation failed'), {
+          source: 'root.notificationNavigation',
+          route: data.url,
+        });
         router.replace("/(app)/dashboard");
       }
     };
@@ -192,41 +219,45 @@ function RootLayoutNav() {
     const setupNotifications = async () => {
       if (Platform.OS === "web") return;
 
-      const { addNotificationListeners } =
-        await import("@/services/PushNotificationService");
+      try {
+        const { addNotificationListeners } =
+          await import("@/services/PushNotificationService");
 
-      // Handle notification that opened the app from killed state
-      const lastResponse = await Notifications.getLastNotificationResponseAsync();
-      if (lastResponse) {
-        const data = lastResponse.notification.request.content.data as { url?: string };
-        logger.info("App opened from notification (killed state):", data);
-        // Delay to ensure router is ready
-        setTimeout(() => handleNotificationNavigation(data), 500);
+        const lastResponse = await Notifications.getLastNotificationResponseAsync();
+        if (lastResponse) {
+          const data = lastResponse.notification.request.content.data as { url?: string };
+          logger.info("App opened from notification (killed state):", data);
+          notificationNavigationTimer = setTimeout(() => handleNotificationNavigation(data), 500);
+        }
+
+        const cleanup = addNotificationListeners(
+          (notification: Notifications.Notification) => {
+            logger.info("Foreground notification:", notification.request.content.title);
+            queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+          },
+          (response: Notifications.NotificationResponse) => {
+            const data = response.notification.request.content.data as { url?: string };
+            logger.info("Notification tapped, data:", data);
+            handleNotificationNavigation(data);
+          },
+        );
+
+        eventManager.addListener("root_notifications", null, cleanup);
+      } catch (error) {
+        logger.error('Failed to setup notifications:', error);
+        errorReportingService.captureException(error instanceof Error ? error : new Error('Failed to setup notifications'), {
+          source: 'root.setupNotifications',
+        });
       }
-
-      const cleanup = addNotificationListeners(
-        (notification: Notifications.Notification) => {
-          // Handle foreground notification received
-          logger.info("Foreground notification:", notification.request.content.title);
-
-          // Invalidate notification queries so bell updates
-          queryClient.invalidateQueries({ queryKey: ["notifications"] });
-        },
-        (response: Notifications.NotificationResponse) => {
-          // Handle notification tap
-          const data = response.notification.request.content.data as { url?: string };
-          logger.info("Notification tapped, data:", data);
-          handleNotificationNavigation(data);
-        },
-      );
-
-      // Register listener with EventManager for tracking and cleanup
-      eventManager.addListener("root_notifications", null, cleanup);
     };
 
-    setupNotifications();
+    void setupNotifications();
 
     return () => {
+      if (notificationNavigationTimer) {
+        clearTimeout(notificationNavigationTimer);
+      }
+
       // Cleanup using EventManager
       eventManager.removeAllListeners("root_notifications");
     };

@@ -2,7 +2,10 @@ import { Skeleton } from '@/components/atoms/Skeleton';
 import api from '@/services/api';
 import { TenantService } from '@/services/TenantService';
 import { TokenService } from '@/services/TokenService';
+import { extractApiErrorMessage, getUserFriendlyError } from '@/utils/errorHandling';
+import { logger } from '@/utils/logger';
 import { useQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import * as Clipboard from 'expo-clipboard';
@@ -183,11 +186,14 @@ export default function CustomerTagihanScreen() {
               refetch();
               eventSource?.close();
             }
-          } catch { }
+          } catch (error) {
+            logger.warn('[CustomerTagihan] Failed to parse payment SSE payload', event.data, error);
+          }
         }
       });
 
-      eventSource.addEventListener('error', () => {
+      eventSource.addEventListener('error', (error) => {
+        logger.warn('[CustomerTagihan] Payment SSE connection error', error);
         eventSource?.close();
       });
     }
@@ -238,8 +244,10 @@ export default function CustomerTagihanScreen() {
       } else {
         Alert.alert('Gagal', res.data.error || 'Kupon tidak valid');
       }
-    } catch {
-      Alert.alert('Error', 'Gagal memverifikasi kupon');
+    } catch (error) {
+      logger.error('[CustomerTagihan] Failed to verify coupon', error);
+      const friendlyError = getUserFriendlyError(error);
+      Alert.alert(friendlyError.title, friendlyError.message);
     } finally {
       setCouponLoading(false);
     }
@@ -278,9 +286,15 @@ export default function CustomerTagihanScreen() {
           Alert.alert('Gagal', res.data?.error || 'Gagal mengunggah bukti pembayaran.');
         }
       }
-    } catch (error: any) {
-      console.error('Error uploading receipt:', error);
-      Alert.alert('Gagal', error?.response?.data?.error || 'Terjadi kesalahan sistem saat upload.');
+    } catch (error) {
+      logger.error('[CustomerTagihan] Failed to upload receipt', error);
+      const backendMessage = isAxiosError(error) ? extractApiErrorMessage(error.response?.data) : undefined;
+      if (backendMessage) {
+        Alert.alert('Gagal', backendMessage);
+      } else {
+        const friendlyError = getUserFriendlyError(error);
+        Alert.alert(friendlyError.title, friendlyError.message);
+      }
     } finally {
       setUploadingReceipt(false);
     }
@@ -321,8 +335,10 @@ export default function CustomerTagihanScreen() {
       } else {
         Alert.alert('Gagal', res.data.error || 'Gagal membuat pembayaran');
       }
-    } catch {
-      Alert.alert('Error', 'Terjadi kesalahan saat memproses pembayaran');
+    } catch (error) {
+      logger.error('[CustomerTagihan] Failed to create payment', error);
+      const friendlyError = getUserFriendlyError(error);
+      Alert.alert(friendlyError.title, friendlyError.message);
     } finally {
       setPaymentLoading(false);
     }
@@ -332,7 +348,8 @@ export default function CustomerTagihanScreen() {
     try {
       await Clipboard.setStringAsync(text);
       Alert.alert('Disalin', `${type} berhasil disalin!`);
-    } catch {
+    } catch (error) {
+      logger.error('[CustomerTagihan] Failed to copy payment detail', error);
       Alert.alert('Gagal', `Gagal menyalin ${type}.`);
     }
   };

@@ -1,8 +1,10 @@
 import { Events } from '@/constants/Events';
 import { fcmService } from '@/services/FirebaseMessagingService';
 import { registerForPushNotificationsAsync } from '@/services/PushNotificationService';
+import { DatabaseService } from '@/services/DatabaseService';
 import { RefreshTokenService } from '@/services/RefreshTokenService';
 import { TokenService } from '@/services/TokenService';
+import { errorReportingService } from '@/services/ErrorReportingService';
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { SecureStorage, Storage } from '@/utils/storage';
@@ -49,10 +51,34 @@ const registerPush = async (authToken: string) => {
     }
 };
 
+const isMitraUser = (userData: User | null | undefined): userData is User =>
+    userData?.role === 'MITRA' || userData?.employeeType === 'MITRA_TEKNISI' || userData?.employeeType === 'MITRA_SALES';
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    const clearLocalSession = useCallback(async () => {
+        TokenService.setToken(null);
+        setToken(null);
+        setUser(null);
+        queryClient.clear();
+
+        const cleanupResults = await Promise.allSettled([
+            DatabaseService.clearSessionData(),
+            RefreshTokenService.clearRefreshToken(),
+            Storage.removeItemStrict('TANSTACK_QUERY_CACHE'),
+            SecureStorage.removeItemStrict('session_token'),
+            SecureStorage.removeItemStrict('user_data'),
+        ]);
+
+        cleanupResults.forEach((result, index) => {
+            if (result.status === 'rejected') {
+                logger.warn('[AuthContext] Local cleanup step failed', { index, reason: result.reason });
+            }
+        });
+    }, []);
 
     const signIn = useCallback(async (newToken: string, userData: User, refreshToken?: string) => {
         setIsLoading(true);
@@ -62,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             TokenService.setToken(newToken);
 
             logger.auth('Saving token...');
-            await SecureStorage.setItem('session_token', newToken);
+            await SecureStorage.setItemStrict('session_token', newToken);
 
             // Save refresh token if provided
             if (refreshToken) {
@@ -71,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             logger.auth('Saving user data...');
-            await SecureStorage.setItem('user_data', JSON.stringify(userData));
+            await SecureStorage.setItemStrict('user_data', JSON.stringify(userData));
 
             logger.auth('Updating state...');
             setToken(newToken);
@@ -83,20 +109,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             registerPush(newToken);
 
             // FCM Target for Mitra
-            if (userData.role === 'MITRA' || userData.employeeType === 'MITRA_TEKNISI' || userData.employeeType === 'MITRA_SALES') {
-                fcmService.syncFCMTokenToBackend('add').catch((e: any) => logger.error('FCM Add error', e));
+            if (isMitraUser(userData)) {
+                fcmService.syncFCMTokenToBackend('add').catch((fcmError: unknown) => logger.error('FCM Add error', fcmError));
                 fcmService.onTokenRefresh();
             }
 
             logger.auth('signIn complete');
         } catch (error) {
             logger.error('[AuthContext] Sign in error', error);
+            errorReportingService.captureException(error instanceof Error ? error : new Error('Sign in failed'), {
+                source: 'auth.signIn',
+                email: userData.email,
+            });
+            await clearLocalSession();
             Alert.alert('Login Error', 'Gagal menyimpan sesi login');
         } finally {
             setIsLoading(false);
             logger.auth('Loading state set to false');
         }
-    }, []);
+    }, [clearLocalSession]);
 
     const signOut = useCallback(async (options?: { skipApi?: boolean }) => {
         try {
@@ -111,29 +142,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 // FCM Target Logout for Mitra (using current user state)
-                if (user?.role === 'MITRA' || user?.employeeType === 'MITRA_TEKNISI' || user?.employeeType === 'MITRA_SALES') {
-                    fcmService.syncFCMTokenToBackend('remove').catch((e: any) => logger.warn('Failed to remove FCM token', e));
+                if (isMitraUser(user)) {
+                    fcmService.syncFCMTokenToBackend('remove').catch((fcmError: unknown) => logger.warn('Failed to remove FCM token', fcmError));
                 }
             }
-
-            // Optimization: Clear in-memory token
-            TokenService.setToken(null);
-
-            // Clear refresh token
-            await RefreshTokenService.clearRefreshToken();
-
-            // Clear React Query Cache and AsyncStorage 
-            queryClient.clear();
-            await Storage.removeItem('TANSTACK_QUERY_CACHE');
-
-            await SecureStorage.removeItem('session_token');
-            await SecureStorage.removeItem('user_data');
-            setToken(null);
-            setUser(null);
         } catch (error) {
             logger.error('Sign out error', error);
+            errorReportingService.captureException(error instanceof Error ? error : new Error('Sign out failed'), {
+                source: 'auth.signOut',
+            });
+        } finally {
+            await clearLocalSession();
         }
-    }, [token, user]);
+    }, [clearLocalSession, token, user]);
 
     const fetchProfile = useCallback(async () => {
         try {
@@ -142,20 +163,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const userData = response.data.data;
 
             logger.auth('Updating user data in storage with new profile...');
-            await SecureStorage.setItem('user_data', JSON.stringify(userData));
+            await SecureStorage.setItemStrict('user_data', JSON.stringify(userData));
             setUser(userData);
         } catch (error) {
             logger.error('Failed to fetch updated profile', error);
+            errorReportingService.captureException(error instanceof Error ? error : new Error('Fetch profile failed'), {
+                source: 'auth.fetchProfile',
+            });
         }
     }, []);
 
     const updateUser = useCallback(async (userData: User) => {
         try {
             logger.auth('Updating user data in storage...');
-            await SecureStorage.setItem('user_data', JSON.stringify(userData));
+            await SecureStorage.setItemStrict('user_data', JSON.stringify(userData));
             setUser(userData);
         } catch (error) {
             logger.error('Failed to update user data', error);
+            errorReportingService.captureException(error instanceof Error ? error : new Error('Update user failed'), {
+                source: 'auth.updateUser',
+            });
         }
     }, []);
 
@@ -172,16 +199,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (!isMounted) return;
 
                 if (storedToken && storedUser) {
-                    // Optimization: Set token in memory immediately
-                    TokenService.setToken(storedToken);
-                    setToken(storedToken);
-                    setUser(JSON.parse(storedUser));
+                    try {
+                        const parsedUser = JSON.parse(storedUser) as User;
 
-                    // Background registration (non-blocking)
-                    registerPush(storedToken);
+                        TokenService.setToken(storedToken);
+                        setToken(storedToken);
+                        setUser(parsedUser);
+
+                        registerPush(storedToken);
+                    } catch (parseError) {
+                        logger.error('Failed to parse stored user data', parseError);
+                        await clearLocalSession();
+                    }
                 }
             } catch (e) {
                 logger.error('Failed to load auth storage', e);
+                errorReportingService.captureException(e instanceof Error ? e : new Error('Auth storage load failed'), {
+                    source: 'auth.initialize',
+                });
             } finally {
                 if (isMounted) {
                     setIsLoading(false);
@@ -194,7 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => {
             isMounted = false;
         };
-    }, []);
+    }, [clearLocalSession]);
 
     // Event listeners effect (re-binds when signOut/fetchProfile changes)
     useEffect(() => {
