@@ -19,6 +19,7 @@ export interface UseAppVersionState {
     error: string | null
     checkForUpdate: (currentVersionCode: number) => Promise<CheckUpdateResult>
     startUpdate: () => Promise<void>
+    applyVersionRequirement: (versionInfo: AppVersionInfo | null) => void
     dismissError: () => void
     ignoreUpdate: () => void
 }
@@ -161,6 +162,18 @@ export function useAppVersion(): UseAppVersionState {
         setDownloadStatus('idle')
     }, [latestVersion])
 
+    const applyVersionRequirement = useCallback((versionInfo: AppVersionInfo | null) => {
+        if (!versionInfo) {
+            setError('Versi aplikasi tidak didukung. Silakan unduh APK terbaru.')
+            return
+        }
+
+        setError(null)
+        setUpdateAvailable(true)
+        setIsForceUpdate(true)
+        setLatestVersion(versionInfo)
+    }, [])
+
 
 
     const dismissError = useCallback(() => {
@@ -186,6 +199,7 @@ export function useAppVersion(): UseAppVersionState {
         error,
         checkForUpdate,
         startUpdate,
+        applyVersionRequirement,
         dismissError,
         ignoreUpdate
     }
