@@ -9,11 +9,18 @@ interface NotificationBellProps {
     color?: string;
 }
 
+interface NotificationBellResponse {
+    success: boolean;
+    data: {
+        unreadCount: number;
+    };
+}
+
 function NotificationBellComponent({ color = '#ffffff' }: NotificationBellProps) {
     const router = useRouter();
 
     // Use React Query with caching to prevent excessive API calls
-    const { data } = useApiQuery<{ unreadCount: number }>({
+    const { data } = useApiQuery<NotificationBellResponse>({
         queryKey: ['notifications', 'unread'],
         endpoint: '/api/mobile/notifications',
         staleTime: 1000 * 60 * 5, // 5 minutes
@@ -22,7 +29,7 @@ function NotificationBellComponent({ color = '#ffffff' }: NotificationBellProps)
         refetchOnMount: false, // Don't refetch on every mount
     });
 
-    const unreadCount = data?.unreadCount ?? 0;
+    const unreadCount = data?.data.unreadCount ?? 0;
 
     const handlePress = () => {
         router.push('/(app)/notifications');

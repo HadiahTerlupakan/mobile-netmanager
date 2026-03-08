@@ -41,6 +41,17 @@ interface Notification {
   createdAt: string;
 }
 
+interface NotificationsPage {
+  notifications: Notification[];
+  unreadCount: number;
+  nextCursor: string | null;
+}
+
+interface NotificationsResponse {
+  success: boolean;
+  data: NotificationsPage;
+}
+
 // Memoized Notification Item
 const NotificationItem = React.memo(({ item, onPress }: { item: Notification, onPress: (notif: Notification) => void }) => {
   const getIcon = (sourceType?: string) => {
@@ -117,10 +128,10 @@ export default function NotificationsScreen() {
       if (pageParam) {
         params.append("cursor", pageParam as string);
       }
-      const res = await api.get(`/api/mobile/notifications?${params.toString()}`);
-      return res.data.data; // Assuming backend structure returns { data: { notifications: [], unreadCount: 0, nextCursor: ... } } or similar
+      const res = await api.get<NotificationsResponse>(`/api/mobile/notifications?${params.toString()}`);
+      return res.data.data;
     },
-    getNextPageParam: (lastPage: any) => lastPage.nextCursor || undefined,
+    getNextPageParam: (lastPage: NotificationsPage) => lastPage.nextCursor || undefined,
     initialPageParam: null,
     enabled: !!token,
     staleTime: 1000 * 60 * 5,
@@ -143,7 +154,7 @@ export default function NotificationsScreen() {
   });
 
   const notifications = useMemo(() => {
-    return data?.pages.flatMap((page: any) => page.notifications || []) || [];
+    return data?.pages.flatMap((page) => page.notifications || []) || [];
   }, [data]);
 
   // Get unread count from the first page (latest data)
