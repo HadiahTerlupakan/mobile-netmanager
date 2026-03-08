@@ -4,7 +4,8 @@ import api from '@/services/api';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { AlertCircle, Camera as CameraIcon, CheckCircle, RefreshCw } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, Modal, SafeAreaView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Modal, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 interface FaceVerificationModalProps {

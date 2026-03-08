@@ -23,12 +23,10 @@ import { generateSignature } from "@/utils/crypto";
 import { formatDate } from "@/utils/date";
 import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
-import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
-import * as Location from "expo-location";
 import {
   AlertTriangle,
   CalendarOff,
-  Camera,
+  Camera as LucideCamera,
   Clock as ClockIcon,
   MapPin,
   RefreshCw,
@@ -36,6 +34,14 @@ import {
   X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  useFrameProcessor,
+} from "react-native-vision-camera";
+import { useFaceDetector } from "react-native-vision-camera-face-detector";
+import { Worklets } from "react-native-worklets-core";
 import {
   Alert,
   Modal,
@@ -50,6 +56,7 @@ import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
 import { AppFeature } from '@/constants/features';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import * as Location from "expo-location";
 
 // --- Types ---
 interface GeofenceZone {
@@ -59,6 +66,8 @@ interface GeofenceZone {
   longitude: number;
   radius: number;
 }
+
+type AttendanceUiStatus = "idle" | "checked-in" | "checked-out" | "loading";
 
 // --- Utils ---
 const calculateDistance = (
@@ -265,36 +274,93 @@ GeofenceWarning.displayName = 'GeofenceWarning';
 export default function AbsensiScreen() {
   useFeatureGuard(AppFeature.ABSENSI);
   const { user, token } = useAuth();
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
   const watermarkRef = useRef<View>(null);
 
-  // Status
-  const [status, setStatus] = useState<"idle" | "checked-in" | "checked-out">("idle");
+  // --- Refs & State ---
+  const [status, setStatus] = useState<AttendanceUiStatus>("idle");
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
   const [checkOutTime, setCheckOutTime] = useState<string | null>(null);
   const [attendanceWarning, setAttendanceWarning] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // UI State
-  const [showCamera, setShowCamera] = useState(false);
-  const [facing, setFacing] = useState<CameraType>("front");
   const [photo, setPhoto] = useState<string | null>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [locationName, setLocationName] = useState("Mencari lokasi...");
   const [capturedTime, setCapturedTime] = useState<Date | null>(null);
-
-  // Holiday/Shift Status
-  const [todayHoliday, setTodayHoliday] = useState({ isHoliday: false, name: null as string | null });
+  const [showCamera, setShowCamera] = useState(false);
+  const [facing, setFacing] = useState<"front" | "back">("front");
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [todayHoliday, setTodayHoliday] = useState<{ isHoliday: boolean; name: string | null }>({
+    isHoliday: false,
+    name: null,
+  });
   const [isOffDay, setIsOffDay] = useState(false);
   const [isTukarLiburWorkDay, setIsTukarLiburWorkDay] = useState(false);
   const [isTukarLiburLeaveDay, setIsTukarLiburLeaveDay] = useState(false);
 
+  // --- Camera & Face Detection State ---
+  const cameraRef = useRef<any>(null);
+  const device = useCameraDevice(facing);
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const [faceInFrame, setFaceInFrame] = useState(false);
+  const [instructionText, setInstructionText] = useState("Dekatkan wajah");
+
+  // --- Face Detection Logic ---
+  const faceDetector = useFaceDetector({
+    performanceMode: 'fast',
+    landmarkMode: 'none',
+    classificationMode: 'none',
+  });
+
+  const onFaceDetected = Worklets.createRunOnJS((faces: any[], frameWidth: number, frameHeight: number) => {
+    if (faces.length > 0) {
+      const face = faces[0];
+      const { bounds } = face;
+
+      // Frame processor coordinates are usually based on the camera sensor resolution
+      // We need to check if the face is roughly in the center
+      // For a typical front camera, wide/high might be reversed or rotated.
+
+      const faceCenterX = bounds.x + bounds.width / 2;
+      const faceCenterY = bounds.y + bounds.height / 2;
+
+      // Normalizing coordinates to 0-1
+      const normX = faceCenterX / frameWidth;
+      const normY = faceCenterY / frameHeight;
+
+      // We want the face to be in the center (around 0.5, 0.5)
+      // and have a reasonable size (not too far)
+      const isCentered = normX > 0.3 && normX < 0.7 && normY > 0.3 && normY < 0.7;
+      const isLargeEnough = (bounds.width / frameWidth) > 0.2;
+
+      if (isCentered && isLargeEnough) {
+        setFaceInFrame(true);
+        setInstructionText("Sempurna! Ambil Foto");
+      } else if (!isCentered) {
+        setFaceInFrame(false);
+        setInstructionText("Posisikan wajah di tengah bingkai");
+      } else {
+        setFaceInFrame(false);
+        setInstructionText("Dekatkan wajah");
+      }
+    } else {
+      setFaceInFrame(false);
+      setInstructionText("Wajah Tidak Terdeteksi");
+    }
+  });
+
+  const frameProcessor = useFrameProcessor((frame) => {
+    'worklet';
+    const faces = faceDetector.detectFaces(frame);
+    onFaceDetected(faces, frame.width, frame.height);
+  }, [faceDetector]);
+
   // Geofence State
-  const { data: geofenceData } = useApiQuery<{ zones: GeofenceZone[]; policy?: AttendanceGeofencePolicy }>({
+  const { data: geofenceData } = useApiQuery<{
+    policy: AttendanceGeofencePolicy;
+    zones: GeofenceZone[];
+  }>({
     queryKey: queryKeys.attendance.geofence(),
-    endpoint: "/api/mobile/geofence",
+    endpoint: "/api/mobile/attendance/geofence",
     select: (data: any) => data?.data,
     enabled: !!token,
   });
@@ -483,11 +549,11 @@ export default function AbsensiScreen() {
 
   const handleCaptureURI = useCallback(async () => {
     if (cameraRef.current) {
-      const result = await cameraRef.current.takePictureAsync({
-        quality: 0.7,
-        skipProcessing: false,
+      const result = await cameraRef.current.takePhoto({
+        flash: 'off',
+        enableShutterSound: true,
       });
-      setPhoto(result?.uri ?? null);
+      setPhoto(`file://${result.path}`);
       setCapturedTime(new Date());
       setShowCamera(false);
     }
@@ -693,7 +759,7 @@ export default function AbsensiScreen() {
   }, [submitAttendance]);
 
   if (showCamera) {
-    if (!permission?.granted) {
+    if (!hasPermission) {
       return (
         <View style={tw`flex-1 justify-center items-center`}>
           <Text>Aplikasi butuh izin kamera</Text>
@@ -704,11 +770,32 @@ export default function AbsensiScreen() {
       );
     }
 
+    if (!device) {
+      return <View style={tw`flex-1 bg-black items-center justify-center`}><Text style={tw`text-white`}>Kamera tidak tersedia</Text></View>;
+    }
+
     return (
       <View style={tw`flex-1 bg-black`}>
-        <CameraView style={tw`flex-1`} facing={facing} ref={cameraRef} />
+        <Camera
+          style={tw`flex-1`}
+          device={device}
+          isActive={showCamera}
+          ref={cameraRef}
+          photo={true}
+          frameProcessor={frameProcessor}
+          format={device.formats[0]} // Optional: choose best format
+        />
         <View style={tw`absolute inset-0 items-center justify-center pointer-events-none`}>
-          <View style={[tw`w-56 h-72 border-2 border-white/60 rounded-full`, { borderStyle: "dashed" }]} />
+          <View style={[
+            tw`w-56 h-72 border-2 rounded-full`,
+            {
+              borderStyle: "dashed",
+              borderColor: faceInFrame ? "#10b981" : "rgba(255,255,255,0.6)"
+            }
+          ]} />
+          <View style={tw`bg-black/40 px-4 py-2 rounded-full mt-4`}>
+            <Text style={tw`text-white font-bold text-sm`}>{instructionText}</Text>
+          </View>
         </View>
         <View style={tw`absolute bottom-0 left-0 right-0 p-6 pb-12`}>
           <View style={tw`bg-black/50 p-3 rounded-xl mb-4`}>
@@ -794,7 +881,7 @@ export default function AbsensiScreen() {
                 ) : status === "checked-out" ? (
                   <View style={tw`items-center`}><Text style={tw`text-gray-500 font-bold text-lg`}>🎉 Absensi Selesai</Text><Text style={tw`text-gray-400 text-sm mt-1`}>Terima kasih untuk hari ini</Text></View>
                 ) : (
-                  <View style={tw`items-center`}><Camera size={32} color="#2563eb" /><Text style={tw`text-blue-600 font-bold mt-2`}>{status === "idle" ? "Ambil Foto Masuk" : "Ambil Foto Keluar"}</Text></View>
+                  <View style={tw`items-center`}><LucideCamera size={32} color="#2563eb" /><Text style={tw`text-blue-600 font-bold mt-2`}>{status === "idle" ? "Ambil Foto Masuk" : "Ambil Foto Keluar"}</Text></View>
                 )}
               </TouchableOpacity>
             )}

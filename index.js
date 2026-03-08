@@ -10,10 +10,10 @@ import 'react-native-reanimated';
 // Import the background task first - this registers the task
 // import "./src/services/LocationTrackingService";
 
-import messaging from '@react-native-firebase/messaging';
+import { getMessaging, setBackgroundMessageHandler } from '@react-native-firebase/messaging';
 
 // Registrasi handler background FCM
-messaging().setBackgroundMessageHandler(async remoteMessage => {
+setBackgroundMessageHandler(getMessaging(), async remoteMessage => {
     console.log('FCM Message handled in the background!', remoteMessage);
 });
 

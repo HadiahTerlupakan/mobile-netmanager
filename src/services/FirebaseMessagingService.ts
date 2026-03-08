@@ -1,6 +1,6 @@
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
-import messaging from '@react-native-firebase/messaging';
+// import messaging from '@react-native-firebase/messaging';
 import { Platform } from 'react-native';
 
 class FirebaseMessagingService {
@@ -9,20 +9,19 @@ class FirebaseMessagingService {
      */
     async requestUserPermission(): Promise<boolean> {
         if (Platform.OS === 'ios') {
-            const authStatus = await messaging().requestPermission();
-            const enabled =
-                authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-                authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-            return enabled;
+            // const authStatus = await messaging().requestPermission();
+            // const enabled =
+            //     authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+            //     authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+            // return enabled;
+            return false;
         } else {
-            // Android 13+ requires POST_NOTIFICATIONS runtime permission
-            // but the firebase messaging module handles the manifest part usually.
-            // Still we can call requestPermission on Android.
-            const authStatus = await messaging().requestPermission();
-            const enabled =
-                authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-                authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-            return enabled;
+            // const authStatus = await messaging().requestPermission();
+            // const enabled =
+            //     authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+            //     authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+            // return enabled;
+            return false;
         }
     }
 
@@ -38,11 +37,12 @@ class FirebaseMessagingService {
             }
 
             // Daftarkan devais jika belum (untuk iOS APNs)
-            if (!messaging().isDeviceRegisteredForRemoteMessages) {
-                await messaging().registerDeviceForRemoteMessages();
-            }
+            // if (!messaging().isDeviceRegisteredForRemoteMessages) {
+            //     await messaging().registerDeviceForRemoteMessages();
+            // }
 
-            const token = await messaging().getToken();
+            // const token = await messaging().getToken();
+            const token = null;
             if (!token) {
                 logger.warn('[FCM] No token received');
                 return null;
@@ -68,17 +68,18 @@ class FirebaseMessagingService {
      * Menambahkan listener event perubahan token
      */
     onTokenRefresh() {
-        return messaging().onTokenRefresh(async (newToken) => {
-            logger.info('[FCM] Token refreshed:', newToken);
-            try {
-                await api.post('/api/mobile/mitra/fcm-token', {
-                    fcmToken: newToken,
-                    action: 'add'
-                });
-            } catch (error) {
-                logger.error('[FCM] Error syncing refreshed token:', error);
-            }
-        });
+        // return messaging().onTokenRefresh(async (newToken) => {
+        //     logger.info('[FCM] Token refreshed:', newToken);
+        //     try {
+        //         await api.post('/api/mobile/mitra/fcm-token', {
+        //             fcmToken: newToken,
+        //             action: 'add'
+        //         });
+        //     } catch (error) {
+        //         logger.error('[FCM] Error syncing refreshed token:', error);
+        //     }
+        // });
+        return () => { };
     }
 }
 

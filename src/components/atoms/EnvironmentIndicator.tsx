@@ -27,7 +27,7 @@ export const EnvironmentIndicator = () => {
                 tw`${getBgColor()}`
             ]}
         >
-            <View style={tw`w-2 h-2 rounded-full bg-white mr-2 animate-pulse`} />
+            <View style={tw`w-2 h-2 rounded-full bg-white mr-2`} />
             <Text style={tw`text-white font-black text-[10px] tracking-widest uppercase`}>
                 {getLabel()}
             </Text>
