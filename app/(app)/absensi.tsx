@@ -4,6 +4,7 @@ import LoadingModal from "@/components/molecules/LoadingModal";
 import { PendingSyncBadge } from "@/components/organisms/attendance/PendingSyncBadge";
 import { useAuth } from "@/context/AuthContext";
 import {
+  isOfflineMutationQueuedResult,
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
@@ -719,14 +720,7 @@ export default function AbsensiScreen() {
       }, {
         onSuccess: (data, variables) => {
           setIsProcessing(false);
-          // Check if it was actually offline queued - useApiMutation might return result if online suddenly, but usually we check __offline_queued__ if available or just assume based on context
-          // However, useApiMutation handles this internally.
-          // The previous code checked `isOffline` arg in onSuccess.
-          // useMutation's onSuccess(data, variables, context) doesn't have isOffline.
-          // We can check if data has __offline_queued__ property if our backend/mutation wrapper sets it.
-          // Or just display "Offline" alert as fallback.
-
-          const isOfflineQueued = (data as any)?.__offline_queued__;
+          const isOfflineQueued = isOfflineMutationQueuedResult(data);
           if (isOfflineQueued) {
             setPhoto(null);
             Alert.alert("Offline", "Data disimpan offline.");

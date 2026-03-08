@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSocket, useSocketEvent } from "@/context/SocketContext";
 import { SOCKET_EVENTS } from "@/context/socketTypes";
 import {
+  isOfflineMutationQueuedResult,
   useAvailableWorkOrders,
   useClaimWorkOrder,
   useWorkOrders,
@@ -137,7 +138,7 @@ function WorkOrderScreenContent() {
                 },
                 {
                   onSuccess: (data) => {
-                    const isOffline = (data as any)?.__offline_queued__;
+                    const isOffline = isOfflineMutationQueuedResult(data);
                     if (isOnline && !isOffline) {
                       Alert.alert("Berhasil", "Tugas berhasil diambil!");
                     }

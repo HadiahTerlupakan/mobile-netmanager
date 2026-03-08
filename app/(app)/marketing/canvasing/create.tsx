@@ -280,9 +280,8 @@ export default function CreateCanvasingScreen() {
             },
           },
           {
-            onSuccess: (data: any) => {
+            onSuccess: () => {
               setIsLoading(false);
-              // const isOffline = data?.__offline_queued__;
               Alert.alert("Berhasil", "Data canvasing berhasil disimpan (Offline)", [
                 { text: "OK", onPress: () => router.back() },
               ]);

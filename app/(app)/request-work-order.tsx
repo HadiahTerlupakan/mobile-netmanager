@@ -1,6 +1,6 @@
 import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
-import { useApiQuery, useCreateWorkOrderRequest } from "@/hooks/queries";
+import { isOfflineMutationQueuedResult, useApiQuery, useCreateWorkOrderRequest } from "@/hooks/queries";
 import api from "@/services/api";
 import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
@@ -330,7 +330,7 @@ export default function RequestWorkOrderScreen() {
       await mutate(payload, {
         onSuccess: (data) => {
           setShowLoading(false);
-          const isOffline = (data as any)?.__offline_queued__;
+          const isOffline = isOfflineMutationQueuedResult(data);
 
           // Reset form
           setType("TROUBLESHOOT");

@@ -3,6 +3,7 @@ import LoadingModal from "@/components/molecules/LoadingModal";
 import { OvertimeSkeleton } from '@/components/molecules/OvertimeSkeleton';
 import { useAuth } from "@/context/AuthContext";
 import {
+  isOfflineMutationQueuedResult,
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
@@ -233,9 +234,9 @@ export default function LemburScreen() {
     overtimeMutation.mutate(
       { action: "request", ...validation.data },
       {
-        onSuccess: (data: any) => {
+        onSuccess: (data) => {
           setShowLoading(false);
-          const isOffline = data?.__offline_queued__;
+          const isOffline = isOfflineMutationQueuedResult(data);
           Alert.alert(isOffline ? "Offline" : "Sukses", isOffline ? "Pengajuan diantrikan" : "Pengajuan berhasil dikirim");
           setShowRequestModal(false);
           setReason("");
@@ -305,9 +306,9 @@ export default function LemburScreen() {
           },
         },
         {
-          onSuccess: (data: any) => {
+          onSuccess: (data) => {
             setShowLoading(false);
-            const isOffline = data?.__offline_queued__;
+            const isOffline = isOfflineMutationQueuedResult(data);
             Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Aksi diantrikan" : activeAction === "start" ? "Lembur dimulai!" : "Lembur selesai!");
             setPhoto(null);
             setCapturedTime(null);

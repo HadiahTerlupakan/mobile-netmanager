@@ -2,7 +2,7 @@ import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import CustomDatePickerModal from "@/components/molecules/CustomDatePickerModal"; // Import Custom Modal
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { useAuth } from "@/context/AuthContext";
-import { useApiMutation } from "@/hooks/queries";
+import { isOfflineMutationQueuedResult, useApiMutation } from "@/hooks/queries";
 import { queryKeys } from "@/lib/queryClient";
 import api from "@/services/api";
 import { SyncService } from "@/services/SyncService";
@@ -295,9 +295,9 @@ export default function LeaveFormScreen() {
             },
           },
           {
-            onSuccess: (data: any) => {
+            onSuccess: (data) => {
               setShowLoading(false);
-              const isOffline = data?.__offline_queued__;
+              const isOffline = isOfflineMutationQueuedResult(data);
               const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
               Alert.alert(
                 isOffline ? "Disimpan Offline" : "Pengajuan Berhasil",

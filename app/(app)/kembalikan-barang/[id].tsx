@@ -1,6 +1,7 @@
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { useAuth } from "@/context/AuthContext";
 import {
+  isOfflineMutationQueuedResult,
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
@@ -221,7 +222,7 @@ export default function KembalikanBarangScreen() {
     returnMutation.mutate({ items: validation.data.items }, {
       onSuccess: (data) => {
         setSubmitting(false);
-        const isOffline = (data as any)?.__offline_queued__;
+        const isOffline = isOfflineMutationQueuedResult(data);
         Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Data diantrikan" : "Barang berhasil dikembalikan", [
           { text: "OK", onPress: () => router.replace(`/(app)/work-order-detail/${workOrderId}`) },
         ]);

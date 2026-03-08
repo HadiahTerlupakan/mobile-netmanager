@@ -4,6 +4,7 @@ import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
 import { useAuth } from "@/context/AuthContext";
 import {
+  isOfflineMutationQueuedResult,
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
@@ -353,8 +354,7 @@ export default function BarangMasukScreen() {
           {
             onSuccess: (data) => {
               setShowLoading(false);
-              // Check if queued
-              const isOffline = (data as any)?.__offline_queued__;
+              const isOffline = isOfflineMutationQueuedResult(data);
               if (isOffline) {
                 resetForm();
                 router.back();

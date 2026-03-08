@@ -1,16 +1,17 @@
-import { useQuery, UseQueryOptions, QueryKey } from '@tanstack/react-query';
+import { QueryFunctionContext, QueryKey, UseQueryOptions, useQuery } from '@tanstack/react-query';
 import { DatabaseService } from '@/services/DatabaseService';
 import { logger } from '@/utils/logger';
 import NetInfo from '@react-native-community/netinfo';
 import api from '@/services/api';
 
 // Simple in-memory cache for in-flight requests to prevent duplicates
-const requestCache = new Map<string, Promise<any>>();
+const requestCache = new Map<string, Promise<unknown>>();
 
 export interface OfflineQueryOptions<TQueryFnData = unknown, TError = unknown, TData = TQueryFnData>
-  extends UseQueryOptions<TQueryFnData, TError, TData> {
+  extends Omit<UseQueryOptions<TQueryFnData, TError, TData>, 'queryKey' | 'queryFn'> {
   queryKey: QueryKey; // QueryKey is required for offline storage key
   endpoint?: string;  // Optional endpoint for automatic fetch generation
+  queryFn?: (context: QueryFunctionContext<QueryKey>) => Promise<TQueryFnData>;
 }
 
 /**
@@ -24,7 +25,7 @@ export interface OfflineQueryOptions<TQueryFnData = unknown, TError = unknown, T
  */
 export function useOfflineQuery<TQueryFnData = unknown, TError = unknown, TData = TQueryFnData>(
   options: OfflineQueryOptions<TQueryFnData, TError, TData>
-) {
+){
   const { queryKey, queryFn, endpoint, ...restOptions } = options;
 
   // Create a unique key string for storage and deduplication
@@ -39,10 +40,12 @@ export function useOfflineQuery<TQueryFnData = unknown, TError = unknown, TData 
     return response.data;
   });
 
-  const wrappedQueryFn = async (context: any) => {
+  const wrappedQueryFn = async (
+    context: QueryFunctionContext<QueryKey>
+  ): Promise<TQueryFnData> => {
     // 1. Check Network State
     const netState = await NetInfo.fetch();
-    const isOffline = !netState.isConnected && netState.isInternetReachable === false;
+    const isOffline = netState.isConnected === false || netState.isInternetReachable === false;
 
     if (isOffline) {
        logger.info(`[OfflineQuery] Offline detected for ${keyString}, loading from storage`);
@@ -62,14 +65,13 @@ export function useOfflineQuery<TQueryFnData = unknown, TError = unknown, TData 
     // 3. Execute Request
     const promise = (async () => {
       try {
-        // Execute the actual query
-        // @ts-ignore - Context passing might need refinement but works for now
         const data = await actualQueryFn(context);
 
-        // 4. Persist Success
-        DatabaseService.saveOfflineData(keyString, data).catch(e =>
-          logger.warn('[OfflineQuery] Failed to save offline data', e)
-        );
+        try {
+          await DatabaseService.saveOfflineData(keyString, data);
+        } catch (storageError) {
+          logger.warn('[OfflineQuery] Failed to save offline data', storageError);
+        }
 
         return data;
       } catch (error) {
@@ -93,11 +95,11 @@ export function useOfflineQuery<TQueryFnData = unknown, TError = unknown, TData 
       }
     })();
 
-    requestCache.set(keyString, promise);
+    requestCache.set(keyString, promise as Promise<unknown>);
     return promise;
   };
 
-  return useQuery({
+  return useQuery<TQueryFnData, TError, TData>({
     // Optimized defaults for mobile
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 60 * 24, // 24 hours

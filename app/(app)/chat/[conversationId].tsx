@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/atoms/Skeleton';
 import { ConversationSkeleton } from '@/components/molecules/ConversationSkeleton';
 import MessageBubble from '@/components/molecules/MessageBubble';
 import { useAuth } from '@/context/AuthContext';
-import { useApiMutation } from '@/hooks/queries/useApiMutation';
+import { isOfflineMutationQueuedResult, useApiMutation } from '@/hooks/queries/useApiMutation';
 import { queryKeys } from '@/lib/queryClient';
 import { ChatMessage, chatService } from '@/services/ChatService';
 import { FlashList } from '@shopify/flash-list';
@@ -72,7 +72,7 @@ export default function ConversationScreen() {
         endpoint: `/api/mobile/chat/conversations/${conversationId}`,
         method: 'POST',
         onSuccess: (response: any) => {
-            if (response.__offline_queued__) {
+            if (isOfflineMutationQueuedResult(response)) {
                 return;
             }
 

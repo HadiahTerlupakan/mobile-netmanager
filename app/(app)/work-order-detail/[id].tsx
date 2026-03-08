@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSocketEvent, useSocketRoom } from "@/context/SocketContext";
 import { SOCKET_EVENTS, WorkOrderActivityPayload } from "@/context/socketTypes";
 import {
+  isOfflineMutationQueuedResult,
   queryKeys,
   useApiMutation,
   useWorkOrder,
@@ -352,9 +353,9 @@ export default function WorkOrderDetailScreen() {
           },
         },
         {
-          onSuccess: (data: any) => {
+          onSuccess: (data) => {
             setLoadingMessage("Berhasil!");
-            const isOffline = data?.__offline_queued__;
+            const isOffline = isOfflineMutationQueuedResult(data);
             if (isOffline) {
               Alert.alert("Offline", "Update disimpan di antrian.");
             } else {
@@ -461,9 +462,9 @@ export default function WorkOrderDetailScreen() {
     };
 
     updateActivity(payload, {
-      onSuccess: (data: any) => {
+      onSuccess: (data) => {
         setLoadingMessage("Berhasil!");
-        const isOffline = data?.__offline_queued__;
+        const isOffline = isOfflineMutationQueuedResult(data);
         if (isOffline) {
           Alert.alert("Offline", "Update disimpan di antrian.");
         } else {

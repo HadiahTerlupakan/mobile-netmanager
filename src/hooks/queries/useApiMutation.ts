@@ -19,7 +19,7 @@ import {
   ensureAttendanceRequestId,
   isAttendanceEndpoint,
 } from "@/utils/attendanceIdempotency";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { extractApiErrorMessage, getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import {
   useMutation,
@@ -56,8 +56,31 @@ interface ApiErrorResponse {
   message?: string;
 }
 
+export interface OfflineQueuedMutationResult {
+  __offline_queued__: true;
+  kind: "offline-queued";
+  endpoint: string;
+  method: HttpMethod;
+  queuedAt: string;
+}
+
+export type ApiMutationResult<TData> = TData | OfflineQueuedMutationResult;
+
+export const isOfflineMutationQueuedResult = (
+  value: unknown,
+): value is OfflineQueuedMutationResult => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const result = value as Partial<OfflineQueuedMutationResult>;
+  return result.__offline_queued__ === true && result.kind === "offline-queued";
+};
+
+type ApiMutationError = AxiosError<ApiErrorResponse> | Error;
+
 interface ApiMutationOptions<TData, TVariables>
-  extends Omit<UseMutationOptions<TData, AxiosError<ApiErrorResponse>, TVariables>, "mutationFn"> {
+  extends Omit<UseMutationOptions<ApiMutationResult<TData>, ApiMutationError, TVariables>, "mutationFn"> {
   /**
    * API endpoint
    */
@@ -160,10 +183,12 @@ export function useApiMutation<
     invalidateKeys = [],
     successMessage,
     showErrorAlert = true,
+    onSuccess,
+    onError,
     ...mutationOptions
   } = options;
 
-  return useMutation<TData, AxiosError<ApiErrorResponse>, TVariables>({
+  return useMutation<ApiMutationResult<TData>, ApiMutationError, TVariables>({
     ...mutationOptions,
     mutationFn: async (variables) => {
       const startedAt = Date.now();
@@ -268,8 +293,13 @@ export function useApiMutation<
             });
           }
 
-          // Return dummy data to satisfy TData and trigger onSuccess
-          return { __offline_queued__: true } as unknown as TData;
+          return {
+            __offline_queued__: true,
+            kind: "offline-queued",
+            endpoint,
+            method,
+            queuedAt: new Date().toISOString(),
+          } satisfies OfflineQueuedMutationResult;
         }
 
         if (attendanceMutation) {
@@ -284,15 +314,15 @@ export function useApiMutation<
         throw error;
       }
     },
-    onSuccess: (data, variables, context) => {
-      // Invalidate related queries
-      for (const keys of invalidateKeys) {
-        queryClient.invalidateQueries({ queryKey: [...keys] });
+    onSuccess: (data, variables, onMutateResult, context) => {
+      const isOffline = isOfflineMutationQueuedResult(data);
+
+      if (!isOffline) {
+        for (const keys of invalidateKeys) {
+          queryClient.invalidateQueries({ queryKey: [...keys] });
+        }
       }
 
-      const isOffline = (data as Record<string, unknown>)?.__offline_queued__;
-
-      // Show success message
       if (successMessage) {
         if (isOffline) {
           Alert.alert(
@@ -310,34 +340,30 @@ export function useApiMutation<
         );
       }
 
-      // Call original onSuccess
-      (mutationOptions as any).onSuccess?.(data, variables, context);
+      onSuccess?.(data, variables, onMutateResult, context);
     },
-    onError: (error, variables, context) => {
-      // Log concise error info instead of raw AxiosError object
+    onError: (error, variables, onMutateResult, context) => {
       if (isAxiosError(error) && error.response) {
         const { status, data } = error.response;
-        const backendMessage = (data as any)?.message || (data as any)?.error;
+        const backendMessage = extractApiErrorMessage(data);
         logger.error(
           `[useApiMutation] ${method} ${endpoint} failed:`,
           `status=${status}`,
-          backendMessage || 'No message'
+          backendMessage || "No message",
         );
       } else {
         logger.error(
           `[useApiMutation] ${method} ${endpoint} failed:`,
-          error instanceof Error ? error.message : error
+          error instanceof Error ? error.message : error,
         );
       }
 
-      // Show error alert
       if (showErrorAlert) {
         const friendlyError = getUserFriendlyError(error);
         Alert.alert(friendlyError.title, friendlyError.message);
       }
 
-      // Call original onError
-      (mutationOptions as any).onError?.(error, variables, context);
+      onError?.(error, variables, onMutateResult, context);
     },
   });
 }

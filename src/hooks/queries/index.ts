@@ -9,7 +9,7 @@ export { useApiQuery } from "./useApiQuery";
 export { useOfflineQuery } from "../useOfflineQuery";
 
 // Mutation wrapper
-export { useApiMutation } from "./useApiMutation";
+export { isOfflineMutationQueuedResult, useApiMutation } from "./useApiMutation";
 
 // Feature hooks
 export * from "./useWorkOrders";
