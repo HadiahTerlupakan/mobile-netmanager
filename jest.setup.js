@@ -4,6 +4,19 @@ try {
 } catch {
 }
 
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: {
+    expoConfig: {
+      hostUri: '127.0.0.1:8081',
+    },
+  },
+}));
+
 // Define __DEV__
 global.__DEV__ = false;
 
@@ -35,6 +48,7 @@ jest.mock('axios', () => {
   return {
     __esModule: true,
     default: mockAxios,
+    isAxiosError: mockAxios.isAxiosError,
     AxiosError: MockAxiosError,
   };
 });
