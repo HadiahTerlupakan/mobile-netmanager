@@ -1,7 +1,6 @@
 import NetInfo from '@react-native-community/netinfo';
-import axios, { isAxiosError } from 'axios'; // Keep for isAxiosError check
+import { isAxiosError } from 'axios';
 import pLimit from 'p-limit';
-import { TenantService } from './TenantService';
 import { DatabaseService, SyncQueueItem } from './DatabaseService';
 import * as SecureStore from 'expo-secure-store'; // Ensure SyncQueueItem is exported
 import { NotificationService } from './NotificationService';
@@ -10,6 +9,52 @@ import { uploadService, UploadType } from './UploadService';
 import { eventManager } from '@/utils/EventManager';
 import { AttendanceTelemetryService } from './AttendanceTelemetryService';
 import { buildAttendanceIdempotencyHeaders } from '@/utils/attendanceIdempotency';
+import api from './api';
+import { extractApiErrorMessage } from '@/utils/errorHandling';
+
+const SYNC_REQUEST_TIMEOUT_MS = 15000;
+const PERMANENT_SYNC_FAILURE_STATUSES = new Set([400, 404, 409, 422]);
+
+type SyncQueueMeta = {
+    photos?: string[];
+    photoType?: string;
+    watermarkLines?: string[];
+    targetField?: string;
+    singleFile?: boolean;
+    photoMap?: Record<string, string>;
+    requestId?: string;
+};
+
+class SyncQueuePayloadError extends Error {}
+
+const parseQueuePayload = <T extends Record<string, unknown>>(
+    rawValue: string | null | undefined,
+    itemId: number,
+    fieldName: 'body' | 'meta'
+): T => {
+    if (!rawValue) {
+        return {} as T;
+    }
+
+    try {
+        const parsed = JSON.parse(rawValue) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return parsed as T;
+        }
+
+        throw new Error(`${fieldName} is not an object`);
+    } catch (error) {
+        throw new SyncQueuePayloadError(
+            `Invalid queued ${fieldName} for item ${itemId}: ${error instanceof Error ? error.message : 'unknown parse error'}`
+        );
+    }
+};
+
+const cloneQueuePayload = <T extends Record<string, unknown>>(value: T): T =>
+    JSON.parse(JSON.stringify(value)) as T;
+
+const isPermanentSyncFailure = (status: number): boolean =>
+    PERMANENT_SYNC_FAILURE_STATUSES.has(status);
 
 // Helper for upload (outside component)
 const uploadFile = async (uri: string, type: string, watermarkLines?: string[]): Promise<string | null> => {
@@ -89,8 +134,8 @@ export const SyncService = {
           logger.sync('[SyncService] Database not ready, waiting...');
           try {
             await DatabaseService.waitForReady();
-          } catch {
-            logger.error('[SyncService] Database initialization failed, skipping queue processing');
+          } catch (error) {
+            logger.error('[SyncService] Database initialization failed, skipping queue processing', error);
             return;
           }
         }
@@ -113,6 +158,10 @@ export const SyncService = {
 
         // Helper to get token (can't use hook here outside component)
         const token = await SecureStore.getItemAsync('session_token');
+        if (!token) {
+          logger.warn('[SyncService] Skipping queue processing because there is no active session token.');
+          return;
+        }
 
         const limit = pLimit(concurrency);
 
@@ -185,6 +234,21 @@ export const SyncService = {
   processQueueItem: async (item: SyncQueueItem, token: string | null) => {
       const MAX_RETRIES = 3;
       let attempt = 0;
+      let baseBody: Record<string, unknown>;
+      let baseMeta: SyncQueueMeta;
+
+      try {
+          baseBody = parseQueuePayload<Record<string, unknown>>(item.body, item.id, 'body');
+          baseMeta = parseQueuePayload<SyncQueueMeta>(item.meta, item.id, 'meta');
+      } catch (error) {
+          logger.error('[SyncService] Invalid queued payload, removing item:', error);
+          await DatabaseService.removeFromQueue(item.id);
+          await NotificationService.showLocalNotification(
+              'Data Antrean Rusak',
+              'Ada data offline yang tidak bisa diproses dan dibatalkan.'
+          );
+          return;
+      }
 
       while (attempt < MAX_RETRIES) {
           let requestId: string | undefined;
@@ -193,8 +257,8 @@ export const SyncService = {
           try {
             logger.sync(`Processing item ${item.id} (Attempt ${attempt + 1}/${MAX_RETRIES}): ${item.method} ${item.url}`);
 
-            const body = item.body ? JSON.parse(item.body) : {};
-            const meta = item.meta ? JSON.parse(item.meta) : {};
+            const body = cloneQueuePayload(baseBody);
+            const meta = cloneQueuePayload(baseMeta);
             requestId = typeof body.requestId === 'string' ? body.requestId : (typeof meta.requestId === 'string' ? meta.requestId : undefined);
 
             // 1. Legacy: Support Photo Uploads (Parallel if multiple)
@@ -256,11 +320,14 @@ export const SyncService = {
               headers['Idempotency-Key'] = idempotencyHeaders['Idempotency-Key'];
             }
 
-            const response = await axios({
+            const response = await api.request({
               method: item.method,
-              url: item.url.startsWith('http') ? item.url : `${TenantService.getTenantUrl()}${item.url}`,
+              url: item.url,
               data: body,
-              headers: headers
+              headers: headers,
+              timeout: SYNC_REQUEST_TIMEOUT_MS,
+              skipGlobalAuthHandler: true,
+              skipRetry: true,
             });
 
             if (response.status >= 200 && response.status < 300) {
@@ -280,14 +347,14 @@ export const SyncService = {
             }
 
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const backendMessage = isAxiosError(error) ? extractApiErrorMessage(error.response?.data) : undefined;
+            const errorMessage = backendMessage || (error instanceof Error ? error.message : 'Unknown error');
 
             // Smart Error Handling
             if (isAxiosError(error) && error.response) {
                 const status = error.response.status;
 
-                // 4xx Errors -> Permanent Failure -> Remove from Queue
-                if (status >= 400 && status < 500) {
+                if (isPermanentSyncFailure(status)) {
                      logger.sync(`Client Error (${status}). Removing item ${item.id}.`);
 
                      if (attendanceReplay) {
@@ -310,7 +377,7 @@ export const SyncService = {
 
                      // Notify User
                      const urlPart = item.url.split('/').pop() || 'Unknown';
-                     const errorMsg = error.response.data?.message || error.response.data?.error || errorMessage || 'Data tidak valid';
+                     const errorMsg = backendMessage || errorMessage || 'Data tidak valid';
 
                      let title = 'Gagal Sinkronisasi Data';
                      if (urlPart.includes('masuk')) title = 'Gagal Sync Barang Masuk';

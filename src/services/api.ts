@@ -5,12 +5,13 @@ import { RefreshTokenService } from '@/services/RefreshTokenService';
 import { TenantService } from '@/services/TenantService';
 import { TokenService } from '@/services/TokenService';
 import { logger } from '@/utils/logger';
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { DeviceEventEmitter } from 'react-native';
 
 declare module "axios" {
   export interface AxiosRequestConfig {
     skipGlobalAuthHandler?: boolean;
+    skipRetry?: boolean;
     _retryCount?: number;
     _isRetryAfterRefresh?: boolean;
     metadata?: { startTime: number }; // Add metadata for tracking
@@ -19,6 +20,42 @@ declare module "axios" {
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
+
+const IDEMPOTENT_METHODS = new Set(['get', 'head', 'options']);
+
+const getHeaderValue = (headers: AxiosRequestConfig['headers'], headerName: string): string | undefined => {
+  if (!headers) {
+    return undefined;
+  }
+
+  const normalizedName = headerName.toLowerCase();
+
+  if ('get' in headers && typeof headers.get === 'function') {
+    const value = headers.get(headerName);
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  const entries = Object.entries(headers as Record<string, unknown>);
+  const match = entries.find(([key]) => key.toLowerCase() === normalizedName);
+  return typeof match?.[1] === 'string' ? match[1] : undefined;
+};
+
+const isIdempotentRequest = (config?: AxiosRequestConfig): boolean => {
+  if (!config) {
+    return false;
+  }
+
+  const method = config.method?.toLowerCase();
+  if (!method) {
+    return false;
+  }
+
+  if (IDEMPOTENT_METHODS.has(method)) {
+    return true;
+  }
+
+  return Boolean(getHeaderValue(config.headers, 'Idempotency-Key'));
+};
 
 const api = axios.create({
   baseURL: TenantService.getTenantUrl(),
@@ -55,7 +92,15 @@ api.interceptors.request.use(
 
 
 // Helper to check if request should be retried
-const shouldRetry = (error: any): boolean => {
+const shouldRetry = (error: AxiosError): boolean => {
+  if (error.config?.skipRetry) {
+    return false;
+  }
+
+  if (!isIdempotentRequest(error.config)) {
+    return false;
+  }
+
   // Retry on network errors
   if (!error.response && error.code === 'ERR_NETWORK') {
     return true;
@@ -155,12 +200,8 @@ api.interceptors.response.use(
       }
 
       logger.warn(`[API] Token refresh failed or no refresh token. Emitting AUTH_UNAUTHORIZED.`);
-      // Emit event to be handled by AuthContext
       DeviceEventEmitter.emit(Events.AUTH_UNAUTHORIZED);
-
-      // Prevent unhandled promise rejection by returning a pending promise.
-      // The app is checking out (logging out), so we don't need to resolve/reject this.
-      return new Promise(() => { });
+      return Promise.reject(error);
     }
     return Promise.reject(error);
   }

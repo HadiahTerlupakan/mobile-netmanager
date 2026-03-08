@@ -6,12 +6,56 @@
  * - AsyncStorage persister untuk offline caching
  */
 
+import { errorReportingService } from "@/services/ErrorReportingService";
+import { logger } from "@/utils/logger";
 import { Storage } from "@/utils/storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import { QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+
+const normalizeQueryError = (error: unknown): Error => {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  if (typeof error === "string") {
+    return new Error(error);
+  }
+
+  return new Error("Unknown query error");
+};
+
+const safeSerialize = (value: unknown): string => {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
 
 // Query Client dengan konfigurasi optimal untuk mobile
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      const normalizedError = normalizeQueryError(error);
+      const queryKey = safeSerialize(query.queryKey);
+      logger.error("[QueryClient] Query failed:", queryKey, normalizedError.message);
+      errorReportingService.captureException(normalizedError, {
+        source: "query",
+        queryKey,
+      });
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      const normalizedError = normalizeQueryError(error);
+      const mutationKey = safeSerialize(mutation.options.mutationKey ?? null);
+      logger.error("[QueryClient] Mutation failed:", mutationKey, normalizedError.message);
+      errorReportingService.captureException(normalizedError, {
+        source: "mutation",
+        mutationKey,
+      });
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 1000 * 60 * 5, // 5 menit - data dianggap fresh

@@ -117,5 +117,38 @@ describe('DatabaseService', () => {
         expect(mockStorage.setItem).toHaveBeenCalled();
       }
     });
+
+    it('should clear session queue and offline cache keys', async () => {
+      mockStorage.getItem.mockImplementation((key: string) => {
+        if (key === 'NETMANAGER_SYNC_QUEUE') {
+          return JSON.stringify([
+            {
+              id: 1,
+              url: '/api/test',
+              method: 'POST',
+              body: '{}',
+              status: 'PENDING',
+              createdAt: new Date().toISOString(),
+              meta: '{}',
+            },
+          ]);
+        }
+
+        if (key === 'NETMANAGER_OFFLINE_CACHE_INDEX') {
+          return JSON.stringify(['OFFLINE_["tickets"]', 'OFFLINE_["profile"]']);
+        }
+
+        return null;
+      });
+
+      await DatabaseService.initDatabase();
+      await DatabaseService.clearSessionData();
+
+      expect(mockStorage.removeItem).toHaveBeenCalledWith('NETMANAGER_SYNC_QUEUE');
+      expect(mockStorage.removeItem).toHaveBeenCalledWith('OFFLINE_["tickets"]');
+      expect(mockStorage.removeItem).toHaveBeenCalledWith('OFFLINE_["profile"]');
+      expect(mockStorage.removeItem).toHaveBeenCalledWith('NETMANAGER_OFFLINE_CACHE_INDEX');
+      await expect(DatabaseService.getPendingQueue()).resolves.toEqual([]);
+    });
   });
 });

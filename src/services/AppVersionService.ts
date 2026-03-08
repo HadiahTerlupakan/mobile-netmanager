@@ -34,6 +34,46 @@ export interface DownloadProgress {
     percentage: number
 }
 
+type ResponsePayload = Record<string, unknown>
+
+const VERSION_REQUEST_TIMEOUT_MS = 15000
+
+const isObject = (value: unknown): value is ResponsePayload => {
+    return typeof value === 'object' && value !== null
+}
+
+const isAppVersionInfo = (value: unknown): value is AppVersionInfo => {
+    if (!isObject(value)) {
+        return false
+    }
+
+    return typeof value.id === 'string'
+        && typeof value.version === 'string'
+        && typeof value.buildNumber === 'number'
+        && typeof value.versionCode === 'number'
+        && (typeof value.downloadUrl === 'string' || value.downloadUrl === null)
+        && (typeof value.releaseNotes === 'string' || value.releaseNotes === null)
+        && (typeof value.apkSize === 'number' || value.apkSize === null)
+}
+
+const getErrorMessage = (value: unknown): string | null => {
+    if (!isObject(value)) {
+        return null
+    }
+
+    const message = value.message
+    if (typeof message === 'string' && message.trim()) {
+        return message
+    }
+
+    const error = value.error
+    if (typeof error === 'string' && error.trim()) {
+        return error
+    }
+
+    return null
+}
+
 class AppVersionService {
     private baseUrl: string
     private pendingApkUri: string | null = null
@@ -42,34 +82,103 @@ class AppVersionService {
         this.baseUrl = TenantService.getTenantUrl()
     }
 
+    private async fetchWithTimeout(input: string, init?: RequestInit): Promise<Response> {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), VERSION_REQUEST_TIMEOUT_MS)
+
+        try {
+            return await fetch(input, {
+                ...init,
+                signal: controller.signal,
+            })
+        } finally {
+            clearTimeout(timeout)
+        }
+    }
+
+    private async readResponsePayload(response: Response): Promise<{ data: ResponsePayload | null; rawText: string | null }> {
+        if (typeof response.text === 'function') {
+            const rawText = await response.text()
+
+            if (!rawText) {
+                return { data: null, rawText: null }
+            }
+
+            try {
+                return { data: JSON.parse(rawText) as ResponsePayload, rawText }
+            } catch {
+                return { data: null, rawText }
+            }
+        }
+
+        if (typeof response.json === 'function') {
+            try {
+                const json = await response.json()
+                return { data: isObject(json) ? json : null, rawText: null }
+            } catch {
+                return { data: null, rawText: null }
+            }
+        }
+
+        return { data: null, rawText: null }
+    }
+
+    private getResponseError(response: Response, data: ResponsePayload | null, rawText: string | null): string {
+        return getErrorMessage(data)
+            ?? rawText?.trim()
+            ?? `HTTP ${response.status}`
+    }
+
     async checkForUpdate(currentVersionCode: number): Promise<CheckUpdateResult> {
         try {
             // Update baseUrl in case it changed
             this.baseUrl = TenantService.getTenantUrl()
             const platform = Platform.OS === 'ios' ? 'ios' : 'android'
-            const response = await fetch(
+            const response = await this.fetchWithTimeout(
                 `${this.baseUrl}/api/mobile/app-version/check?versionCode=${currentVersionCode}&platform=${platform}`
             )
-            
-            const data = await response.json()
-            
-            if (!data.success) {
+
+            const { data, rawText } = await this.readResponsePayload(response)
+
+            if (!response.ok) {
                 return {
                     success: false,
                     updateAvailable: false,
                     isForceUpdate: false,
                     currentVersion: '',
                     latestVersion: null,
-                    error: data.error
+                    error: this.getResponseError(response, data, rawText)
+                }
+            }
+
+            if (!data) {
+                return {
+                    success: false,
+                    updateAvailable: false,
+                    isForceUpdate: false,
+                    currentVersion: '',
+                    latestVersion: null,
+                    error: 'Respons server tidak valid'
+                }
+            }
+
+            if (data.success !== true) {
+                return {
+                    success: false,
+                    updateAvailable: false,
+                    isForceUpdate: false,
+                    currentVersion: '',
+                    latestVersion: null,
+                    error: getErrorMessage(data) ?? 'Gagal memeriksa update'
                 }
             }
 
             return {
                 success: true,
-                updateAvailable: data.updateAvailable,
-                isForceUpdate: data.isForceUpdate,
+                updateAvailable: data.updateAvailable === true,
+                isForceUpdate: data.isForceUpdate === true,
                 currentVersion: '', // Not used by caller usually
-                latestVersion: data.latestVersion
+                latestVersion: isAppVersionInfo(data.latestVersion) ? data.latestVersion : null
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Gagal memeriksa update';
@@ -96,11 +205,16 @@ class AppVersionService {
                 headers['Authorization'] = `Bearer ${token}`
             }
 
-            await fetch(`${baseUrl}/api/mobile/app-version/report`, {
+            const response = await this.fetchWithTimeout(`${baseUrl}/api/mobile/app-version/report`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ versionCode: versionCode.toString(), versionName })
             })
+
+            if (!response.ok) {
+                const { data, rawText } = await this.readResponsePayload(response)
+                logger.error('Report version error:', this.getResponseError(response, data, rawText))
+            }
         } catch (error) {
             logger.error('Report version error:', error)
         }

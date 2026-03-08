@@ -14,6 +14,7 @@ import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 import * as TaskManager from 'expo-task-manager';
 import { Alert, Linking } from 'react-native';
+import { extractApiErrorMessage } from '@/utils/errorHandling';
 import { logger } from '../utils/logger';
 import api from './api';
 
@@ -265,7 +266,7 @@ export class LocationTrackingService {
             await Storage.removeItem(STORAGE_KEY_LAST_SENT); // Clear session data
             logger.info('[LocationTracking] Stopped tracking');
         } catch (error) {
-            logger.info('[LocationTracking] Stop tracking cleanup:', error);
+            logger.error('[LocationTracking] Stop tracking cleanup failed:', error);
         }
     }
 
@@ -289,7 +290,8 @@ export class LocationTrackingService {
     static async isTrackingActive(): Promise<boolean> {
         try {
             return await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
-        } catch {
+        } catch (error) {
+            logger.error('[LocationTracking] Failed to check tracking state:', error);
             return false;
         }
     }
@@ -328,8 +330,9 @@ export class LocationTrackingService {
             return true;
 
             } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : "Unknown error";
-                logger.error(`[LocationTracking] ❌ Failed to send:`, errorMessage);
+                const backendMessage = isAxiosError(error) ? extractApiErrorMessage(error.response?.data) : undefined;
+                const errorMessage = backendMessage || (error instanceof Error ? error.message : 'Unknown error');
+                logger.error('[LocationTracking] Failed to send location:', errorMessage);
 
             if (isAxiosError(error) && error.response?.data?.shouldStopTracking) {
                 logger.info(`[LocationTracking] Server requested stop tracking`);
@@ -369,7 +372,8 @@ export class LocationTrackingService {
         try {
             const data = await Storage.getItem(STORAGE_KEY_PENDING);
             return data ? JSON.parse(data) : [];
-        } catch {
+        } catch (error) {
+            logger.error('[LocationTracking] Failed to read pending locations:', error);
             return [];
         }
     }

@@ -2,6 +2,8 @@ import { Storage } from "@/utils/storage";
 import { logger } from "@/utils/logger";
 
 const QUEUE_KEY = "NETMANAGER_SYNC_QUEUE";
+const OFFLINE_INDEX_KEY = 'NETMANAGER_OFFLINE_CACHE_INDEX';
+const OFFLINE_PREFIX = 'OFFLINE_';
 
 export interface SyncQueueItem {
   id: number;
@@ -69,6 +71,34 @@ class DatabaseServiceImpl {
     }
   }
 
+  private async getOfflineIndex(): Promise<string[]> {
+    try {
+      const json = await Storage.getItem(OFFLINE_INDEX_KEY);
+      if (!json) {
+        return [];
+      }
+
+      const parsed = JSON.parse(json) as unknown;
+      return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : [];
+    } catch (error) {
+      logger.error('Failed to read offline cache index:', error);
+      return [];
+    }
+  }
+
+  private async persistOfflineIndex(index: string[]): Promise<void> {
+    try {
+      if (index.length === 0) {
+        await Storage.removeItem(OFFLINE_INDEX_KEY);
+        return;
+      }
+
+      await Storage.setItem(OFFLINE_INDEX_KEY, JSON.stringify(index));
+    } catch (error) {
+      logger.error('Failed to persist offline cache index:', error);
+    }
+  }
+
   public async addToQueue(
     url: string,
     method: string,
@@ -121,7 +151,14 @@ class DatabaseServiceImpl {
 
   public async saveOfflineData(key: string, data: any): Promise<void> {
     try {
-      await Storage.setItem(`OFFLINE_${key}`, JSON.stringify(data));
+      const storageKey = `${OFFLINE_PREFIX}${key}`;
+      await Storage.setItem(storageKey, JSON.stringify(data));
+
+      const index = await this.getOfflineIndex();
+      if (!index.includes(storageKey)) {
+        index.push(storageKey);
+        await this.persistOfflineIndex(index);
+      }
     } catch (error) {
       logger.error("Failed to save offline data:", error);
     }
@@ -129,11 +166,27 @@ class DatabaseServiceImpl {
 
   public async getOfflineData<T>(key: string): Promise<T | null> {
     try {
-      const json = await Storage.getItem(`OFFLINE_${key}`);
+      const json = await Storage.getItem(`${OFFLINE_PREFIX}${key}`);
       return json ? JSON.parse(json) : null;
     } catch (error) {
       logger.error("Failed to get offline data:", error);
       return null;
+    }
+  }
+
+  public async clearSessionData(): Promise<void> {
+    if (!this.isReady) await this.waitForReady();
+
+    this.memoryQueue = [];
+
+    try {
+      await Storage.removeItem(QUEUE_KEY);
+
+      const offlineKeys = await this.getOfflineIndex();
+      await Promise.all(offlineKeys.map((key) => Storage.removeItem(key)));
+      await Storage.removeItem(OFFLINE_INDEX_KEY);
+    } catch (error) {
+      logger.error('Failed to clear session data:', error);
     }
   }
 }
@@ -151,4 +204,5 @@ export const DatabaseService = {
   markAsRetry: (id: number) => DatabaseServiceImpl.getInstance().markAsRetry(id),
   saveOfflineData: (key: string, data: any) => DatabaseServiceImpl.getInstance().saveOfflineData(key, data),
   getOfflineData: <T>(key: string) => DatabaseServiceImpl.getInstance().getOfflineData<T>(key),
+  clearSessionData: () => DatabaseServiceImpl.getInstance().clearSessionData(),
 };

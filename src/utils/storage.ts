@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { logger } from '@/utils/logger';
 
 const STORAGE_PREFIX = 'netmanager_';
 const SECURE_STORAGE_PREFIX = 'netmanager_secure_';
@@ -19,24 +20,42 @@ export const Storage = {
     try {
       return await AsyncStorage.getItem(STORAGE_PREFIX + key);
     } catch (error) {
-      console.error('Storage.getItem error:', error);
+      logger.error('Storage.getItem error:', error);
       return null;
+    }
+  },
+
+  setItemStrict: async (key: string, value: string): Promise<void> => {
+    try {
+      await AsyncStorage.setItem(STORAGE_PREFIX + key, value);
+    } catch (error) {
+      logger.error('Storage.setItem error:', error);
+      throw error;
     }
   },
 
   setItem: async (key: string, value: string): Promise<void> => {
     try {
-      await AsyncStorage.setItem(STORAGE_PREFIX + key, value);
+      await Storage.setItemStrict(key, value);
     } catch (error) {
-      console.error('Storage.setItem error:', error);
+      logger.debug('Storage.setItem swallowed error for legacy caller:', key, error);
+    }
+  },
+
+  removeItemStrict: async (key: string): Promise<void> => {
+    try {
+      await AsyncStorage.removeItem(STORAGE_PREFIX + key);
+    } catch (error) {
+      logger.error('Storage.removeItem error:', error);
+      throw error;
     }
   },
 
   removeItem: async (key: string): Promise<void> => {
     try {
-      await AsyncStorage.removeItem(STORAGE_PREFIX + key);
+      await Storage.removeItemStrict(key);
     } catch (error) {
-      console.error('Storage.removeItem error:', error);
+      logger.debug('Storage.removeItem swallowed error for legacy caller:', key, error);
     }
   },
 
@@ -46,7 +65,7 @@ export const Storage = {
       const prefixedKeys = keys.filter(k => k.startsWith(STORAGE_PREFIX));
       await AsyncStorage.multiRemove(prefixedKeys);
     } catch (error) {
-      console.error('Storage.clear error:', error);
+      logger.error('Storage.clear error:', error);
     }
   },
 
@@ -83,15 +102,14 @@ export const SecureStorage = {
       }
       return await SecureStore.getItemAsync(key);
     } catch (error) {
-      console.error('SecureStorage.getItem error:', error);
+      logger.error('SecureStorage.getItem error:', error);
       return null;
     }
   },
 
-  setItem: async (key: string, value: string): Promise<void> => {
+  setItemStrict: async (key: string, value: string): Promise<void> => {
     try {
       if (isWeb) {
-        // Web fallback using localStorage
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.setItem(SECURE_STORAGE_PREFIX + key, value);
         }
@@ -99,14 +117,22 @@ export const SecureStorage = {
       }
       await SecureStore.setItemAsync(key, value);
     } catch (error) {
-      console.error('SecureStorage.setItem error:', error);
+      logger.error('SecureStorage.setItem error:', error);
+      throw error;
     }
   },
 
-  removeItem: async (key: string): Promise<void> => {
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      await SecureStorage.setItemStrict(key, value);
+    } catch (error) {
+      logger.debug('SecureStorage.setItem swallowed error for legacy caller:', key, error);
+    }
+  },
+
+  removeItemStrict: async (key: string): Promise<void> => {
     try {
       if (isWeb) {
-        // Web fallback using localStorage
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.removeItem(SECURE_STORAGE_PREFIX + key);
         }
@@ -114,7 +140,16 @@ export const SecureStorage = {
       }
       await SecureStore.deleteItemAsync(key);
     } catch (error) {
-      console.error('SecureStorage.removeItem error:', error);
+      logger.error('SecureStorage.removeItem error:', error);
+      throw error;
+    }
+  },
+
+  removeItem: async (key: string): Promise<void> => {
+    try {
+      await SecureStorage.removeItemStrict(key);
+    } catch (error) {
+      logger.debug('SecureStorage.removeItem swallowed error for legacy caller:', key, error);
     }
   }
 };
