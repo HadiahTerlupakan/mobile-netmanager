@@ -56,6 +56,7 @@ import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
 import { AppFeature } from '@/constants/features';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 
 // --- Types ---
@@ -303,6 +304,20 @@ export default function AbsensiScreen() {
   const { hasPermission, requestPermission } = useCameraPermission();
   const [faceInFrame, setFaceInFrame] = useState(false);
   const [instructionText, setInstructionText] = useState("Dekatkan wajah");
+  const lastFaceReadyRef = useRef(false);
+
+  const triggerFaceGuideHaptic = useCallback((isFaceReady: boolean) => {
+    if (lastFaceReadyRef.current === isFaceReady) return;
+
+    lastFaceReadyRef.current = isFaceReady;
+
+    if (isFaceReady) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return;
+    }
+
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
 
   // --- Face Detection Logic ---
   const faceDetector = useFaceDetector({
@@ -312,6 +327,9 @@ export default function AbsensiScreen() {
   });
 
   const onFaceDetected = Worklets.createRunOnJS((faces: any[], frameWidth: number, frameHeight: number) => {
+    let nextFaceInFrame = false;
+    let nextInstructionText = "Wajah Tidak Terdeteksi";
+
     if (faces.length > 0) {
       const face = faces[0];
       const { bounds } = face;
@@ -329,23 +347,24 @@ export default function AbsensiScreen() {
 
       // We want the face to be in the center (around 0.5, 0.5)
       // and have a reasonable size (not too far)
-      const isCentered = normX > 0.3 && normX < 0.7 && normY > 0.3 && normY < 0.7;
-      const isLargeEnough = (bounds.width / frameWidth) > 0.2;
+      const isCentered = normX > 0.25 && normX < 0.75 && normY > 0.25 && normY < 0.75;
+      const faceWidthRatio = bounds.width / frameWidth;
+      const faceHeightRatio = bounds.height / frameHeight;
+      const isLargeEnough = Math.max(faceWidthRatio, faceHeightRatio) > 0.16;
 
       if (isCentered && isLargeEnough) {
-        setFaceInFrame(true);
-        setInstructionText("Sempurna! Ambil Foto");
+        nextFaceInFrame = true;
+        nextInstructionText = "Sempurna! Ambil Foto";
       } else if (!isCentered) {
-        setFaceInFrame(false);
-        setInstructionText("Posisikan wajah di tengah bingkai");
+        nextInstructionText = "Posisikan wajah di tengah bingkai";
       } else {
-        setFaceInFrame(false);
-        setInstructionText("Dekatkan wajah");
+        nextInstructionText = "Dekatkan wajah";
       }
-    } else {
-      setFaceInFrame(false);
-      setInstructionText("Wajah Tidak Terdeteksi");
     }
+
+    setFaceInFrame(nextFaceInFrame);
+    setInstructionText(nextInstructionText);
+    triggerFaceGuideHaptic(nextFaceInFrame);
   });
 
   const frameProcessor = useFrameProcessor((frame) => {
@@ -548,6 +567,11 @@ export default function AbsensiScreen() {
   }, [refreshPendingSyncCount]);
 
   const handleCaptureURI = useCallback(async () => {
+    if (!faceInFrame) {
+      Alert.alert("Wajah Belum Terdeteksi", "Pastikan wajah terlihat jelas dan berada di dalam frame.");
+      return;
+    }
+
     if (cameraRef.current) {
       const result = await cameraRef.current.takePhoto({
         flash: 'off',
@@ -557,7 +581,7 @@ export default function AbsensiScreen() {
       setCapturedTime(new Date());
       setShowCamera(false);
     }
-  }, []);
+  }, [faceInFrame]);
 
   const captureWatermarkedPhoto = useCallback(async (): Promise<string | null> => {
     if (!watermarkRef.current) return photo;
@@ -806,7 +830,13 @@ export default function AbsensiScreen() {
           </View>
           <View style={tw`flex-row justify-between items-center`}>
             <TouchableOpacity onPress={() => setShowCamera(false)} style={tw`bg-white/20 p-3 rounded-full`}><X color="white" size={24} /></TouchableOpacity>
-            <TouchableOpacity onPress={handleCaptureURI} style={tw`h-20 w-20 bg-white rounded-full border-4 border-gray-300 items-center justify-center`}><View style={tw`h-16 w-16 bg-white rounded-full border-2 border-gray-200`} /></TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleCaptureURI}
+              disabled={!faceInFrame}
+              style={tw`h-20 w-20 ${faceInFrame ? "bg-white" : "bg-gray-400"} rounded-full border-4 border-gray-300 items-center justify-center`}
+            >
+              <View style={tw`h-16 w-16 ${faceInFrame ? "bg-white" : "bg-gray-300"} rounded-full border-2 border-gray-200`} />
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => setFacing((curr) => (curr === "back" ? "front" : "back"))} style={tw`bg-white/20 p-3 rounded-full`}><RotateCcw color="white" size={24} /></TouchableOpacity>
           </View>
         </View>

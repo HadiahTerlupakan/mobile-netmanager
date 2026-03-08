@@ -118,6 +118,14 @@ This command will:
 3.  Install the `.apk` onto your connected emulator or device.
 4.  Launch the metro bundler.
 
+## Internal Technical Guides
+
+| Guide | Tujuan | Lokasi |
+| --- | --- | --- |
+| Attendance Face Tuning Guide | Panduan tuning deteksi wajah absensi untuk device lapangan (agar tidak terlalu ketat tapi tetap aman). | `plans/ATTENDANCE_FACE_TUNING_GUIDE.md` |
+
+Tambahkan guide baru ke tabel ini agar dokumentasi teknis internal tetap terpusat.
+
 ## How to Share APK (Build for Friend)
 
 To generate a standalone APK file that you can send to a friend (does not require development server):
