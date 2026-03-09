@@ -1,4 +1,9 @@
+import { CURRENT_VERSION_CODE, CURRENT_VERSION_NAME } from '@/constants/appVersion';
+import { Config } from '@/constants/Config';
+import { TenantService } from '@/services/TenantService';
+import { TokenService } from '@/services/TokenService';
 import { logger } from '@/utils/logger';
+import { Platform } from 'react-native';
 
 /**
  * Error Reporting Service
@@ -31,6 +36,23 @@ interface Breadcrumb {
   timestamp: string;
 }
 
+interface BackendErrorReportPayload {
+  message: string;
+  kind: string;
+  source: string;
+  severity: 'fatal' | 'error' | 'warning' | 'info';
+  route?: string;
+  screen?: string;
+  appVersion: string;
+  platform: string;
+  occurredAt: string;
+  stack?: string;
+  breadcrumbs: Breadcrumb[];
+  context: Record<string, unknown>;
+}
+
+const REPORT_TIMEOUT_MS = 5000;
+
 class ErrorReportingService {
   private isInitialized: boolean = false;
   private isEnabled: boolean = false;
@@ -46,6 +68,81 @@ class ErrorReportingService {
       contexts: this.contexts,
       breadcrumbs: this.breadcrumbs.slice(-20),
     };
+  }
+
+  private get backendReportingEnabled(): boolean {
+    return Boolean(Config.ENABLE_BACKEND_ERROR_REPORTING);
+  }
+
+  private buildPayload(
+    message: string,
+    kind: string,
+    severity: BackendErrorReportPayload['severity'],
+    context?: ErrorContext,
+    stack?: string,
+  ): BackendErrorReportPayload {
+    const snapshot = this.getSnapshot();
+
+    return {
+      message,
+      kind,
+      source: typeof context?.source === 'string' ? context.source : 'runtime',
+      severity,
+      route: typeof context?.route === 'string' ? context.route : undefined,
+      screen: typeof context?.screen === 'string' ? context.screen : undefined,
+      appVersion: `${CURRENT_VERSION_NAME}+${CURRENT_VERSION_CODE}`,
+      platform: Platform.OS,
+      occurredAt: new Date().toISOString(),
+      stack,
+      breadcrumbs: snapshot.breadcrumbs,
+      context: {
+        user: snapshot.user,
+        tags: snapshot.tags,
+        contexts: snapshot.contexts,
+        ...(context ? { extra: context } : {}),
+      },
+    };
+  }
+
+  private async sendToBackend(payload: BackendErrorReportPayload): Promise<void> {
+    if (!this.backendReportingEnabled) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REPORT_TIMEOUT_MS);
+
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      const token = TokenService.getToken();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${TenantService.getTenantUrl()}/api/mobile/error-report`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        logger.warn('[ErrorReporting] Backend report rejected', {
+          status: response.status,
+          kind: payload.kind,
+        });
+      }
+    } catch (error) {
+      logger.warn('[ErrorReporting] Backend report failed', {
+        kind: payload.kind,
+        error,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   /**
@@ -74,6 +171,9 @@ class ErrorReportingService {
         ...this.getSnapshot(),
         ...(context ? { context } : {}),
       });
+      void this.sendToBackend(
+        this.buildPayload(error.message, 'exception', 'error', context, error.stack)
+      );
     } catch (err) {
       logger.error('[ErrorReporting] Failed to capture exception:', err);
     }
@@ -94,6 +194,12 @@ class ErrorReportingService {
         logger.debug(`[ErrorReporting] Message (${level}):`, message);
       } else {
         logger.info(`[ErrorReporting] Message (${level}):`, message);
+      }
+
+      if (level === 'fatal' || level === 'error' || level === 'warning') {
+        void this.sendToBackend(
+          this.buildPayload(message, 'message', level === 'warning' ? 'warning' : level, undefined)
+        );
       }
     } catch (error) {
       logger.error('[ErrorReporting] Failed to capture message:', error);

@@ -34,4 +34,7 @@ export const Config = {
   API_URL: getApiUrl(),
   VARIANT: process.env.EXPO_PUBLIC_APP_VARIANT || 'development',
   IS_PRODUCTION: process.env.EXPO_PUBLIC_APP_VARIANT === 'production',
+  ENABLE_BACKEND_ERROR_REPORTING:
+    process.env.EXPO_PUBLIC_ENABLE_ERROR_REPORTING === 'true'
+    || process.env.EXPO_PUBLIC_APP_VARIANT === 'production',
 };
