@@ -7,7 +7,7 @@ import { TokenService } from '@/services/TokenService';
 import { logger } from '@/utils/logger';
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { DeviceEventEmitter } from 'react-native';
-
+import NetInfo from '@react-native-community/netinfo';
 declare module "axios" {
   export interface AxiosRequestConfig {
     skipGlobalAuthHandler?: boolean;
@@ -75,6 +75,12 @@ api.interceptors.request.use(
 
     // Inject dynamic base URL
     config.baseURL = TenantService.getTenantUrl();
+
+    // Check internet connection
+    const netInfo = await NetInfo.fetch();
+    if (!netInfo.isConnected && !config.url?.includes('localhost')) {
+      return Promise.reject(new Error('No Internet connection'));
+    }
 
     // Optimization: Use in-memory token first
     const token = TokenService.getToken();

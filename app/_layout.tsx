@@ -21,6 +21,7 @@ import { Href, Slot, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, DeviceEventEmitter, Platform, View } from "react-native";
+import Toast from "react-native-toast-message";
 import { Events } from "@/constants/Events";
 import tw from "twrnc";
 
@@ -388,6 +389,7 @@ export default function RootLayout() {
             persistOptions={{ persister: asyncStoragePersister }}
           >
             <RootLayoutNav />
+            <Toast />
           </PersistQueryClientProvider>
         </AuthProvider>
       </TenantProvider>

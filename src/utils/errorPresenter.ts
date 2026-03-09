@@ -1,5 +1,5 @@
 import { AlertButton } from 'react-native';
-
+import Toast from 'react-native-toast-message';
 import { errorReportingService } from '@/services/ErrorReportingService';
 
 import { AlertService } from './alert';
@@ -44,26 +44,29 @@ export const presentMessage = (
     return;
   }
 
-  if (presentation.severity === 'error') {
-    AlertService.error(title, presentation.message);
-    return;
-  }
+  // Use Toast for non-blocking UI feedback
+  const type = presentation.severity === 'error' ? 'error' : 'info';
 
-  AlertService.info(title, presentation.message);
+  Toast.show({
+    type,
+    text1: title,
+    text2: presentation.message,
+    position: 'bottom',
+    visibilityTime: 4000,
+  });
 };
 
 export const presentSuccessMessage = (message: string, title = 'Berhasil') => {
-  AlertService.success(title, message);
+  Toast.show({ type: 'success', text1: title, text2: message, position: 'bottom' });
 };
 
 export const presentInfoMessage = (message: string, title = 'Info') => {
-  AlertService.info(title, message);
+  Toast.show({ type: 'info', text1: title, text2: message, position: 'bottom' });
 };
 
 export const presentErrorMessage = (message: string, title = 'Gagal') => {
-  AlertService.error(title, message);
+  Toast.show({ type: 'error', text1: title, text2: message, position: 'bottom', visibilityTime: 5000 });
 };
-
 export const presentAppError = (error: unknown, options: PresenterOptions = {}): ErrorMessage => {
   const presentation = getUserFriendlyError(error);
 

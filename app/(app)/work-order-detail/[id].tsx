@@ -991,7 +991,7 @@ export default function WorkOrderDetailScreen() {
           style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}
         >
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
-            ⚠️ Klik &quot;Mulai Kerja&quot; terlebih dahulu untuk mengambil barang
+            {"⚠️ Klik \"Mulai Kerja\" terlebih dahulu untuk mengambil barang"}
           </Text>
         </View>
       )}
@@ -1124,8 +1124,8 @@ export default function WorkOrderDetailScreen() {
         >
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
             {!isWorkStarted
-              ? '⚠️ Klik "Mulai Kerja" terlebih dahulu untuk mengirim diskusi'
-              : '⚠️ Hanya lead teknisi dan partner yang bisa mengirim diskusi'}
+              ? "⚠️ Klik \"Mulai Kerja\" terlebih dahulu untuk mengirim diskusi"
+              : "⚠️ Hanya lead teknisi dan partner yang bisa mengirim diskusi"}
           </Text>
         </View>
       )}
@@ -1431,8 +1431,8 @@ export default function WorkOrderDetailScreen() {
         >
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
             {!isWorkStarted
-              ? '⚠️ Klik "Mulai Kerja" terlebih dahulu untuk mencentang tugas'
-              : '⚠️ Hanya lead teknisi dan partner yang bisa mengubah tugas'}
+              ? "⚠️ Klik \"Mulai Kerja\" terlebih dahulu untuk mencentang tugas"
+              : "⚠️ Hanya lead teknisi dan partner yang bisa mengubah tugas"}
           </Text>
         </View>
       )}

@@ -1,0 +1,6 @@
+
+> mobile@1.0.0 lint
+> expo lint --max-warnings 0
+
+env: load .env
+env: export EXPO_DEBUG EXPO_DEBUG_SOCKET EXPO_USE_COLORS EXPO_DEVTOOLS_LISTEN_ADDRESS

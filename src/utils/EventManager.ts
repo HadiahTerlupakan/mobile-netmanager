@@ -1,3 +1,5 @@
+import { errorReportingService } from "@/services/ErrorReportingService";
+
 type EventHandler = (...args: any[]) => void;
 type CleanupFunction = () => void;
 
@@ -49,6 +51,10 @@ class EventManager {
                 l.cleanup();
             } catch (e) {
                 console.warn(`[EventManager] Failed to cleanup listener for key ${key}`, e);
+                errorReportingService.captureException(e instanceof Error ? e : new Error(`[EventManager] Failed to cleanup listener for key ${key}`), {
+                    source: 'EventManager.removeAllListeners',
+                    key,
+                });
             }
         });
         this.listeners.delete(key);
@@ -61,12 +67,17 @@ class EventManager {
                 l.cleanup();
             } catch (e) {
                 console.warn(`[EventManager] Failed to cleanup listener for key ${k}`, e);
+                errorReportingService.captureException(e instanceof Error ? e : new Error(`[EventManager] Failed to cleanup listener for key ${k}`), {
+                    source: 'EventManager.removeAllListeners',
+                    key: k,
+                });
             }
         });
       });
       this.listeners.clear();
     }
-  }
+}
+
 }
 
 export const eventManager = new EventManager();

@@ -425,7 +425,7 @@ export default function LemburScreen() {
                 <View style={tw`bg-yellow-50 border border-yellow-200 rounded-2xl p-4 items-center mb-4`}>
                   <Timer size={32} color="#ca8a04" />
                   <Text style={tw`text-yellow-700 font-bold text-lg mt-2`}>Menunggu Approval</Text>
-                  <Text style={tw`text-yellow-600 text-xs text-center mt-1`}>Pengajuan: &quot;{todayRequest.reason}&quot;</Text>
+                  <Text style={tw`text-yellow-600 text-xs text-center mt-1`}>{"Pengajuan: \""}{todayRequest.reason}{"\""}</Text>
                 </View>
               )}
 
