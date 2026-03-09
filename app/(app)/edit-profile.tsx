@@ -9,13 +9,13 @@ import { useProfileSync } from '@/hooks/useProfileSync';
 import { queryKeys } from '@/lib/queryClient';
 import { TenantService } from '@/services/TenantService';
 import { uploadService } from '@/services/UploadService';
-import { getUserFriendlyError } from '@/utils/errorHandling';
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { ProfileSchema } from '@/utils/validation';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { ArrowLeft, Camera, ChevronRight, Lock, Phone, Save, User } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { z } from 'zod';
@@ -67,7 +67,7 @@ function EditProfileScreen() {
     const pickImage = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permissionResult.granted) {
-            Alert.alert('Izin Diperlukan', 'Izinkan akses ke galeri untuk memilih foto');
+            presentInfoMessage('Izinkan akses ke galeri untuk memilih foto', 'Izin Diperlukan');
             return;
         }
 
@@ -96,12 +96,14 @@ function EditProfileScreen() {
             });
 
             if (res.success) {
-                Alert.alert('Sukses', 'Foto berhasil diperbarui');
+                presentSuccessMessage('Foto berhasil diperbarui');
                 queryClient.invalidateQueries({ queryKey: queryKeys.profile.detail() });
             }
         } catch (error) {
-            const { title, message } = getUserFriendlyError(error);
-            Alert.alert(title, message);
+            presentAppError(error, {
+                screen: 'EditProfileScreen',
+                route: '/(app)/edit-profile',
+            });
         } finally {
             setUploadingPhoto(false);
         }

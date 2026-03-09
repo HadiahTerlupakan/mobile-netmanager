@@ -22,7 +22,7 @@ import {
 } from "@/utils/attendanceGeofencePolicy";
 import { generateSignature } from "@/utils/crypto";
 import { formatDate } from "@/utils/date";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import {
   AlertTriangle,
@@ -597,7 +597,7 @@ export default function AbsensiScreen() {
   const submitAttendance = useCallback(async () => {
     if (!photo || !location) {
       setIsProcessing(false);
-      Alert.alert("Data Belum Lengkap", "Pastikan foto dan lokasi sudah tersedia.");
+      presentInfoMessage("Pastikan foto dan lokasi sudah tersedia.", "Data Belum Lengkap");
       return;
     }
 
@@ -676,7 +676,7 @@ export default function AbsensiScreen() {
             setIsProcessing(false);
             setLoading(false);
             const warning = (data as { warning?: string })?.warning;
-            Alert.alert("Berhasil", status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
+            presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
             refetchStatus();
             setPhoto(null);
             refreshPendingSyncCount();
@@ -684,8 +684,10 @@ export default function AbsensiScreen() {
           onError: (e) => {
             setIsProcessing(false);
             setLoading(false);
-            const { title, message } = getUserFriendlyError(e);
-            Alert.alert(title, message);
+            presentAppError(e, {
+              screen: 'AttendanceScreen',
+              route: '/(app)/absensi',
+            });
           },
         });
       } catch (error) {
@@ -698,8 +700,10 @@ export default function AbsensiScreen() {
         });
         setIsProcessing(false);
         setLoading(false);
-        const { title, message } = getUserFriendlyError(error);
-        Alert.alert(title, message);
+          presentAppError(error, {
+            screen: 'AttendanceScreen',
+            route: '/(app)/absensi',
+          });
       }
     } else {
       setLoadingMessage("Menyimpan offline...");
@@ -723,7 +727,7 @@ export default function AbsensiScreen() {
           const isOfflineQueued = isOfflineMutationQueuedResult(data);
           if (isOfflineQueued) {
             setPhoto(null);
-            Alert.alert("Offline", "Data disimpan offline.");
+            presentInfoMessage("Data disimpan offline.", "Offline");
             AttendanceTelemetryService.track("attendance_queued_offline", {
               requestId: payload.requestId,
               userId: user?.id,
@@ -733,15 +737,17 @@ export default function AbsensiScreen() {
           } else {
             // If it surprisingly succeeded online
             setPhoto(null);
-            Alert.alert("Berhasil", "Data berhasil dikirim.");
+            presentSuccessMessage("Data berhasil dikirim.");
             refetchStatus();
           }
           refreshPendingSyncCount();
         },
         onError: (e) => {
           setIsProcessing(false);
-          const { title, message } = getUserFriendlyError(e);
-          Alert.alert(title, message);
+          presentAppError(e, {
+            screen: 'AttendanceScreen',
+            route: '/(app)/absensi',
+          });
         }
       });
     }
@@ -749,7 +755,7 @@ export default function AbsensiScreen() {
 
   const handleSubmit = useCallback(async () => {
     if (!photo || !location) {
-      Alert.alert("Data Belum Lengkap", "Lengkapi foto dan lokasi.");
+      presentInfoMessage("Lengkapi foto dan lokasi.", "Data Belum Lengkap");
       return;
     }
     if (geofenceStatus && !geofenceStatus.isInside) {
@@ -760,7 +766,7 @@ export default function AbsensiScreen() {
         return;
       }
       if (geofenceAction === "block") {
-        Alert.alert("Di Luar Area Kantor", "Anda wajib berada di dalam area site untuk melakukan absensi.");
+        presentInfoMessage("Anda wajib berada di dalam area site untuk melakukan absensi.", "Di Luar Area Kantor");
         return;
       }
       setShowOutsideWarning(true);

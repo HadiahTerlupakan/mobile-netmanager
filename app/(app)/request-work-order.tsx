@@ -2,8 +2,9 @@ import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
 import { isOfflineMutationQueuedResult, useApiQuery, useCreateWorkOrderRequest } from "@/hooks/queries";
 import api from "@/services/api";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
+import { getCustomerSearchFailureMessage, shouldShowCustomerSearchEmptyState, shouldShowCustomerSearchErrorState } from "@/utils/requestWorkOrderSearch";
 import { RequestWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { useRouter } from "expo-router";
 import debounce from "lodash/debounce";
@@ -25,7 +26,6 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   Text,
   TextInput,
@@ -148,7 +148,7 @@ export default function RequestWorkOrderScreen() {
   useEffect(() => {
     if (isDepartmentsError && departmentsError) {
       logger.error("Failed to fetch departments:", departmentsError);
-      Alert.alert("Error", "Gagal memuat data department");
+      presentInfoMessage("Gagal memuat data department", "Error");
     }
   }, [isDepartmentsError, departmentsError]);
 
@@ -161,6 +161,7 @@ export default function RequestWorkOrderScreen() {
     useState<MixRadiusCustomer | null>(null);
   const [searching, setSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // UI State
   const [showLoading, setShowLoading] = useState(false);
@@ -181,6 +182,7 @@ export default function RequestWorkOrderScreen() {
     setSelectedCustomer(null);
     setSearchQuery("");
     setCustomers([]);
+    setSearchError(null);
     // Reset department
     setSelectedDepartment(null);
   };
@@ -191,12 +193,15 @@ export default function RequestWorkOrderScreen() {
       if (!query || query.length < 2) {
         setCustomers([]);
         setShowSearchResults(false);
+        setSearchError(null);
         return;
       }
       setSearching(true);
+      setSearchError(null);
       try {
         const res = await api.get(
           `/api/mobile/mixradius/customers?search=${encodeURIComponent(query)}`,
+          { skipRetry: true },
         );
         const data = res.data?.data || [];
         setCustomers(data);
@@ -204,6 +209,8 @@ export default function RequestWorkOrderScreen() {
       } catch (error) {
         logger.error("Search failed:", error);
         setCustomers([]);
+        setSearchError(getCustomerSearchFailureMessage(error));
+        setShowSearchResults(true);
       } finally {
         setSearching(false);
       }
@@ -219,6 +226,7 @@ export default function RequestWorkOrderScreen() {
     } else {
       setCustomers([]);
       setShowSearchResults(false);
+      setSearchError(null);
     }
   };
 
@@ -226,6 +234,7 @@ export default function RequestWorkOrderScreen() {
   const selectCustomer = (customer: MixRadiusCustomer) => {
     setSelectedCustomer(customer);
     setShowSearchResults(false);
+    setSearchError(null);
     setSearchQuery(customer.fullname);
     if (!title) {
       setTitle(`Troubleshoot - ${customer.fullname}`);
@@ -237,6 +246,7 @@ export default function RequestWorkOrderScreen() {
     setSelectedCustomer(null);
     setSearchQuery("");
     setCustomers([]);
+    setSearchError(null);
   };
 
   // Select department
@@ -270,12 +280,12 @@ export default function RequestWorkOrderScreen() {
     // Validations based on mode
     if (woMode === "CUSTOMER") {
       if (!selectedCustomer) {
-        Alert.alert("Error", "Pilih pelanggan terlebih dahulu");
+        presentInfoMessage("Pilih pelanggan terlebih dahulu", "Error");
         return;
       }
     } else {
       if (!selectedDepartment) {
-        Alert.alert("Error", "Pilih Department terlebih dahulu");
+        presentInfoMessage("Pilih Department terlebih dahulu", "Error");
         return;
       }
     }
@@ -290,7 +300,7 @@ export default function RequestWorkOrderScreen() {
     const validation = validateData(RequestWorkOrderSchema, rawData);
 
     if (!validation.success) {
-      Alert.alert("Data Tidak Valid", validation.error);
+      presentInfoMessage(validation.error, "Data Tidak Valid");
       return;
     }
 
@@ -343,24 +353,27 @@ export default function RequestWorkOrderScreen() {
           setCustomers([]);
           setSelectedDepartment(null);
 
-          Alert.alert(
-            isOffline ? "Offline" : "Berhasil! ✅",
-            isOffline
-              ? "Request diantrikan dan akan dikirim saat online"
-              : `Request WO ${woMode === "INTERNAL" ? "Internal " : ""}berhasil dikirim.\nMenunggu persetujuan Admin.`,
-            [{ text: "OK", onPress: () => router.back() }],
-          );
+          if (isOffline) {
+            presentInfoMessage("Request diantrikan dan akan dikirim saat online", "Offline");
+          } else {
+            presentSuccessMessage(`Request WO ${woMode === "INTERNAL" ? "Internal " : ""}berhasil dikirim. Menunggu persetujuan Admin.`);
+          }
+          router.back();
         },
         onError: (err) => {
           setShowLoading(false);
-          const { title, message } = getUserFriendlyError(err);
-          Alert.alert(title, message);
+          presentAppError(err, {
+            screen: 'RequestWorkOrderScreen',
+            route: '/(app)/request-work-order',
+          });
         },
       });
     } catch (error) {
       setShowLoading(false);
-      const { title, message } = getUserFriendlyError(error);
-      Alert.alert(title, message);
+      presentAppError(error, {
+        screen: 'RequestWorkOrderScreen',
+        route: '/(app)/request-work-order',
+      });
     }
   };
 
@@ -609,10 +622,25 @@ export default function RequestWorkOrderScreen() {
                     </View>
                   )}
 
-                {showSearchResults &&
-                  customers.length === 0 &&
-                  !searching &&
-                  searchQuery.length >= 2 && (
+                {shouldShowCustomerSearchErrorState({
+                  searching,
+                  searchQuery,
+                  searchError,
+                }) && (
+                    <View style={tw`bg-red-50 p-3 rounded-xl mt-1 border border-red-200`}>
+                      <Text style={tw`text-sm text-red-700 text-center`}>
+                        {searchError}
+                      </Text>
+                    </View>
+                  )}
+
+                {shouldShowCustomerSearchEmptyState({
+                  showSearchResults,
+                  searching,
+                  searchQuery,
+                  customersCount: customers.length,
+                  searchError,
+                }) && (
                     <View style={tw`bg-gray-50 p-3 rounded-xl mt-1`}>
                       <Text style={tw`text-sm text-slate-500 text-center`}>
                         Pelanggan tidak ditemukan
@@ -675,7 +703,7 @@ export default function RequestWorkOrderScreen() {
 
                   return (
                     <TouchableOpacity
-                      key={idx}
+                      key={action.title}
                       onPress={() => applyQuickAction(action)}
                       style={[
                         tw`flex-1 p-4 rounded-xl border-2`,

@@ -18,7 +18,7 @@ import { uploadService } from "@/services/UploadService";
 import api from "@/services/api"; // Use centralized API
 import { UserSummary, WorkOrder, WorkOrderAssignment, WorkOrderUpdate } from "@/types/work-order";
 import { formatDate } from "@/utils/date";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import { FlashList } from '@shopify/flash-list';
 import * as ImagePicker from "expo-image-picker";
@@ -265,7 +265,7 @@ export default function WorkOrderDetailScreen() {
   useEffect(() => {
     setPartnerPage(1);
     fetchPartners(1, false);
-  }, [searchPartnerQuery, isPartnerModalVisible, fetchPartners]);
+  }, [fetchPartners]);
 
   const loadMorePartners = () => {
     if (!partnerLoading && !isFetchingMorePartners && hasMorePartners) {
@@ -357,7 +357,7 @@ export default function WorkOrderDetailScreen() {
             setLoadingMessage("Berhasil!");
             const isOffline = isOfflineMutationQueuedResult(data);
             if (isOffline) {
-              Alert.alert("Offline", "Update disimpan di antrian.");
+              presentInfoMessage("Update disimpan di antrian.", "Offline");
             } else {
               // Optional: Alert can be skipped if UI update is obvious, but keeping for safety
               // Alert.alert('Berhasil', 'Status Diperbarui');
@@ -366,23 +366,27 @@ export default function WorkOrderDetailScreen() {
             setIsProcessingStatus(false);
           },
           onError: (err) => {
-            const { title, message } = getUserFriendlyError(err);
-            Alert.alert(title, message);
+            presentAppError(err, {
+              screen: 'WorkOrderDetailScreen',
+              route: '/(app)/work-order-detail/[id]',
+            });
             setIsProcessingStatus(false);
           },
         },
       );
     } catch (error) {
       setIsProcessingStatus(false);
-      const { title, message } = getUserFriendlyError(error);
-      Alert.alert(title, message);
+      presentAppError(error, {
+        screen: 'WorkOrderDetailScreen',
+        route: '/(app)/work-order-detail/[id]',
+      });
     }
   };
 
   const handleUpdateActivity = async () => {
     // Validation for NOTE
     if (!resolutionNotes && !photo) {
-      Alert.alert("Perhatian", "Mohon isi catatan atau upload foto.");
+      presentInfoMessage("Mohon isi catatan atau upload foto.", "Perhatian");
       return;
     }
 
@@ -442,8 +446,10 @@ export default function WorkOrderDetailScreen() {
         logger.info("[WO Comment] Photo uploaded:", uploadedPhotoUrl);
       } catch (uploadError: any) {
         logger.error("[WO Comment] Photo upload failed:", uploadError);
-        const { title, message } = getUserFriendlyError(uploadError);
-        Alert.alert(title, message);
+        presentAppError(uploadError, {
+          screen: 'WorkOrderDetailScreen',
+          route: '/(app)/work-order-detail/[id]',
+        });
         setIsProcessingStatus(false);
         return;
       }
@@ -466,9 +472,9 @@ export default function WorkOrderDetailScreen() {
         setLoadingMessage("Berhasil!");
         const isOffline = isOfflineMutationQueuedResult(data);
         if (isOffline) {
-          Alert.alert("Offline", "Update disimpan di antrian.");
+          presentInfoMessage("Update disimpan di antrian.", "Offline");
         } else {
-          Alert.alert("Berhasil", "Catatan Diperbarui");
+          presentSuccessMessage("Catatan Diperbarui");
           fetchDetail();
         }
         setResolutionNotes("");
@@ -476,8 +482,10 @@ export default function WorkOrderDetailScreen() {
         setIsProcessingStatus(false);
       },
       onError: (err) => {
-        const { title, message } = getUserFriendlyError(err);
-        Alert.alert(title, message);
+        presentAppError(err, {
+          screen: 'WorkOrderDetailScreen',
+          route: '/(app)/work-order-detail/[id]',
+        });
         setIsProcessingStatus(false);
       },
     });
@@ -503,8 +511,10 @@ export default function WorkOrderDetailScreen() {
               });
               if (!result.canceled) setPhoto(result.assets[0].uri);
             } catch (error) {
-              const { title, message } = getUserFriendlyError(error);
-              Alert.alert(title, message);
+              presentAppError(error, {
+                screen: 'WorkOrderDetailScreen',
+                route: '/(app)/work-order-detail/[id]',
+              });
             }
           },
         },
@@ -519,8 +529,10 @@ export default function WorkOrderDetailScreen() {
               });
               if (!result.canceled) setPhoto(result.assets[0].uri);
             } catch (error) {
-              const { title, message } = getUserFriendlyError(error);
-              Alert.alert(title, message);
+              presentAppError(error, {
+                screen: 'WorkOrderDetailScreen',
+                route: '/(app)/work-order-detail/[id]',
+              });
             }
           },
         },
@@ -552,10 +564,12 @@ export default function WorkOrderDetailScreen() {
       );
       setIsPartnerModalVisible(false);
       fetchDetail(); // Refresh WO data
-      Alert.alert("Berhasil", "Partner berhasil ditambahkan");
+      presentSuccessMessage("Partner berhasil ditambahkan");
     } catch (error) {
-      const { title, message } = getUserFriendlyError(error);
-      Alert.alert(title, message);
+      presentAppError(error, {
+        screen: 'WorkOrderDetailScreen',
+        route: '/(app)/work-order-detail/[id]',
+      });
     } finally {
       setPartnerLoading(false);
     }
@@ -576,10 +590,12 @@ export default function WorkOrderDetailScreen() {
                 `/api/mobile/work-orders/${id}/partners?assignmentId=${assignmentId}`
               );
               fetchDetail();
-              Alert.alert("Berhasil", "Partner dihapus");
+              presentSuccessMessage("Partner dihapus");
             } catch (error) {
-              const { title, message } = getUserFriendlyError(error);
-              Alert.alert(title, message);
+              presentAppError(error, {
+                screen: 'WorkOrderDetailScreen',
+                route: '/(app)/work-order-detail/[id]',
+              });
             }
           },
         },
@@ -598,10 +614,7 @@ export default function WorkOrderDetailScreen() {
       );
 
       if (res.data.success) {
-        Alert.alert(
-          "Sukses",
-          `Berhasil ${response === "APPROVED" ? "menerima" : "menolak"} permintaan partner.`,
-        );
+        presentSuccessMessage(`Berhasil ${response === "APPROVED" ? "menerima" : "menolak"} permintaan partner.`);
 
         if (response === "REJECTED") {
           // Navigate back since user is no longer involved in this WO
@@ -612,8 +625,10 @@ export default function WorkOrderDetailScreen() {
       }
     } catch (error) {
       logger.error("Partner Response Error:", error);
-      const { title, message } = getUserFriendlyError(error);
-      Alert.alert(title, message);
+      presentAppError(error, {
+        screen: 'WorkOrderDetailScreen',
+        route: '/(app)/work-order-detail/[id]',
+      });
     } finally {
       setPartnerResponseLoading(false);
     }
@@ -869,9 +884,9 @@ export default function WorkOrderDetailScreen() {
             {/* Partners */}
             {wo.assignments
               ?.filter((a) => a.userId !== wo.assignedToId)
-              .map((assignment, idx: number) => (
+              .map((assignment) => (
                 <View
-                  key={idx}
+                  key={assignment.id}
                   style={tw`flex-row items-center justify-between mb-2 pb-2 border-b border-gray-50 last:border-0`}
                 >
                   <View style={tw`flex-row items-center flex-1`}>
@@ -987,7 +1002,7 @@ export default function WorkOrderDetailScreen() {
         wo.usedMaterials.length > 0 ? (
         wo.usedMaterials.map((item, idx: number) => (
           <View
-            key={idx}
+            key={`${item.name || item.barangName || item.nama || 'used'}-${item.quantity || item.jumlah || idx}`}
             style={tw`flex-row justify-between items-center py-2 border-b border-gray-100`}
           >
             <Text style={tw`text-gray-700`}>
@@ -1014,7 +1029,7 @@ export default function WorkOrderDetailScreen() {
             </Text>
             {wo.returnedMaterials.map((item, idx: number) => (
               <View
-                key={idx}
+                key={`${item.name || item.barangName || item.nama || 'returned'}-${item.quantity || item.jumlah || idx}`}
                 style={tw`flex-row justify-between items-center py-2 border-b border-gray-100`}
               >
                 <View style={tw`flex-1`}>
@@ -1291,7 +1306,7 @@ export default function WorkOrderDetailScreen() {
       {wo.updates
         ?.filter((u) => !["COMMENT", "NOTE"].includes(u.updateType))
         .map((update, index, arr) => (
-          <View key={index} style={tw`flex-row mb-6 relative`}>
+          <View key={update.id || `${update.updateType}-${update.createdAt || index}`} style={tw`flex-row mb-6 relative`}>
             {/* Line */}
             {index !== arr.length - 1 && (
               <View
@@ -1396,8 +1411,10 @@ export default function WorkOrderDetailScreen() {
       fetchDetail();
     } catch (error) {
       logger.error("Task Toggle Error:", error);
-      const { title, message } = getUserFriendlyError(error);
-      Alert.alert(title, message);
+      presentAppError(error, {
+        screen: 'WorkOrderDetailScreen',
+        route: '/(app)/work-order-detail/[id]',
+      });
       // Revert on error
       fetchDetail();
     }

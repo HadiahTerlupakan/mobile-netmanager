@@ -8,6 +8,7 @@ import {
 } from "@/services/MixRadiusService";
 import { formatDate } from "@/utils/date";
 import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError } from "@/utils/errorPresenter";
 import { FlashList } from "@shopify/flash-list";
 import { Stack } from "expo-router";
 import {
@@ -268,8 +269,11 @@ export default function MixRadiusIsolirScreen() {
               },
               {
                 onError: (err) => {
-                  const { title, message } = getUserFriendlyError(err);
-                  Alert.alert(title, message);
+                  presentAppError(err, {
+                    screen: 'MixRadiusIsolirScreen',
+                    route: '/(app)/mixradius/isolir',
+                    report: false,
+                  });
                 }
               }
             );

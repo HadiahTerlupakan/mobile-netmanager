@@ -15,7 +15,7 @@ import {
   isSameDay,
   startOfMonth,
 } from "@/utils/date";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import { LeaveRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -179,17 +179,17 @@ export default function LeaveFormScreen() {
   const handleSubmit = async () => {
     // Basic validation
     if (!reason.trim()) {
-      Alert.alert("Data Tidak Lengkap", "Alasan wajib diisi.");
+      presentInfoMessage("Alasan wajib diisi.", "Data Tidak Lengkap");
       return;
     }
 
     if (reason.trim().length < 5) {
-      Alert.alert("Data Tidak Lengkap", "Alasan minimal 5 karakter.");
+      presentInfoMessage("Alasan minimal 5 karakter.", "Data Tidak Lengkap");
       return;
     }
 
     if (type !== "CUTI" && type !== "TUKAR_LIBUR" && photos.length === 0) {
-      Alert.alert("Data Tidak Lengkap", "Foto bukti wajib diupload untuk pengajuan " + LEAVE_TYPES.find(t => t.value === type)?.label + ".");
+      presentInfoMessage("Foto bukti wajib diupload untuk pengajuan " + LEAVE_TYPES.find(t => t.value === type)?.label + ".", "Data Tidak Lengkap");
       return;
     }
 
@@ -197,7 +197,7 @@ export default function LeaveFormScreen() {
     if (type === "TUKAR_LIBUR") {
       const tukarLiburValidation = validateTukarLibur();
       if (!tukarLiburValidation.valid) {
-        Alert.alert("Validasi Tukar Libur", tukarLiburValidation.error);
+        presentInfoMessage(tukarLiburValidation.error || "Validasi tukar libur gagal.", "Validasi Tukar Libur");
         return;
       }
     }
@@ -215,7 +215,7 @@ export default function LeaveFormScreen() {
     const validation = validateData(LeaveRequestSchema, rawData);
 
     if (!validation.success) {
-      Alert.alert("Data Tidak Valid", validation.error);
+      presentInfoMessage(validation.error, "Data Tidak Valid");
       return;
     }
 
@@ -263,24 +263,25 @@ export default function LeaveFormScreen() {
               onSuccess: () => {
                 setShowLoading(false);
                 const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
-                Alert.alert(
-                  "Pengajuan Berhasil",
-                  `Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`,
-                  [{ text: "OK", onPress: () => router.back() }],
-                );
+                presentSuccessMessage(`Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`);
+                router.back();
               },
               onError: (err: Error) => {
                 setShowLoading(false);
-                const { title, message } = getUserFriendlyError(err);
-                Alert.alert(title, message);
+                presentAppError(err, {
+                  screen: 'LeaveFormScreen',
+                  route: '/(app)/izin/form',
+                });
               },
             }
           );
         } catch (uploadError) {
           setShowLoading(false);
           logger.error("[Leave Form] Upload error:", uploadError);
-          const { title, message } = getUserFriendlyError(uploadError);
-          Alert.alert(title, message);
+          presentAppError(uploadError, {
+            screen: 'LeaveFormScreen',
+            route: '/(app)/izin/form',
+          });
         }
       } else {
         // Offline flow or no photos
@@ -299,18 +300,19 @@ export default function LeaveFormScreen() {
               setShowLoading(false);
               const isOffline = isOfflineMutationQueuedResult(data);
               const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
-              Alert.alert(
-                isOffline ? "Disimpan Offline" : "Pengajuan Berhasil",
-                isOffline
-                  ? `Pengajuan ${typeLabel} disimpan dan akan dikirim saat online.`
-                  : `Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`,
-                [{ text: "OK", onPress: () => router.back() }],
-              );
+              if (isOffline) {
+                presentInfoMessage(`Pengajuan ${typeLabel} disimpan dan akan dikirim saat online.`, "Disimpan Offline");
+              } else {
+                presentSuccessMessage(`Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`);
+              }
+              router.back();
             },
             onError: (err: Error) => {
               setShowLoading(false);
-              const { title, message } = getUserFriendlyError(err);
-              Alert.alert(title, message);
+              presentAppError(err, {
+                screen: 'LeaveFormScreen',
+                route: '/(app)/izin/form',
+              });
             },
           },
         );
@@ -318,8 +320,10 @@ export default function LeaveFormScreen() {
     } catch (unexpectedError) {
       setShowLoading(false);
       logger.error("[Leave Form] Unexpected error:", unexpectedError);
-      const { title, message } = getUserFriendlyError(unexpectedError);
-      Alert.alert(title, message);
+      presentAppError(unexpectedError, {
+        screen: 'LeaveFormScreen',
+        route: '/(app)/izin/form',
+      });
     }
   };
 
@@ -341,7 +345,7 @@ export default function LeaveFormScreen() {
               if (!result.canceled)
                 setPhotos((prev) => [...prev, result.assets[0].uri]);
             } catch {
-              Alert.alert("Gagal", "Gagal membuka kamera");
+              presentErrorMessage("Gagal membuka kamera");
             }
           },
         },
@@ -357,7 +361,7 @@ export default function LeaveFormScreen() {
               if (!result.canceled)
                 setPhotos((prev) => [...prev, result.assets[0].uri]);
             } catch {
-              Alert.alert("Gagal", "Gagal membuka galeri");
+              presentErrorMessage("Gagal membuka galeri");
             }
           },
         },
@@ -410,9 +414,9 @@ export default function LeaveFormScreen() {
                       t.value === "TUKAR_LIBUR" &&
                       currentWorkingHourMode === "FLEXIBLE"
                     ) {
-                      Alert.alert(
-                        "Tidak Tersedia",
+                      presentInfoMessage(
                         "Fitur Tukar Libur tidak tersedia untuk karyawan dengan Jam Kerja Fleksibel karena Anda tidak memiliki jadwal libur tetap.",
+                        "Tidak Tersedia",
                       );
                       setShowTypePicker(false);
                       return;
@@ -765,7 +769,7 @@ export default function LeaveFormScreen() {
             {photos.length > 0 && (
               <View style={tw`flex-row flex-wrap gap-2 mb-3`}>
                 {photos.map((photo, idx) => (
-                  <View key={idx} style={tw`relative`}>
+                  <View key={photo} style={tw`relative`}>
                     <ImageWithCache source={photo}
                       style={tw`w-24 h-24 rounded-lg bg-gray-100`}
                       contentFit="cover" transition={1000} />

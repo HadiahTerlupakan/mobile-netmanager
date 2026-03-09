@@ -5,7 +5,7 @@ import {
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { WorkOrderMaterialBatchSchema, validateData } from "@/utils/validation";
 import { FlashList } from "@shopify/flash-list";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -248,7 +248,7 @@ export default function AmbilBarangScreen() {
           newItems[existingIdx].jumlah += 1;
           return newItems;
         }
-        Alert.alert("Stok Habis", `Maksimal stok tersedia: ${stok}`);
+        presentInfoMessage(`Maksimal stok tersedia: ${stok}`, "Stok Habis");
         return prev;
       }
       if (stok > 0) return [...prev, { barangId: barang.id, barang, gudangId: selectedGudang, jumlah: 1, kondisi }];
@@ -267,7 +267,7 @@ export default function AmbilBarangScreen() {
         return newItems;
       }
       if (newQty > stok) {
-        Alert.alert("Stok Habis", `Maksimal stok tersedia: ${stok}`);
+        presentInfoMessage(`Maksimal stok tersedia: ${stok}`, "Stok Habis");
         return prev;
       }
       const newItems = [...prev];
@@ -286,12 +286,12 @@ export default function AmbilBarangScreen() {
       if (diff > 0) itemsToSend.push({ barangId: item.barangId, gudangId: item.gudangId, jumlah: diff, kondisi: item.kondisi });
       else if (diff < 0) warnings.push(`${item.barang.nama} (${diff})`);
     }
-    if (warnings.length > 0) { Alert.alert("Tidak Didukung", `Pengurangan barang belum didukung.\n${warnings.join("\n")}`); return; }
-    if (itemsToSend.length === 0) { Alert.alert("Info", "Tidak ada penambahan barang baru."); return; }
+    if (warnings.length > 0) { presentInfoMessage(`Pengurangan barang belum didukung.\n${warnings.join("\n")}`, "Tidak Didukung"); return; }
+    if (itemsToSend.length === 0) { presentInfoMessage("Tidak ada penambahan barang baru.", "Info"); return; }
 
     const validation = validateData(WorkOrderMaterialBatchSchema, { items: itemsToSend });
     if (!validation.success) {
-      Alert.alert("Data Tidak Valid", validation.error);
+      presentInfoMessage(validation.error, "Data Tidak Valid");
       return;
     }
 
@@ -300,14 +300,19 @@ export default function AmbilBarangScreen() {
       onSuccess: (data) => {
         setSubmitting(false);
         const isOffline = isOfflineMutationQueuedResult(data);
-        Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Data diantrikan" : "Barang diperbarui", [
-          { text: "OK", onPress: () => router.replace(`/(app)/work-order-detail/${workOrderId}`) },
-        ]);
+        if (isOffline) {
+          presentInfoMessage("Data diantrikan", "Offline");
+        } else {
+          presentSuccessMessage("Barang diperbarui");
+        }
+        router.replace(`/(app)/work-order-detail/${workOrderId}`);
       },
       onError: (err) => {
         setSubmitting(false);
-        const { title, message } = getUserFriendlyError(err);
-        Alert.alert(title, message);
+        presentAppError(err, {
+          screen: 'PickupItemScreen',
+          route: '/(app)/ambil-barang/[id]',
+        });
       },
     });
   }, [selectedItems, initialQuantities, ambilBarangMutation, workOrderId, router]);

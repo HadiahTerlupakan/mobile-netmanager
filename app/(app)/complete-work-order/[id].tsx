@@ -5,7 +5,7 @@ import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import api from "@/services/api"; // Use centralized API
 import { formatDate } from "@/utils/date";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import { CompleteWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
 import * as ImagePicker from "expo-image-picker";
@@ -95,7 +95,7 @@ export default function CompleteWorkOrderScreen() {
               if (!result.canceled)
                 setPhotos((prev) => [...prev, result.assets[0].uri]);
             } catch {
-              Alert.alert("Error", "Gagal membuka kamera");
+              presentErrorMessage("Gagal membuka kamera", "Error");
             }
           },
         },
@@ -111,7 +111,7 @@ export default function CompleteWorkOrderScreen() {
               if (!result.canceled)
                 setPhotos((prev) => [...prev, result.assets[0].uri]);
             } catch {
-              Alert.alert("Error", "Gagal membuka galeri");
+              presentErrorMessage("Gagal membuka galeri", "Error");
             }
           },
         },
@@ -139,12 +139,12 @@ export default function CompleteWorkOrderScreen() {
     const validation = validateData(CompleteWorkOrderSchema, rawData);
 
     if (!validation.success) {
-      Alert.alert("Data Tidak Valid", validation.error);
+      presentInfoMessage(validation.error, "Data Tidak Valid");
       return;
     }
 
     if (photos.length === 0) {
-      Alert.alert("Perhatian", "Wajib upload minimal 1 foto bukti pekerjaan.");
+      presentInfoMessage("Wajib upload minimal 1 foto bukti pekerjaan.", "Perhatian");
       return;
     }
 
@@ -232,27 +232,21 @@ export default function CompleteWorkOrderScreen() {
             {
               onSuccess: () => {
                 setIsProcessingComplete(false);
-                Alert.alert(
-                  "Berhasil",
-                  "Pekerjaan telah diselesaikan dan laporan terkirim!",
-                  [
-                    {
-                      text: "OK",
-                      onPress: () => router.replace("/(app)/dashboard"),
-                    },
-                  ],
-                );
+                presentSuccessMessage("Pekerjaan telah diselesaikan dan laporan terkirim!");
+                router.replace("/(app)/dashboard");
               },
               onError: (err) => {
                 setIsProcessingComplete(false);
-                const { title, message } = getUserFriendlyError(err);
-                Alert.alert(title, message);
+                presentAppError(err, {
+                  screen: 'CompleteWorkOrderScreen',
+                  route: '/(app)/complete-work-order/[id]',
+                });
               }
             }
           );
         } catch {
           setIsProcessingComplete(false);
-          Alert.alert("Error", "Gagal mengupload foto atau mengirim data");
+          presentErrorMessage("Gagal mengupload foto atau mengirim data", "Error");
           // Consider using getUserFriendlyError here if 'catch' catches something specific
         }
       } else {
@@ -272,20 +266,13 @@ export default function CompleteWorkOrderScreen() {
             onSuccess: (data, isOffline) => {
               setIsProcessingComplete(false);
               if (isOffline) {
-                Alert.alert("Offline", "Laporan disimpan di antrian.", [
-                  {
-                    text: "OK",
-                    onPress: () => router.replace("/(app)/dashboard"),
-                  },
-                ]);
+                presentInfoMessage("Laporan disimpan di antrian.", "Offline");
+                router.replace("/(app)/dashboard");
               }
             },
             onError: (err) => {
               setIsProcessingComplete(false);
-              Alert.alert(
-                "Gagal",
-                err.message || "Gagal menyelesaikan pekerjaan",
-              );
+              presentErrorMessage(err.message || "Gagal menyelesaikan pekerjaan", "Gagal");
             },
           },
         );
@@ -351,7 +338,7 @@ export default function CompleteWorkOrderScreen() {
         {/* Photo Grid */}
         <View style={tw`flex-row flex-wrap gap-2 mb-8`}>
           {photos.map((uri, index) => (
-            <View key={index} style={tw`w-[31%] aspect-square relative`}>
+            <View key={uri} style={tw`w-[31%] aspect-square relative`}>
               <ImageWithCache
                 source={uri}
                 style={tw`w-full h-full rounded-xl border border-gray-200`}

@@ -5,11 +5,11 @@ import { useApiQuery } from '@/hooks/queries';
 import { TenantService } from '@/services/TenantService';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Alert, Linking, Platform, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Platform, ScrollView, Share, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 import { Canvasing, CanvasingClaim } from '@/types/marketing';
-import { getUserFriendlyError } from '@/utils/errorHandling';
+import { presentAppError, presentInfoMessage } from '@/utils/errorPresenter';
 import { ComponentProps } from 'react';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
@@ -61,12 +61,12 @@ export default function CanvasingDetailScreen() {
             return;
         }
 
-        Alert.alert('Info', 'Lokasi tidak tersedia (Map & Lat/Long kosong)');
+        presentInfoMessage('Lokasi tidak tersedia (Map & Lat/Long kosong)');
     };
 
     const openWhatsApp = () => {
         if (!item?.noTelpon) {
-            Alert.alert('Info', 'Nomor telepon tidak tersedia');
+            presentInfoMessage('Nomor telepon tidak tersedia');
             return;
         }
         let phone = item.noTelpon.replace(/\D/g, '').replace(/^0/, '62');
@@ -76,7 +76,7 @@ export default function CanvasingDetailScreen() {
 
     const callNumber = () => {
         if (!item?.noTelpon) {
-            Alert.alert('Info', 'Nomor telepon tidak tersedia');
+            presentInfoMessage('Nomor telepon tidak tersedia');
             return;
         }
         Linking.openURL(`tel:${item.noTelpon}`);
@@ -90,11 +90,14 @@ export default function CanvasingDetailScreen() {
                     message: textToCopy,
                 });
             } catch (error: unknown) {
-                const errIdx = getUserFriendlyError(error);
-                Alert.alert(errIdx.title, errIdx.message);
+                presentAppError(error, {
+                    screen: 'CanvasingDetailScreen',
+                    route: '/(app)/marketing/canvasing/[id]',
+                    report: false,
+                });
             }
         } else {
-            Alert.alert('Info', 'Tidak ada ID yang bisa disalin');
+            presentInfoMessage('Tidak ada ID yang bisa disalin');
         }
     };
 
@@ -291,7 +294,7 @@ export default function CanvasingDetailScreen() {
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                 <View style={tw`flex-row gap-3`}>
                                     {claim.buktiUrls.map((uri: string, index: number) => (
-                                        <PhotoPreview key={index} title={`Bukti ${index + 1}`} uri={uri} />
+                                        <PhotoPreview key={uri} title={`Bukti ${index + 1}`} uri={uri} />
                                     ))}
                                 </View>
                             </ScrollView>

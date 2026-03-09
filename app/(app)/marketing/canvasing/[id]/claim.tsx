@@ -2,7 +2,7 @@ import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from '@/components/molecules/LoadingModal';
 import api from '@/services/api'; // Use centralized API
 import { uploadService } from '@/services/UploadService';
-import { getUserFriendlyError } from '@/utils/errorHandling';
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
 import { ClaimPointSchema, sanitizeInput, validateData } from '@/utils/validation';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,7 +40,7 @@ export default function ClaimPointScreen() {
         if (!permission?.granted) {
             const result = await requestPermission();
             if (!result.granted) {
-                Alert.alert('Izin Diperlukan', 'Izinkan akses kamera untuk mengambil foto bukti');
+                presentInfoMessage('Izinkan akses kamera untuk mengambil foto bukti', 'Izin Diperlukan');
                 return;
             }
         }
@@ -67,8 +67,10 @@ export default function ClaimPointScreen() {
             }
         } catch (error) {
             logger.error('Camera capture error:', error);
-            const { title, message } = getUserFriendlyError(error);
-            Alert.alert(title, message);
+            presentAppError(error, {
+                screen: 'ClaimPointScreen',
+                route: '/(app)/marketing/canvasing/[id]/claim',
+            });
         }
     };
 
@@ -93,8 +95,10 @@ export default function ClaimPointScreen() {
             }
         } catch (error) {
             logger.error('Gallery pick error:', error);
-            const { title, message } = getUserFriendlyError(error);
-            Alert.alert(title, message);
+            presentAppError(error, {
+                screen: 'ClaimPointScreen',
+                route: '/(app)/marketing/canvasing/[id]/claim',
+            });
         }
     };
 
@@ -109,13 +113,13 @@ export default function ClaimPointScreen() {
 
     const handleSubmit = async () => {
         if (buktiUrls.length === 0) {
-            Alert.alert('Validasi', 'Minimal upload 1 foto bukti');
+            presentInfoMessage('Minimal upload 1 foto bukti', 'Validasi');
             return;
         }
 
         const validation = validateData(ClaimPointSchema, { keterangan: sanitizeInput(keterangan) });
         if (!validation.success) {
-            Alert.alert('Data Tidak Valid', validation.error);
+            presentInfoMessage(validation.error, 'Data Tidak Valid');
             return;
         }
 
@@ -164,15 +168,14 @@ export default function ClaimPointScreen() {
                             queryClient.invalidateQueries({ queryKey: [`marketing_canvasing_claim`, String(id)] });
                             queryClient.invalidateQueries({ queryKey: ["marketing_point_summary"] });
 
-                            Alert.alert(
-                                'Berhasil! 🎉',
-                                'Claim poin berhasil diajukan. Tunggu approval dari admin.',
-                                [{ text: 'OK', onPress: () => router.back() }]
-                            );
+                            presentSuccessMessage('Claim poin berhasil diajukan. Tunggu approval dari admin.');
+                            router.back();
                         } catch (error) {
                             setShowLoading(false);
-                            const { title, message } = getUserFriendlyError(error);
-                            Alert.alert(title, message);
+                            presentAppError(error, {
+                                screen: 'ClaimPointScreen',
+                                route: '/(app)/marketing/canvasing/[id]/claim',
+                            });
                         } finally {
                             setIsSubmitting(false);
                         }
@@ -275,7 +278,7 @@ export default function ClaimPointScreen() {
                         {/* Photo Grid */}
                         <View style={tw`flex-row flex-wrap gap-3 mb-4`}>
                             {buktiUrls.map((uri, index) => (
-                                <View key={index} style={tw`relative`}>
+                                <View key={uri} style={tw`relative`}>
                                     <ImageWithCache source={uri} style={tw`w-24 h-24 rounded-xl`} contentFit="cover" transition={1000} />
                                     <TouchableOpacity
                                         onPress={() => removePhoto(index)}

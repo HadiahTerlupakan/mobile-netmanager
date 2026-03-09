@@ -5,7 +5,7 @@ import {
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { WorkOrderMaterialBatchSchema, validateData } from "@/utils/validation";
 import { FlashList } from "@shopify/flash-list";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -24,7 +24,6 @@ import {
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   Modal,
   RefreshControl,
   Text,
@@ -214,7 +213,7 @@ export default function KembalikanBarangScreen() {
 
     const validation = validateData(WorkOrderMaterialBatchSchema, { items: itemsToSend });
     if (!validation.success) {
-      Alert.alert("Data Tidak Valid", validation.error);
+      presentInfoMessage(validation.error, "Data Tidak Valid");
       return;
     }
 
@@ -223,14 +222,19 @@ export default function KembalikanBarangScreen() {
       onSuccess: (data) => {
         setSubmitting(false);
         const isOffline = isOfflineMutationQueuedResult(data);
-        Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Data diantrikan" : "Barang berhasil dikembalikan", [
-          { text: "OK", onPress: () => router.replace(`/(app)/work-order-detail/${workOrderId}`) },
-        ]);
+        if (isOffline) {
+          presentInfoMessage("Data diantrikan", "Offline");
+        } else {
+          presentSuccessMessage("Barang berhasil dikembalikan");
+        }
+        router.replace(`/(app)/work-order-detail/${workOrderId}`);
       },
       onError: (err) => {
         setSubmitting(false);
-        const { title, message } = getUserFriendlyError(err);
-        Alert.alert(title, message);
+        presentAppError(err, {
+          screen: 'ReturnItemScreen',
+          route: '/(app)/kembalikan-barang/[id]',
+        });
       },
     });
   }, [selectedItems, selectedGudang, returnMutation, workOrderId, router]);

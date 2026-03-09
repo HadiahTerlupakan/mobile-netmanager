@@ -11,7 +11,7 @@ import {
 import { queryKeys } from "@/lib/queryClient";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import { InventoryKeluarSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,7 +21,7 @@ import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
@@ -168,7 +168,7 @@ export default function BarangKeluarScreen() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Akses Ditolak", "Izin akses galeri diperlukan");
+      presentInfoMessage("Izin akses galeri diperlukan", "Akses Ditolak");
       return;
     }
 
@@ -196,7 +196,7 @@ export default function BarangKeluarScreen() {
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Akses Ditolak", "Izin akses kamera diperlukan");
+      presentInfoMessage("Izin akses kamera diperlukan", "Akses Ditolak");
       return;
     }
 
@@ -306,7 +306,7 @@ export default function BarangKeluarScreen() {
     const validation = validateData(InventoryKeluarSchema, rawData);
 
     if (!validation.success) {
-      Alert.alert("Data Tidak Valid", validation.error);
+      presentInfoMessage(validation.error, "Data Tidak Valid");
       return;
     }
 
@@ -314,10 +314,7 @@ export default function BarangKeluarScreen() {
     const qty = validation.data.jumlah;
     const availableStock = getAvailableStock();
     if (qty > availableStock) {
-      Alert.alert(
-        "Stok Tidak Cukup",
-        `Stok ${kondisi} tidak mencukupi. Tersedia: ${availableStock}`,
-      );
+      presentInfoMessage(`Stok ${kondisi} tidak mencukupi. Tersedia: ${availableStock}`, "Stok Tidak Cukup");
       return;
     }
 
@@ -352,24 +349,24 @@ export default function BarangKeluarScreen() {
               onSuccess: () => {
                 setShowLoading(false);
                 resetForm();
-                Alert.alert("Sukses", "Barang keluar berhasil dicatat", [
-                  {
-                    text: "OK",
-                    onPress: () => router.replace("/(app)/barang"),
-                  },
-                ]);
+                presentSuccessMessage("Barang keluar berhasil dicatat");
+                router.replace("/(app)/barang");
               },
               onError: (err) => {
                 setShowLoading(false);
-                const { title, message } = getUserFriendlyError(err);
-                Alert.alert(title, message);
+                presentAppError(err, {
+                  screen: 'InventoryOutScreen',
+                  route: '/(app)/barang/keluar',
+                });
               },
             },
           );
         } catch (error) {
           setShowLoading(false);
-          const { title, message } = getUserFriendlyError(error);
-          Alert.alert(title, message);
+          presentAppError(error, {
+            screen: 'InventoryOutScreen',
+            route: '/(app)/barang/keluar',
+          });
         } finally {
           setSubmitting(false);
         }
@@ -403,8 +400,10 @@ export default function BarangKeluarScreen() {
     } catch (error) {
       setShowLoading(false);
       logger.error(error);
-      const { title, message } = getUserFriendlyError(error);
-      Alert.alert(title, message);
+      presentAppError(error, {
+        screen: 'InventoryOutScreen',
+        route: '/(app)/barang/keluar',
+      });
     }
   };
 
@@ -557,7 +556,7 @@ export default function BarangKeluarScreen() {
             {photos.length > 0 && (
               <View style={tw`flex-row flex-wrap gap-2 mb-3`}>
                 {photos.map((photo, index) => (
-                  <View key={index} style={tw`relative`}>
+                  <View key={photo.uri} style={tw`relative`}>
                     <ImageWithCache source={photo.uri}
                       style={tw`w-20 h-20 rounded-lg`}
                       contentFit="cover" transition={1000} />
@@ -582,7 +581,7 @@ export default function BarangKeluarScreen() {
             >
               {photos.map((photo, index) => (
                 <View
-                  key={index}
+                  key={photo.uri}
                   ref={(ref) => {
                     watermarkRefs.current[index] = ref;
                   }}

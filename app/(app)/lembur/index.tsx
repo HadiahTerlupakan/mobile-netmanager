@@ -11,7 +11,7 @@ import { queryKeys } from "@/lib/queryClient";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import { formatDate, formatDateRaw } from "@/utils/date";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { OvertimeRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { FlashList } from "@shopify/flash-list";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
@@ -29,7 +29,7 @@ import {
   X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Modal, RefreshControl, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, RefreshControl, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
@@ -224,7 +224,7 @@ export default function LemburScreen() {
     const validation = validateData(OvertimeRequestSchema, rawData);
 
     if (!validation.success) {
-      Alert.alert("Data Tidak Valid", validation.error);
+      presentInfoMessage(validation.error, "Data Tidak Valid");
       return;
     }
 
@@ -237,15 +237,21 @@ export default function LemburScreen() {
         onSuccess: (data) => {
           setShowLoading(false);
           const isOffline = isOfflineMutationQueuedResult(data);
-          Alert.alert(isOffline ? "Offline" : "Sukses", isOffline ? "Pengajuan diantrikan" : "Pengajuan berhasil dikirim");
+          if (isOffline) {
+            presentInfoMessage("Pengajuan diantrikan", "Offline");
+          } else {
+            presentSuccessMessage("Pengajuan berhasil dikirim");
+          }
           setShowRequestModal(false);
           setReason("");
           fetchData();
         },
         onError: (err: Error) => {
           setShowLoading(false);
-          const errIdx = getUserFriendlyError(err);
-          Alert.alert(errIdx.title, errIdx.message);
+          presentAppError(err, {
+            screen: 'OvertimeScreen',
+            route: '/(app)/lembur',
+          });
         },
       },
     );
@@ -309,7 +315,11 @@ export default function LemburScreen() {
           onSuccess: (data) => {
             setShowLoading(false);
             const isOffline = isOfflineMutationQueuedResult(data);
-            Alert.alert(isOffline ? "Offline" : "Berhasil", isOffline ? "Aksi diantrikan" : activeAction === "start" ? "Lembur dimulai!" : "Lembur selesai!");
+            if (isOffline) {
+              presentInfoMessage("Aksi diantrikan", "Offline");
+            } else {
+              presentSuccessMessage(activeAction === "start" ? "Lembur dimulai!" : "Lembur selesai!");
+            }
             setPhoto(null);
             setCapturedTime(null);
             setActiveAction(null);
@@ -317,15 +327,19 @@ export default function LemburScreen() {
           },
           onError: (err: Error) => {
             setShowLoading(false);
-            const errIdx = getUserFriendlyError(err);
-            Alert.alert(errIdx.title, errIdx.message);
+            presentAppError(err, {
+              screen: 'OvertimeScreen',
+              route: '/(app)/lembur',
+            });
           },
         },
       );
     } catch (error: unknown) {
       setShowLoading(false);
-      const errIdx = getUserFriendlyError(error);
-      Alert.alert(errIdx.title, errIdx.message);
+      presentAppError(error, {
+        screen: 'OvertimeScreen',
+        route: '/(app)/lembur',
+      });
     }
   }, [photo, location, todayRequest, activeAction, capturedTime, captureWatermarkedPhoto, overtimeMutation, fetchData]);
 

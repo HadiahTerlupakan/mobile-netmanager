@@ -3,6 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useApiQuery } from "@/hooks/queries";
 import api from "@/services/api";
 import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentErrorMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import { getMapLibre, isMapLibreAvailable, isWeb } from "@/utils/maplibre";
 import toGeoJSON from "@/utils/togeojson-wrapper";
@@ -978,12 +979,12 @@ export default function TopologyMapScreen() {
   const deleteEdge = useCallback(async (edgeId: string) => {
     try {
       await api.delete(`/api/map/edges/${edgeId}`);
-      Alert.alert("Berhasil", "Jalur fiber berhasil dihapus");
+      presentSuccessMessage("Jalur fiber berhasil dihapus");
       fetchData();
     } catch (error) {
       logger.error("topology", "Failed to delete edge", { edgeId, error });
       const { message } = getUserFriendlyError(error);
-      Alert.alert("Error", message || "Gagal menghapus jalur fiber");
+      presentErrorMessage(message || "Gagal menghapus jalur fiber", "Error");
     }
   }, [fetchData]);
 
@@ -1015,7 +1016,7 @@ export default function TopologyMapScreen() {
                 ]
               );
             } else {
-              Alert.alert("Error", "ID jalur fiber tidak ditemukan");
+              presentErrorMessage("ID jalur fiber tidak ditemukan", "Error");
             }
           },
         },

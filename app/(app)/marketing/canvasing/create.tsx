@@ -7,7 +7,7 @@ import { useApiMutation } from "@/hooks/queries";
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { SyncService } from "@/services/SyncService"; // Import SyncService
 import { uploadService } from "@/services/UploadService"; // Import UploadService
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import { CanvasingSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
@@ -30,7 +30,7 @@ import {
   ZapOff,
 } from "lucide-react-native";
 import React, { useRef, useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TextInputProps, TouchableOpacity, View, } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TextInputProps, TouchableOpacity, View, } from 'react-native';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import tw from "twrnc";
 
@@ -95,9 +95,9 @@ export default function CreateCanvasingScreen() {
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
-        Alert.alert(
-          "Izin Ditolak",
+        presentInfoMessage(
           "Aplikasi butuh izin kamera untuk mengambil foto.",
+          "Izin Ditolak",
         );
         return;
       }
@@ -126,8 +126,10 @@ export default function CreateCanvasingScreen() {
       }
     } catch (error) {
       logger.error("Gallery pick error:", error);
-      const { title, message } = getUserFriendlyError(error);
-      Alert.alert(title, message);
+      presentAppError(error, {
+        screen: 'CanvasingCreateScreen',
+        route: '/(app)/marketing/canvasing/create',
+      });
     }
   };
 
@@ -166,8 +168,10 @@ export default function CreateCanvasingScreen() {
       }
     } catch (error) {
       logger.error("Capture error:", error);
-      const { title, message } = getUserFriendlyError(error);
-      Alert.alert(title, message);
+      presentAppError(error, {
+        screen: 'CanvasingCreateScreen',
+        route: '/(app)/marketing/canvasing/create',
+      });
     }
   };
 
@@ -192,12 +196,12 @@ export default function CreateCanvasingScreen() {
     const validation = validateData(CanvasingSchema, rawData);
 
     if (!validation.success) {
-      Alert.alert("Data Tidak Valid", validation.error);
+      presentInfoMessage(validation.error, "Data Tidak Valid");
       return;
     }
 
     if (!fotoKtpLocal) {
-      Alert.alert("Peringatan", "Foto KTP wajib diunggah");
+      presentInfoMessage("Foto KTP wajib diunggah", "Peringatan");
       return;
     }
 
@@ -245,23 +249,26 @@ export default function CreateCanvasingScreen() {
             {
               onSuccess: () => {
                 setIsLoading(false);
-                Alert.alert("Berhasil", "Data canvasing berhasil disimpan", [
-                  { text: "OK", onPress: () => router.back() },
-                ]);
+                presentSuccessMessage("Data canvasing berhasil disimpan");
+                router.back();
               },
               onError: (err) => {
                 setIsLoading(false);
                 logger.error("Submit error:", err);
-                const { title, message } = getUserFriendlyError(err);
-                Alert.alert(title, message);
+                presentAppError(err, {
+                  screen: 'CanvasingCreateScreen',
+                  route: '/(app)/marketing/canvasing/create',
+                });
               },
             },
           );
         } catch (uploadError) {
           setIsLoading(false);
           logger.error("Upload error:", uploadError);
-          const { title, message } = getUserFriendlyError(uploadError);
-          Alert.alert(title, message);
+          presentAppError(uploadError, {
+            screen: 'CanvasingCreateScreen',
+            route: '/(app)/marketing/canvasing/create',
+          });
         }
       } else {
         // Offline flow
@@ -282,15 +289,16 @@ export default function CreateCanvasingScreen() {
           {
             onSuccess: () => {
               setIsLoading(false);
-              Alert.alert("Berhasil", "Data canvasing berhasil disimpan (Offline)", [
-                { text: "OK", onPress: () => router.back() },
-              ]);
+              presentSuccessMessage("Data canvasing berhasil disimpan (Offline)");
+              router.back();
             },
             onError: (err) => {
               setIsLoading(false);
               logger.error("Submit error:", err);
-              const { title, message } = getUserFriendlyError(err);
-              Alert.alert(title, message);
+              presentAppError(err, {
+                screen: 'CanvasingCreateScreen',
+                route: '/(app)/marketing/canvasing/create',
+              });
             },
           },
         );
@@ -298,8 +306,10 @@ export default function CreateCanvasingScreen() {
     } catch (error) {
       setIsLoading(false);
       logger.error("Submit exception:", error);
-      const { title, message } = getUserFriendlyError(error);
-      Alert.alert(title, message);
+      presentAppError(error, {
+        screen: 'CanvasingCreateScreen',
+        route: '/(app)/marketing/canvasing/create',
+      });
     }
   };
 

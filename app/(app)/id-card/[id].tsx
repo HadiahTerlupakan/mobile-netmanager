@@ -2,12 +2,13 @@ import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { TenantService } from '@/services/TenantService';
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import * as MediaLibrary from 'expo-media-library';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { ChevronLeft, Download, Share2 } from 'lucide-react-native';
 import React, { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ViewShot from 'react-native-view-shot';
@@ -60,18 +61,22 @@ export default function NativeIDCardScreen() {
             setIsSaving(true);
             const status = await MediaLibrary.requestPermissionsAsync();
             if (status.status !== 'granted') {
-                Alert.alert('Izin Ditolak', 'Aplikasi membutuhkan izin untuk menyimpan gambar ke Galeri.');
+                presentInfoMessage('Aplikasi membutuhkan izin untuk menyimpan gambar ke Galeri.', 'Izin Ditolak');
                 return;
             }
 
             if (viewShotRef.current?.capture) {
                 const uri = await viewShotRef.current.capture();
                 await MediaLibrary.saveToLibraryAsync(uri);
-                Alert.alert('Berhasil', 'ID Card berhasil disimpan ke Galeri HP Anda!');
+                presentSuccessMessage('ID Card berhasil disimpan ke Galeri HP Anda!');
             }
         } catch (error) {
             console.error(error);
-            Alert.alert('Error', 'Gagal menyimpan ID Card.');
+            presentAppError(error, {
+                screen: 'NativeIDCardScreen',
+                route: '/(app)/id-card/[id]',
+                fallbackTitle: 'Error',
+            });
         } finally {
             setIsSaving(false);
         }

@@ -1,4 +1,5 @@
 import api from '@/services/api';
+import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { useRouter } from 'expo-router';
 import {
     ArrowLeft,
@@ -107,12 +108,12 @@ export default function MitraWithdrawScreen() {
     const handleSubmit = async () => {
         const numAmount = parseFloat(amount);
         if (!numAmount || numAmount <= 0) {
-            Alert.alert('Error', 'Masukkan jumlah penarikan yang valid');
+            presentInfoMessage('Masukkan jumlah penarikan yang valid', 'Error');
             return;
         }
 
         if (method === 'TRANSFER' && (!bankName || !accountNumber)) {
-            Alert.alert('Error', 'Untuk transfer, nama bank dan nomor rekening harus diisi');
+            presentInfoMessage('Untuk transfer, nama bank dan nomor rekening harus diisi', 'Error');
             return;
         }
 
@@ -134,14 +135,22 @@ export default function MitraWithdrawScreen() {
                                 accountName: method === 'TRANSFER' ? accountName : undefined,
                                 notes: notes || undefined,
                             });
-                            Alert.alert('Berhasil', 'Permintaan penarikan berhasil dibuat');
+                            presentSuccessMessage('Permintaan penarikan berhasil dibuat');
                             setShowForm(false);
                             setAmount('');
                             setNotes('');
                             fetchData();
                         } catch (error: any) {
                             const msg = error?.response?.data?.error || 'Gagal membuat permintaan';
-                            Alert.alert('Error', msg);
+                            if (msg === 'Gagal membuat permintaan') {
+                                presentAppError(error, {
+                                    screen: 'MitraWithdrawScreen',
+                                    route: '/(app)/mitra-withdraw',
+                                    fallbackTitle: 'Error',
+                                });
+                            } else {
+                                presentErrorMessage(msg, 'Error');
+                            }
                         } finally {
                             setSubmitting(false);
                         }
