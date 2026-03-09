@@ -13,7 +13,7 @@ import {
 } from "@/hooks/queries";
 import { SyncService } from "@/services/SyncService";
 import { WorkOrder } from "@/types/work-order";
-import { getUserFriendlyError } from "@/utils/errorHandling";
+import { presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import { FlashList } from "@shopify/flash-list";
 import { Href, useRouter } from "expo-router";
@@ -129,7 +129,7 @@ function WorkOrderScreenContent() {
 
               // Optimistic Update (Offline)
               if (!isOnline) {
-                Alert.alert("Offline", "Permintaan disimpan di antrian.");
+                presentInfoMessage("Permintaan disimpan di antrian.", "Offline");
               }
 
               await claimMutate(
@@ -140,13 +140,9 @@ function WorkOrderScreenContent() {
                   onSuccess: (data) => {
                     const isOffline = isOfflineMutationQueuedResult(data);
                     if (isOnline && !isOffline) {
-                      Alert.alert("Berhasil", "Tugas berhasil diambil!");
+                      presentSuccessMessage("Tugas berhasil diambil!");
                     }
                     setActiveTab("aktif");
-                  },
-                  onError: (err: any) => {
-                    const { title, message } = getUserFriendlyError(err);
-                    Alert.alert(title, message);
                   },
                 },
               );

@@ -13,6 +13,7 @@ import { useProfileSync } from '@/hooks/useProfileSync';
 import { queryKeys } from '@/lib/queryClient';
 import { TenantService } from '@/services/TenantService';
 import api from '@/services/api';
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { FlashList } from '@shopify/flash-list';
 import { Href, useRouter } from 'expo-router';
 import { Clock, MessageCircle } from 'lucide-react-native';
@@ -92,11 +93,7 @@ function DashboardScreen() {
 
     const handleCanvasingPress = useCallback(() => {
         if (!user?.isSales) {
-            Alert.alert(
-                'Akses Terbatas',
-                'Fitur ini hanya dapat diakses oleh Sales yang aktif.',
-                [{ text: 'OK' }]
-            );
+            presentInfoMessage('Fitur ini hanya dapat diakses oleh Sales yang aktif.', 'Akses Terbatas');
             return;
         }
         router.push('/(app)/marketing/canvasing' as Href);
@@ -128,10 +125,10 @@ function DashboardScreen() {
         return items;
     }, [hasWorkOrder, hasCanvasing, statsData, canvasingSummary]);
 
-    const renderCarouselItem: ListRenderItem<CarouselItem> = useCallback(({ item }) => {
+    const renderCarouselItem: ListRenderItem<CarouselItem> = useCallback(({ item }: { item: CarouselItem }) => {
         const containerStyle = { width };
 
-        let content;
+        let content: React.ReactNode;
         if (item.type === 'wo') {
             content = (
                 <WorkOrderCard
@@ -176,7 +173,7 @@ function DashboardScreen() {
         (loadingProfile && !profileData) ||
         (hasCanvasing && loadingCanvasing && !canvasingSummary);
 
-    const getImageUrl = (path: string | null | undefined) => {
+    const getImageUrl = useCallback((path: string | null | undefined) => {
         if (!path) return null;
         if (path.startsWith('http')) return path;
 
@@ -188,13 +185,13 @@ function DashboardScreen() {
         if (imagePath.includes('http')) return path;
 
         return `${baseUrl}${imagePath}`;
-    };
+    }, []);
 
     // Memoize header props
     const headerProps = useMemo(() => ({
         userName: profileData?.name || user?.name || 'Karyawan',
         userImage: getImageUrl(profileData?.image)
-    }), [profileData?.name, user?.name, profileData?.image]);
+    }), [getImageUrl, profileData?.name, user?.name, profileData?.image]);
 
     // Memoize performance stats props to avoid re-renders when other data changes
     const woStatsProps = useMemo(() => ({
@@ -283,9 +280,9 @@ function DashboardScreen() {
 
                     {carouselData.length > 1 && (
                         <View style={tw`flex-row justify-center items-center mt-2 mb-4 gap-2`}>
-                            {carouselData.map((_, index) => (
+                            {carouselData.map((carouselItem, index) => (
                                 <View
-                                    key={index}
+                                    key={carouselItem.type}
                                     style={tw`h-2 rounded-full ${index === activeIndex
                                         ? 'bg-blue-600 w-6'
                                         : 'bg-gray-300 w-2'
@@ -355,10 +352,14 @@ function DashboardScreen() {
                                                         onPress: async () => {
                                                             try {
                                                                 await api.post('/api/marketing/claims/cashout');
-                                                                Alert.alert('Berhasil', 'Bonus canvasing berhasil dicairkan! Saldo akan direset menjadi 0.');
+                                                                presentSuccessMessage('Bonus canvasing berhasil dicairkan! Saldo akan direset menjadi 0.');
                                                                 refetchStats();
-                                                            } catch (error: any) {
-                                                                Alert.alert('Gagal', error?.response?.data?.error || 'Terjadi kesalahan saat mencairkan bonus');
+                                                            } catch (error) {
+                                                                presentAppError(error, {
+                                                                    screen: 'DashboardScreen',
+                                                                    route: '/(app)/dashboard',
+                                                                    fallbackTitle: 'Gagal',
+                                                                });
                                                             }
                                                         }
                                                     }

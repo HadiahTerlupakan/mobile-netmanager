@@ -1,5 +1,6 @@
 import api from '@/services/api';
-import { extractApiErrorMessage, getUserFriendlyError } from '@/utils/errorHandling';
+import { extractApiErrorMessage } from '@/utils/errorHandling';
+import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import dayjs from 'dayjs';
@@ -8,7 +9,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import { useRouter } from 'expo-router';
 import { AlertCircle, ArrowLeft, CheckCircle, ChevronDown, Clock, Plus, Search, Ticket, User, X, XCircle } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -70,8 +71,7 @@ export default function CustomerTicketsScreen() {
 
         // 3. Show success alert after a tiny delay to ensure React commits state
         setTimeout(() => {
-          Alert.alert(
-            'Berhasil',
+          presentSuccessMessage(
             ticketNumber
               ? `Tiket #${ticketNumber} berhasil dibuat.`
               : 'Tiket berhasil dibuat.'
@@ -82,12 +82,14 @@ export default function CustomerTicketsScreen() {
     onError: (error) => {
       const backendMessage = isAxiosError(error) ? extractApiErrorMessage(error.response?.data) : undefined;
       if (backendMessage) {
-        Alert.alert('Gagal', backendMessage);
+        presentErrorMessage(backendMessage);
         return;
       }
 
-      const friendlyError = getUserFriendlyError(error);
-      Alert.alert(friendlyError.title, friendlyError.message);
+      presentAppError(error, {
+        screen: 'CustomerTicketsScreen',
+        route: '/(customer)/tickets',
+      });
     }
   });
 
@@ -118,7 +120,7 @@ export default function CustomerTicketsScreen() {
 
   const handleCreateSubmit = () => {
     if (!category || !subject || !description) {
-      Alert.alert('Peringatan', 'Mohon lengkapi semua field');
+      presentInfoMessage('Mohon lengkapi semua field', 'Peringatan');
       return;
     }
     createTicketMutation.mutate({ category, subject, description });
@@ -198,7 +200,7 @@ export default function CustomerTicketsScreen() {
                 key={ticket.id}
                 onPress={() => {
                   // Navigate to detail (placeholder for now)
-                  Alert.alert('Info', 'Detail tiket akan segera hadir');
+                  presentInfoMessage('Detail tiket akan segera hadir');
                 }}
                 style={tw`bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
               >

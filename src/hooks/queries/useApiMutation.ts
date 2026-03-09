@@ -19,7 +19,8 @@ import {
   ensureAttendanceRequestId,
   isAttendanceEndpoint,
 } from "@/utils/attendanceIdempotency";
-import { extractApiErrorMessage, getUserFriendlyError } from "@/utils/errorHandling";
+import { extractApiErrorMessage } from "@/utils/errorHandling";
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import {
   useMutation,
@@ -28,7 +29,6 @@ import {
 } from "@tanstack/react-query";
 import { AxiosError, isAxiosError } from "axios";
 import * as Location from "expo-location";
-import { Alert } from "react-native";
 
 type HttpMethod = "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -325,18 +325,17 @@ export function useApiMutation<
 
       if (successMessage) {
         if (isOffline) {
-          Alert.alert(
-            "Offline",
+          presentInfoMessage(
             "Koneksi tidak tersedia. Data disimpan offline dan akan dikirim otomatis saat internet kembali.",
+            "Offline",
           );
         } else {
-          Alert.alert("Sukses", successMessage);
+          presentSuccessMessage(successMessage);
         }
       } else if (isOffline && showErrorAlert) {
-        // If no success message but we want to show alerts, notify about offline status
-        Alert.alert(
-          "Offline",
+        presentInfoMessage(
           "Koneksi tidak tersedia. Perubahan Anda disimpan secara lokal.",
+          "Offline",
         );
       }
 
@@ -359,8 +358,11 @@ export function useApiMutation<
       }
 
       if (showErrorAlert) {
-        const friendlyError = getUserFriendlyError(error);
-        Alert.alert(friendlyError.title, friendlyError.message);
+        presentAppError(error, {
+          source: "mutation",
+          route: endpoint,
+          report: false,
+        });
       }
 
       onError?.(error, variables, onMutateResult, context);

@@ -2,7 +2,8 @@ import { Skeleton } from '@/components/atoms/Skeleton';
 import api from '@/services/api';
 import { TenantService } from '@/services/TenantService';
 import { TokenService } from '@/services/TokenService';
-import { extractApiErrorMessage, getUserFriendlyError } from '@/utils/errorHandling';
+import { extractApiErrorMessage } from '@/utils/errorHandling';
+import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
 import { useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
@@ -14,7 +15,7 @@ import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { AlertCircle, ArrowLeft, CheckCircle, Clock, Copy, CreditCard, Receipt, Router as RouterIcon, Tag, Upload, XCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import EventSource from 'react-native-sse';
 import tw from 'twrnc';
@@ -175,14 +176,14 @@ export default function CustomerTagihanScreen() {
           try {
             const data = JSON.parse(event.data);
             if (data.status === 'PAID') {
-              Alert.alert('Berhasil', 'Pembayaran telah berhasil diverifikasi!');
+              presentSuccessMessage('Pembayaran telah berhasil diverifikasi!');
               refetch();
               eventSource?.close();
             } else if (data.status === 'EXPIRED') {
               refetch();
               eventSource?.close();
             } else if (data.status === 'FAILED') {
-              Alert.alert('Gagal', 'Pembayaran transfer manual Anda ditolak oleh Admin. Silakan periksa kembali dan unggah ulang bukti yang benar.');
+              presentErrorMessage('Pembayaran transfer manual Anda ditolak oleh Admin. Silakan periksa kembali dan unggah ulang bukti yang benar.');
               refetch();
               eventSource?.close();
             }
@@ -240,14 +241,16 @@ export default function CustomerTagihanScreen() {
           code: res.data.code,
           amount: res.data.discountAmount
         });
-        Alert.alert('Sukses', 'Kupon berhasil digunakan!');
+        presentSuccessMessage('Kupon berhasil digunakan!');
       } else {
-        Alert.alert('Gagal', res.data.error || 'Kupon tidak valid');
+        presentErrorMessage(res.data.error || 'Kupon tidak valid');
       }
     } catch (error) {
       logger.error('[CustomerTagihan] Failed to verify coupon', error);
-      const friendlyError = getUserFriendlyError(error);
-      Alert.alert(friendlyError.title, friendlyError.message);
+      presentAppError(error, {
+        screen: 'CustomerTagihanScreen',
+        route: '/(customer)/tagihan',
+      });
     } finally {
       setCouponLoading(false);
     }
@@ -280,20 +283,22 @@ export default function CustomerTagihanScreen() {
         });
 
         if (res.data?.success || res.status === 200 || res.status === 201) {
-          Alert.alert('Berhasil', 'Bukti pembayaran berhasil diunggah. Menunggu verifikasi admin.');
+          presentSuccessMessage('Bukti pembayaran berhasil diunggah. Menunggu verifikasi admin.');
           refetch();
         } else {
-          Alert.alert('Gagal', res.data?.error || 'Gagal mengunggah bukti pembayaran.');
+          presentErrorMessage(res.data?.error || 'Gagal mengunggah bukti pembayaran.');
         }
       }
     } catch (error) {
       logger.error('[CustomerTagihan] Failed to upload receipt', error);
       const backendMessage = isAxiosError(error) ? extractApiErrorMessage(error.response?.data) : undefined;
       if (backendMessage) {
-        Alert.alert('Gagal', backendMessage);
+        presentErrorMessage(backendMessage);
       } else {
-        const friendlyError = getUserFriendlyError(error);
-        Alert.alert(friendlyError.title, friendlyError.message);
+        presentAppError(error, {
+          screen: 'CustomerTagihanScreen',
+          route: '/(customer)/tagihan',
+        });
       }
     } finally {
       setUploadingReceipt(false);
@@ -303,7 +308,7 @@ export default function CustomerTagihanScreen() {
   const handlePayment = async () => {
     if (!pendingInvoices.length) return;
     if (!selectedMethodCode) {
-      Alert.alert('Peringatan', 'Harap pilih metode pembayaran');
+      presentInfoMessage('Harap pilih metode pembayaran', 'Peringatan');
       return;
     }
     setPaymentLoading(true);
@@ -327,18 +332,20 @@ export default function CustomerTagihanScreen() {
           // Refetch after browser closes to reflect any payment changes
           refetch();
         } else if (!res.data.paymentUrl && !selectedMethodCode.startsWith('MANUAL_') && selectedMethodCode !== 'MOOTA_MANUAL') {
-          Alert.alert('Menunggu', 'Silakan lanjutkan transfer manual Anda.');
+          presentInfoMessage('Silakan lanjutkan transfer manual Anda.', 'Menunggu');
         }
 
         setAppliedDiscount(null);
         setCouponCode('');
       } else {
-        Alert.alert('Gagal', res.data.error || 'Gagal membuat pembayaran');
+        presentErrorMessage(res.data.error || 'Gagal membuat pembayaran');
       }
     } catch (error) {
       logger.error('[CustomerTagihan] Failed to create payment', error);
-      const friendlyError = getUserFriendlyError(error);
-      Alert.alert(friendlyError.title, friendlyError.message);
+      presentAppError(error, {
+        screen: 'CustomerTagihanScreen',
+        route: '/(customer)/tagihan',
+      });
     } finally {
       setPaymentLoading(false);
     }
@@ -347,10 +354,10 @@ export default function CustomerTagihanScreen() {
   const copyToClipboard = async (text: string, type: string) => {
     try {
       await Clipboard.setStringAsync(text);
-      Alert.alert('Disalin', `${type} berhasil disalin!`);
+      presentInfoMessage(`${type} berhasil disalin!`, 'Disalin');
     } catch (error) {
       logger.error('[CustomerTagihan] Failed to copy payment detail', error);
-      Alert.alert('Gagal', `Gagal menyalin ${type}.`);
+      presentErrorMessage(`Gagal menyalin ${type}.`);
     }
   };
 
@@ -364,7 +371,7 @@ export default function CustomerTagihanScreen() {
           </TouchableOpacity>
           <Text style={tw`text-lg font-bold text-gray-900`}>Tagihan & Pembayaran</Text>
         </View>
-        <TouchableOpacity onPress={() => Alert.alert('Info', 'Hubungi CS jika ada kendala pembayaran')}>
+        <TouchableOpacity onPress={() => presentInfoMessage('Hubungi CS jika ada kendala pembayaran')}>
           <AlertCircle size={20} color="#6b7280" />
         </TouchableOpacity>
       </View>

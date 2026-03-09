@@ -130,7 +130,8 @@ describe('useApiMutation', () => {
     expect(invalidateQueriesSpy).not.toHaveBeenCalled();
     expect(mockAlert).toHaveBeenCalledWith(
       'Offline',
-      expect.stringContaining('disimpan')
+      expect.stringContaining('disimpan'),
+      expect.any(Array),
     );
 
     unmount();

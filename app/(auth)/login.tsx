@@ -5,14 +5,14 @@ import { Events } from '@/constants/Events';
 import { useFormWithValidation } from '@/hooks/useFormWithValidation';
 import { biometricService } from '@/services/BiometricService';
 import api from '@/services/api';
-import { getUserFriendlyError } from '@/utils/errorHandling';
+import { presentAppError, presentErrorMessage, presentInfoMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
 import { LoginSchema } from '@/utils/validation';
 import { AxiosError } from 'axios';
 import { StatusBar } from 'expo-status-bar';
 import { Fingerprint, Lock, User } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, DeviceEventEmitter, Image, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, DeviceEventEmitter, Image, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 import { z } from 'zod';
 
@@ -83,7 +83,7 @@ export default function LoginScreen() {
                 logger.auth('[LoginScreen] signIn completed, waiting for redirect...');
             } else {
                 logger.warn('[LoginScreen] Login failed logic:', res.data);
-                Alert.alert('Login Gagal', res.data.error || 'Terjadi kesalahan');
+                presentErrorMessage(res.data.error || 'Terjadi kesalahan', 'Login Gagal');
             }
         } catch (error) {
             const isAxiosErr = error instanceof AxiosError;
@@ -91,12 +91,14 @@ export default function LoginScreen() {
             logger.error('[LoginScreen] Login error:', status, isAxiosErr ? error.response?.data : error);
 
             if (status === 401) {
-                Alert.alert('Login Gagal', 'Email atau password salah.');
+                presentErrorMessage('Email atau password salah.', 'Login Gagal');
             } else if (status === 426) {
                 DeviceEventEmitter.emit(Events.APP_VERSION_UNSUPPORTED, isAxiosErr ? error.response?.data : undefined);
             } else {
-                const errIdx = getUserFriendlyError(error);
-                Alert.alert(errIdx.title || 'Error', errIdx.message || 'Terjadi kesalahan');
+                presentAppError(error, {
+                    screen: 'LoginScreen',
+                    route: '/(auth)/login',
+                });
             }
         } finally {
             setLoading(false);
@@ -111,16 +113,12 @@ export default function LoginScreen() {
         const result = await biometricService.authenticate('Login dengan biometrik');
 
         if (result.success) {
-            // For biometric login, we need stored credentials
-            // This is a simplified version - in production, you'd store encrypted credentials
-            // or use a different auth flow (like stored refresh token)
-            Alert.alert(
-                'Biometrik Berhasil',
+            presentInfoMessage(
                 'Autentikasi berhasil. Silakan masukkan kredensial Anda untuk melanjutkan.',
-                [{ text: 'OK' }]
+                'Biometrik Berhasil'
             );
         } else if (result.error) {
-            Alert.alert('Autentikasi Gagal', result.error);
+            presentErrorMessage(result.error, 'Autentikasi Gagal');
         }
     }, []);
 

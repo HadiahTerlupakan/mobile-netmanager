@@ -2,12 +2,12 @@ import { FormPasswordInput } from '@/components/atoms/FormPasswordInput';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { useFormWithValidation } from '@/hooks/useFormWithValidation';
 import api from '@/services/api';
-import { getUserFriendlyError } from '@/utils/errorHandling';
+import { presentAppError, presentSuccessMessage } from '@/utils/errorPresenter';
 import { ChangePasswordSchema } from '@/utils/validation';
 import { router } from 'expo-router';
 import { ArrowLeft, Save } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { z } from 'zod';
@@ -35,13 +35,14 @@ function ChangePasswordScreen() {
         try {
             const res = await api.post('/api/mobile/profile/password', data);
             if (res.data.success) {
-                Alert.alert('Sukses', 'Password berhasil diubah', [
-                    { text: 'OK', onPress: () => router.back() }
-                ]);
+                presentSuccessMessage('Password berhasil diubah');
+                router.back();
             }
         } catch (error) {
-            const { title, message } = getUserFriendlyError(error);
-            Alert.alert(title, message);
+            presentAppError(error, {
+                screen: 'ChangePasswordScreen',
+                route: '/(app)/change-password',
+            });
         } finally {
             setSaving(false);
         }
