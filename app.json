@@ -2,7 +2,7 @@
   "expo": {
     "name": "SBL KARYAWAN",
     "slug": "netmanager",
-    "version": "1.0.19",
+    "version": "1.0.34",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "netmanager",
@@ -109,7 +109,7 @@
         "projectId": "0e8762f0-6c54-4bc5-82f2-18aa3f8e765a"
       },
       "router": {},
-      "versionCode": 20
+      "versionCode": 35
     },
     "owner": "rohadimrajas-organization"
   }

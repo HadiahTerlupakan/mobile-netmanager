@@ -9,7 +9,7 @@ import { useProfileSync } from '@/hooks/useProfileSync';
 import { TenantService } from '@/services/TenantService';
 import { logger } from '@/utils/logger';
 import { Href, router } from 'expo-router';
-import { BadgeCheck, LogOut, Mail, MapPin } from 'lucide-react-native';
+import { BadgeCheck, LogOut, Mail, MapPin, ShieldCheck } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -174,6 +174,15 @@ export function MitraSalesProfileScreen() {
                             <Text style={tw`text-white font-black ml-2 tracking-widest text-xs uppercase`}>LIHAT ID CARD RESMI</Text>
                         </TouchableOpacity>
                     )}
+
+                    {/* Privacy Policy Button */}
+                    <TouchableOpacity
+                        onPress={() => router.push('/kebijakan-privasi' as Href)}
+                        style={tw`mt-3 bg-white border border-slate-100/80 rounded-[20px] p-4 flex-row items-center justify-center shadow-sm`}
+                    >
+                        <ShieldCheck size={20} color="#64748b" />
+                        <Text style={tw`text-slate-600 font-black ml-2 tracking-widest text-xs uppercase`}>Kebijakan Privasi</Text>
+                    </TouchableOpacity>
 
                     {/* Logout Button */}
                     <TouchableOpacity

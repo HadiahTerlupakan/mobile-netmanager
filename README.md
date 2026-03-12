@@ -85,7 +85,28 @@ Environment akan otomatis dipilih berdasarkan profile build:
   eas build --profile production
   ```
 
-### 3. Visual Environment Indicator
+### 3. Build APK dengan build_apk.sh
+
+Anda dapat melakukan build APK untuk environment tertentu dengan script `build_apk.sh`. Script ini akan otomatis menyesuaikan versi build dan nama file output.
+
+- **Build Production (Default):**
+  ```bash
+  ./build_apk.sh
+  # atau
+  ./build_apk.sh production
+  ```
+
+- **Build Staging:**
+  ```bash
+  ./build_apk.sh staging
+  ```
+
+- **Build Development:**
+  ```bash
+  ./build_apk.sh development
+  ```
+
+### 4. Visual Environment Indicator
 
 Untuk menghindari kesalahan penggunaan environment, aplikasi akan menampilkan badge di pojok kanan bawah:
 - **Badge Biru (LOCAL DEV)**: Muncul saat menjalankan di local development.

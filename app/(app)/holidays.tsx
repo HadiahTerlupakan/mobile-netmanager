@@ -7,9 +7,9 @@ import {
     subMonths
 } from '@/utils/date';
 import { getUserFriendlyError } from '@/utils/errorHandling';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react-native';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     Modal,
     ScrollView,
@@ -52,6 +52,12 @@ export default function HolidaysScreen() {
     });
 
     const holidays = holidaysData || [];
+
+    useFocusEffect(
+        useCallback(() => {
+            void refetch();
+        }, [refetch])
+    );
 
     const goToPrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
     const goToNextMonth = () => setCurrentDate(addMonths(currentDate, 1));

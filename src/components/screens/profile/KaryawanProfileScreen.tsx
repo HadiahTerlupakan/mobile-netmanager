@@ -9,7 +9,7 @@ import { useProfileSync } from '@/hooks/useProfileSync';
 import { TenantService } from '@/services/TenantService';
 import { logger } from '@/utils/logger';
 import { Href, router } from 'expo-router';
-import { Briefcase, Building2, Calendar, Clock, Edit3, LogOut, Mail, MapPin } from 'lucide-react-native';
+import { Briefcase, Building2, Calendar, Clock, Edit3, LogOut, Mail, MapPin, ShieldCheck } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -229,6 +229,15 @@ export function KaryawanProfileScreen() {
                     >
                         <Edit3 size={20} color="#2563eb" />
                         <Text style={tw`text-blue-600 font-bold ml-2`}>Edit Profil & Password</Text>
+                    </TouchableOpacity>
+
+                    {/* Privacy Policy Button */}
+                    <TouchableOpacity
+                        onPress={() => router.push('/kebijakan-privasi' as Href)}
+                        style={tw`mt-3 bg-gray-50 border border-gray-200 rounded-2xl p-4 flex-row items-center justify-center`}
+                    >
+                        <ShieldCheck size={20} color="#4b5563" />
+                        <Text style={tw`text-gray-700 font-bold ml-2`}>Kebijakan Privasi</Text>
                     </TouchableOpacity>
 
                     {/* Logout Button */}

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # ================================================
 # Build APK dengan Auto-Versioning
 # ================================================
@@ -20,11 +22,62 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}================================================${NC}"
 echo -e "${BLUE}   SBL KARYAWAN - APK Builder with Auto-Version${NC}"
 echo -e "${BLUE}================================================${NC}"
+
+# Environment configuration
+# Provide variant from argument, default to production
+ENV=${1:-production}
+
+if [[ "$ENV" != "development" && "$ENV" != "staging" && "$ENV" != "production" ]]; then
+    echo -e "${RED}❌ Invalid environment. Use: development, staging, or production${NC}"
+    exit 1
+fi
+
+echo -e "${BLUE}   Environment: $ENV${NC}"
 echo ""
+
+# Set variant as an environment variable (used by Config.ts)
+export EXPO_PUBLIC_APP_VARIANT=$ENV
 
 # File paths
 APP_JSON="app.json"
 BUILD_GRADLE="android/app/build.gradle"
+
+# Rollback state
+CURRENT_VERSION_CODE=""
+CURRENT_VERSION_NAME=""
+NEW_VERSION_CODE=""
+NEW_VERSION_NAME=""
+ROLLBACK_REQUIRED=false
+
+rollback_versions() {
+    if [ "$ROLLBACK_REQUIRED" != "true" ]; then
+        return
+    fi
+
+    echo ""
+    echo -e "${YELLOW}🔄 Error detected. Rolling back version changes...${NC}"
+
+    if [ -n "$CURRENT_VERSION_CODE" ] && [ -n "$NEW_VERSION_CODE" ] && [ -f "$BUILD_GRADLE" ]; then
+        sed -i '' "s/versionCode ${NEW_VERSION_CODE}/versionCode ${CURRENT_VERSION_CODE}/" "$BUILD_GRADLE" || true
+    fi
+
+    if [ -n "$CURRENT_VERSION_NAME" ] && [ -n "$NEW_VERSION_NAME" ] && [ -f "$BUILD_GRADLE" ]; then
+        sed -i '' "s/versionName \"${NEW_VERSION_NAME}\"/versionName \"${CURRENT_VERSION_NAME}\"/" "$BUILD_GRADLE" || true
+    fi
+
+    if [ -n "$CURRENT_VERSION_NAME" ] && [ -f "$APP_JSON" ]; then
+        node -e "
+        const fs = require('fs');
+        const appJson = JSON.parse(fs.readFileSync('${APP_JSON}', 'utf8'));
+        appJson.expo.version = '${CURRENT_VERSION_NAME}';
+        fs.writeFileSync('${APP_JSON}', JSON.stringify(appJson, null, 2) + '\n');
+        " || true
+    fi
+
+    echo -e "${GREEN}✓ Version rolled back to ${CURRENT_VERSION_NAME:-unknown}${NC}"
+}
+
+trap rollback_versions ERR
 
 # ================================================
 # Step 1: Auto-increment versionCode di build.gradle
@@ -100,6 +153,8 @@ fs.writeFileSync('${APP_JSON}', JSON.stringify(appJson, null, 2) + '\n');
 console.log('✓ app.json updated');
 "
 
+ROLLBACK_REQUIRED=true
+
 echo ""
 
 # ================================================
@@ -107,40 +162,78 @@ echo ""
 # ================================================
 echo -e "${YELLOW}🔨 Starting Gradle build...${NC}"
 echo -e "   Using Android SDK at: $ANDROID_HOME"
+echo -e "   EXPO_PUBLIC_APP_VARIANT: $EXPO_PUBLIC_APP_VARIANT"
 echo ""
 
 # Ensure gradlew is executable
 chmod +x android/gradlew
 
-# Run the build
-cd android && ./gradlew assembleRelease -x lint -x lintVitalRelease && cd ..
+# Stop daemon + clean to avoid stale env cache across staging/production builds
+echo -e "${YELLOW}🧹 Cleaning Gradle daemon/cache...${NC}"
+(cd android && ./gradlew --stop >/dev/null 2>&1) || true
+
+# Clean JS bundle/sourcemap outputs only (avoid full `gradlew clean` CMake/codegen issues)
+rm -rf android/app/build/generated/assets/react/release
+rm -rf android/app/build/generated/sourcemaps/react/release
+rm -rf android/app/build/intermediates/merged_assets/release
+rm -rf android/app/build/intermediates/assets/release
+rm -rf android/app/build/intermediates/sourcemaps
+
+# Run the build (force rerun tasks so JS bundle uses current variant)
+(cd android && ./gradlew assembleRelease -x lint -x lintVitalRelease --no-daemon --rerun-tasks --no-build-cache)
 
 # ================================================
-# Step 5: Copy APK with version in filename
+# Step 5: Copy APK output (supports split-per-ABI APK)
 # ================================================
-APK_SOURCE="android/app/build/outputs/apk/release/app-release.apk"
-APK_DEST="netman_v${NEW_VERSION_NAME}_build${NEW_VERSION_CODE}.apk"
-APK_LATEST="netman.apk"
+APK_RELEASE_DIR="android/app/build/outputs/apk/release"
+SPLIT_APKS=("$APK_RELEASE_DIR"/app-*-release.apk)
+UNIVERSAL_APK="$APK_RELEASE_DIR/app-release.apk"
 
-if [ -f "$APK_SOURCE" ]; then
-    # Copy with version name
-    cp "$APK_SOURCE" "$APK_DEST"
-    # Also copy as latest
-    cp "$APK_SOURCE" "$APK_LATEST"
-    
+if [ -f "${SPLIT_APKS[0]}" ]; then
     echo ""
     echo -e "${GREEN}================================================${NC}"
-    echo -e "${GREEN}✅ BUILD SUCCESS!${NC}"
+    echo -e "${GREEN}✅ BUILD SUCCESS (Split APK per ABI)!${NC}"
+    echo -e "${GREEN}================================================${NC}"
+    echo -e "   Version:  ${NEW_VERSION_NAME}"
+    echo -e "   Build:    ${NEW_VERSION_CODE}"
+    echo -e "${GREEN}================================================${NC}"
+
+    echo -e "${YELLOW}📦 Generated APK files:${NC}"
+    for APK_SOURCE in "${SPLIT_APKS[@]}"; do
+        [ -f "$APK_SOURCE" ] || continue
+
+        APK_FILE=$(basename "$APK_SOURCE")
+        ABI=$(echo "$APK_FILE" | sed -E 's/app-([^-]+)-release\.apk/\1/')
+        APK_DEST="netman_${ENV}_${ABI}_v${NEW_VERSION_NAME}_build${NEW_VERSION_CODE}.apk"
+        APK_LATEST="netman_${ENV}_${ABI}.apk"
+
+        cp "$APK_SOURCE" "$APK_DEST"
+        cp "$APK_SOURCE" "$APK_LATEST"
+
+        APK_SIZE=$(du -h "$APK_DEST" | cut -f1)
+        echo -e "   - ${ABI}: ./${APK_DEST} (${APK_SIZE})"
+    done
+    ROLLBACK_REQUIRED=false
+elif [ -f "$UNIVERSAL_APK" ]; then
+    APK_DEST="netman_${ENV}_v${NEW_VERSION_NAME}_build${NEW_VERSION_CODE}.apk"
+    APK_LATEST="netman_${ENV}.apk"
+
+    cp "$UNIVERSAL_APK" "$APK_DEST"
+    cp "$UNIVERSAL_APK" "$APK_LATEST"
+
+    echo ""
+    echo -e "${GREEN}================================================${NC}"
+    echo -e "${GREEN}✅ BUILD SUCCESS (Universal APK)!${NC}"
     echo -e "${GREEN}================================================${NC}"
     echo -e "   Version:  ${NEW_VERSION_NAME}"
     echo -e "   Build:    ${NEW_VERSION_CODE}"
     echo -e "   APK:      ./${APK_DEST}"
     echo -e "   Latest:   ./${APK_LATEST}"
     echo -e "${GREEN}================================================${NC}"
-    
-    # Show APK size
+
     APK_SIZE=$(du -h "$APK_DEST" | cut -f1)
     echo -e "   Size:     ${APK_SIZE}"
+    ROLLBACK_REQUIRED=false
 else
     echo ""
     echo -e "${RED}❌ Build Failed! APK not found.${NC}"

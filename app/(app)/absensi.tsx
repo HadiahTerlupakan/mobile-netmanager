@@ -346,12 +346,13 @@ export default function AbsensiScreen() {
       const normX = faceCenterX / frameWidth;
       const normY = faceCenterY / frameHeight;
 
-      // We want the face to be in the center (around 0.5, 0.5)
-      // and have a reasonable size (not too far)
-      const isCentered = normX > 0.25 && normX < 0.75 && normY > 0.25 && normY < 0.75;
+      // We want the face to be roughly in the center (around 0.5, 0.5)
+      // Loosened widely for field constraints (0.10 - 0.90)
+      const isCentered = normX > 0.10 && normX < 0.90 && normY > 0.10 && normY < 0.90;
       const faceWidthRatio = bounds.width / frameWidth;
       const faceHeightRatio = bounds.height / frameHeight;
-      const isLargeEnough = Math.max(faceWidthRatio, faceHeightRatio) > 0.16;
+      // Loosened min size threshold further (0.10)
+      const isLargeEnough = Math.max(faceWidthRatio, faceHeightRatio) > 0.10;
 
       if (isCentered && isLargeEnough) {
         nextFaceInFrame = true;

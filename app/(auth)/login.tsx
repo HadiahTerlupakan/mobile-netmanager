@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger';
 import { LoginSchema } from '@/utils/validation';
 import { AxiosError } from 'axios';
 import { StatusBar } from 'expo-status-bar';
+import { Link, Href } from 'expo-router';
 import { Fingerprint, Lock, User } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, DeviceEventEmitter, Image, Text, TouchableOpacity, View } from 'react-native';
@@ -193,6 +194,19 @@ export default function LoginScreen() {
                         </Text>
                     </TouchableOpacity>
                 )}
+
+                {/* Privacy Policy Link */}
+                <View style={tw`mt-8 items-center`}>
+                    <Text style={tw`text-gray-500 text-sm text-center`}>
+                        Dengan masuk, Anda menyetujui{'\n'}
+                        <Link href={'/kebijakan-privasi' as Href} asChild>
+                            <TouchableOpacity>
+                                <Text style={tw`text-blue-600 font-semibold`}>Kebijakan Privasi</Text>
+                            </TouchableOpacity>
+                        </Link>
+                        {' '}kami
+                    </Text>
+                </View>
             </View>
         </View>
     );
