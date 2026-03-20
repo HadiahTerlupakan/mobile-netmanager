@@ -73,6 +73,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
         const socketInstance = io(baseUrl, {
             path: '/api/socket',
             auth: {
+                token,
                 userId: user.id,
                 userRole: user.role || 'USER',
             },
@@ -84,8 +85,8 @@ export function SocketProvider({ children }: SocketProviderProps) {
             randomizationFactor: 0.5,
             // Timeout settings
             timeout: 10000,
-            // Transport settings - websocket first, then polling
-            transports: ['websocket', 'polling'],
+            // Transport settings - polling first for better compatibility, then upgrade to websocket
+            transports: ['polling', 'websocket'],
             autoConnect: true,
             // Extra headers for auth
             extraHeaders: {
