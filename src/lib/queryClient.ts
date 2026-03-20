@@ -11,6 +11,7 @@ import { logger } from "@/utils/logger";
 import { Storage } from "@/utils/storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import Toast from "react-native-toast-message";
 
 const normalizeQueryError = (error: unknown): Error => {
   if (error instanceof Error) {
@@ -39,10 +40,21 @@ export const queryClient = new QueryClient({
       const normalizedError = normalizeQueryError(error);
       const queryKey = safeSerialize(query.queryKey);
       logger.error("[QueryClient] Query failed:", queryKey, normalizedError.message);
+      
       errorReportingService.captureException(normalizedError, {
         source: "query",
         queryKey,
       });
+
+      // Show toast if it's a critical error or background fetch failure
+      // (Ignore unauthorized as it's handled by API interceptor)
+      if (!normalizedError.message.includes('401') && !normalizedError.message.includes('426')) {
+        Toast.show({
+          type: 'error',
+          text1: 'Gagal Memuat Data',
+          text2: normalizedError.message || 'Terjadi kesalahan koneksi',
+        });
+      }
     },
   }),
   mutationCache: new MutationCache({
@@ -50,10 +62,20 @@ export const queryClient = new QueryClient({
       const normalizedError = normalizeQueryError(error);
       const mutationKey = safeSerialize(mutation.options.mutationKey ?? null);
       logger.error("[QueryClient] Mutation failed:", mutationKey, normalizedError.message);
+      
       errorReportingService.captureException(normalizedError, {
         source: "mutation",
         mutationKey,
       });
+
+      // Mutations usually need explicit feedback
+      if (!normalizedError.message.includes('401') && !normalizedError.message.includes('426')) {
+        Toast.show({
+          type: 'error',
+          text1: 'Gagal Menyimpan Perubahan',
+          text2: normalizedError.message || 'Terjadi kesalahan saat memproses data',
+        });
+      }
     },
   }),
   defaultOptions: {

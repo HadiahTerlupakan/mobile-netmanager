@@ -24,6 +24,7 @@ import { ActivityIndicator, DeviceEventEmitter, Platform, View } from "react-nat
 import Toast from "react-native-toast-message";
 import { Events } from "@/constants/Events";
 import tw from "twrnc";
+import { toastConfig } from "@/config/toastConfig";
 
 // Initialize error reporting as early as possible
 errorReportingService.init();
@@ -389,7 +390,7 @@ export default function RootLayout() {
             persistOptions={{ persister: asyncStoragePersister }}
           >
             <RootLayoutNav />
-            <Toast />
+            <Toast config={toastConfig} />
           </PersistQueryClientProvider>
         </AuthProvider>
       </TenantProvider>

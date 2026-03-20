@@ -8,6 +8,8 @@ import { logger } from '@/utils/logger';
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { DeviceEventEmitter } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
+import Toast from 'react-native-toast-message';
+
 declare module "axios" {
   export interface AxiosRequestConfig {
     skipGlobalAuthHandler?: boolean;
@@ -15,6 +17,7 @@ declare module "axios" {
     _retryCount?: number;
     _isRetryAfterRefresh?: boolean;
     metadata?: { startTime: number }; // Add metadata for tracking
+    skipErrorToast?: boolean; // New option to skip automatic error toast
   }
 }
 
@@ -148,6 +151,25 @@ api.interceptors.response.use(
     if (config.url) {
       const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
       performanceMonitor.stop(metricName, { status: error.response?.status || 'network_error' });
+    }
+
+    // Critical Error Feedback (UX Improvement)
+    if (!config.skipErrorToast) {
+      if (!error.response) {
+        // Network or Timeout
+        Toast.show({
+          type: 'error',
+          text1: 'Masalah Koneksi',
+          text2: 'Mohon periksa koneksi internet Anda.',
+        });
+      } else if (error.response.status >= 500) {
+        // Server Error
+        Toast.show({
+          type: 'error',
+          text1: 'Masalah Server',
+          text2: 'Terjadi gangguan pada server. Tim kami sedang menanganinya.',
+        });
+      }
     }
 
     // Initialize retry count
