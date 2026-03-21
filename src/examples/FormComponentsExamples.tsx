@@ -25,7 +25,6 @@ const loginSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginFormExample() {
   const { control, handleValidatedSubmit, formState: { errors, isSubmitting } } = useFormWithValidation({
@@ -94,7 +93,6 @@ const registrationSchema = z.object({
   path: ['confirmPassword'],
 });
 
-type RegistrationFormData = z.infer<typeof registrationSchema>;
 
 export function RegistrationFormExample() {
   const { control, handleValidatedSubmit, formState: { errors, isSubmitting } } = useFormWithValidation({
@@ -245,7 +243,6 @@ const dynamicSchema = z.object({
   path: ['userType'],
 });
 
-type DynamicFormData = z.infer<typeof dynamicSchema>;
 
 export function DynamicFormExample() {
   const { control, watch, handleValidatedSubmit, formState: { errors } } = useFormWithValidation({

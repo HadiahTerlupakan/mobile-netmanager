@@ -130,7 +130,7 @@ export default function LoginScreen() {
             {/* Logo */}
             <View style={tw`mb-8 items-center`}>
                 <Image
-                    source={require('../../assets/images/icon.png')}
+                    source={require('@assets/images/icon.png')}
                     style={tw`h-24 w-24 rounded-2xl mb-4`}
                     resizeMode="contain"
                 />

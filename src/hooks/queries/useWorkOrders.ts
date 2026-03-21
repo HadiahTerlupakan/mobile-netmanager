@@ -4,7 +4,7 @@
  * Contoh implementasi TanStack Query untuk Work Orders feature
  */
 
-import { queryKeys } from "../../lib/queryClient";
+import { queryKeys } from "@/lib/queryClient";
 import { useApiMutation } from "./useApiMutation";
 import { useOfflineQuery } from "../useOfflineQuery";
 import { WorkOrder } from "@/types/work-order";

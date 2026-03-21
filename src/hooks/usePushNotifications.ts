@@ -56,7 +56,6 @@ export const usePushNotifications = (): PushNotificationState => {
             }
 
             if (finalStatus !== 'granted') {
-                console.log('Failed to get push token for push notification!');
                 return;
             }
 
@@ -72,9 +71,6 @@ export const usePushNotifications = (): PushNotificationState => {
             token = await Notifications.getExpoPushTokenAsync({
                 projectId,
             });
-            // console.log("Push Token: ", token);
-        } else {
-            console.log('Must use physical device for Push Notifications');
         }
 
         return token;
@@ -93,15 +89,11 @@ export const usePushNotifications = (): PushNotificationState => {
         responseListener.current =
             Notifications.addNotificationResponseReceivedListener((response) => {
                 const data = response.notification.request.content.data;
-                // Add console.log to debug received push notification deep linking
-                console.log("[PushNotification] Response Received: ", JSON.stringify(data));
 
                 // Deep link handling for chat messages
                 if (data?.type === 'chat_message' && data?.conversationId) {
                     try {
                         router.push(`/chat/${data.conversationId}`);
-
-                        console.log(`[PushNotification] Redirected to chat: ${data.conversationId}`);
                     } catch (error) {
                         console.error('[PushNotification] Error routing to chat:', error);
                     }

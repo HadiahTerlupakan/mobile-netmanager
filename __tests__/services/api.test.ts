@@ -1,6 +1,6 @@
 jest.useFakeTimers();
 
-const mockApi = jest.fn();
+const mockApi = jest.fn() as any;
 const mockRequestUse = jest.fn();
 const mockResponseUse = jest.fn();
 

@@ -1,9 +1,22 @@
 import { AlertButton } from 'react-native';
 import Toast from 'react-native-toast-message';
-import { errorReportingService } from '@/services/ErrorReportingService';
 
 import { AlertService } from './alert';
 import { ErrorMessage, getUserFriendlyError } from './errorHandling';
+
+export interface ErrorReporter {
+  captureException(error: Error, options?: Record<string, any>): void;
+}
+
+let registeredReporter: ErrorReporter | null = null;
+
+/**
+ * Register a reporter to be used by presentAppError.
+ * This decouples the utility from the specific service implementation.
+ */
+export const registerErrorReporter = (reporter: ErrorReporter) => {
+  registeredReporter = reporter;
+};
 
 interface PresenterOptions {
   screen?: string;
@@ -67,6 +80,7 @@ export const presentInfoMessage = (message: string, title = 'Info') => {
 export const presentErrorMessage = (message: string, title = 'Gagal') => {
   Toast.show({ type: 'error', text1: title, text2: message, position: 'bottom', visibilityTime: 5000 });
 };
+
 export const presentAppError = (error: unknown, options: PresenterOptions = {}): ErrorMessage => {
   const presentation = getUserFriendlyError(error);
 
@@ -79,8 +93,8 @@ export const presentAppError = (error: unknown, options: PresenterOptions = {}):
   );
 
   const shouldReport = options.report ?? presentation.reportable;
-  if (shouldReport) {
-    errorReportingService.captureException(normalizeError(error, presentation.message), {
+  if (shouldReport && registeredReporter) {
+    registeredReporter.captureException(normalizeError(error, presentation.message), {
       source: options.source ?? 'ui',
       screen: options.screen,
       route: options.route,

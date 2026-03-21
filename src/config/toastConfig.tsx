@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import { BaseToast, ErrorToast, ToastConfig } from 'react-native-toast-message';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react-native';
 import tw from 'twrnc';

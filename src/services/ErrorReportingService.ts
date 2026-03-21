@@ -3,6 +3,7 @@ import { Config } from '@/constants/Config';
 import { TenantService } from '@/services/TenantService';
 import { TokenService } from '@/services/TokenService';
 import { logger } from '@/utils/logger';
+import { registerErrorReporter } from '@/utils/errorPresenter';
 import { Platform } from 'react-native';
 
 /**
@@ -153,6 +154,11 @@ class ErrorReportingService {
     try {
       this.isInitialized = true;
       this.isEnabled = true;
+
+      // Register this service as the global error reporter for utils
+      registerErrorReporter(this);
+
+      logger.info('[ErrorReporting] Initialized and registered as global reporter');
     } catch (error) {
       logger.error('[ErrorReporting] Failed to initialize:', error);
       this.isEnabled = false;

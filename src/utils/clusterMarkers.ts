@@ -3,7 +3,7 @@
  * Groups nearby markers based on zoom level to improve rendering performance
  */
 
-import { Cluster, MarkerData } from '../types/topology';
+import { Cluster, MarkerData } from '@/types/topology';
 
 /**
  * Cluster markers based on zoom level

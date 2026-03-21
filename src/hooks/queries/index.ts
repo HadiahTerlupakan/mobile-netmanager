@@ -22,4 +22,4 @@ export {
 } from "@tanstack/react-query";
 
 // Re-export query keys
-export { queryKeys } from "../../lib/queryClient";
+export { queryKeys } from "@/lib/queryClient";

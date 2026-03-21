@@ -19,7 +19,7 @@ import {
   View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import api from "../../../services/api";
+import api from "@/services/api";
 
 export type DeviceType =
   | "otb"
