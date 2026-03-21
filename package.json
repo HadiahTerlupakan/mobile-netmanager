@@ -25,6 +25,7 @@
     "test:e2e:leave": "maestro test .maestro/leave-request-flow.yaml",
     "test:e2e:inventory": "maestro test .maestro/inventory-flow.yaml",
     "test:e2e:notifications": "maestro test .maestro/notifications-flow.yaml",
+    "purge:playwright": "node ../scripts/purge-playwright.js",
     "postinstall": "patch-package"
   },
   "dependencies": {

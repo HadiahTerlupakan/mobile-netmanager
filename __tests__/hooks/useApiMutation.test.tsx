@@ -2,6 +2,15 @@ import React, { PropsWithChildren } from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+import { presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
+
+jest.mock('@/utils/errorPresenter', () => ({
+  presentAppError: jest.fn(),
+  presentError: jest.fn(),
+  presentInfoMessage: jest.fn(),
+  presentSuccessMessage: jest.fn(),
+}));
+
 const mockRequest = jest.fn();
 jest.mock('@/services/api', () => ({
   __esModule: true,
@@ -128,10 +137,9 @@ describe('useApiMutation', () => {
       expect.any(Object)
     );
     expect(invalidateQueriesSpy).not.toHaveBeenCalled();
-    expect(mockAlert).toHaveBeenCalledWith(
-      'Offline',
+    expect(presentInfoMessage).toHaveBeenCalledWith(
       expect.stringContaining('disimpan'),
-      expect.any(Array),
+      'Offline',
     );
 
     unmount();

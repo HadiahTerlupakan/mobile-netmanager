@@ -61,3 +61,23 @@ global.console = {
   // Keep error for debugging
   error: console.error,
 };
+
+// Mock react-native components and modules
+jest.mock('react-native', () => {
+  const RN = jest.requireActual('react-native');
+  
+  // Fix Platform.select issue in Jest
+  RN.Platform.select = (objs) => objs.default || objs.ios || objs.android;
+  
+  return RN;
+});
+
+// Mock react-native-toast-message
+jest.mock('react-native-toast-message', () => ({
+  show: jest.fn(),
+  hide: jest.fn(),
+  default: {
+    show: jest.fn(),
+    hide: jest.fn(),
+  },
+}));

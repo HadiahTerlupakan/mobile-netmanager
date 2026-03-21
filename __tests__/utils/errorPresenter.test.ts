@@ -1,73 +1,50 @@
-const mockAlertError = jest.fn();
-const mockAlertInfo = jest.fn();
-const mockAlertSuccess = jest.fn();
-const mockAlertCustom = jest.fn();
-
-jest.mock('@/utils/alert', () => ({
-  AlertService: {
-    error: mockAlertError,
-    info: mockAlertInfo,
-    success: mockAlertSuccess,
-    custom: mockAlertCustom,
-  },
-}));
+import Toast from 'react-native-toast-message';
+import { presentAppError, presentSuccessMessage, registerErrorReporter } from '@/utils/errorPresenter';
 
 const mockCaptureException = jest.fn();
-const mockCaptureMessage = jest.fn();
-
-jest.mock('@/services/ErrorReportingService', () => ({
-  errorReportingService: {
-    captureException: mockCaptureException,
-    captureMessage: mockCaptureMessage,
-  },
-}));
 
 describe('errorPresenter', () => {
   beforeEach(() => {
-    jest.resetModules();
     jest.clearAllMocks();
+    registerErrorReporter({
+      captureException: mockCaptureException,
+    });
   });
 
-  it('presents reportable errors and captures exception context', () => {
-    const { presentAppError } = require('@/utils/errorPresenter');
-
-    presentAppError(new Error('TypeError: boom'), {
-      screen: 'LoginScreen',
-      route: '/(auth)/login',
+  it('presents reportable errors and captures exception context', async () => {
+    const error = new Error('Database connection failed');
+    presentAppError(error, { 
+      source: 'Fetching inventory', 
+      report: true 
     });
 
-    expect(mockAlertError).toHaveBeenCalled();
+    expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'error',
+    }));
     expect(mockCaptureException).toHaveBeenCalledWith(
       expect.any(Error),
       expect.objectContaining({
-        screen: 'LoginScreen',
-        route: '/(auth)/login',
-        source: 'ui',
+        source: 'Fetching inventory',
       })
     );
   });
 
-  it('can skip reporting for user-facing handled errors', () => {
-    const { presentAppError } = require('@/utils/errorPresenter');
+  it('can skip reporting for user-facing handled errors', async () => {
+    const error = new Error('Invalid input');
+    presentAppError(error, { 
+      report: false 
+    });
 
-    presentAppError(
-      {
-        isAxiosError: true,
-        message: 'Unauthorized',
-        response: { status: 401, data: {} },
-      },
-      { report: false }
-    );
-
-    expect(mockAlertError).toHaveBeenCalled();
+    expect(Toast.show).toHaveBeenCalled();
     expect(mockCaptureException).not.toHaveBeenCalled();
   });
 
   it('presents success messages consistently', () => {
-    const { presentSuccessMessage } = require('@/utils/errorPresenter');
-
     presentSuccessMessage('Password berhasil diubah');
 
-    expect(mockAlertSuccess).toHaveBeenCalledWith('Berhasil', 'Password berhasil diubah');
+    expect(Toast.show).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'success',
+      text2: 'Password berhasil diubah',
+    }));
   });
 });
