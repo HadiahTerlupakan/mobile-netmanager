@@ -15,6 +15,7 @@ import { Alert, DeviceEventEmitter } from 'react-native';
 
 export type User = {
     id: string;
+    tenantId: string;
     name: string;
     email: string;
     role: string;
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         TokenService.setToken(null);
         setToken(null);
         setUser(null);
+        logger.setTenantId(null);
         queryClient.clear();
 
         const cleanupResults = await Promise.allSettled([
@@ -102,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logger.auth('Updating state...');
             setToken(newToken);
             setUser(userData);
+            logger.setTenantId(userData.tenantId);
 
             // Register for push notifications (non-blocking)
             // Don't await - login should not be blocked by push registration
@@ -205,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         TokenService.setToken(storedToken);
                         setToken(storedToken);
                         setUser(parsedUser);
+                        logger.setTenantId(parsedUser.tenantId);
 
                         registerPush(storedToken);
                     } catch (parseError) {

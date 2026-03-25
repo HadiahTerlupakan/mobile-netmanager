@@ -131,7 +131,7 @@ describe('AuthContext', () => {
     });
 
     it('should load stored session on mount', async () => {
-      const storedUser = { id: '1', name: 'Test User', email: 'test@test.com', role: 'employee' };
+      const storedUser = { id: '1', tenantId: 'tenant-1', name: 'Test User', email: 'test@test.com', role: 'employee' };
       (SecureStore.getItemAsync as jest.Mock)
         .mockResolvedValueOnce('stored-token')
         .mockResolvedValueOnce(JSON.stringify(storedUser));
@@ -170,7 +170,7 @@ describe('AuthContext', () => {
         expect(authContext?.isLoading).toBe(false);
       });
 
-      const newUser = { id: '2', name: 'New User', email: 'new@test.com', role: 'admin' };
+      const newUser = { id: '2', tenantId: 'tenant-1', name: 'New User', email: 'new@test.com', role: 'admin' };
 
       await act(async () => {
         await authContext?.signIn('new-token', newUser);
@@ -200,7 +200,7 @@ describe('AuthContext', () => {
         expect(authContext?.isLoading).toBe(false);
       });
 
-      const newUser = { id: '2', name: 'New User', email: 'new@test.com', role: 'admin' };
+      const newUser = { id: '2', tenantId: 'tenant-1', name: 'New User', email: 'new@test.com', role: 'admin' };
 
       await act(async () => {
         await authContext?.signIn('new-token', newUser, 'refresh-token');
@@ -217,7 +217,7 @@ describe('AuthContext', () => {
 
   describe('signOut', () => {
     it('should clear session from secure store', async () => {
-      const storedUser = { id: '1', name: 'Test User', email: 'test@test.com', role: 'employee' };
+      const storedUser = { id: '1', tenantId: 'tenant-1', name: 'Test User', email: 'test@test.com', role: 'employee' };
       (SecureStore.getItemAsync as jest.Mock)
         .mockResolvedValueOnce('stored-token')
         .mockResolvedValueOnce(JSON.stringify(storedUser));
@@ -245,7 +245,7 @@ describe('AuthContext', () => {
     });
 
     it('still clears local session when refresh-token cleanup fails', async () => {
-      const storedUser = { id: '1', name: 'Test User', email: 'test@test.com', role: 'employee' };
+      const storedUser = { id: '1', tenantId: 'tenant-1', name: 'Test User', email: 'test@test.com', role: 'employee' };
       (SecureStore.getItemAsync as jest.Mock)
         .mockResolvedValueOnce('stored-token')
         .mockResolvedValueOnce(JSON.stringify(storedUser));

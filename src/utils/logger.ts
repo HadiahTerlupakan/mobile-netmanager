@@ -10,6 +10,8 @@
 const LOG_PREFIX = '[NetManager]';
 const ENABLE_LOGS = process.env.EXPO_DEBUG === 'true' || __DEV__;
 
+let currentTenantId: string | null = null;
+
 // Check jika environment support colors (React Native doesn't have process.stdout)
 const isTTY = typeof process !== 'undefined' && process.stdout && process.stdout.isTTY;
 
@@ -29,12 +31,13 @@ const colors = {
 };
 
 function formatMessage(prefix: string, message: string, color: string = colors.reset): string {
+  const tenantLabel = currentTenantId ? `[T:${currentTenantId}]` : '';
   if (!USE_COLORS) {
     // Plain text untuk React Native atau jika colors disabled
-    return `${LOG_PREFIX} ${prefix} ${message}`;
+    return `${LOG_PREFIX}${tenantLabel} ${prefix} ${message}`;
   }
   // With colors untuk Node.js terminal
-  return `${color}${LOG_PREFIX} ${prefix}${colors.reset} ${message}`;
+  return `${color}${LOG_PREFIX}${tenantLabel} ${prefix}${colors.reset} ${message}`;
 }
 
 function safeStringify(obj: unknown): string {
@@ -62,6 +65,10 @@ function safeStringify(obj: unknown): string {
 }
 
 export const logger = {
+  setTenantId: (tenantId: string | null) => {
+    currentTenantId = tenantId;
+  },
+
   log: (...args: unknown[]) => {
     if (!ENABLE_LOGS) return;
     const message = args.map(safeStringify).join(' ');
