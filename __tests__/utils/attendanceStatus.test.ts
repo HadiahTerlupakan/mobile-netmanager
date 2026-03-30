@@ -1,4 +1,29 @@
 import { deriveAttendanceStatus } from "@/utils/attendanceStatus";
+import { attendanceStatusFixtures, getAttendanceStatusFixture } from "../fixtures/attendance/crossSurfaceAttendanceFixtures";
+
+const requiredFixtureIds = [
+  "previous-day-open-session",
+  "same-day-open-session",
+  "same-day-checked-out-session",
+  "overnight-shift-still-active",
+  "flexible-cross-day-active",
+  "stale-flexible-session",
+] as const;
+
+describe("attendance status fixtures", () => {
+  it("defines the required shared attendance scenarios", () => {
+    expect(attendanceStatusFixtures.map((fixture) => fixture.id)).toEqual(
+      expect.arrayContaining(requiredFixtureIds)
+    );
+  });
+
+  it.each(requiredFixtureIds)("derives mobile status from fixture %s", (fixtureId) => {
+    const fixture = getAttendanceStatusFixture(fixtureId);
+
+    expect(fixture).toBeDefined();
+    expect(deriveAttendanceStatus(fixture!.attendance, fixture!.now)).toEqual(fixture!.expected);
+  });
+});
 
 describe("deriveAttendanceStatus", () => {
   it("treats a stale open session from a previous day as idle", () => {
