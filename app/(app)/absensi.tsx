@@ -15,7 +15,6 @@ import { LocationTrackingService } from "@/services/LocationTrackingService";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import { ensureAttendanceRequestId } from "@/utils/attendanceIdempotency";
-import { deriveAttendanceStatus } from "@/utils/attendanceStatus";
 import {
   AttendanceGeofencePolicy,
   resolveAttendanceGeofenceAction,
@@ -488,22 +487,20 @@ export default function AbsensiScreen() {
       isTukarLiburLeaveDay?: boolean;
     };
     data: {
-      checkIn: string;
-      checkOut?: string;
-      sessionMeta?: {
-        isStaleFlexibleSession?: boolean;
-      };
-      user?: {
-        workingHourMode?: "FIXED" | "SHIFT" | "FLEXIBLE" | null;
-        shift?: {
-          startTime: string;
-          endTime: string;
-        } | null;
-      };
-    }[];
+      status: AttendanceUiStatus;
+      checkInTime: string | null;
+      checkOutTime: string | null;
+      warningMessage: string | null;
+      sourceAttendanceId: string | null;
+      checkInAt: string | null;
+      checkOutAt: string | null;
+      attendanceStatus: string | null;
+      workingHourMode?: "FIXED" | "SHIFT" | "FLEXIBLE" | null;
+      flexibleTargetHour?: number | null;
+    };
   }>({
     queryKey: queryKeys.attendance.status(),
-    endpoint: "/api/mobile/attendance/history?limit=1",
+    endpoint: "/api/mobile/attendance/status",
     enabled: !!token,
   });
 
@@ -535,13 +532,13 @@ export default function AbsensiScreen() {
       setIsTukarLiburWorkDay(!!statusData.today?.isTukarLiburWorkDay);
       setIsTukarLiburLeaveDay(!!statusData.today?.isTukarLiburLeaveDay);
 
-      const derivedStatus = deriveAttendanceStatus(statusData.data[0]);
-      setStatus(derivedStatus.status);
-      setCheckInTime(derivedStatus.checkInTime);
-      setCheckOutTime(derivedStatus.checkOutTime);
-      setAttendanceWarning(derivedStatus.warningMessage);
+      const currentStatus = statusData.data;
+      setStatus(currentStatus.status);
+      setCheckInTime(currentStatus.checkInTime);
+      setCheckOutTime(currentStatus.checkOutTime);
+      setAttendanceWarning(currentStatus.warningMessage);
 
-      if (derivedStatus.status === "checked-in") {
+      if (currentStatus.status === "checked-in") {
         LocationTrackingService.startTracking().catch(err => logger.error('Start tracking error', err));
       } else {
         LocationTrackingService.stopTracking().catch(err => logger.error('Stop tracking error', err));
