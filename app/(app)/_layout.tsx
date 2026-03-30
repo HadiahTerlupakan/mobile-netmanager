@@ -28,7 +28,7 @@ export default function AppLayout() {
   const insets = useSafeAreaInsets();
 
   // This hook ensures Profile Data is background-synced on App Load/Active
-  const { profileData } = useProfileSync();
+  const { profileData } = useProfileSync({ enableBackgroundSync: true });
   const { user } = useAuth();
 
   const [showFaceVerification, setShowFaceVerification] = useState(false);

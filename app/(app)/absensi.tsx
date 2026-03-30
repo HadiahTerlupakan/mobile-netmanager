@@ -275,6 +275,8 @@ GeofenceWarning.displayName = 'GeofenceWarning';
 export default function AbsensiScreen() {
   useFeatureGuard(AppFeature.ABSENSI);
   const { user, token } = useAuth();
+  const attendanceStatusQueryKey = queryKeys.attendance.status(user?.id);
+  const attendanceGeofenceQueryKey = queryKeys.attendance.geofence(user?.id);
   const watermarkRef = useRef<View>(null);
 
   // --- Refs & State ---
@@ -379,7 +381,7 @@ export default function AbsensiScreen() {
     policy: AttendanceGeofencePolicy;
     zones: GeofenceZone[];
   }>({
-    queryKey: queryKeys.attendance.geofence(),
+    queryKey: attendanceGeofenceQueryKey,
     endpoint: "/api/mobile/attendance/geofence",
     select: (data: any) => data?.data,
     enabled: !!token,
@@ -466,14 +468,14 @@ export default function AbsensiScreen() {
   const checkInMutation = useApiMutation({
     endpoint: "/api/mobile/attendance/check-in",
     method: "POST",
-    invalidateKeys: [queryKeys.attendance.status()],
+    invalidateKeys: [attendanceStatusQueryKey],
     showErrorAlert: false
   });
 
   const checkOutMutation = useApiMutation({
     endpoint: "/api/mobile/attendance/check-out",
     method: "POST",
-    invalidateKeys: [queryKeys.attendance.status()],
+    invalidateKeys: [attendanceStatusQueryKey],
     showErrorAlert: false
   });
 
@@ -499,7 +501,7 @@ export default function AbsensiScreen() {
       flexibleTargetHour?: number | null;
     };
   }>({
-    queryKey: queryKeys.attendance.status(),
+    queryKey: attendanceStatusQueryKey,
     endpoint: "/api/mobile/attendance/status",
     enabled: !!token,
   });
@@ -533,6 +535,15 @@ export default function AbsensiScreen() {
       setIsTukarLiburLeaveDay(!!statusData.today?.isTukarLiburLeaveDay);
 
       const currentStatus = statusData.data;
+      if (!currentStatus || typeof currentStatus !== 'object' || !('status' in currentStatus)) {
+        setStatus('idle');
+        setCheckInTime(null);
+        setCheckOutTime(null);
+        setAttendanceWarning(null);
+        LocationTrackingService.stopTracking().catch(err => logger.error('Stop tracking error', err));
+        return;
+      }
+
       setStatus(currentStatus.status);
       setCheckInTime(currentStatus.checkInTime);
       setCheckOutTime(currentStatus.checkOutTime);

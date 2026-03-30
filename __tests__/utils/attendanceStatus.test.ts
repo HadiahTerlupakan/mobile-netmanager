@@ -138,4 +138,21 @@ describe("deriveAttendanceStatus", () => {
       warningMessage: null,
     });
   });
+
+  it("treats a previous-day closed session as idle", () => {
+    const result = deriveAttendanceStatus(
+      {
+        checkIn: "2026-03-08T02:00:00.000Z",
+        checkOut: "2026-03-08T09:30:00.000Z",
+      },
+      new Date("2026-03-09T02:24:00.000Z"),
+    );
+
+    expect(result).toEqual({
+      status: "idle",
+      checkInTime: null,
+      checkOutTime: null,
+      warningMessage: null,
+    });
+  });
 });

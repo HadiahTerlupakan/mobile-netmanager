@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, Rea
 import { io, Socket } from 'socket.io-client';
 import { AppState, AppStateStatus } from 'react-native';
 import { useAuth } from './AuthContext';
+import { getSocketConnectionState, SOCKET_TRANSPORTS } from './socketConnection';
 import { useTenant } from './TenantContext';
 import { queryClient } from '@/lib/queryClient';
 import { logger } from '../utils/logger';
@@ -28,6 +29,12 @@ interface SocketProviderProps {
 export function SocketProvider({ children }: SocketProviderProps) {
     const { token, user } = useAuth();
     const { tenantUrl } = useTenant();
+    const userId = user?.id ?? null;
+    const userRole = user?.role || 'USER';
+    const connectionState = useMemo(
+        () => getSocketConnectionState({ token, tenantUrl, user: userId ? { id: userId, role: userRole } : null }),
+        [tenantUrl, token, userId, userRole]
+    );
     const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [lastError, setLastError] = useState<string | null>(null);
@@ -56,16 +63,12 @@ export function SocketProvider({ children }: SocketProviderProps) {
     }, [stopHeartbeat]);
 
     const connect = useCallback(() => {
+        const { baseUrl, canConnect } = connectionState;
+
         // Only connect if authenticated
-        if (!token || !user?.id || !tenantUrl) {
+        if (!canConnect || !baseUrl || !token || !userId) {
             logger.socket('No token, user, or tenant, skipping connection');
             return null;
-        }
-
-        // Parse base URL - remove trailing slash and /api if present
-        let baseUrl = tenantUrl;
-        if (baseUrl.endsWith('/')) {
-            baseUrl = baseUrl.slice(0, -1);
         }
 
         logger.info('Connecting to socket at:', baseUrl);
@@ -74,8 +77,8 @@ export function SocketProvider({ children }: SocketProviderProps) {
             path: '/api/socket',
             auth: {
                 token,
-                userId: user.id,
-                userRole: user.role || 'USER',
+                userId,
+                userRole,
             },
             // Reconnection settings - Limit retries to prevent endless loops
             reconnection: true,
@@ -85,8 +88,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
             randomizationFactor: 0.5,
             // Timeout settings
             timeout: 10000,
-            // Transport settings - polling first for better compatibility, then upgrade to websocket
-            transports: ['polling', 'websocket'],
+            transports: [...SOCKET_TRANSPORTS],
             autoConnect: true,
             // Extra headers for auth
             extraHeaders: {
@@ -108,7 +110,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
             setLastError(null);
 
             // Join user's personal room for notifications
-            socketInstance.emit('join:room', { room: `user:${user.id}` });
+            socketInstance.emit('join:room', { room: `user:${userId}` });
 
             // Start heartbeat check
             startHeartbeat(socketInstance);
@@ -132,7 +134,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
             setLastError(null);
 
             // Re-join rooms after reconnect
-            socketInstance.emit('join:room', { room: `user:${user.id}` });
+            socketInstance.emit('join:room', { room: `user:${userId}` });
             startHeartbeat(socketInstance);
         });
 
@@ -165,7 +167,7 @@ export function SocketProvider({ children }: SocketProviderProps) {
         };
 
         return socketInstance;
-    }, [token, user, startHeartbeat, stopHeartbeat, tenantUrl]);
+    }, [connectionState, startHeartbeat, stopHeartbeat, token, userId, userRole]);
 
     // Initialize socket connection with cleanup
     useEffect(() => {
@@ -272,9 +274,14 @@ export function useSocket() {
 /**
  * Hook to subscribe to a socket event
  */
-export function useSocketEvent<T>(event: string, handler: (data: T) => void) {
+interface UseSocketEventOptions {
+    enabled?: boolean;
+}
+
+export function useSocketEvent<T>(event: string, handler: (data: T) => void, options: UseSocketEventOptions = {}) {
     const { socket, isConnected } = useSocket();
     const handlerRef = useRef(handler);
+    const enabled = options.enabled ?? true;
 
     // Update ref when handler changes
     useEffect(() => {
@@ -282,7 +289,7 @@ export function useSocketEvent<T>(event: string, handler: (data: T) => void) {
     }, [handler]);
 
     useEffect(() => {
-        if (!socket || !isConnected) return;
+        if (!enabled || !socket || !isConnected) return;
 
         const wrappedHandler = (data: T) => {
             handlerRef.current(data);
@@ -293,7 +300,7 @@ export function useSocketEvent<T>(event: string, handler: (data: T) => void) {
         return () => {
             socket.off(event, wrappedHandler);
         };
-    }, [socket, isConnected, event]);
+    }, [enabled, socket, isConnected, event]);
 }
 
 /**

@@ -134,10 +134,10 @@ export const queryKeys = {
   // Attendance
   attendance: {
     all: ["attendance"] as const,
-    today: () => [...queryKeys.attendance.all, "today"] as const,
-    history: () => [...queryKeys.attendance.all, "history"] as const,
-    status: () => [...queryKeys.attendance.all, "status"] as const,
-    geofence: () => [...queryKeys.attendance.all, "geofence"] as const,
+    today: (userId?: string | null) => [...queryKeys.attendance.all, "today", userId ?? "anonymous"] as const,
+    history: (userId?: string | null) => [...queryKeys.attendance.all, "history", userId ?? "anonymous"] as const,
+    status: (userId?: string | null) => [...queryKeys.attendance.all, "status", userId ?? "anonymous"] as const,
+    geofence: (userId?: string | null) => [...queryKeys.attendance.all, "geofence", userId ?? "anonymous"] as const,
   },
 
   // Notifications

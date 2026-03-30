@@ -53,6 +53,23 @@ Join our community of developers creating universal apps.
 
 Project ini mendukung 3 environment (Local, Staging, Production) yang diatur melalui variabel `EXPO_PUBLIC_APP_VARIANT`.
 
+### Quick Android Commands
+
+Gunakan perintah ini untuk menjalankan development build Android sesuai environment:
+
+- **Development / Local**
+  ```bash
+  npm run android:dev
+  ```
+- **Staging**
+  ```bash
+  npm run android:staging
+  ```
+- **Production**
+  ```bash
+  npm run android:prod
+  ```
+
 ### 1. Menjalankan di Emulator/HP (Development)
 
 Secara default, jika Anda menjalankan `npx expo start`, aplikasi akan menggunakan **Local Dev** (IP komputer Anda).
@@ -131,6 +148,14 @@ To compile and install the native android app (Debug mode):
 
 ```bash
 npx expo run:android
+```
+
+Atau gunakan script variant agar konsisten dengan `EXPO_PUBLIC_APP_VARIANT`:
+
+```bash
+npm run android:dev
+npm run android:staging
+npm run android:prod
 ```
 
 This command will:

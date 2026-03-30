@@ -37,7 +37,11 @@ interface UserProfile {
     requiresFaceVerification?: boolean;
 }
 
-export function useProfileSync() {
+interface UseProfileSyncOptions {
+    enableBackgroundSync?: boolean;
+}
+
+export function useProfileSync({ enableBackgroundSync = false }: UseProfileSyncOptions = {}) {
     const { user, token, updateUser } = useAuth();
 
     // Use offline query to persist user profile and features
@@ -52,58 +56,66 @@ export function useProfileSync() {
     });
 
     const profileData = query.data;
+    const { refetch } = query;
+    const refetchProfile = useCallback(() => refetch(), [refetch]);
 
     // Listen for real-time profile refresh pushed by admin (e.g. requiresFaceVerification toggled)
     const handleProfileRefresh = useCallback(() => {
         logger.info('[useProfileSync] Received profile:refresh via Socket.IO — refetching...');
-        query.refetch();
-    }, [query]);
+        refetchProfile();
+    }, [refetchProfile]);
 
-    useSocketEvent<{ timestamp: string }>(SOCKET_EVENTS.PROFILE_REFRESH, handleProfileRefresh);
+    useSocketEvent<{ timestamp: string }>(SOCKET_EVENTS.PROFILE_REFRESH, handleProfileRefresh, {
+        enabled: enableBackgroundSync,
+    });
 
     // Refetch on app focus so it gets instant trigger
     useEffect(() => {
+        if (!enableBackgroundSync) {
+            return;
+        }
+
         const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
             if (nextAppState === 'active' && token) {
-                query.refetch();
+                refetchProfile();
             }
         });
 
         return () => {
             subscription.remove();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [token, query.refetch]);
+    }, [enableBackgroundSync, refetchProfile, token]);
 
     useEffect(() => {
-        if (profileData && user) {
-            // Safe access properties with defaults
-            const currentFeatures = JSON.stringify([...(user.features || [])].sort());
-            const newFeatures = JSON.stringify([...(profileData.features || [])].sort());
-            const safeName = profileData.name || user.name || '';
-
-            const hasNameChanged = user.name !== safeName;
-            const hasFeaturesChanged = currentFeatures !== newFeatures;
-            const hasImageChanged = user.image !== profileData.image;
-            const hasLeaveStatusChanged = user.isOnLeave !== profileData.isOnLeave;
-            const hasVerificationChanged = user.requiresFaceVerification !== profileData.requiresFaceVerification;
-
-            if (hasNameChanged || hasFeaturesChanged || hasImageChanged || hasLeaveStatusChanged || hasVerificationChanged) {
-                logger.info('[useProfileSync] Syncing fresh profile data to AuthContext');
-
-                const updatedUser: User = {
-                    ...user,
-                    name: safeName,
-                    features: profileData.features || user.features,
-                    image: profileData.image,
-                    isOnLeave: profileData.isOnLeave,
-                    requiresFaceVerification: profileData.requiresFaceVerification
-                };
-
-                updateUser(updatedUser);
-            }
+        if (!enableBackgroundSync || !profileData || !user) {
+            return;
         }
-    }, [profileData, user, updateUser]);
+
+        const currentFeatures = JSON.stringify([...(user.features || [])].sort());
+        const newFeatures = JSON.stringify([...(profileData.features || [])].sort());
+        const safeName = profileData.name || user.name || '';
+
+        const hasNameChanged = user.name !== safeName;
+        const hasFeaturesChanged = currentFeatures !== newFeatures;
+        const hasImageChanged = user.image !== profileData.image;
+        const hasLeaveStatusChanged = user.isOnLeave !== profileData.isOnLeave;
+        const hasVerificationChanged = user.requiresFaceVerification !== profileData.requiresFaceVerification;
+
+        if (hasNameChanged || hasFeaturesChanged || hasImageChanged || hasLeaveStatusChanged || hasVerificationChanged) {
+            logger.info('[useProfileSync] Syncing fresh profile data to AuthContext');
+
+            const updatedUser: User = {
+                ...user,
+                name: safeName,
+                features: profileData.features || user.features,
+                image: profileData.image,
+                isOnLeave: profileData.isOnLeave,
+                requiresFaceVerification: profileData.requiresFaceVerification
+            };
+
+            updateUser(updatedUser);
+        }
+    }, [enableBackgroundSync, profileData, user, updateUser]);
 
     const hasFeature = (feature: string) => {
         if (!user) return false;
@@ -115,7 +127,7 @@ export function useProfileSync() {
     return {
         profileData,
         isPending: query.isPending,
-        refetch: query.refetch,
+        refetch: refetchProfile,
         hasFeature
     };
 }
