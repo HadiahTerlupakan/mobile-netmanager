@@ -21,6 +21,7 @@ import {
 } from "@/utils/attendanceGeofencePolicy";
 import { generateSignature } from "@/utils/crypto";
 import { formatDate } from "@/utils/date";
+import { getAttendanceCaptureState } from "@/utils/attendanceCaptureState";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import {
@@ -299,6 +300,11 @@ export default function AbsensiScreen() {
   const [isOffDay, setIsOffDay] = useState(false);
   const [isTukarLiburWorkDay, setIsTukarLiburWorkDay] = useState(false);
   const [isTukarLiburLeaveDay, setIsTukarLiburLeaveDay] = useState(false);
+  const captureState = getAttendanceCaptureState({
+    status,
+    isHoliday: todayHoliday.isHoliday,
+    isOffDay,
+  });
 
   // --- Camera & Face Detection State ---
   const cameraRef = useRef<any>(null);
@@ -906,16 +912,16 @@ export default function AbsensiScreen() {
             ) : (
               <TouchableOpacity
                 onPress={() => setShowCamera(true)}
-                disabled={status === "checked-out" || todayHoliday.isHoliday || isOffDay}
+                disabled={captureState.disabled}
                 style={tw`${status === "checked-out" ? "bg-gray-100 border-gray-300" :
-                  todayHoliday.isHoliday ? "bg-red-50 border-red-200" :
+                  !captureState.hasActiveSession && todayHoliday.isHoliday ? "bg-red-50 border-red-200" :
                     isTukarLiburLeaveDay ? "bg-purple-50 border-purple-200" :
-                      isOffDay ? "bg-amber-50 border-amber-200" :
+                      !captureState.hasActiveSession && isOffDay ? "bg-amber-50 border-amber-200" :
                         isTukarLiburWorkDay ? "bg-green-50 border-green-200" :
                           "bg-blue-50 border-blue-200"
                   } border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
               >
-                {todayHoliday.isHoliday ? (
+                {!captureState.hasActiveSession && todayHoliday.isHoliday ? (
                   <View style={tw`items-center`}><CalendarOff size={32} color="#dc2626" /><Text style={tw`text-red-600 font-bold mt-2`}>Libur Nasional</Text></View>
                 ) : status === "checked-out" ? (
                   <View style={tw`items-center`}><Text style={tw`text-gray-500 font-bold text-lg`}>🎉 Absensi Selesai</Text><Text style={tw`text-gray-400 text-sm mt-1`}>Terima kasih untuk hari ini</Text></View>
