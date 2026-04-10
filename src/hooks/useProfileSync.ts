@@ -1,6 +1,5 @@
 import { useAuth, User } from '@/context/AuthContext';
 import { useSocketEvent } from '@/context/SocketContext';
-import { SOCKET_EVENTS } from '@/context/socketTypes';
 import { useOfflineQuery } from '@/hooks/queries';
 import { queryKeys } from '@/lib/queryClient';
 import { logger } from '@/utils/logger';
@@ -65,7 +64,7 @@ export function useProfileSync({ enableBackgroundSync = false }: UseProfileSyncO
         refetchProfile();
     }, [refetchProfile]);
 
-    useSocketEvent<{ timestamp: string }>(SOCKET_EVENTS.PROFILE_REFRESH, handleProfileRefresh, {
+    useSocketEvent<{ timestamp: string }>('profile.refresh', handleProfileRefresh, {
         enabled: enableBackgroundSync,
     });
 

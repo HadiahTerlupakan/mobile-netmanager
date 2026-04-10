@@ -52,7 +52,7 @@ export default function BarangIndexScreen() {
     });
 
     // Real-time updates via WebSocket
-    useSocketEvent<{ type: 'masuk' | 'keluar' }>('inventory:update', useCallback((data) => {
+    useSocketEvent<{ type: 'masuk' | 'keluar' }>('inventory.update', useCallback((data) => {
         logger.socket('Real-time inventory update received:', data);
         // Update the shared dashboard.stats() cache
         queryClient.setQueryData<any>(queryKeys.dashboard.stats(), (prev: any) => {

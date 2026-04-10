@@ -1,6 +1,7 @@
+import { AuthorizationStatus, getMessaging, getToken, isDeviceRegisteredForRemoteMessages, onTokenRefresh, registerDeviceForRemoteMessages, requestPermission } from '@react-native-firebase/messaging';
+
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
-// import messaging from '@react-native-firebase/messaging';
 import { Platform } from 'react-native';
 
 class FirebaseMessagingService {
@@ -8,21 +9,14 @@ class FirebaseMessagingService {
      * Meminta izin notifikasi dari sistem pengguna
      */
     async requestUserPermission(): Promise<boolean> {
-        if (Platform.OS === 'ios') {
-            // const authStatus = await messaging().requestPermission();
-            // const enabled =
-            //     authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-            //     authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-            // return enabled;
-            return false;
-        } else {
-            // const authStatus = await messaging().requestPermission();
-            // const enabled =
-            //     authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-            //     authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-            // return enabled;
-            return false;
+        if (Platform.OS !== 'ios') {
+            return true;
         }
+
+        const messaging = getMessaging();
+        const authStatus = await requestPermission(messaging);
+
+        return authStatus === AuthorizationStatus.AUTHORIZED || authStatus === AuthorizationStatus.PROVISIONAL;
     }
 
     /**
@@ -30,19 +24,21 @@ class FirebaseMessagingService {
      */
     async syncFCMTokenToBackend(action: 'add' | 'remove' = 'add'): Promise<string | null> {
         try {
-            const hasPermission = await this.requestUserPermission();
-            if (!hasPermission && action === 'add') {
-                logger.warn('[FCM] Push notification permission denied');
-                return null;
+            if (action === 'add') {
+                const hasPermission = await this.requestUserPermission();
+                if (!hasPermission) {
+                    logger.warn('[FCM] Push notification permission denied');
+                    return null;
+                }
             }
 
-            // Daftarkan devais jika belum (untuk iOS APNs)
-            // if (!messaging().isDeviceRegisteredForRemoteMessages) {
-            //     await messaging().registerDeviceForRemoteMessages();
-            // }
+            const messaging = getMessaging();
 
-            // const token = await messaging().getToken();
-            const token = null;
+            if (!isDeviceRegisteredForRemoteMessages(messaging)) {
+                await registerDeviceForRemoteMessages(messaging);
+            }
+
+            const token = await getToken(messaging);
             if (!token) {
                 logger.warn('[FCM] No token received');
                 return null;
@@ -50,7 +46,6 @@ class FirebaseMessagingService {
 
             logger.info(`[FCM] Current token: ${token}, action: ${action}`);
 
-            // Kirim ke backend Mitra API
             await api.post('/api/mobile/mitra/fcm-token', {
                 fcmToken: token,
                 action
@@ -68,18 +63,19 @@ class FirebaseMessagingService {
      * Menambahkan listener event perubahan token
      */
     onTokenRefresh() {
-        // return messaging().onTokenRefresh(async (newToken) => {
-        //     logger.info('[FCM] Token refreshed:', newToken);
-        //     try {
-        //         await api.post('/api/mobile/mitra/fcm-token', {
-        //             fcmToken: newToken,
-        //             action: 'add'
-        //         });
-        //     } catch (error) {
-        //         logger.error('[FCM] Error syncing refreshed token:', error);
-        //     }
-        // });
-        return () => { };
+        const messaging = getMessaging();
+
+        return onTokenRefresh(messaging, async (newToken) => {
+            logger.info('[FCM] Token refreshed:', newToken);
+            try {
+                await api.post('/api/mobile/mitra/fcm-token', {
+                    fcmToken: newToken,
+                    action: 'add'
+                });
+            } catch (error) {
+                logger.error('[FCM] Error syncing refreshed token:', error);
+            }
+        });
     }
 }
 

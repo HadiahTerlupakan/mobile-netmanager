@@ -1,7 +1,21 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
-// Get the host IP dynamically for development
+// Get the backend URL for development
 const getDevApiUrl = () => {
+  const explicitApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+  if (explicitApiUrl) {
+    return explicitApiUrl;
+  }
+
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3000';
+  }
+
+  if (Platform.OS === 'ios') {
+    return 'http://localhost:3000';
+  }
+
   // Check if we have a hostUri (available in Expo Go/Dev Client)
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
@@ -9,9 +23,8 @@ const getDevApiUrl = () => {
     return `http://${ip}:3000`;
   }
 
-  // Fallback for Android Emulator (10.0.2.2) or iOS Simulator (localhost)
-  // or use the hardcoded IP if needed
-  return 'http://192.168.18.41:3000';
+  // Fallback for local development when no explicit API URL is configured
+  return 'http://localhost:3000';
 };
 
 const getApiUrl = () => {

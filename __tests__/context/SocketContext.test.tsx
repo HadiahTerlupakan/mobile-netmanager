@@ -1,60 +1,35 @@
-import React from 'react';
-import { act, render } from '@testing-library/react-native';
-
-import { SocketProvider } from '@/context/SocketContext';
-
-const mockIo = jest.fn();
-const mockSocket = {
-  connected: false,
-  on: jest.fn(),
-  off: jest.fn(),
-  emit: jest.fn(),
-  connect: jest.fn(),
-  disconnect: jest.fn(),
-  removeAllListeners: jest.fn(),
-};
-
-const authState = {
-  token: 'token-123',
-  user: {
-    id: 'user-1',
-    role: 'USER',
-    name: 'Initial Name',
-    features: ['dashboard'],
-  },
-};
-
-jest.mock('socket.io-client', () => ({
-  io: (...args: unknown[]) => mockIo(...args),
-}));
+import { describe, expect, it, jest } from '@jest/globals';
 
 jest.mock('@/context/AuthContext', () => ({
-  useAuth: () => ({
-    token: authState.token,
-    user: authState.user,
-    isLoading: false,
-    signIn: jest.fn(),
-    signOut: jest.fn(),
-    updateUser: jest.fn(),
-  }),
+  useAuth: () => ({ token: null, user: null, isLoading: false }),
 }));
-
 jest.mock('@/context/TenantContext', () => ({
-  useTenant: () => ({
-    tenantUrl: 'http://192.168.1.2:3000',
-    isLoading: false,
-    error: null,
-    setTenant: jest.fn(),
-    clearTenant: jest.fn(),
-  }),
+  useTenant: () => ({ tenantUrl: null, isLoading: false }),
 }));
-
+jest.mock('@/context/socketConnection', () => ({
+  getSocketConnectionState: () => ({ canConnect: false }),
+}));
 jest.mock('@/lib/queryClient', () => ({
-  queryClient: {
-    invalidateQueries: jest.fn(),
+  queryClient: { invalidateQueries: jest.fn() },
+}));
+jest.mock('@/services/PresenceService', () => ({
+  presenceService: { startPresence: jest.fn() },
+}));
+jest.mock('@/services/RealtimeService', () => ({
+  realtimeService: {
+    connect: jest.fn(),
+    disconnect: jest.fn(),
+    subscribeToUserStream: jest.fn(),
+    subscribeToScope: jest.fn(),
+    emitToRoom: jest.fn(),
   },
 }));
-
+jest.mock('@/utils/EventManager', () => ({
+  eventManager: {
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+  },
+}));
 jest.mock('@/utils/logger', () => ({
   logger: {
     info: jest.fn(),
@@ -64,65 +39,46 @@ jest.mock('@/utils/logger', () => ({
   },
 }));
 
-jest.mock('@/utils/EventManager', () => ({
-  eventManager: {
-    on: jest.fn(),
-    off: jest.fn(),
-    emit: jest.fn(),
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-  },
-}));
+import {
+  getEventSubscriptionNames,
+  subscribeToEventNames,
+} from '@/context/SocketContext';
+import { SOCKET_EVENTS } from '@/context/socketTypes';
 
-describe('SocketProvider', () => {
-  beforeEach(() => {
-    jest.useFakeTimers();
-    jest.clearAllMocks();
-    authState.user = {
-      id: 'user-1',
-      role: 'USER',
-      name: 'Initial Name',
-      features: ['dashboard'],
-    };
-    mockIo.mockReturnValue(mockSocket);
+describe('SocketContext event aliases', () => {
+  it('subscribes canonical socket events together with their legacy aliases', () => {
+    expect(getEventSubscriptionNames(SOCKET_EVENTS.WORKORDER_UPDATE)).toEqual([
+      'workorder.update',
+      'workorder:update',
+    ]);
+
+    expect(getEventSubscriptionNames('ticket.reply')).toEqual([
+      'ticket.reply',
+      'ticket:reply',
+    ]);
+
+    expect(getEventSubscriptionNames('profile.refresh')).toEqual([
+      'profile.refresh',
+      'profile:refresh',
+    ]);
   });
 
-  afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
-  });
-
-  it('does not recreate the socket when non-identity user fields change', () => {
-    const { rerender, unmount } = render(
-      <SocketProvider>
-        <></>
-      </SocketProvider>
-    );
-
-    act(() => {
-      jest.advanceTimersByTime(500);
+  it('unsubscribes the exact same canonical and legacy event names', () => {
+    const subscribeToEvent = jest.fn().mockImplementation((_event: string, _handler: () => void) => {
+      return jest.fn();
     });
 
-    expect(mockIo).toHaveBeenCalledTimes(1);
+    const cleanup = subscribeToEventNames(subscribeToEvent, SOCKET_EVENTS.NOTIFICATION_NEW, jest.fn());
 
-    authState.user = {
-      ...authState.user,
-      name: 'Updated Name',
-      features: ['dashboard', 'profile'],
-    };
+    expect(subscribeToEvent).toHaveBeenCalledTimes(2);
+    expect(subscribeToEvent).toHaveBeenCalledWith('notification.new', expect.any(Function));
+    expect(subscribeToEvent).toHaveBeenCalledWith('notification:new', expect.any(Function));
 
-    rerender(
-      <SocketProvider>
-        <></>
-      </SocketProvider>
-    );
+    cleanup();
 
-    act(() => {
-      jest.advanceTimersByTime(500);
-    });
-
-    expect(mockIo).toHaveBeenCalledTimes(1);
-
-    unmount();
+    const unsubscribeFns = subscribeToEvent.mock.results.map((result) => result.value as jest.Mock);
+    expect(unsubscribeFns).toHaveLength(2);
+    expect(unsubscribeFns[0]).toHaveBeenCalledTimes(1);
+    expect(unsubscribeFns[1]).toHaveBeenCalledTimes(1);
   });
 });

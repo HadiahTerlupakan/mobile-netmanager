@@ -4,7 +4,6 @@ import { AppState } from 'react-native';
 import type { User } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
 import { useSocketEvent } from '@/context/SocketContext';
-import { SOCKET_EVENTS } from '@/context/socketTypes';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { useOfflineQuery } from '@/hooks/queries';
 
@@ -88,7 +87,7 @@ describe('useProfileSync', () => {
     expect(result.current.profileData).toEqual(profileData);
     expect(result.current.hasFeature('profile')).toBe(true);
     expect(mockUseSocketEvent).toHaveBeenCalledWith(
-      SOCKET_EVENTS.PROFILE_REFRESH,
+      'profile.refresh',
       expect.any(Function),
       { enabled: false }
     );
@@ -100,7 +99,7 @@ describe('useProfileSync', () => {
     renderHook(() => useProfileSync({ enableBackgroundSync: true }));
 
     expect(mockUseSocketEvent).toHaveBeenCalledWith(
-      SOCKET_EVENTS.PROFILE_REFRESH,
+      'profile.refresh',
       expect.any(Function),
       { enabled: true }
     );
@@ -130,13 +129,13 @@ describe('useProfileSync', () => {
     expect(mockUseSocketEvent).toHaveBeenCalledTimes(2);
     expect(mockUseSocketEvent).toHaveBeenNthCalledWith(
       1,
-      SOCKET_EVENTS.PROFILE_REFRESH,
+      'profile.refresh',
       expect.any(Function),
       { enabled: false }
     );
     expect(mockUseSocketEvent).toHaveBeenNthCalledWith(
       2,
-      SOCKET_EVENTS.PROFILE_REFRESH,
+      'profile.refresh',
       expect.any(Function),
       { enabled: false }
     );

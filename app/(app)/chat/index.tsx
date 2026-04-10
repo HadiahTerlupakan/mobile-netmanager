@@ -6,7 +6,7 @@ import { ChatConversation, chatService } from '@/services/ChatService';
 import { formatTimeAgo } from '@/utils/date';
 import { useRouter } from 'expo-router';
 import { Globe, MessageCircle, Plus, Users } from 'lucide-react-native';
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -103,15 +103,6 @@ export default function ChatListScreen() {
     const refreshing = refreshingConversations || refreshingGlobal;
     const hasData = !!conversationsData && !!globalChatData;
 
-    useEffect(() => {
-        if (user?.id) {
-            chatService.connectSocket(user.id);
-        }
-
-        return () => {
-            chatService.disconnect();
-        };
-    }, [user?.id]);
 
     const onRefresh = useCallback(() => {
         refetchConversations();

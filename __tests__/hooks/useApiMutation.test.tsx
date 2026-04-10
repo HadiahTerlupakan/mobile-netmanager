@@ -145,4 +145,38 @@ describe('useApiMutation', () => {
     unmount();
     queryClient.clear();
   });
+
+  it('throws offline error instead of queueing attendance mutations', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false, gcTime: Infinity },
+      },
+    });
+
+    const { useApiMutation } = require('@/hooks/queries/useApiMutation');
+    const attendanceIdempotency = require('@/utils/attendanceIdempotency');
+    attendanceIdempotency.isAttendanceEndpoint.mockReturnValue(true);
+    mockIsOnline.mockResolvedValue(false);
+
+    const { result, unmount } = renderHook(
+      () =>
+        useApiMutation({
+          endpoint: '/api/mobile/attendance/check-in',
+          method: 'POST',
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    await expect(
+      act(async () => {
+        await result.current.mutateAsync({ location: 'HQ' });
+      })
+    ).rejects.toThrow('Offline');
+
+    expect(mockAddToQueue).not.toHaveBeenCalled();
+
+    unmount();
+    queryClient.clear();
+  });
 });

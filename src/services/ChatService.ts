@@ -1,10 +1,6 @@
 import api from '@/services/api'; // Use centralized API
-import { TenantService } from '@/services/TenantService';
 import { uploadService } from '@/services/UploadService';
 import { logger } from '@/utils/logger';
-import { CHAT_JOIN_ROOM_EVENT, CHAT_LEAVE_ROOM_EVENT, getChatRoomName } from '@/services/chatSocketEvents';
-import * as SecureStore from 'expo-secure-store';
-import { io, Socket } from 'socket.io-client';
 
 // Types
 export interface ChatUser {
@@ -43,124 +39,6 @@ export interface ChatConversation {
 
 // API Service
 class ChatService {
-    private socket: Socket | null = null;
-    private token: string | null = null;
-
-    // Helper for Socket.io only (REST APIs use interceptor)
-    private async getToken(): Promise<string | null> {
-        if (!this.token) {
-            this.token = await SecureStore.getItemAsync('session_token');
-        }
-        return this.token;
-    }
-
-    // Connect to Socket.IO for real-time updates
-    async connectSocket(userId: string): Promise<Socket> {
-        if (this.socket?.connected) {
-            return this.socket;
-        }
-
-        const token = await this.getToken();
-
-        this.socket = io(TenantService.getTenantUrl(), {
-            path: '/api/socket',
-            auth: {
-                userId,
-                token
-            },
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000
-        });
-
-        this.socket.on('connect', () => {
-            logger.info('[Chat] Socket connected');
-        });
-
-        this.socket.on('disconnect', (reason) => {
-            logger.info('[Chat] Socket disconnected:', reason);
-        });
-
-        this.socket.on('connect_error', (error) => {
-            logger.error('[Chat] Socket connection error:', error);
-        });
-
-        return this.socket;
-    }
-
-    // Join a conversation room for real-time updates
-    joinConversation(conversationId: string) {
-        if (this.socket) {
-            const room = getChatRoomName(conversationId)
-            this.socket.emit(CHAT_JOIN_ROOM_EVENT, room);
-            logger.info('[Chat] Joined room:', room);
-        }
-    }
-
-    // Leave a conversation room
-    leaveConversation(conversationId: string) {
-        if (this.socket) {
-            this.socket.emit(CHAT_LEAVE_ROOM_EVENT, getChatRoomName(conversationId));
-        }
-    }
-
-    // Listen for new messages (removes existing listener first to prevent stacking)
-    onNewMessage(callback: (message: ChatMessage) => void) {
-        if (this.socket) {
-            // Remove any existing listener first to prevent stacking
-            this.socket.off('chat:message');
-            this.socket.on('chat:message', callback);
-        }
-    }
-
-    // Listen for typing events
-    onTyping(callback: (data: { userId: string; senderName: string; room: string }) => void) {
-        if (this.socket) {
-            this.socket.off('chat:typing');
-            this.socket.on('chat:typing', callback);
-        }
-    }
-
-    // Listen for stop typing events
-    onStopTyping(callback: (data: { userId: string; room: string }) => void) {
-        if (this.socket) {
-            this.socket.off('chat:stop_typing');
-            this.socket.on('chat:stop_typing', callback);
-        }
-    }
-
-    // Emit typing status
-    sendTyping(conversationId: string, senderName?: string) {
-        if (this.socket) {
-            this.socket.emit('chat:typing', { room: `chat:${conversationId}`, senderName });
-        }
-    }
-
-    // Emit stop typing status
-    sendStopTyping(conversationId: string) {
-        if (this.socket) {
-            this.socket.emit('chat:stop_typing', { room: `chat:${conversationId}` });
-        }
-    }
-
-    // Remove message listener
-    offNewMessage() {
-        if (this.socket) {
-            this.socket.off('chat:message');
-            this.socket.off('chat:typing');
-            this.socket.off('chat:stop_typing');
-        }
-    }
-
-    // Disconnect socket
-    disconnect() {
-        if (this.socket) {
-            this.socket.disconnect();
-            this.socket = null;
-        }
-    }
-
     // Get all conversations
     async getConversations(): Promise<ChatConversation[]> {
         try {

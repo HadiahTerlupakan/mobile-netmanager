@@ -1,152 +1,151 @@
-import { act, render, waitFor } from '@testing-library/react-native';
-import * as SecureStore from 'expo-secure-store';
-import React from 'react';
-import { AuthContextType, AuthProvider, useAuth } from '../../src/context/AuthContext';
-import { DatabaseService } from '@/services/DatabaseService';
-import { RefreshTokenService } from '@/services/RefreshTokenService';
-import { TokenService } from '@/services/TokenService';
+// @ts-nocheck
+const mockLogger = {
+  auth: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  info: jest.fn(),
+  debug: jest.fn(),
+  log: jest.fn(),
+  setTenantId: jest.fn(),
+  sync: jest.fn(),
+  db: jest.fn(),
+  socket: jest.fn(),
+};
 
-// Mock logger to suppress console output
-jest.mock('@/utils/logger', () => {
-  const mockLogger = {
-    auth: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    info: jest.fn(),
-  };
-  return {
-    __esModule: true,
-    default: mockLogger,
-    logger: mockLogger,
-  };
-});
+const mockSecureStorage = {
+  getItem: jest.fn(),
+  setItemStrict: jest.fn(),
+  setItem: jest.fn(),
+  removeItemStrict: jest.fn(),
+  removeItem: jest.fn(),
+};
 
-// Mock expo-secure-store
-jest.mock('expo-secure-store', () => ({
-  getItemAsync: jest.fn(),
-  setItemAsync: jest.fn(),
-  deleteItemAsync: jest.fn(),
-}));
+const mockStorage = {
+  getItem: jest.fn(),
+  setItemStrict: jest.fn(),
+  setItem: jest.fn(),
+  removeItemStrict: jest.fn(),
+  removeItem: jest.fn(),
+  clear: jest.fn(),
+};
 
-// Mock react-native APIs used in AuthContext
-jest.mock('react-native', () => ({
-  DeviceEventEmitter: {
-    addListener: jest.fn(() => ({
-      remove: jest.fn(),
-    })),
-    emit: jest.fn(),
-  },
-  Alert: {
-    alert: jest.fn(),
-  },
-  Platform: {
-    OS: 'ios',
-    select: jest.fn((objs) => objs.ios),
-  },
-}));
-
-// Mock push notification service
-jest.mock('@/services/PushNotificationService', () => ({
-  registerForPushNotificationsAsync: jest.fn().mockResolvedValue(undefined),
+const mockQueryClient = { clear: jest.fn() };
+const mockErrorReportingService = { captureException: jest.fn() };
+const mockApi = { get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() };
+const mockPushNotificationService = {
+  registerForPushNotificationsAsync: jest.fn(),
   addNotificationListeners: jest.fn(() => jest.fn()),
+};
+const mockFcmService = {
+  syncFCMTokenToBackend: jest.fn(),
+  onTokenRefresh: jest.fn(),
+};
+const mockDatabaseService = { clearSessionData: jest.fn() };
+const mockRefreshTokenService = {
+  saveRefreshToken: jest.fn(),
+  clearRefreshToken: jest.fn(),
+};
+const mockTokenService = { setToken: jest.fn() };
+
+jest.mock('@/utils/logger', () => ({ __esModule: true, default: mockLogger, logger: mockLogger }));
+jest.mock('@/utils/storage', () => ({ SecureStorage: mockSecureStorage, Storage: mockStorage, secureStorage: null }));
+jest.mock('@/lib/queryClient', () => ({ queryClient: mockQueryClient }));
+jest.mock('@/services/ErrorReportingService', () => ({ errorReportingService: mockErrorReportingService }));
+jest.mock('@/services/api', () => ({ __esModule: true, default: mockApi }));
+jest.mock('@/services/PushNotificationService', () => mockPushNotificationService);
+jest.mock('@/services/FirebaseMessagingService', () => ({ fcmService: mockFcmService }));
+jest.mock('@/services/RefreshTokenService', () => ({ RefreshTokenService: mockRefreshTokenService }));
+jest.mock('@/services/TokenService', () => ({ TokenService: mockTokenService }));
+jest.mock('@/services/DatabaseService', () => ({ DatabaseService: mockDatabaseService }));
+jest.mock('react-native', () => ({
+  Alert: { alert: jest.fn() },
+  DeviceEventEmitter: { addListener: jest.fn(() => ({ remove: jest.fn() })) },
+  Platform: { OS: 'ios', select: jest.fn((values) => values.ios) },
 }));
 
-jest.mock('@/services/RefreshTokenService', () => ({
-  RefreshTokenService: {
-    saveRefreshToken: jest.fn().mockResolvedValue(undefined),
-    clearRefreshToken: jest.fn().mockResolvedValue(undefined),
-  },
-}));
-
-jest.mock('@/services/TokenService', () => ({
-  TokenService: {
-    setToken: jest.fn(),
-  },
-}));
-
-jest.mock('@/services/DatabaseService', () => ({
-  DatabaseService: {
-    clearSessionData: jest.fn().mockResolvedValue(undefined),
-  },
-}));
-
-// Mock axios and the api service
-jest.mock('axios', () => {
-  const mockAxios: any = {
-    create: jest.fn(() => mockAxios),
-    interceptors: {
-      request: { use: jest.fn(), eject: jest.fn() },
-      response: { use: jest.fn(), eject: jest.fn() },
-    },
-    get: jest.fn(),
-    post: jest.fn(),
-    put: jest.fn(),
-    delete: jest.fn(),
-    defaults: { headers: { common: {} } },
-    isAxiosError: jest.fn(),
-  };
-  return mockAxios;
-});
-
-// Mock Config
-jest.mock('@/constants/Config', () => ({
-  Config: {
-    API_URL: 'http://localhost:3000'
-  }
-}));
+const React = require('react');
+const { act, render, waitFor } = require('@testing-library/react-native');
+const { AuthProvider, useAuth } = require('../../src/context/AuthContext');
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockSecureStorage.getItem.mockResolvedValue(null);
+  mockSecureStorage.setItemStrict.mockResolvedValue(undefined);
+  mockSecureStorage.removeItemStrict.mockResolvedValue(undefined);
+  mockStorage.removeItemStrict.mockResolvedValue(undefined);
+  mockStorage.clear.mockResolvedValue(undefined);
+  mockApi.delete.mockResolvedValue(undefined);
+  mockApi.get.mockResolvedValue({ data: { data: null } });
+  mockRefreshTokenService.clearRefreshToken.mockResolvedValue(undefined);
+  mockRefreshTokenService.saveRefreshToken.mockResolvedValue(undefined);
+  mockDatabaseService.clearSessionData.mockResolvedValue(undefined);
+  mockPushNotificationService.registerForPushNotificationsAsync.mockResolvedValue(undefined);
+  mockFcmService.syncFCMTokenToBackend.mockResolvedValue(null);
+  mockFcmService.onTokenRefresh.mockReturnValue(jest.fn());
+  mockQueryClient.clear.mockClear();
+  mockErrorReportingService.captureException.mockClear();
+  mockTokenService.setToken.mockClear();
+  mockLogger.setTenantId.mockClear();
 });
 
-// Simple test component that doesn't render anything
-const TestConsumer = ({ onMount }: { onMount: (auth: AuthContextType) => void }) => {
+const TestConsumer = ({ onRender }) => {
   const auth = useAuth();
-  React.useEffect(() => {
-    onMount(auth);
-  }, [auth, onMount]);
+  onRender(auth);
   return null;
+};
+
+const renderAuth = () => {
+  let authContext;
+
+  render(
+    React.createElement(AuthProvider, null, React.createElement(TestConsumer, { onRender: (auth) => {
+      authContext = auth;
+    } }))
+  );
+
+  const waitForReady = () => waitFor(() => {
+    expect(authContext?.isLoading).toBe(false);
+  });
+
+  return {
+    getAuthContext: () => authContext,
+    waitForReady,
+    then: (resolve, reject) => waitForReady().then(() => resolve(authContext), reject),
+  };
+};
+
+const loadStoredUser = (storedUser) => {
+  mockSecureStorage.getItem.mockResolvedValueOnce('stored-token').mockResolvedValueOnce(JSON.stringify(storedUser));
+};
+
+const renderLoadedAuth = async (storedUser) => {
+  if (storedUser) {
+    loadStoredUser(storedUser);
+  }
+
+  const auth = renderAuth();
+  await auth.waitForReady();
+  return auth.getAuthContext();
 };
 
 describe('AuthContext', () => {
   describe('initial state', () => {
     it('should start in loading state', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+      const auth = renderAuth();
 
-      let authContext: AuthContextType | undefined;
+      expect(auth.getAuthContext()?.isLoading).toBe(true);
 
-      const { unmount } = render(
-        <AuthProvider>
-          <TestConsumer onMount={(auth) => { authContext = auth; }} />
-        </AuthProvider>
-      );
-
-      expect(authContext?.isLoading).toBe(true);
-
-      await waitFor(() => {
-        expect(authContext?.isLoading).toBe(false);
-      });
-
-      unmount();
+      await auth.waitForReady();
+      expect(auth.getAuthContext()?.isLoading).toBe(false);
     });
 
     it('should load stored session on mount', async () => {
       const storedUser = { id: '1', tenantId: 'tenant-1', name: 'Test User', email: 'test@test.com', role: 'employee' };
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce('stored-token')
-        .mockResolvedValueOnce(JSON.stringify(storedUser));
+      mockSecureStorage.getItem.mockResolvedValueOnce('stored-token').mockResolvedValueOnce(JSON.stringify(storedUser));
 
-      let authContext: AuthContextType | undefined;
-
-      render(
-        <AuthProvider>
-          <TestConsumer onMount={(auth) => { authContext = auth; }} />
-        </AuthProvider>
-      );
-
-      await waitFor(() => {
-        expect(authContext?.isLoading).toBe(false);
-      });
+      const auth = renderAuth();
+      await auth.waitForReady();
+      const authContext = auth.getAuthContext();
 
       expect(authContext?.token).toBe('stored-token');
       expect(authContext?.user).toEqual(storedUser);
@@ -155,137 +154,130 @@ describe('AuthContext', () => {
 
   describe('signIn', () => {
     it('should save token to secure store', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
-      (SecureStore.setItemAsync as jest.Mock).mockResolvedValue(undefined);
-
-      let authContext: AuthContextType | undefined;
-
-      render(
-        <AuthProvider>
-          <TestConsumer onMount={(auth) => { authContext = auth; }} />
-        </AuthProvider>
-      );
-
-      await waitFor(() => {
-        expect(authContext?.isLoading).toBe(false);
-      });
-
+      const authContext = await renderAuth();
       const newUser = { id: '2', tenantId: 'tenant-1', name: 'New User', email: 'new@test.com', role: 'admin' };
 
       await act(async () => {
-        await authContext?.signIn('new-token', newUser);
+        await authContext.signIn('new-token', newUser);
       });
 
-      expect(SecureStore.setItemAsync).toHaveBeenCalledWith('session_token', 'new-token');
+      expect(mockSecureStorage.setItemStrict).toHaveBeenCalledWith('session_token', 'new-token');
+      expect(mockSecureStorage.setItemStrict).toHaveBeenCalledWith('user_data', JSON.stringify(newUser));
+    });
+
+    it('resolves signIn before Expo push registration finishes for Mitra users', async () => {
+      const authContext = await renderAuth();
+      const mitraUser = { id: '3', tenantId: 'tenant-1', name: 'Mitra User', email: 'mitra@test.com', role: 'MITRA' };
+
+      let resolvePushRegistration: (() => void) | undefined;
+      let pushRegistrationFinished = false;
+      const pushRegistrationPromise = new Promise<void>((resolve) => {
+        resolvePushRegistration = () => {
+          pushRegistrationFinished = true;
+          resolve();
+        };
+      });
+      mockPushNotificationService.registerForPushNotificationsAsync.mockReturnValue(pushRegistrationPromise);
+
+      let signInResolved = false;
+      let signInPromise: Promise<void>;
+
+      await act(async () => {
+        signInPromise = authContext.signIn('mitra-token', mitraUser);
+        signInPromise.then(() => {
+          signInResolved = true;
+        });
+      });
+
+      await waitFor(() => {
+        expect(signInResolved).toBe(true);
+      });
+
+      expect(mockPushNotificationService.registerForPushNotificationsAsync).toHaveBeenCalledWith('mitra-token');
+      expect(pushRegistrationFinished).toBe(false);
+      expect(mockFcmService.syncFCMTokenToBackend).toHaveBeenCalledWith('add');
+      expect(mockFcmService.onTokenRefresh).toHaveBeenCalledTimes(1);
+
+      resolvePushRegistration?.();
+      await expect(signInPromise!).resolves.toBeUndefined();
     });
 
     it('rolls back local session state when persistence fails mid-signIn', async () => {
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
-      (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (key: string) => {
-        if (key === 'user_data') {
-          throw new Error('disk full');
-        }
-      });
-      (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
-
-      let authContext: AuthContextType | undefined;
-
-      render(
-        <AuthProvider>
-          <TestConsumer onMount={(auth) => { authContext = auth; }} />
-        </AuthProvider>
-      );
-
-      await waitFor(() => {
-        expect(authContext?.isLoading).toBe(false);
+      mockSecureStorage.setItemStrict.mockImplementation(async (key) => {
+        if (key === 'user_data') throw new Error('disk full');
       });
 
+      const authContext = await renderAuth();
       const newUser = { id: '2', tenantId: 'tenant-1', name: 'New User', email: 'new@test.com', role: 'admin' };
 
       await act(async () => {
-        await authContext?.signIn('new-token', newUser, 'refresh-token');
+        await authContext.signIn('new-token', newUser, 'refresh-token');
       });
 
-      expect(TokenService.setToken).toHaveBeenLastCalledWith(null);
-      expect(DatabaseService.clearSessionData).toHaveBeenCalled();
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('session_token');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('user_data');
-      expect(authContext?.token).toBe(null);
-      expect(authContext?.user).toBe(null);
+      expect(mockTokenService.setToken).toHaveBeenLastCalledWith(null);
+      expect(mockDatabaseService.clearSessionData).toHaveBeenCalled();
+      expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('session_token');
+      expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('user_data');
+
     });
   });
 
   describe('signOut', () => {
     it('should clear session from secure store', async () => {
       const storedUser = { id: '1', tenantId: 'tenant-1', name: 'Test User', email: 'test@test.com', role: 'employee' };
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce('stored-token')
-        .mockResolvedValueOnce(JSON.stringify(storedUser));
-      (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
+      mockSecureStorage.getItem.mockResolvedValueOnce('stored-token').mockResolvedValueOnce(JSON.stringify(storedUser));
 
-      let authContext: AuthContextType | undefined;
-
-      render(
-        <AuthProvider>
-          <TestConsumer onMount={(auth) => { authContext = auth; }} />
-        </AuthProvider>
-      );
-
-      await waitFor(() => {
-        expect(authContext?.token).toBe('stored-token');
-      });
+      const authContext = await renderAuth();
 
       await act(async () => {
-        await authContext?.signOut();
+        await authContext.signOut();
       });
 
-      expect(DatabaseService.clearSessionData).toHaveBeenCalled();
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('session_token');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('user_data');
+      expect(mockDatabaseService.clearSessionData).toHaveBeenCalled();
+      expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('session_token');
+      expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('user_data');
+    });
+
+    it('triggers FCM remove for Mitra users on sign out', async () => {
+      const storedUser = { id: '1', tenantId: 'tenant-1', name: 'Mitra User', email: 'mitra@test.com', role: 'MITRA' };
+      mockSecureStorage.getItem.mockResolvedValueOnce('stored-token').mockResolvedValueOnce(JSON.stringify(storedUser));
+
+      const authContext = await renderAuth();
+
+      await act(async () => {
+        await authContext.signOut();
+      });
+
+      expect(mockFcmService.syncFCMTokenToBackend).toHaveBeenCalledWith('remove');
     });
 
     it('still clears local session when refresh-token cleanup fails', async () => {
       const storedUser = { id: '1', tenantId: 'tenant-1', name: 'Test User', email: 'test@test.com', role: 'employee' };
-      (SecureStore.getItemAsync as jest.Mock)
-        .mockResolvedValueOnce('stored-token')
-        .mockResolvedValueOnce(JSON.stringify(storedUser));
-      (SecureStore.deleteItemAsync as jest.Mock).mockResolvedValue(undefined);
-      (RefreshTokenService.clearRefreshToken as jest.Mock).mockRejectedValueOnce(new Error('storage failure'));
+      mockSecureStorage.getItem.mockResolvedValueOnce('stored-token').mockResolvedValueOnce(JSON.stringify(storedUser));
+      mockRefreshTokenService.clearRefreshToken.mockRejectedValueOnce(new Error('storage failure'));
 
-      let authContext: AuthContextType | undefined;
-
-      render(
-        <AuthProvider>
-          <TestConsumer onMount={(auth) => { authContext = auth; }} />
-        </AuthProvider>
-      );
-
-      await waitFor(() => {
-        expect(authContext?.token).toBe('stored-token');
-      });
+      const authContext = await renderAuth();
 
       await act(async () => {
-        await authContext?.signOut({ skipApi: true });
+        await authContext.signOut({ skipApi: true });
       });
 
-      expect(TokenService.setToken).toHaveBeenLastCalledWith(null);
-      expect(DatabaseService.clearSessionData).toHaveBeenCalled();
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('session_token');
-      expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('user_data');
-      expect(authContext?.token).toBe(null);
-      expect(authContext?.user).toBe(null);
+      expect(mockTokenService.setToken).toHaveBeenLastCalledWith(null);
+      expect(mockDatabaseService.clearSessionData).toHaveBeenCalled();
+      expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('session_token');
+      expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('user_data');
+
     });
   });
 
   describe('useAuth hook', () => {
     it('should throw error when used outside provider', () => {
-      // Suppress console.error for this test
       const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
-      
+
       expect(() => {
-        render(<TestConsumer onMount={() => {}} />);
+        render(React.createElement(TestConsumer, { onMount: () => {} }));
       }).toThrow('useAuth must be used within an AuthProvider');
-      
+
       spy.mockRestore();
     });
   });

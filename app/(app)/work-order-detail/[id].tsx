@@ -5,7 +5,7 @@ import { WorkOrderDetailSkeleton } from '@/components/molecules/WorkOrderDetailS
 import { AppFeature } from '@/constants/features';
 import { useAuth } from "@/context/AuthContext";
 import { useSocketEvent, useSocketRoom } from "@/context/SocketContext";
-import { SOCKET_EVENTS, WorkOrderActivityPayload } from "@/context/socketTypes";
+import { WorkOrderActivityPayload } from "@/context/socketTypes";
 import {
   isOfflineMutationQueuedResult,
   queryKeys,
@@ -205,8 +205,10 @@ export default function WorkOrderDetailScreen() {
     })();
   }, []);
 
+  const workOrderRoom = typeof id === 'string' && id ? `workorder:${id}` : '';
+
   // Join WebSocket room for this Work Order
-  useSocketRoom(`workorder:${id}`);
+  useSocketRoom(workOrderRoom);
 
   // Handle real-time work order updates
   const handleWOUpdate = useCallback(
@@ -231,9 +233,11 @@ export default function WorkOrderDetailScreen() {
     [id, fetchDetail],
   );
 
+  const realtimeEnabled = !!workOrderRoom;
+
   // Subscribe to WebSocket events
-  useSocketEvent(SOCKET_EVENTS.WORKORDER_UPDATE, handleWOUpdate);
-  useSocketEvent(SOCKET_EVENTS.WORKORDER_ACTIVITY, handleActivityUpdate);
+  useSocketEvent('workorder.update', handleWOUpdate, { enabled: realtimeEnabled });
+  useSocketEvent('workorder.activity', handleActivityUpdate, { enabled: realtimeEnabled });
 
   // Partner search and pagination effect
   const fetchPartners = useCallback(async (pageNum = 1, shouldAppend = false) => {

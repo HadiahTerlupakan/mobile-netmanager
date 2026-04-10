@@ -4,7 +4,6 @@ import AvailableWorkOrderListItem from "@/components/organisms/dashboard/Availab
 import { WorkOrderListItem } from "@/components/organisms/dashboard/WorkOrderListItem";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket, useSocketEvent } from "@/context/SocketContext";
-import { SOCKET_EVENTS } from "@/context/socketTypes";
 import {
   isOfflineMutationQueuedResult,
   useAvailableWorkOrders,
@@ -198,10 +197,12 @@ function WorkOrderScreenContent() {
     [activeTab, refetchAvailable, refetchActive, refetchHistory],
   );
 
+  const realtimeEnabled = !!token;
+
   // Subscribe to WO events for real-time updates
-  useSocketEvent(SOCKET_EVENTS.WORKORDER_NEW, handleWOEvent);
-  useSocketEvent(SOCKET_EVENTS.WORKORDER_UPDATE, handleWOEvent);
-  useSocketEvent(SOCKET_EVENTS.WORKORDER_ASSIGNED, handleWOEvent);
+  useSocketEvent('workorder.new', handleWOEvent, { enabled: realtimeEnabled });
+  useSocketEvent('workorder.update', handleWOEvent, { enabled: realtimeEnabled });
+  useSocketEvent('workorder.assigned', handleWOEvent, { enabled: realtimeEnabled });
 
   const getTabStyle = useCallback((tab: TabType) => {
     const isActive = activeTab === tab;

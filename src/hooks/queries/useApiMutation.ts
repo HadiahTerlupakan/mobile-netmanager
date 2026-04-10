@@ -266,6 +266,10 @@ export function useApiMutation<
           error instanceof Error && error.message === "Offline";
 
         if (isExplicitOffline || isNetworkError) {
+          if (attendanceMutation) {
+            throw new Error("Offline");
+          }
+
           logger.info(
             `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${endpoint}`,
           );
@@ -282,16 +286,6 @@ export function useApiMutation<
             payload,
             queueMeta,
           );
-
-          if (attendanceMutation) {
-            const queueDepth = (await DatabaseService.getPendingQueue()).length;
-            AttendanceTelemetryService.track("attendance_queued_offline", {
-              requestId,
-              endpoint,
-              networkState: "offline",
-              queueDepth,
-            });
-          }
 
           return {
             __offline_queued__: true,

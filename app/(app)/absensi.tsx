@@ -1,16 +1,13 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { AttendanceSkeleton } from "@/components/molecules/AttendanceSkeleton";
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { PendingSyncBadge } from "@/components/organisms/attendance/PendingSyncBadge";
 import { useAuth } from "@/context/AuthContext";
 import {
-  isOfflineMutationQueuedResult,
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
 import { queryKeys } from "@/lib/queryClient";
 import { AttendanceTelemetryService } from "@/services/AttendanceTelemetryService";
-import { DatabaseService } from "@/services/DatabaseService";
 import { LocationTrackingService } from "@/services/LocationTrackingService";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
@@ -19,7 +16,6 @@ import {
   AttendanceGeofencePolicy,
   resolveAttendanceGeofenceAction,
 } from "@/utils/attendanceGeofencePolicy";
-import { generateSignature } from "@/utils/crypto";
 import { formatDate } from "@/utils/date";
 import { getAttendanceCaptureState } from "@/utils/attendanceCaptureState";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
@@ -52,6 +48,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import NetInfo from "@react-native-community/netinfo";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
@@ -405,7 +402,7 @@ export default function AbsensiScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("Memproses...");
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(true);
 
   // --- Handlers ---
 
@@ -516,19 +513,8 @@ export default function AbsensiScreen() {
     setRefreshing(true);
     await refetchStatus();
     await getLocation();
-    const pendingQueue = await DatabaseService.getPendingQueue();
-    setPendingSyncCount(pendingQueue.length);
     setRefreshing(false);
   }, [refetchStatus, getLocation]);
-
-  const refreshPendingSyncCount = useCallback(async () => {
-    try {
-      const pendingQueue = await DatabaseService.getPendingQueue();
-      setPendingSyncCount(pendingQueue.length);
-    } catch (error) {
-      logger.warn("Failed to load pending sync queue", error);
-    }
-  }, []);
 
   useEffect(() => {
     if (statusData?.success) {
@@ -574,13 +560,21 @@ export default function AbsensiScreen() {
   }, [geofenceZones, location, checkGeofence]);
 
   useEffect(() => {
-    refreshPendingSyncCount();
-    const timer = setInterval(() => {
-      refreshPendingSyncCount();
-    }, 15000);
+    let mounted = true;
 
-    return () => clearInterval(timer);
-  }, [refreshPendingSyncCount]);
+    SyncService.isOnline().then((online) => {
+      if (mounted) setIsOnline(Boolean(online));
+    });
+
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOnline(Boolean(state.isConnected));
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, []);
 
   const handleCaptureURI = useCallback(async () => {
     if (!faceInFrame) {
@@ -640,133 +634,90 @@ export default function AbsensiScreen() {
       userId: user?.id,
       action: status === "idle" ? "check-in" : "check-out",
       networkState: isOnline ? "online" : "offline",
-      queueDepth: pendingSyncCount,
     });
 
-    if (isOnline) {
-      setLoading(true);
+    if (!isOnline) {
+      setIsProcessing(false);
+      presentInfoMessage("Absensi hanya bisa dilakukan saat online.", "Koneksi Diperlukan");
+      return;
+    }
+
+    setLoading(true);
+    setUploadProgress(0);
+    try {
+      setLoadingMessage("Mengupload foto...");
+      AttendanceTelemetryService.track("attendance_photo_upload_started", {
+        requestId: payload.requestId,
+        userId: user?.id,
+        action: status === "idle" ? "check-in" : "check-out",
+        networkState: "online",
+      });
+      const uploadedUrls = await uploadService.uploadBatch(
+        [processedUri],
+        "employee-attendance",
+        (_, __, progress) => {
+          setUploadProgress(progress.percentage);
+        }
+      );
+      const photoUrl = uploadedUrls[0];
+      if (!photoUrl) throw new Error("Gagal upload foto.");
+
+      AttendanceTelemetryService.track("attendance_photo_upload_succeeded", {
+        requestId: payload.requestId,
+        userId: user?.id,
+        action: status === "idle" ? "check-in" : "check-out",
+        networkState: "online",
+      });
+
+      setLoadingMessage("Mengirim data...");
       setUploadProgress(0);
-      try {
-        setLoadingMessage("Mengupload foto...");
-        AttendanceTelemetryService.track("attendance_photo_upload_started", {
-          requestId: payload.requestId,
-          userId: user?.id,
-          action: status === "idle" ? "check-in" : "check-out",
-          networkState: "online",
-        });
-        const uploadedUrls = await uploadService.uploadBatch(
-          [processedUri],
-          "employee-attendance",
-          (_, __, progress) => {
-            setUploadProgress(progress.percentage);
-          }
-        );
-        const photoUrl = uploadedUrls[0];
-        if (!photoUrl) throw new Error("Gagal upload foto.");
-
-        AttendanceTelemetryService.track("attendance_photo_upload_succeeded", {
-          requestId: payload.requestId,
-          userId: user?.id,
-          action: status === "idle" ? "check-in" : "check-out",
-          networkState: "online",
-        });
-
-        setLoadingMessage("Mengirim data...");
-        setUploadProgress(0); // Indeterminate
-        await mutation.mutate({ ...payload, photoUrl }, {
-          onSuccess: async (data) => {
-            try {
-              if (status === "idle") {
-                logger.info('[Absensi] Check-in success, starting location tracking...');
-                const trackingStarted = await LocationTrackingService.startTracking();
-                logger.info(`[Absensi] Tracking started: ${trackingStarted}`);
-              } else {
-                logger.info('[Absensi] Check-out success, stopping location tracking...');
-                await LocationTrackingService.stopTracking();
-              }
-            } catch (trackingError) {
-              logger.error('[Absensi] Tracking error:', trackingError);
+      await mutation.mutate({ ...payload, photoUrl }, {
+        onSuccess: async (data) => {
+          try {
+            if (status === "idle") {
+              logger.info('[Absensi] Check-in success, starting location tracking...');
+              const trackingStarted = await LocationTrackingService.startTracking();
+              logger.info(`[Absensi] Tracking started: ${trackingStarted}`);
+            } else {
+              logger.info('[Absensi] Check-out success, stopping location tracking...');
+              await LocationTrackingService.stopTracking();
             }
-
-            setIsProcessing(false);
-            setLoading(false);
-            const warning = (data as { warning?: string })?.warning;
-            presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
-            refetchStatus();
-            setPhoto(null);
-            refreshPendingSyncCount();
-          },
-          onError: (e) => {
-            setIsProcessing(false);
-            setLoading(false);
-            presentAppError(e, {
-              screen: 'AttendanceScreen',
-              route: '/(app)/absensi',
-            });
-          },
-        });
-      } catch (error) {
-        AttendanceTelemetryService.track("attendance_photo_upload_failed", {
-          requestId: payload.requestId,
-          userId: user?.id,
-          action: status === "idle" ? "check-in" : "check-out",
-          networkState: "online",
-          reason: error instanceof Error ? error.message : "Unknown error",
-        });
-        setIsProcessing(false);
-        setLoading(false);
-          presentAppError(error, {
-            screen: 'AttendanceScreen',
-            route: '/(app)/absensi',
-          });
-      }
-    } else {
-      setLoadingMessage("Menyimpan offline...");
-      await mutation.mutate({
-        ...payload,
-        photoUrl: null,
-        meta: {
-          photos: [processedUri],
-          targetField: "photoUrl",
-          singleFile: true,
-          photoType: "employee-attendance",
-          requestId: payload.requestId,
-        },
-        _offline_meta: {
-          capturedAt: payload.capturedAt,
-          signature: generateSignature({ userId: user?.id, timestamp: payload.capturedAt, latitude: payload.latitude, longitude: payload.longitude }),
-        },
-      }, {
-        onSuccess: (data, variables) => {
-          setIsProcessing(false);
-          const isOfflineQueued = isOfflineMutationQueuedResult(data);
-          if (isOfflineQueued) {
-            setPhoto(null);
-            presentInfoMessage("Data disimpan offline.", "Offline");
-            AttendanceTelemetryService.track("attendance_queued_offline", {
-              requestId: payload.requestId,
-              userId: user?.id,
-              action: status === "idle" ? "check-in" : "check-out",
-              networkState: "offline",
-            });
-          } else {
-            // If it surprisingly succeeded online
-            setPhoto(null);
-            presentSuccessMessage("Data berhasil dikirim.");
-            refetchStatus();
+          } catch (trackingError) {
+            logger.error('[Absensi] Tracking error:', trackingError);
           }
-          refreshPendingSyncCount();
+
+          setIsProcessing(false);
+          setLoading(false);
+          const warning = (data as { warning?: string })?.warning;
+          presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
+          refetchStatus();
+          setPhoto(null);
         },
         onError: (e) => {
           setIsProcessing(false);
+          setLoading(false);
           presentAppError(e, {
             screen: 'AttendanceScreen',
             route: '/(app)/absensi',
           });
-        }
+        },
+      });
+    } catch (error) {
+      AttendanceTelemetryService.track("attendance_photo_upload_failed", {
+        requestId: payload.requestId,
+        userId: user?.id,
+        action: status === "idle" ? "check-in" : "check-out",
+        networkState: "online",
+        reason: error instanceof Error ? error.message : "Unknown error",
+      });
+      setIsProcessing(false);
+      setLoading(false);
+      presentAppError(error, {
+        screen: 'AttendanceScreen',
+        route: '/(app)/absensi',
       });
     }
-  }, [photo, location, status, isProcessing, captureWatermarkedPhoto, locationName, capturedTime, checkInMutation, checkOutMutation, user?.id, refetchStatus, pendingSyncCount, refreshPendingSyncCount]);
+  }, [photo, location, status, isProcessing, captureWatermarkedPhoto, locationName, capturedTime, checkInMutation, checkOutMutation, user?.id, refetchStatus]);
 
   const handleSubmit = useCallback(async () => {
     if (!photo || !location) {
@@ -878,7 +829,6 @@ export default function AbsensiScreen() {
 
         <View style={tw`px-4 -mt-8`}>
           <View style={tw`bg-white rounded-2xl shadow-sm p-4 border border-gray-100`}>
-            <PendingSyncBadge pendingCount={pendingSyncCount} />
             <LocationCard locationName={locationName} onRefresh={getLocation} />
             <AttendanceStatusInfo checkInTime={checkInTime} checkOutTime={checkOutTime} />
             <AttendanceWarning message={attendanceWarning} />
@@ -904,10 +854,21 @@ export default function AbsensiScreen() {
                   <TouchableOpacity onPress={() => setPhoto(null)} style={tw`flex-1 bg-gray-100 py-3 rounded-xl items-center`}>
                     <Text style={tw`font-bold text-gray-600`}>Ulang Foto</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={handleSubmit} disabled={loading || checkInMutation.isPending || checkOutMutation.isPending} style={tw`flex-1 bg-blue-600 py-3 rounded-xl items-center`}>
-                    <Text style={tw`font-bold text-white`}>{loading || checkInMutation.isPending || checkOutMutation.isPending ? "Menyimpan..." : "Kirim Absensi"}</Text>
+                  <TouchableOpacity
+                    onPress={handleSubmit}
+                    disabled={!photo || !location || !isOnline || isProcessing || loading}
+                    style={tw`flex-1 ${!photo || !location || !isOnline || isProcessing || loading ? "bg-blue-300" : "bg-blue-600"} py-3 rounded-xl items-center`}
+                  >
+                    <Text style={tw`font-bold text-white`}>
+                      {!isOnline ? "Butuh Internet" : loading || isProcessing ? "Menyimpan..." : "Kirim Absensi"}
+                    </Text>
                   </TouchableOpacity>
                 </View>
+                {!isOnline && (
+                  <Text style={tw`text-amber-700 text-sm mt-3 text-center`}>
+                    Absensi hanya bisa dilakukan saat online.
+                  </Text>
+                )}
               </View>
             ) : (
               <TouchableOpacity

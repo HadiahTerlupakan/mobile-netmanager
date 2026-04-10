@@ -2,9 +2,26 @@ import { Skeleton } from '@/components/atoms/Skeleton';
 import { ConversationSkeleton } from '@/components/molecules/ConversationSkeleton';
 import MessageBubble from '@/components/molecules/MessageBubble';
 import { useAuth } from '@/context/AuthContext';
+import { useSocketEmit, useSocketEvent, useSocketRoom } from '@/context/SocketContext';
 import { isOfflineMutationQueuedResult, useApiMutation } from '@/hooks/queries/useApiMutation';
 import { queryKeys } from '@/lib/queryClient';
-import { ChatMessage, chatService } from '@/services/ChatService';
+import { ChatMessage } from '@/services/ChatService';
+
+interface RealtimeChatMessage extends ChatMessage {
+    conversationId: string;
+}
+
+interface ChatTypingEvent {
+    userId: string;
+    senderName: string;
+    room: string;
+}
+
+interface ChatStopTypingEvent {
+    userId: string;
+    room: string;
+}
+import { getChatRoomName } from '@/services/chatSocketEvents';
 import { FlashList } from '@shopify/flash-list';
 import { useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
@@ -33,6 +50,7 @@ export default function ConversationScreen() {
 
     const flashListRef = useRef<any>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const emitSocketEvent = useSocketEmit();
     const insets = useSafeAreaInsets();
 
     const {
@@ -123,92 +141,92 @@ export default function ConversationScreen() {
         }
     });
 
-    useEffect(() => {
-        if (user?.id && conversationId) {
-            chatService.connectSocket(user.id).then(() => {
-                chatService.joinConversation(conversationId);
-            });
+    const chatRoomName = conversationId ? getChatRoomName(conversationId) : '';
 
-            chatService.onNewMessage((message) => {
-                // Ensure isOwn is correctly set for socket messages
-                const incomingMessage = {
-                    ...message,
-                    isOwn: message.senderId === user.id
-                };
+    const handleIncomingMessage = useCallback((message: RealtimeChatMessage) => {
+        if (!conversationId) return;
+        if (message.conversationId !== conversationId) return;
 
-                queryClient.setQueryData(queryKeys.chat.messages(conversationId), (oldData: any) => {
-                    if (!oldData) return oldData;
+        const incomingMessage = {
+            ...message,
+            isOwn: message.senderId === user?.id
+        };
 
-                    const newPages = [...oldData.pages];
-                    const firstPage = { ...newPages[0] };
-                    const existingMessages = [...firstPage.messages];
+        queryClient.setQueryData(queryKeys.chat.messages(conversationId), (oldData: any) => {
+            if (!oldData) return oldData;
 
-                    // Check for duplicates
-                    const existingIndex = existingMessages.findIndex((m: ChatMessage) => m.id === incomingMessage.id);
+            const newPages = [...oldData.pages];
+            const firstPage = { ...newPages[0] };
+            const existingMessages = [...firstPage.messages];
+            const existingIndex = existingMessages.findIndex((m: ChatMessage) => m.id === incomingMessage.id);
 
-                    if (existingIndex !== -1) {
-                        // If it exists, we might want to update it, but typically optimistic update is more trusted for own messages
-                        // unless this is a confirmation from server with more data.
-                        // For now, if we sent it, we keep our version or merge if needed.
-                        // But strictly speaking, if socket comes, we should display it.
-                        return oldData;
-                    }
+            if (existingIndex !== -1) {
+                return oldData;
+            }
 
-                    // Add new message
-                    existingMessages.unshift(incomingMessage);
+            existingMessages.unshift(incomingMessage);
+            firstPage.messages = existingMessages;
+            newPages[0] = firstPage;
 
-                    firstPage.messages = existingMessages;
-                    newPages[0] = firstPage;
+            return {
+                ...oldData,
+                pages: newPages
+            };
+        });
 
-                    return {
-                        ...oldData,
-                        pages: newPages
-                    };
-                });
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat.list() });
+    }, [conversationId, queryClient, user?.id]);
 
-                queryClient.invalidateQueries({ queryKey: queryKeys.chat.list() });
-            });
-
-            chatService.onTyping((data) => {
-                if (data.userId !== user.id) {
-                    setTypingUsers((prev) => {
-                        if (!prev.includes(data.senderName)) {
-                            return [...prev, data.senderName];
-                        }
-                        return prev;
-                    });
-                }
-            });
-
-            chatService.onStopTyping((data) => {
-                if (data.userId !== user.id) {
-                    // Mencegah memory leak dan menjaga state sinkron dengan senderName, kita perlu mapping
-                    // Tapi karena hanya string, kita biarkan saja timer dari client-side yang handle
-                    setTypingUsers([]);
-                }
-            });
+    const handleTypingEvent = useCallback((data: { userId: string; senderName: string; room: string }) => {
+        if (data.room !== chatRoomName || data.userId === user?.id) {
+            return;
         }
 
-        return () => {
-            if (conversationId) {
-                chatService.leaveConversation(conversationId);
+        setTypingUsers((prev) => {
+            if (!prev.includes(data.senderName)) {
+                return [...prev, data.senderName];
             }
-            chatService.offNewMessage();
+            return prev;
+        });
+    }, [chatRoomName, user?.id]);
+
+    const handleStopTypingEvent = useCallback((data: { userId: string; room: string }) => {
+        if (data.room !== chatRoomName || data.userId === user?.id) {
+            return;
+        }
+
+        setTypingUsers([]);
+    }, [chatRoomName, user?.id]);
+
+    useSocketRoom(chatRoomName);
+    useSocketEvent<RealtimeChatMessage>('chat:message', handleIncomingMessage, { enabled: !!conversationId && !!user?.id });
+    useSocketEvent<ChatTypingEvent>('chat:typing', handleTypingEvent, { enabled: !!conversationId && !!user?.id });
+    useSocketEvent<ChatStopTypingEvent>('chat:stop_typing', handleStopTypingEvent, { enabled: !!conversationId && !!user?.id });
+
+    useEffect(() => {
+        return () => {
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
         };
-    }, [conversationId, user?.id, queryClient]);
+    }, []);
+
+    useEffect(() => {
+        setTypingUsers([]);
+    }, [conversationId]);
 
     const handleTextChange = (text: string) => {
         setNewMessage(text);
 
-        if (conversationId) {
-            chatService.sendTyping(conversationId, user?.name);
+        if (chatRoomName) {
+            emitSocketEvent('chat:typing', { room: chatRoomName, senderName: user?.name });
 
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
             }
 
             typingTimeoutRef.current = setTimeout(() => {
-                chatService.sendStopTyping(conversationId);
+                emitSocketEvent('chat:stop_typing', { room: chatRoomName });
             }, 2000);
         }
     };
