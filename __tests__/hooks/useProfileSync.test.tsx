@@ -1,18 +1,21 @@
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { renderHook, waitFor } from '@testing-library/react-native';
 import { AppState } from 'react-native';
 
 import type { User } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
-import { useSocketEvent } from '@/context/SocketContext';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { useOfflineQuery } from '@/hooks/queries';
+import { realtimeService } from '@/services/RealtimeService';
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: jest.fn(),
 }));
 
-jest.mock('@/context/SocketContext', () => ({
-  useSocketEvent: jest.fn(),
+jest.mock('@/services/RealtimeService', () => ({
+  realtimeService: {
+    subscribeToUserStream: jest.fn(),
+  },
 }));
 
 jest.mock('@/hooks/queries', () => ({
@@ -29,12 +32,17 @@ jest.mock('@/utils/logger', () => ({
 
 describe('useProfileSync', () => {
   const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
-  const mockUseSocketEvent = useSocketEvent as jest.MockedFunction<typeof useSocketEvent>;
   const mockUseOfflineQuery = useOfflineQuery as jest.MockedFunction<typeof useOfflineQuery>;
+  const mockSubscribeToUserStream = realtimeService.subscribeToUserStream as jest.MockedFunction<
+    typeof realtimeService.subscribeToUserStream
+  >;
 
   let addEventListenerSpy: jest.SpiedFunction<typeof AppState.addEventListener>;
-  const updateUser = jest.fn();
+  const updateUser = jest.fn<() => Promise<void>>();
   const refetch = jest.fn();
+  const unsubscribeRealtime = jest.fn();
+  const signIn = jest.fn(async () => {});
+  const signOut = jest.fn(async () => {});
   const currentUser = {
     id: 'user-1',
     role: 'USER',
@@ -64,17 +72,17 @@ describe('useProfileSync', () => {
       token: 'token-123',
       updateUser,
       isLoading: false,
-      signIn: jest.fn(),
-      signOut: jest.fn(),
+      signIn,
+      signOut,
     });
 
-    const mockQueryResult = {
+    mockSubscribeToUserStream.mockReturnValue(unsubscribeRealtime);
+
+    mockUseOfflineQuery.mockReturnValue({
       data: profileData,
       isPending: false,
       refetch,
-    };
-
-    mockUseOfflineQuery.mockReturnValue(mockQueryResult as unknown as ReturnType<typeof useOfflineQuery>);
+    } as unknown as ReturnType<typeof useOfflineQuery>);
   });
 
   afterEach(() => {
@@ -86,23 +94,15 @@ describe('useProfileSync', () => {
 
     expect(result.current.profileData).toEqual(profileData);
     expect(result.current.hasFeature('profile')).toBe(true);
-    expect(mockUseSocketEvent).toHaveBeenCalledWith(
-      'profile.refresh',
-      expect.any(Function),
-      { enabled: false }
-    );
+    expect(mockSubscribeToUserStream).not.toHaveBeenCalled();
     expect(addEventListenerSpy).not.toHaveBeenCalled();
     expect(updateUser).not.toHaveBeenCalled();
   });
 
-  it('enables background sync only for the explicit owner', async () => {
+  it('subscribes the explicit owner to the realtime user stream', async () => {
     renderHook(() => useProfileSync({ enableBackgroundSync: true }));
 
-    expect(mockUseSocketEvent).toHaveBeenCalledWith(
-      'profile.refresh',
-      expect.any(Function),
-      { enabled: true }
-    );
+    expect(mockSubscribeToUserStream).toHaveBeenCalledWith('user-1', expect.any(Function));
 
     await waitFor(() => {
       expect(addEventListenerSpy).toHaveBeenCalledTimes(1);
@@ -122,39 +122,43 @@ describe('useProfileSync', () => {
     });
   });
 
+  it('refetches when the user stream receives profile.refresh', () => {
+    renderHook(() => useProfileSync({ enableBackgroundSync: true }));
+
+    const streamHandler = mockSubscribeToUserStream.mock.calls[0]?.[1];
+    expect(streamHandler).toBeDefined();
+
+    streamHandler?.({
+      type: 'profile.refresh',
+      payload: { timestamp: '2026-04-10T00:00:00.000Z' },
+      scope: { kind: 'user', id: 'user-1' },
+    });
+
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
   it('does not register background listeners for multiple passive readers', () => {
     renderHook(() => useProfileSync());
     renderHook(() => useProfileSync());
 
-    expect(mockUseSocketEvent).toHaveBeenCalledTimes(2);
-    expect(mockUseSocketEvent).toHaveBeenNthCalledWith(
-      1,
-      'profile.refresh',
-      expect.any(Function),
-      { enabled: false }
-    );
-    expect(mockUseSocketEvent).toHaveBeenNthCalledWith(
-      2,
-      'profile.refresh',
-      expect.any(Function),
-      { enabled: false }
-    );
+    expect(mockSubscribeToUserStream).not.toHaveBeenCalled();
     expect(addEventListenerSpy).not.toHaveBeenCalled();
     expect(updateUser).not.toHaveBeenCalled();
   });
 
-  it('registers and cleans up app-state listener when background sync is enabled', () => {
+  it('cleans up realtime and app-state listeners when background sync is enabled', async () => {
     const remove = jest.fn();
     addEventListenerSpy.mockReturnValueOnce({ remove } as ReturnType<typeof AppState.addEventListener>);
 
     const { unmount } = renderHook(() => useProfileSync({ enableBackgroundSync: true }));
 
-    return waitFor(() => {
+    await waitFor(() => {
       expect(addEventListenerSpy).toHaveBeenCalledWith('change', expect.any(Function));
-    }).then(() => {
-      unmount();
-
-      expect(remove).toHaveBeenCalledTimes(1);
     });
+
+    unmount();
+
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(unsubscribeRealtime).toHaveBeenCalledTimes(1);
   });
 });

@@ -7,10 +7,11 @@ jest.mock('@/services/TenantService', () => ({
 }));
 
 const mockLoggerError = jest.fn();
+const mockLoggerWarn = jest.fn();
 jest.mock('@/utils/logger', () => ({
   logger: {
     info: jest.fn(),
-    warn: jest.fn(),
+    warn: mockLoggerWarn,
     error: mockLoggerError,
   },
 }));
@@ -62,10 +63,32 @@ jest.mock('react-native', () => ({
 }));
 
 describe('AppVersionService', () => {
+  const originalEnv = process.env;
+
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
+    process.env = {
+      ...originalEnv,
+      EXPO_PUBLIC_APP_VARIANT: 'staging',
+    };
+    jest.doMock('expo', () => ({
+      isRunningInExpoGo: () => false,
+    }));
+    jest.doMock('expo-constants', () => ({
+      __esModule: true,
+      default: {
+        expoConfig: {
+          hostUri: '192.168.18.86:8081',
+        },
+        executionEnvironment: 'standalone',
+      },
+    }));
     global.fetch = jest.fn();
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
   });
 
   const loadAppVersionService = () => {
@@ -110,5 +133,24 @@ describe('AppVersionService', () => {
     await appVersionService.reportVersion(42, '1.0.0', 'token-123');
 
     expect(mockLoggerError).toHaveBeenCalled();
+  });
+
+  it('returns a non-fatal timeout error and avoids error logging when the update request is aborted', async () => {
+    const appVersionService = loadAppVersionService();
+
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('Aborted'));
+
+    await expect(appVersionService.checkForUpdate(42)).resolves.toEqual(
+      expect.objectContaining({
+        success: false,
+        updateAvailable: false,
+        error: 'Request timeout saat memeriksa update aplikasi',
+      })
+    );
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'Check update timeout:',
+      expect.any(Error)
+    );
+    expect(mockLoggerError).not.toHaveBeenCalled();
   });
 });

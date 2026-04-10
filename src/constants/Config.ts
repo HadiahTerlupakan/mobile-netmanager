@@ -1,5 +1,24 @@
+import { isRunningInExpoGo } from 'expo';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+
+const isExpoGoRuntime = () => {
+  return isRunningInExpoGo() || Constants.executionEnvironment === 'storeClient';
+};
+
+const canCheckAppUpdates = () => {
+  if (Platform.OS !== 'android') {
+    return false;
+  }
+
+  if (process.env.EXPO_PUBLIC_APP_VARIANT === 'development') {
+    return false;
+  }
+
+  return !isExpoGoRuntime();
+};
+
+const canCheckAppUpdatesOnCurrentBuild = canCheckAppUpdates();
 
 // Get the backend URL for development
 const getDevApiUrl = () => {
@@ -47,6 +66,8 @@ export const Config = {
   API_URL: getApiUrl(),
   VARIANT: process.env.EXPO_PUBLIC_APP_VARIANT || 'development',
   IS_PRODUCTION: process.env.EXPO_PUBLIC_APP_VARIANT === 'production',
+  CAN_AUTO_CHECK_APP_UPDATES: canCheckAppUpdatesOnCurrentBuild,
+  CAN_MANUALLY_CHECK_APP_UPDATES: canCheckAppUpdatesOnCurrentBuild,
   ENABLE_BACKEND_ERROR_REPORTING:
     process.env.EXPO_PUBLIC_ENABLE_ERROR_REPORTING === 'true'
     || process.env.EXPO_PUBLIC_APP_VARIANT === 'production',

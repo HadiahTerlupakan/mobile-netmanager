@@ -2,7 +2,14 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
 import { render } from '@testing-library/react-native';
 
-import { useSocketEvent, useSocketRoom } from '@/context/SocketContext';
+const mockSubscribeToScope = jest.fn();
+const mockUseLocalSearchParams = jest.fn<() => Record<string, string | undefined>>(() => ({ id: undefined }));
+
+jest.mock('@/services/RealtimeService', () => ({
+  realtimeService: {
+    subscribeToScope: mockSubscribeToScope,
+  },
+}));
 
 jest.mock('@/constants/features', () => ({
   AppFeature: {
@@ -11,7 +18,7 @@ jest.mock('@/constants/features', () => ({
 }));
 
 jest.mock('expo-router', () => ({
-  useLocalSearchParams: jest.fn(() => ({ id: undefined })),
+  useLocalSearchParams: () => mockUseLocalSearchParams(),
   useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
   useFocusEffect: jest.fn(),
 }));
@@ -25,11 +32,6 @@ jest.mock('@/context/AuthContext', () => ({
     token: 'token-123',
     user: { id: 'user-1', role: 'USER', employeeType: 'TEKNISI' },
   }),
-}));
-
-jest.mock('@/context/SocketContext', () => ({
-  useSocketRoom: jest.fn(),
-  useSocketEvent: jest.fn(),
 }));
 
 jest.mock('@/hooks/queries', () => ({
@@ -136,21 +138,27 @@ jest.mock('lucide-react-native', () => ({
 }));
 jest.mock('twrnc', () => () => ({}));
 
-const mockUseSocketRoom = useSocketRoom as unknown as jest.MockedFunction<typeof useSocketRoom>;
-const mockUseSocketEvent = useSocketEvent as unknown as jest.MockedFunction<typeof useSocketEvent>;
-
 describe('mobile work order detail realtime boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSubscribeToScope.mockReturnValue(jest.fn());
+    mockUseLocalSearchParams.mockReturnValue({ id: undefined });
   });
 
-  it('does not join a work order room or subscribe realtime events before the route id is available', () => {
+  it('does not subscribe to workorder realtime scope before the route id is available', () => {
     const WorkOrderDetailScreen = require('../../app/(app)/work-order-detail/[id]').default;
 
     render(<WorkOrderDetailScreen />);
 
-    expect(mockUseSocketRoom).not.toHaveBeenCalledWith('workorder:undefined');
-    expect(mockUseSocketEvent).not.toHaveBeenCalledWith('workorder.update', expect.any(Function));
-    expect(mockUseSocketEvent).not.toHaveBeenCalledWith('workorder.activity', expect.any(Function));
+    expect(mockSubscribeToScope).not.toHaveBeenCalled();
+  });
+
+  it('subscribes through the workorder realtime scope when the route id is available', () => {
+    mockUseLocalSearchParams.mockReturnValue({ id: 'wo-1' } as { id?: string });
+    const WorkOrderDetailScreen = require('../../app/(app)/work-order-detail/[id]').default;
+
+    render(<WorkOrderDetailScreen />);
+
+    expect(mockSubscribeToScope).toHaveBeenCalledWith({ kind: 'workorder', id: 'wo-1' }, expect.any(Function));
   });
 });

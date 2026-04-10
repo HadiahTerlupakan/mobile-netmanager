@@ -2,8 +2,15 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
-import { useSocketEvent, useSocketRoom, useSocketEmit } from '@/context/SocketContext';
-import { chatService } from '@/services/ChatService';
+const mockSubscribeToScope = jest.fn();
+const mockEmitToRoom = jest.fn();
+
+jest.mock('@/services/RealtimeService', () => ({
+  realtimeService: {
+    subscribeToScope: mockSubscribeToScope,
+    emitToRoom: mockEmitToRoom,
+  },
+}));
 
 jest.mock('@/lib/queryClient', () => ({
   queryKeys: {
@@ -31,20 +38,6 @@ jest.mock('@/hooks/useFeatureGuard', () => ({
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'user-1', name: 'Admin' } }),
-}));
-
-const mockSocketEmit = jest.fn();
-
-jest.mock('@/context/SocketContext', () => ({
-  useSocket: jest.fn(() => ({
-    socket: { emit: mockSocketEmit },
-    isConnected: true,
-    lastError: null,
-    reconnect: jest.fn(),
-  })),
-  useSocketEvent: jest.fn(),
-  useSocketRoom: jest.fn(),
-  useSocketEmit: jest.fn(() => mockSocketEmit),
 }));
 
 jest.mock('@/hooks/queries/useApiMutation', () => ({
@@ -115,40 +108,25 @@ jest.mock('lucide-react-native', () => ({
 }));
 jest.mock('twrnc', () => () => ({}));
 
-const mockUseSocketEvent = useSocketEvent as unknown as jest.MockedFunction<typeof useSocketEvent>;
-const mockUseSocketRoom = useSocketRoom as unknown as jest.MockedFunction<typeof useSocketRoom>;
-const mockChatService = chatService as unknown as Record<string, jest.Mock>;
-
-beforeEach(() => {
-  mockSocketEmit.mockClear();
-});
-
 describe('mobile chat conversation realtime boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('subscribes through socket boundary hooks instead of chatService socket lifecycle', async () => {
+  it('subscribes through realtime scope handling instead of socket room helpers', async () => {
     const ConversationScreen = require('../../app/(app)/chat/[conversationId]').default;
 
     render(<ConversationScreen />);
 
     await waitFor(() => {
-      expect(mockUseSocketRoom).toHaveBeenCalledWith('chat:conv-1');
+      expect(mockSubscribeToScope).toHaveBeenCalledWith(
+        { kind: 'chat', id: 'conv-1' },
+        expect.any(Function)
+      );
     });
-
-    expect(mockUseSocketEvent).toHaveBeenCalledWith('chat:message', expect.any(Function), { enabled: true });
-    expect(mockUseSocketEvent).toHaveBeenCalledWith('chat:typing', expect.any(Function), { enabled: true });
-    expect(mockUseSocketEvent).toHaveBeenCalledWith('chat:stop_typing', expect.any(Function), { enabled: true });
-
-    expect(mockChatService.connectSocket).not.toHaveBeenCalled();
-    expect(mockChatService.joinConversation).not.toHaveBeenCalled();
-    expect(mockChatService.onNewMessage).not.toHaveBeenCalled();
-    expect(mockChatService.onTyping).not.toHaveBeenCalled();
-    expect(mockChatService.onStopTyping).not.toHaveBeenCalled();
   });
 
-  it('emits typing through socket context instead of chatService typing helpers', async () => {
+  it('emits typing through realtime room emission instead of socket emit helpers', async () => {
     jest.useFakeTimers();
 
     const ConversationScreen = require('../../app/(app)/chat/[conversationId]').default;
@@ -158,15 +136,21 @@ describe('mobile chat conversation realtime boundary', () => {
 
     fireEvent.changeText(input, 'halo');
 
-    expect(mockSocketEmit).toHaveBeenCalledWith('chat:typing', { room: 'chat:conv-1', senderName: 'Admin' });
-    expect(mockChatService.sendTyping).not.toHaveBeenCalled();
+    expect(mockEmitToRoom).toHaveBeenCalledWith(
+      'chat:conv-1',
+      'chat:typing',
+      { room: 'chat:conv-1', senderName: 'Admin' }
+    );
 
     act(() => {
       jest.advanceTimersByTime(2000);
     });
 
-    expect(mockSocketEmit).toHaveBeenCalledWith('chat:stop_typing', { room: 'chat:conv-1' });
-    expect(mockChatService.sendStopTyping).not.toHaveBeenCalled();
+    expect(mockEmitToRoom).toHaveBeenCalledWith(
+      'chat:conv-1',
+      'chat:stop_typing',
+      { room: 'chat:conv-1' }
+    );
 
     jest.useRealTimers();
   });

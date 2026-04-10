@@ -1,18 +1,31 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-const mockPost = jest.fn();
-const mockInfo = jest.fn();
-const mockWarn = jest.fn();
-const mockError = jest.fn();
+const mockPost = jest.fn<(url: string, body: unknown) => Promise<unknown>>();
+const mockInfo = jest.fn<(message: string, ...args: unknown[]) => void>();
+const mockWarn = jest.fn<(message: string, ...args: unknown[]) => void>();
+const mockError = jest.fn<(message: string, ...args: unknown[]) => void>();
 
 const mockPlatform = { OS: 'ios' };
+const mockAuthorizationStatus = {
+  NOT_DETERMINED: -1,
+  DENIED: 0,
+  AUTHORIZED: 1,
+  PROVISIONAL: 2,
+  EPHEMERAL: 3,
+} as const;
 
-const mockGetMessaging = jest.fn(() => 'mock-messaging');
-const mockRequestPermission = jest.fn();
-const mockIsDeviceRegisteredForRemoteMessages = jest.fn();
-const mockRegisterDeviceForRemoteMessages = jest.fn();
-const mockGetToken = jest.fn();
-const mockOnTokenRefresh = jest.fn();
+type AuthorizationStatusValue = typeof mockAuthorizationStatus[keyof typeof mockAuthorizationStatus];
+type TokenRefreshListener = (token: string) => Promise<void> | void;
+
+const mockGetMessaging = jest.fn<() => string>(() => 'mock-messaging');
+const mockRequestPermission = jest.fn<(messaging: string) => Promise<AuthorizationStatusValue>>();
+const mockIsDeviceRegisteredForRemoteMessages = jest.fn<(messaging: string) => boolean>();
+const mockRegisterDeviceForRemoteMessages = jest.fn<(messaging: string) => Promise<void>>();
+const mockGetToken = jest.fn<(messaging: string) => Promise<string | null>>();
+const mockOnTokenRefresh = jest.fn<(
+  messaging: string,
+  listener: TokenRefreshListener
+) => () => void>();
 
 jest.mock('react-native', () => ({
   Platform: mockPlatform,
@@ -34,13 +47,7 @@ jest.mock('@/utils/logger', () => ({
 }));
 
 jest.mock('@react-native-firebase/messaging', () => ({
-  AuthorizationStatus: {
-    NOT_DETERMINED: -1,
-    DENIED: 0,
-    AUTHORIZED: 1,
-    PROVISIONAL: 2,
-    EPHEMERAL: 3,
-  },
+  AuthorizationStatus: mockAuthorizationStatus,
   getMessaging: mockGetMessaging,
   requestPermission: mockRequestPermission,
   isDeviceRegisteredForRemoteMessages: mockIsDeviceRegisteredForRemoteMessages,
@@ -49,7 +56,7 @@ jest.mock('@react-native-firebase/messaging', () => ({
   onTokenRefresh: mockOnTokenRefresh,
 }));
 
-const { AuthorizationStatus } = jest.requireMock('@react-native-firebase/messaging');
+const AuthorizationStatus = mockAuthorizationStatus;
 
 describe('FirebaseMessagingService', () => {
   beforeEach(() => {

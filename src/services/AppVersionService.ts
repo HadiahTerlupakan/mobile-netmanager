@@ -7,6 +7,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { Alert, Platform } from 'react-native';
 import { logger } from '@/utils/logger';
+import { Config } from '@/constants/Config';
 
 export interface AppVersionInfo {
     id: string
@@ -37,6 +38,7 @@ export interface DownloadProgress {
 type ResponsePayload = Record<string, unknown>
 
 const VERSION_REQUEST_TIMEOUT_MS = 15000
+const UPDATE_CHECK_TIMEOUT_MESSAGE = 'Request timeout saat memeriksa update aplikasi'
 
 const isObject = (value: unknown): value is ResponsePayload => {
     return typeof value === 'object' && value !== null
@@ -72,6 +74,11 @@ const getErrorMessage = (value: unknown): string | null => {
     }
 
     return null
+}
+
+const isTimeoutAbortError = (error: unknown): error is Error => {
+    return error instanceof Error
+        && (error.name === 'AbortError' || error.message === 'Aborted')
 }
 
 class AppVersionService {
@@ -130,6 +137,17 @@ class AppVersionService {
     }
 
     async checkForUpdate(currentVersionCode: number): Promise<CheckUpdateResult> {
+        if (!Config.CAN_MANUALLY_CHECK_APP_UPDATES) {
+            return {
+                success: false,
+                updateAvailable: false,
+                isForceUpdate: false,
+                currentVersion: '',
+                latestVersion: null,
+                error: 'Cek update APK tidak tersedia pada build development atau Expo Go'
+            }
+        }
+
         try {
             // Update baseUrl in case it changed
             this.baseUrl = TenantService.getTenantUrl()
@@ -181,6 +199,18 @@ class AppVersionService {
                 latestVersion: isAppVersionInfo(data.latestVersion) ? data.latestVersion : null
             }
         } catch (error) {
+            if (isTimeoutAbortError(error)) {
+                logger.warn('Check update timeout:', error)
+                return {
+                    success: false,
+                    updateAvailable: false,
+                    isForceUpdate: false,
+                    currentVersion: '',
+                    latestVersion: null,
+                    error: UPDATE_CHECK_TIMEOUT_MESSAGE
+                }
+            }
+
             const errorMessage = error instanceof Error ? error.message : 'Gagal memeriksa update';
             logger.error('Check update error:', error)
             return {

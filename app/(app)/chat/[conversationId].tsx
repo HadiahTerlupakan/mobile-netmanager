@@ -1,40 +1,50 @@
-import { Skeleton } from '@/components/atoms/Skeleton';
-import { ConversationSkeleton } from '@/components/molecules/ConversationSkeleton';
-import MessageBubble from '@/components/molecules/MessageBubble';
-import { useAuth } from '@/context/AuthContext';
-import { useSocketEmit, useSocketEvent, useSocketRoom } from '@/context/SocketContext';
-import { isOfflineMutationQueuedResult, useApiMutation } from '@/hooks/queries/useApiMutation';
-import { queryKeys } from '@/lib/queryClient';
-import { ChatMessage } from '@/services/ChatService';
-
-interface RealtimeChatMessage extends ChatMessage {
-    conversationId: string;
-}
-
-interface ChatTypingEvent {
-    userId: string;
-    senderName: string;
-    room: string;
-}
-
-interface ChatStopTypingEvent {
-    userId: string;
-    room: string;
-}
-import { getChatRoomName } from '@/services/chatSocketEvents';
 import { FlashList } from '@shopify/flash-list';
 import { useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import api from '@/services/api';
 import { ArrowLeft, Image as ImageIcon, Send, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+
 import { AppFeature } from '@/constants/features';
+import { Skeleton } from '@/components/atoms/Skeleton';
+import { ImageWithCache } from '@/components/atoms/ImageWithCache';
+import { ConversationSkeleton } from '@/components/molecules/ConversationSkeleton';
+import MessageBubble from '@/components/molecules/MessageBubble';
+import { useAuth } from '@/context/AuthContext';
+import { isOfflineMutationQueuedResult, useApiMutation } from '@/hooks/queries/useApiMutation';
+import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { queryKeys } from '@/lib/queryClient';
+import api from '@/services/api';
+import { ChatMessage } from '@/services/ChatService';
+import { realtimeService } from '@/services/RealtimeService';
+
+interface RealtimeChatMessage extends ChatMessage {
+    conversationId: string;
+}
+
+interface RealtimeChatEvent {
+    type: string;
+    payload: unknown;
+    scope: {
+        kind: string;
+        id: string;
+    };
+}
+
+interface ChatTypingPayload {
+    userId: string;
+    senderName: string;
+    room: string;
+}
+
+interface ChatStopTypingPayload {
+    userId: string;
+    room: string;
+}
+
 
 export default function ConversationScreen() {
     useFeatureGuard(AppFeature.CHAT);
@@ -50,7 +60,7 @@ export default function ConversationScreen() {
 
     const flashListRef = useRef<any>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const emitSocketEvent = useSocketEmit();
+
     const insets = useSafeAreaInsets();
 
     const {
@@ -141,7 +151,7 @@ export default function ConversationScreen() {
         }
     });
 
-    const chatRoomName = conversationId ? getChatRoomName(conversationId) : '';
+    const chatRoomName = conversationId ? `chat:${conversationId}` : '';
 
     const handleIncomingMessage = useCallback((message: RealtimeChatMessage) => {
         if (!conversationId) return;
@@ -177,31 +187,48 @@ export default function ConversationScreen() {
         queryClient.invalidateQueries({ queryKey: queryKeys.chat.list() });
     }, [conversationId, queryClient, user?.id]);
 
-    const handleTypingEvent = useCallback((data: { userId: string; senderName: string; room: string }) => {
-        if (data.room !== chatRoomName || data.userId === user?.id) {
+    const handleRealtimeEvent = useCallback((event: RealtimeChatEvent) => {
+        if (event.scope.kind !== 'chat' || event.scope.id !== conversationId) {
             return;
         }
 
-        setTypingUsers((prev) => {
-            if (!prev.includes(data.senderName)) {
-                return [...prev, data.senderName];
+        if (event.type === 'chat:message') {
+            handleIncomingMessage(event.payload as RealtimeChatMessage);
+            return;
+        }
+
+        if (event.type === 'chat:typing') {
+            const data = event.payload as ChatTypingPayload;
+            if (data.userId === user?.id) {
+                return;
             }
-            return prev;
-        });
-    }, [chatRoomName, user?.id]);
 
-    const handleStopTypingEvent = useCallback((data: { userId: string; room: string }) => {
-        if (data.room !== chatRoomName || data.userId === user?.id) {
+            setTypingUsers((prev) => {
+                if (!prev.includes(data.senderName)) {
+                    return [...prev, data.senderName];
+                }
+                return prev;
+            });
             return;
         }
 
-        setTypingUsers([]);
-    }, [chatRoomName, user?.id]);
+        if (event.type === 'chat:stop_typing') {
+            const data = event.payload as ChatStopTypingPayload;
+            if (data.userId === user?.id) {
+                return;
+            }
 
-    useSocketRoom(chatRoomName);
-    useSocketEvent<RealtimeChatMessage>('chat:message', handleIncomingMessage, { enabled: !!conversationId && !!user?.id });
-    useSocketEvent<ChatTypingEvent>('chat:typing', handleTypingEvent, { enabled: !!conversationId && !!user?.id });
-    useSocketEvent<ChatStopTypingEvent>('chat:stop_typing', handleStopTypingEvent, { enabled: !!conversationId && !!user?.id });
+            setTypingUsers([]);
+        }
+    }, [conversationId, handleIncomingMessage, user?.id]);
+
+    useEffect(() => {
+        if (!conversationId) {
+            return;
+        }
+
+        return realtimeService.subscribeToScope({ kind: 'chat', id: conversationId }, handleRealtimeEvent);
+    }, [conversationId, handleRealtimeEvent]);
 
     useEffect(() => {
         return () => {
@@ -219,14 +246,14 @@ export default function ConversationScreen() {
         setNewMessage(text);
 
         if (chatRoomName) {
-            emitSocketEvent('chat:typing', { room: chatRoomName, senderName: user?.name });
+            void realtimeService.emitToRoom(chatRoomName, 'chat:typing', { room: chatRoomName, senderName: user?.name });
 
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
             }
 
             typingTimeoutRef.current = setTimeout(() => {
-                emitSocketEvent('chat:stop_typing', { room: chatRoomName });
+                void realtimeService.emitToRoom(chatRoomName, 'chat:stop_typing', { room: chatRoomName });
             }, 2000);
         }
     };

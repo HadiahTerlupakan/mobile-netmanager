@@ -10,10 +10,6 @@ jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
 }));
 
-jest.mock('socket.io-client', () => ({
-  io: jest.fn(),
-}));
-
 import { chatService } from '../../src/services/ChatService';
 
 describe('mobile chat service realtime boundary', () => {
