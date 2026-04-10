@@ -1,2 +1,4 @@
 // Mock for expo package
-module.exports = {};
+module.exports = {
+  isRunningInExpoGo: () => false,
+};

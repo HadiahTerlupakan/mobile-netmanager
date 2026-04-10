@@ -50,6 +50,7 @@ jest.mock('@/utils/logger', () => ({
 import { RealtimeProvider } from '@/context/RealtimeProvider';
 import { presenceService } from '@/services/PresenceService';
 import { realtimeService } from '@/services/RealtimeService';
+import { logger } from '@/utils/logger';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -63,8 +64,14 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-describe('legacy SocketContext realtime boundary', () => {
-  it('stays idle until auth and tenant state can start realtime', async () => {
+describe('RealtimeProvider', () => {
+  it('connects realtime and starts presence when auth and tenant are ready', async () => {
+    mockAuthState.token = 'token-1';
+    mockAuthState.user = { id: 'user-1', role: 'USER' };
+    mockTenantState.tenantUrl = 'https://tenant.test';
+    mockConnectionState.canConnect = true;
+    (presenceService.startPresence as jest.Mock).mockReturnValue(jest.fn());
+
     render(
       <RealtimeProvider>
         <React.Fragment />
@@ -73,20 +80,25 @@ describe('legacy SocketContext realtime boundary', () => {
 
     await act(async () => {});
 
-    expect(realtimeService.connect).not.toHaveBeenCalled();
-    expect(presenceService.startPresence).not.toHaveBeenCalled();
+    expect(realtimeService.connect).toHaveBeenCalledWith({
+      token: 'token-1',
+      userId: 'user-1',
+      userRole: 'USER',
+      tenantUrl: 'https://tenant.test',
+    });
+    expect(presenceService.startPresence).toHaveBeenCalledWith('user-1', { role: 'USER' });
   });
 
-  it('disconnects realtime and stops presence on unmount', async () => {
+  it('does not surface missing Firebase config as a startup error', async () => {
     mockAuthState.token = 'token-1';
     mockAuthState.user = { id: 'user-1', role: 'USER' };
     mockTenantState.tenantUrl = 'https://tenant.test';
     mockConnectionState.canConnect = true;
+    (realtimeService.connect as jest.Mock).mockImplementation(() => {
+      throw new Error('Firebase mobile config is incomplete');
+    });
 
-    const stopPresence = jest.fn();
-    (presenceService.startPresence as jest.Mock).mockReturnValue(stopPresence);
-
-    const screen = render(
+    render(
       <RealtimeProvider>
         <React.Fragment />
       </RealtimeProvider>
@@ -94,9 +106,8 @@ describe('legacy SocketContext realtime boundary', () => {
 
     await act(async () => {});
 
-    screen.unmount();
-
-    expect(stopPresence).toHaveBeenCalledTimes(1);
-    expect(realtimeService.disconnect).toHaveBeenCalledTimes(1);
+    expect(realtimeService.connect).toHaveBeenCalledTimes(1);
+    expect(presenceService.startPresence).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
   });
 });

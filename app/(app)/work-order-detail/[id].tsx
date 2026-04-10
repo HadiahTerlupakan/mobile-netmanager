@@ -4,8 +4,8 @@ import LoadingModal from "@/components/molecules/LoadingModal";
 import { WorkOrderDetailSkeleton } from '@/components/molecules/WorkOrderDetailSkeleton';
 import { AppFeature } from '@/constants/features';
 import { useAuth } from "@/context/AuthContext";
-import { useSocketEvent, useSocketRoom } from "@/context/SocketContext";
 import { WorkOrderActivityPayload } from "@/context/socketTypes";
+import { realtimeService, RealtimeStreamEvent } from "@/services/RealtimeService";
 import {
   isOfflineMutationQueuedResult,
   queryKeys,
@@ -205,16 +205,12 @@ export default function WorkOrderDetailScreen() {
     })();
   }, []);
 
-  const workOrderRoom = typeof id === 'string' && id ? `workorder:${id}` : '';
-
-  // Join WebSocket room for this Work Order
-  useSocketRoom(workOrderRoom);
+  const workOrderId = typeof id === 'string' ? id : '';
 
   // Handle real-time work order updates
   const handleWOUpdate = useCallback(
     (data: { id: string; workOrderId?: string }) => {
       logger.socket("[WS Mobile] WorkOrder Update received:", data);
-      // Refresh data when WO is updated
       if (data.id === id || data.workOrderId === id) {
         fetchDetail();
       }
@@ -233,11 +229,21 @@ export default function WorkOrderDetailScreen() {
     [id, fetchDetail],
   );
 
-  const realtimeEnabled = !!workOrderRoom;
+  useEffect(() => {
+    if (!workOrderId) {
+      return;
+    }
 
-  // Subscribe to WebSocket events
-  useSocketEvent('workorder.update', handleWOUpdate, { enabled: realtimeEnabled });
-  useSocketEvent('workorder.activity', handleActivityUpdate, { enabled: realtimeEnabled });
+    return realtimeService.subscribeToScope({ kind: 'workorder', id: workOrderId }, (event: RealtimeStreamEvent) => {
+      if (event.type === 'workorder.update') {
+        handleWOUpdate(event.payload as { id: string; workOrderId?: string });
+      }
+
+      if (event.type === 'workorder.activity') {
+        handleActivityUpdate(event.payload as WorkOrderActivityPayload);
+      }
+    });
+  }, [handleActivityUpdate, handleWOUpdate, workOrderId]);
 
   // Partner search and pagination effect
   const fetchPartners = useCallback(async (pageNum = 1, shouldAppend = false) => {

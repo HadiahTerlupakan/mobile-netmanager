@@ -3,7 +3,7 @@ import { WorkOrderSkeleton } from "@/components/molecules/WorkOrderSkeleton";
 import AvailableWorkOrderListItem from "@/components/organisms/dashboard/AvailableWorkOrderListItem";
 import { WorkOrderListItem } from "@/components/organisms/dashboard/WorkOrderListItem";
 import { useAuth } from "@/context/AuthContext";
-import { useSocket, useSocketEvent } from "@/context/SocketContext";
+import { realtimeService, RealtimeStreamEvent } from "@/services/RealtimeService";
 import {
   isOfflineMutationQueuedResult,
   useAvailableWorkOrders,
@@ -21,7 +21,7 @@ import {
   FileText,
   Inbox,
 } from "lucide-react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   RefreshControl,
@@ -46,8 +46,8 @@ WorkOrderRow.displayName = "WorkOrderRow";
 
 function WorkOrderScreenContent() {
   const { token, user } = useAuth();
-  const { isConnected } = useSocket();
   const router = useRouter();
+  const isConnected = !!token;
   const [activeTab, setActiveTab] = useState<TabType>("tersedia");
   const [claiming, setClaiming] = useState<string | null>(null);
 
@@ -197,12 +197,21 @@ function WorkOrderScreenContent() {
     [activeTab, refetchAvailable, refetchActive, refetchHistory],
   );
 
-  const realtimeEnabled = !!token;
+  useEffect(() => {
+    if (!token || !user?.id) {
+      return;
+    }
 
-  // Subscribe to WO events for real-time updates
-  useSocketEvent('workorder.new', handleWOEvent, { enabled: realtimeEnabled });
-  useSocketEvent('workorder.update', handleWOEvent, { enabled: realtimeEnabled });
-  useSocketEvent('workorder.assigned', handleWOEvent, { enabled: realtimeEnabled });
+    return realtimeService.subscribeToUserStream(user.id, (event: RealtimeStreamEvent) => {
+      if (
+        event.type === 'workorder.new' ||
+        event.type === 'workorder.update' ||
+        event.type === 'workorder.assigned'
+      ) {
+        handleWOEvent();
+      }
+    });
+  }, [handleWOEvent, token, user?.id]);
 
   const getTabStyle = useCallback((tab: TabType) => {
     const isActive = activeTab === tab;

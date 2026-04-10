@@ -3,6 +3,7 @@ import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { ProfileSkeleton } from '@/components/molecules/ProfileSkeleton';
 import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModal";
 import { CURRENT_VERSION_CODE, CURRENT_VERSION_CODE_LABEL, CURRENT_VERSION_NAME } from '@/constants/appVersion';
+import { Config } from '@/constants/Config';
 import { useAuth } from '@/context/AuthContext';
 import { useAppVersion } from "@/hooks/useAppVersion";
 import { useProfileSync } from '@/hooks/useProfileSync';
@@ -34,6 +35,11 @@ export function MitraSalesProfileScreen() {
     } = useAppVersion();
 
     const handleCheckUpdate = async () => {
+        if (!Config.CAN_MANUALLY_CHECK_APP_UPDATES) {
+            Alert.alert('Info', 'Cek update APK hanya tersedia pada build Android staging/production.');
+            return;
+        }
+
         if (Platform.OS === 'ios') {
             Alert.alert('Info', 'Cek update hanya tersedia untuk Android APK.');
             return;

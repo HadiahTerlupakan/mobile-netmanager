@@ -9,6 +9,8 @@ import { Platform } from 'react-native';
 // Note: Handled globally in NotificationService.ts
 // Notifications.setNotificationHandler({ ... });
 
+let lastRegisteredPushKey: string | null = null;
+
 // Setup Android notification channel early so first notification uses correct settings
 if (Platform.OS === 'android') {
     Notifications.setNotificationChannelAsync('default', {
@@ -52,6 +54,13 @@ export async function registerForPushNotificationsAsync(token?: string): Promise
 
         // Register token with backend
         if (pushToken) {
+            const registrationKey = `${token ?? 'anonymous'}:${pushToken}`;
+
+            if (lastRegisteredPushKey === registrationKey) {
+                logger.info('Push token already registered for current session');
+                return pushToken;
+            }
+
             try {
                 const config: any = { skipGlobalAuthHandler: true };
 
@@ -61,6 +70,7 @@ export async function registerForPushNotificationsAsync(token?: string): Promise
                 }
 
                 await api.post('/api/mobile/push-token', { pushToken }, config);
+                lastRegisteredPushKey = registrationKey;
                 logger.info('Push token registered with backend');
             } catch (error) {
                 // Ignore 401 (Unauthorized) as it will be handled by AuthContext

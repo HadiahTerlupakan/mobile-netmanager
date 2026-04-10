@@ -3,7 +3,7 @@ import { ErrorBoundary } from "@/components/atoms/ErrorBoundary";
 import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModal";
 import { UpdateRequiredScreen } from "@/components/templates/UpdateRequiredScreen";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { SocketProvider } from "@/context/SocketContext";
+import { RealtimeProvider } from "@/context/RealtimeProvider";
 import { TenantProvider } from "@/context/TenantContext";
 import { useAppVersion } from "@/hooks/useAppVersion";
 import { asyncStoragePersister, queryClient } from "@/lib/queryClient";
@@ -23,6 +23,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, DeviceEventEmitter, Platform, View } from "react-native";
 import Toast from "react-native-toast-message";
 import { Events } from "@/constants/Events";
+import { Config } from "@/constants/Config";
 import tw from "twrnc";
 import { toastConfig } from "@/config/toastConfig";
 
@@ -107,6 +108,12 @@ function RootLayoutNav() {
 
   // Check for app updates on mount (Android APK only)
   useEffect(() => {
+    if (!Config.CAN_AUTO_CHECK_APP_UPDATES) {
+      setVersionChecked(true);
+      logger.info('[Update] Auto check skipped for current build');
+      return;
+    }
+
     const checkUpdate = async () => {
       try {
         await checkForUpdate(CURRENT_VERSION_CODE);
@@ -354,9 +361,9 @@ function RootLayoutNav() {
   return (
     <>
       <StatusBar style="light" />
-      <SocketProvider>
+      <RealtimeProvider>
         <Slot />
-      </SocketProvider>
+      </RealtimeProvider>
 
       <EnvironmentIndicator />
 

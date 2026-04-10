@@ -1,7 +1,7 @@
 import { useAuth, User } from '@/context/AuthContext';
-import { useSocketEvent } from '@/context/SocketContext';
 import { useOfflineQuery } from '@/hooks/queries';
 import { queryKeys } from '@/lib/queryClient';
+import { realtimeService, RealtimeStreamEvent } from '@/services/RealtimeService';
 import { logger } from '@/utils/logger';
 import { useCallback, useEffect } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
@@ -59,14 +59,24 @@ export function useProfileSync({ enableBackgroundSync = false }: UseProfileSyncO
     const refetchProfile = useCallback(() => refetch(), [refetch]);
 
     // Listen for real-time profile refresh pushed by admin (e.g. requiresFaceVerification toggled)
-    const handleProfileRefresh = useCallback(() => {
-        logger.info('[useProfileSync] Received profile:refresh via Socket.IO — refetching...');
+    const handleProfileRefresh = useCallback((event: RealtimeStreamEvent<{ timestamp: string }>) => {
+        if (event.type !== 'profile.refresh') {
+            return;
+        }
+
+        logger.info('[useProfileSync] Received profile.refresh via realtime user stream — refetching...');
         refetchProfile();
     }, [refetchProfile]);
 
-    useSocketEvent<{ timestamp: string }>('profile.refresh', handleProfileRefresh, {
-        enabled: enableBackgroundSync,
-    });
+    useEffect(() => {
+        if (!enableBackgroundSync || !user?.id) {
+            return;
+        }
+
+        return realtimeService.subscribeToUserStream(user.id, (event) => {
+            handleProfileRefresh(event as RealtimeStreamEvent<{ timestamp: string }>);
+        });
+    }, [enableBackgroundSync, handleProfileRefresh, user?.id]);
 
     // Refetch on app focus so it gets instant trigger
     useEffect(() => {

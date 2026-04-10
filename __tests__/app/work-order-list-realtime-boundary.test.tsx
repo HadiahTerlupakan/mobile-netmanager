@@ -2,12 +2,18 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
 import { render } from '@testing-library/react-native';
 
-import { useSocket, useSocketEvent } from '@/context/SocketContext';
-
 const authState = {
   token: null as string | null,
   user: { id: 'user-1', name: 'Admin' },
 };
+
+const mockSubscribeToUserStream = jest.fn();
+
+jest.mock('@/services/RealtimeService', () => ({
+  realtimeService: {
+    subscribeToUserStream: mockSubscribeToUserStream,
+  },
+}));
 
 jest.mock('@/constants/features', () => ({
   AppFeature: {
@@ -28,16 +34,6 @@ jest.mock('@/context/AuthContext', () => ({
     token: authState.token,
     user: authState.user,
   }),
-}));
-
-jest.mock('@/context/SocketContext', () => ({
-  useSocket: jest.fn(() => ({
-    isConnected: false,
-    socket: null,
-    lastError: null,
-    reconnect: jest.fn(),
-  })),
-  useSocketEvent: jest.fn(),
 }));
 
 jest.mock('@/hooks/queries', () => ({
@@ -94,28 +90,27 @@ jest.mock('lucide-react-native', () => ({
 }));
 jest.mock('twrnc', () => () => ({}));
 
-const mockUseSocketEvent = useSocketEvent as unknown as jest.MockedFunction<typeof useSocketEvent>;
-const mockUseSocket = useSocket as unknown as jest.MockedFunction<typeof useSocket>;
-
 describe('mobile work order list realtime boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     authState.token = null;
-    mockUseSocket.mockReturnValue({
-      isConnected: false,
-      socket: null,
-      lastError: null,
-      reconnect: jest.fn(),
-    });
+    mockSubscribeToUserStream.mockReturnValue(jest.fn());
   });
 
-  it('does not enable work order realtime subscriptions before auth token is available', () => {
+  it('does not subscribe to the user realtime stream before auth token is available', () => {
     const WorkOrderScreen = require('../../app/(app)/work-order').default;
 
     render(<WorkOrderScreen />);
 
-    expect(mockUseSocketEvent).toHaveBeenCalledWith('workorder.new', expect.any(Function), { enabled: false });
-    expect(mockUseSocketEvent).toHaveBeenCalledWith('workorder.update', expect.any(Function), { enabled: false });
-    expect(mockUseSocketEvent).toHaveBeenCalledWith('workorder.assigned', expect.any(Function), { enabled: false });
+    expect(mockSubscribeToUserStream).not.toHaveBeenCalled();
+  });
+
+  it('subscribes through the user realtime stream when auth is ready', () => {
+    authState.token = 'token-123';
+    const WorkOrderScreen = require('../../app/(app)/work-order').default;
+
+    render(<WorkOrderScreen />);
+
+    expect(mockSubscribeToUserStream).toHaveBeenCalledWith('user-1', expect.any(Function));
   });
 });

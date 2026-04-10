@@ -1,11 +1,11 @@
 
 import { BarangIndexSkeleton } from '@/components/molecules/BarangIndexSkeleton';
 import { useAuth } from '@/context/AuthContext';
-import { useSocketEvent } from '@/context/SocketContext';
 import { Ionicons } from '@expo/vector-icons';
+import { realtimeService, RealtimeStreamEvent } from '@/services/RealtimeService';
 import { useApiQuery } from '@/hooks/queries';
 import { useRouter } from 'expo-router';
-import { useCallback, useState, ComponentProps } from 'react';
+import { useCallback, useEffect, useState, ComponentProps } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
@@ -35,7 +35,7 @@ interface MenuItem {
 export default function BarangIndexScreen() {
   useFeatureGuard(AppFeature.BARANG);
     const router = useRouter();
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const queryClient = useQueryClient();
     const [refreshing, setRefreshing] = useState(false);
 
@@ -51,10 +51,15 @@ export default function BarangIndexScreen() {
         enabled: !!token,
     });
 
-    // Real-time updates via WebSocket
-    useSocketEvent<{ type: 'masuk' | 'keluar' }>('inventory.update', useCallback((data) => {
+    // Real-time updates via user stream
+    const handleInventoryUpdate = useCallback((event: RealtimeStreamEvent<{ type: 'masuk' | 'keluar' }>) => {
+        if (event.type !== 'inventory.update') {
+            return;
+        }
+
+        const data = event.payload;
         logger.socket('Real-time inventory update received:', data);
-        // Update the shared dashboard.stats() cache
+
         queryClient.setQueryData<any>(queryKeys.dashboard.stats(), (prev: any) => {
             if (!prev) return prev;
             return {
@@ -63,7 +68,15 @@ export default function BarangIndexScreen() {
                 barangKeluarToday: data.type === 'keluar' ? (prev.barangKeluarToday || 0) + 1 : prev.barangKeluarToday
             };
         });
-    }, [queryClient]));
+    }, [queryClient]);
+
+    useEffect(() => {
+        if (!token || !user?.id) {
+            return;
+        }
+
+        return realtimeService.subscribeToUserStream(user.id, handleInventoryUpdate as (event: RealtimeStreamEvent) => void);
+    }, [handleInventoryUpdate, token, user?.id]);
 
     const onRefresh = async () => {
         setRefreshing(true);

@@ -1,4 +1,36 @@
 describe('Config API_URL', () => {
+  const loadConfig = () => {
+    let Config: typeof import('@/constants/Config').Config
+
+    jest.isolateModules(() => {
+      ;({ Config } = require('@/constants/Config'))
+    })
+
+    return Config!
+  }
+
+  const mockExpoRuntime = ({
+    executionEnvironment = 'standalone',
+    isRunningInExpoGo = false,
+  }: {
+    executionEnvironment?: 'storeClient' | 'standalone' | 'bare'
+    isRunningInExpoGo?: boolean
+  } = {}) => {
+    jest.doMock('expo', () => ({
+      isRunningInExpoGo: () => isRunningInExpoGo,
+    }))
+
+    jest.doMock('expo-constants', () => ({
+      __esModule: true,
+      default: {
+        expoConfig: {
+          hostUri: '192.168.18.86:8081',
+        },
+        executionEnvironment,
+      },
+    }))
+  }
+
   const originalEnv = process.env
 
   const mockPlatform = (os: 'android' | 'ios') => {
@@ -15,14 +47,13 @@ describe('Config API_URL', () => {
     delete process.env.EXPO_PUBLIC_API_URL
     delete process.env.EXPO_PUBLIC_APP_VARIANT
 
-    jest.doMock('expo-constants', () => ({
-      __esModule: true,
-      default: {
-        expoConfig: {
-          hostUri: '192.168.18.86:8081',
-        },
-      },
-    }))
+    mockExpoRuntime()
+  })
+
+  afterEach(() => {
+    jest.dontMock('expo')
+    jest.dontMock('expo-constants')
+    jest.dontMock('react-native')
   })
 
   afterAll(() => {
@@ -55,5 +86,38 @@ describe('Config API_URL', () => {
     const { Config } = require('@/constants/Config')
 
     expect(Config.API_URL).toBe('http://localhost:3000')
+  })
+
+  it('disables app update checks for development Android builds', () => {
+    process.env.EXPO_PUBLIC_APP_VARIANT = 'development'
+    mockPlatform('android')
+    mockExpoRuntime({ executionEnvironment: 'standalone' })
+
+    const Config = loadConfig()
+
+    expect(Config.CAN_AUTO_CHECK_APP_UPDATES).toBe(false)
+    expect(Config.CAN_MANUALLY_CHECK_APP_UPDATES).toBe(false)
+  })
+
+  it('enables app update checks for Android staging builds outside Expo Go', () => {
+    process.env.EXPO_PUBLIC_APP_VARIANT = 'staging'
+    mockPlatform('android')
+    mockExpoRuntime({ executionEnvironment: 'standalone' })
+
+    const Config = loadConfig()
+
+    expect(Config.CAN_AUTO_CHECK_APP_UPDATES).toBe(true)
+    expect(Config.CAN_MANUALLY_CHECK_APP_UPDATES).toBe(true)
+  })
+
+  it('disables app update checks inside Expo Go even for non-development variants', () => {
+    process.env.EXPO_PUBLIC_APP_VARIANT = 'staging'
+    mockPlatform('android')
+    mockExpoRuntime({ executionEnvironment: 'storeClient', isRunningInExpoGo: true })
+
+    const Config = loadConfig()
+
+    expect(Config.CAN_AUTO_CHECK_APP_UPDATES).toBe(false)
+    expect(Config.CAN_MANUALLY_CHECK_APP_UPDATES).toBe(false)
   })
 })

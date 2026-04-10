@@ -67,8 +67,17 @@ class RealtimeService {
       limit(20)
     )
     const seenDocIds = new Set<string>()
+    let isHydrated = false
 
     return onSnapshot(channelQuery, (snapshot) => {
+      if (!isHydrated) {
+        snapshot.docs.forEach((doc) => {
+          seenDocIds.add(doc.id)
+        })
+        isHydrated = true
+        return
+      }
+
       snapshot.docChanges().forEach((change) => {
         if (change.type !== 'added' || seenDocIds.has(change.doc.id)) {
           return

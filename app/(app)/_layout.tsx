@@ -43,11 +43,13 @@ export default function AppLayout() {
     }
   }, [user?.requiresFaceVerification, profileData?.requiresFaceVerification]);
 
-  logger.info("[Layout] User State loaded");
-  if (__DEV__) {
-    logger.info("[Layout] isSales:", user?.isSales);
-    logger.info("[Layout] employeeType:", user?.employeeType);
-  }
+  useEffect(() => {
+    logger.info("[Layout] User State loaded");
+    if (__DEV__) {
+      logger.info("[Layout] isSales:", user?.isSales);
+      logger.info("[Layout] employeeType:", user?.employeeType);
+    }
+  }, [user?.employeeType, user?.isSales]);
 
   const isMitra = user?.employeeType === 'MITRA_TEKNISI' || user?.employeeType === 'MITRA_SALES';
 
