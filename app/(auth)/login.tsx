@@ -196,16 +196,17 @@ export default function LoginScreen() {
                 )}
 
                 {/* Privacy Policy Link */}
-                <View style={tw`mt-8 items-center`}>
+                <View style={tw`mt-8 items-center gap-1`}>
                     <Text style={tw`text-gray-500 text-sm text-center`}>
-                        Dengan masuk, Anda menyetujui{'\n'}
-                        <Link href={'/kebijakan-privasi' as Href} asChild>
-                            <TouchableOpacity>
-                                <Text style={tw`text-blue-600 font-semibold`}>Kebijakan Privasi</Text>
-                            </TouchableOpacity>
-                        </Link>
-                        {' '}kami
+                        Dengan masuk, Anda menyetujui
                     </Text>
+                    <Link href={'/kebijakan-privasi' as Href} asChild>
+                        <TouchableOpacity>
+                            <Text style={tw`text-blue-600 font-semibold text-sm text-center`}>
+                                Kebijakan Privasi kami
+                            </Text>
+                        </TouchableOpacity>
+                    </Link>
                 </View>
             </View>
         </View>

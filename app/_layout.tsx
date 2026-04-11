@@ -290,8 +290,9 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === "(auth)";
     const inAppGroup = segments[0] === "(app)";
     const inCustomerGroup = segments[0] === "(customer)";
+    const isPublicRoute = segments[0] === "kebijakan-privasi";
 
-    logger.auth("Status:", { user: !!user, inAuthGroup, inAppGroup, inCustomerGroup, role: user?.role, segments });
+    logger.auth("Status:", { user: !!user, inAuthGroup, inAppGroup, inCustomerGroup, isPublicRoute, role: user?.role, segments });
 
     // Debounce redirects to prevent loops during initialization
     const redirectTimer = setTimeout(() => {
@@ -303,6 +304,11 @@ function RootLayoutNav() {
         return;
       }
       */
+
+      if (isPublicRoute) {
+        logger.auth("Allowing public route:", segments[0]);
+        return;
+      }
 
       if (!user && !inAuthGroup) {
         logger.auth("Redirecting to Login");
@@ -323,6 +329,12 @@ function RootLayoutNav() {
           }
         }
       }
+
+      errorReportingService.addBreadcrumb('navigation', 'Root redirect evaluated', {
+        hasUser: !!user,
+        segment: segments[0] ?? null,
+        isPublicRoute,
+      });
     }, 100);
 
     return () => clearTimeout(redirectTimer);
