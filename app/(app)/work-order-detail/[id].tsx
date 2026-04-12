@@ -20,6 +20,10 @@ import { UserSummary, WorkOrder, WorkOrderAssignment, WorkOrderUpdate } from "@/
 import { formatDate } from "@/utils/date";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
+import {
+  normalizeWorkOrderRouteParam,
+  resolveCanonicalWorkOrderId,
+} from "@/utils/workOrderRoute";
 import { FlashList } from '@shopify/flash-list';
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -60,6 +64,7 @@ export default function WorkOrderDetailScreen() {
   const router = useRouter();
   const { token, user } = useAuth();
   const insets = useSafeAreaInsets();
+  const routeWorkOrderId = normalizeWorkOrderRouteParam(id);
 
   const [wo, setWo] = useState<WorkOrder | null>(null);
   const [activeTab, setActiveTab] = useState<
@@ -114,21 +119,30 @@ export default function WorkOrderDetailScreen() {
     data: workOrderResponse,
     isPending: loading,
     refetch: fetchDetail,
-  } = useWorkOrder(id as string);
+  } = useWorkOrder(routeWorkOrderId ?? "");
 
   const woData = workOrderResponse?.data;
+  const canonicalWorkOrderId = resolveCanonicalWorkOrderId(
+    routeWorkOrderId,
+    woData?.id ?? wo?.id,
+  );
+  const resolvedWorkOrderId = canonicalWorkOrderId ?? routeWorkOrderId;
 
   // API Mutations
   const { mutate: updateStatus, isPending: actionLoading } = useApiMutation({
-    endpoint: `/api/mobile/work-orders/${id}/update`,
+    endpoint: `/api/mobile/work-orders/${resolvedWorkOrderId ?? ""}/update`,
     method: 'POST',
-    invalidateKeys: [queryKeys.workOrders.detail(id as string)],
+    invalidateKeys: resolvedWorkOrderId
+      ? [queryKeys.workOrders.detail(resolvedWorkOrderId)]
+      : [],
   });
 
   const { mutate: updateActivity, isPending: updateConfigLoading } = useApiMutation({
-    endpoint: `/api/mobile/work-orders/${id}/update`,
+    endpoint: `/api/mobile/work-orders/${resolvedWorkOrderId ?? ""}/update`,
     method: 'POST',
-    invalidateKeys: [queryKeys.workOrders.detail(id as string)],
+    invalidateKeys: resolvedWorkOrderId
+      ? [queryKeys.workOrders.detail(resolvedWorkOrderId)]
+      : [],
   });
 
   // Memoize timeline for Discussion Tab
@@ -159,14 +173,23 @@ export default function WorkOrderDetailScreen() {
     );
   }, [wo]);
 
+  const ensureResolvedWorkOrderId = useCallback(() => {
+    if (resolvedWorkOrderId) {
+      return resolvedWorkOrderId;
+    }
+
+    presentInfoMessage("ID Work Order tidak valid.", "Perhatian");
+    return null;
+  }, [resolvedWorkOrderId]);
+
   // Refresh data when screen is focused
   useFocusEffect(
     useCallback(() => {
-      if (id && token) {
+      if (routeWorkOrderId && token) {
         logger.info("[WO Detail] Screen focused, refreshing data...");
         fetchDetail();
       }
-    }, [id, token, fetchDetail]),
+    }, [routeWorkOrderId, token, fetchDetail]),
   );
 
   useEffect(() => {
@@ -205,45 +228,50 @@ export default function WorkOrderDetailScreen() {
     })();
   }, []);
 
-  const workOrderId = typeof id === 'string' ? id : '';
-
   // Handle real-time work order updates
   const handleWOUpdate = useCallback(
     (data: { id: string; workOrderId?: string }) => {
       logger.socket("[WS Mobile] WorkOrder Update received:", data);
-      if (data.id === id || data.workOrderId === id) {
+      if (
+        resolvedWorkOrderId &&
+        (data.id === resolvedWorkOrderId ||
+          data.workOrderId === resolvedWorkOrderId)
+      ) {
         fetchDetail();
       }
     },
-    [id, fetchDetail],
+    [resolvedWorkOrderId, fetchDetail],
   );
 
   // Handle real-time activity updates
   const handleActivityUpdate = useCallback(
     (data: WorkOrderActivityPayload) => {
       logger.socket("[WS Mobile] Activity received:", data.activity.type);
-      if (data.workOrderId === id) {
+      if (resolvedWorkOrderId && data.workOrderId === resolvedWorkOrderId) {
         fetchDetail();
       }
     },
-    [id, fetchDetail],
+    [resolvedWorkOrderId, fetchDetail],
   );
 
   useEffect(() => {
-    if (!workOrderId) {
+    if (!resolvedWorkOrderId) {
       return;
     }
 
-    return realtimeService.subscribeToScope({ kind: 'workorder', id: workOrderId }, (event: RealtimeStreamEvent) => {
-      if (event.type === 'workorder.update') {
-        handleWOUpdate(event.payload as { id: string; workOrderId?: string });
-      }
+    return realtimeService.subscribeToScope(
+      { kind: 'workorder', id: resolvedWorkOrderId },
+      (event: RealtimeStreamEvent) => {
+        if (event.type === 'workorder.update') {
+          handleWOUpdate(event.payload as { id: string; workOrderId?: string });
+        }
 
-      if (event.type === 'workorder.activity') {
-        handleActivityUpdate(event.payload as WorkOrderActivityPayload);
-      }
-    });
-  }, [handleActivityUpdate, handleWOUpdate, workOrderId]);
+        if (event.type === 'workorder.activity') {
+          handleActivityUpdate(event.payload as WorkOrderActivityPayload);
+        }
+      },
+    );
+  }, [handleActivityUpdate, handleWOUpdate, resolvedWorkOrderId]);
 
   // Partner search and pagination effect
   const fetchPartners = useCallback(async (pageNum = 1, shouldAppend = false) => {
@@ -288,8 +316,13 @@ export default function WorkOrderDetailScreen() {
   // ... existing code ...
 
   const handleUpdateStatus = async (action: "START" | "PAUSE" | "COMPLETE") => {
+    const workOrderId = ensureResolvedWorkOrderId();
+    if (!workOrderId) {
+      return;
+    }
+
     if (action === "COMPLETE") {
-      router.push(`/(app)/complete-work-order/${id}` as any);
+      router.push(`/(app)/complete-work-order/${workOrderId}` as any);
       return;
     }
 
@@ -563,10 +596,15 @@ export default function WorkOrderDetailScreen() {
   }
 
   const handleAddPartner = async (userId: string) => {
+    const workOrderId = ensureResolvedWorkOrderId();
+    if (!workOrderId) {
+      return;
+    }
+
     setPartnerLoading(true);
     try {
       await api.post(
-        `/api/mobile/work-orders/${id}/partners`,
+        `/api/mobile/work-orders/${workOrderId}/partners`,
         {
           userId,
           role: "PARTNER",
@@ -586,6 +624,11 @@ export default function WorkOrderDetailScreen() {
   };
 
   const handleRemovePartner = async (assignmentId: string) => {
+    const workOrderId = ensureResolvedWorkOrderId();
+    if (!workOrderId) {
+      return;
+    }
+
     Alert.alert(
       "Hapus Partner",
       "Apakah Anda yakin ingin menghapus partner ini?",
@@ -597,7 +640,7 @@ export default function WorkOrderDetailScreen() {
           onPress: async () => {
             try {
               await api.delete(
-                `/api/mobile/work-orders/${id}/partners?assignmentId=${assignmentId}`
+                `/api/mobile/work-orders/${workOrderId}/partners?assignmentId=${assignmentId}`
               );
               fetchDetail();
               presentSuccessMessage("Partner dihapus");
@@ -614,10 +657,15 @@ export default function WorkOrderDetailScreen() {
   };
 
   const handlePartnerResponse = async (response: "APPROVED" | "REJECTED") => {
+    const workOrderId = ensureResolvedWorkOrderId();
+    if (!workOrderId) {
+      return;
+    }
+
     setPartnerResponseLoading(true);
     try {
       const res = await api.post(
-        `/api/mobile/work-orders/${id}/partner-response`,
+        `/api/mobile/work-orders/${workOrderId}/partner-response`,
         {
           response,
         }
@@ -1080,9 +1128,18 @@ export default function WorkOrderDetailScreen() {
       <View style={tw`mt-6 gap-3`}>
         {/* Ambil Barang Button - Only for lead technician and approved partners */}
         <TouchableOpacity
-          onPress={() =>
-            canInteract && router.push(`/(app)/ambil-barang/${id}` as any)
-          }
+          onPress={() => {
+            if (!canInteract) {
+              return;
+            }
+
+            const workOrderId = ensureResolvedWorkOrderId();
+            if (!workOrderId) {
+              return;
+            }
+
+            router.push(`/(app)/ambil-barang/${workOrderId}` as any);
+          }}
           disabled={!canInteract}
           style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-blue-50 border-blue-200 active:bg-blue-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
         >
@@ -1101,9 +1158,18 @@ export default function WorkOrderDetailScreen() {
         {/* Kembalikan Barang Button - For DISCONNECTION and RELOCATION */}
         {(wo.type === "DISCONNECTION" || wo.type === "RELOCATION") && (
           <TouchableOpacity
-            onPress={() =>
-              canInteract && router.push(`/(app)/kembalikan-barang/${id}` as any)
-            }
+            onPress={() => {
+              if (!canInteract) {
+                return;
+              }
+
+              const workOrderId = ensureResolvedWorkOrderId();
+              if (!workOrderId) {
+                return;
+              }
+
+              router.push(`/(app)/kembalikan-barang/${workOrderId}` as any);
+            }}
             disabled={!canInteract}
             style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-green-50 border-green-200 active:bg-green-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
           >
@@ -1401,7 +1467,8 @@ export default function WorkOrderDetailScreen() {
   );
 
   const handleToggleTask = async (taskId: string, currentStatus: string) => {
-    if (!wo) return;
+    const workOrderId = ensureResolvedWorkOrderId();
+    if (!wo || !workOrderId) return;
     // Optimistic update
     const newStatus = currentStatus === "COMPLETED" ? "PENDING" : "COMPLETED";
     const updatedTasks = wo.tasks.map((t) =>
@@ -1411,7 +1478,7 @@ export default function WorkOrderDetailScreen() {
 
     try {
       await api.patch(
-        `/api/mobile/work-orders/${id}/tasks`,
+        `/api/mobile/work-orders/${workOrderId}/tasks`,
         {
           taskId,
           isCompleted: newStatus === "COMPLETED",

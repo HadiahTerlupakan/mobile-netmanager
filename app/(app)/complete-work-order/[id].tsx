@@ -7,6 +7,10 @@ import api from "@/services/api"; // Use centralized API
 import { formatDate } from "@/utils/date";
 import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
+import {
+  normalizeWorkOrderRouteParam,
+  resolveCanonicalWorkOrderId,
+} from "@/utils/workOrderRoute";
 import { CompleteWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -24,6 +28,7 @@ export default function CompleteWorkOrderScreen() {
 
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const routeWorkOrderId = normalizeWorkOrderRouteParam(id);
 
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [photos, setPhotos] = useState<string[]>([]); // Changed to Array
@@ -35,11 +40,22 @@ export default function CompleteWorkOrderScreen() {
   const [loadingMessage, setLoadingMessage] = useState("Mencari Lokasi...");
   const [uploadProgress, setUploadProgress] = useState(0);
 
+  const [detailWorkOrderId, setDetailWorkOrderId] = useState<string | null>(null);
+  const canonicalWorkOrderId = resolveCanonicalWorkOrderId(
+    routeWorkOrderId,
+    detailWorkOrderId,
+  );
+  const resolvedWorkOrderId = canonicalWorkOrderId ?? routeWorkOrderId;
+
   // API Mutation
   const { mutate, isPending: isMutating } = useApiMutation({
-    endpoint: `/api/mobile/work-orders/${id}/update`,
+    endpoint: resolvedWorkOrderId
+      ? `/api/mobile/work-orders/${resolvedWorkOrderId}/update`
+      : "",
     method: "POST",
-    invalidateKeys: [['work_order', id], ['work_orders']], // Invalidate list too
+    invalidateKeys: resolvedWorkOrderId
+      ? [['work_order', resolvedWorkOrderId], ['work_orders']]
+      : [['work_orders']],
   });
 
   useEffect(() => {
@@ -57,25 +73,36 @@ export default function CompleteWorkOrderScreen() {
       }
     })();
 
+    if (!routeWorkOrderId) {
+      setTicketNumber("");
+      return;
+    }
+
     // Fetch specific WO details just for ticket number (lightweight)
-    // or just rely on ID if ticket number is effectively ID for offline
-    // Better: Fetch to get real ticket number
     const fetchTicketNum = async () => {
       try {
-        const res = await api.get(`/api/mobile/work-orders/${id}`);
+        const res = await api.get(`/api/mobile/work-orders/${routeWorkOrderId}`);
         if (res.data.success) {
           const wo = res.data.data;
+          const canonicalId =
+            typeof wo.id === "string" && wo.id.trim() ? wo.id.trim() : null;
+
+          setDetailWorkOrderId(canonicalId);
           setTicketNumber(
-            wo.ticket?.ticketNumber || wo.workOrderNumber || (id as string),
+            wo.ticket?.ticketNumber || wo.workOrderNumber || canonicalId || routeWorkOrderId,
           );
+          return;
         }
       } catch {
-        // If offline, we might use ID as fallback
-        setTicketNumber(id as string);
+        // If offline, we might use route id as fallback
       }
+
+      setDetailWorkOrderId(null);
+      setTicketNumber(routeWorkOrderId);
     };
+
     fetchTicketNum();
-  }, [id]);
+  }, [routeWorkOrderId]);
 
   const handleImageSelection = () => {
     Alert.alert(
@@ -124,6 +151,11 @@ export default function CompleteWorkOrderScreen() {
   };
 
   const handleSubmit = async () => {
+    if (!resolvedWorkOrderId) {
+      presentInfoMessage("ID Work Order tidak valid.", "Perhatian");
+      return;
+    }
+
     // 1. Prepare & Sanitize Data
     // Get location first to include in validation if needed, or validate base fields first
     // For schema validation, we'll use placeholder or optional location if not yet fetched
