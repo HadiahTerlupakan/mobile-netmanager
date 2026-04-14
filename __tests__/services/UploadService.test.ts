@@ -175,4 +175,36 @@ describe('UploadService', () => {
       expect(results).toEqual(mockUrls);
     });
   });
+
+  describe('deleteUploadedFile', () => {
+    it('should throw error if no token is available for upload cleanup', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+      global.fetch = jest.fn() as jest.MockedFunction<typeof fetch>;
+
+      await expect(uploadService.deleteUploadedFile(mockUrl)).rejects.toThrow(
+        'Authentication required for upload cleanup'
+      );
+
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('should delete uploaded file with authenticated request', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+      } as Response) as jest.MockedFunction<typeof fetch>;
+
+      await uploadService.deleteUploadedFile(mockUrl);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining(`/api/mobile/upload?url=${encodeURIComponent(mockUrl)}`),
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${mockToken}`,
+          },
+        }
+      );
+    });
+  });
 });

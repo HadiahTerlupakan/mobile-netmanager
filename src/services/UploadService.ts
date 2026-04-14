@@ -159,6 +159,29 @@ class UploadService {
     return results;
   }
 
+  async deleteUploadedFile(url: string): Promise<void> {
+    let token = TokenService.getToken();
+    if (!token) {
+      token = await SecureStore.getItemAsync('session_token');
+    }
+
+    if (!token) {
+      throw new Error('Authentication required for upload cleanup');
+    }
+
+    const cleanupUrl = `${TenantService.getTenantUrl()}/api/mobile/upload?url=${encodeURIComponent(url)}`;
+    const response = await fetch(cleanupUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload cleanup failed with status ${response.status}`);
+    }
+  }
+
   /**
    * Uploads a file to a specific endpoint (custom upload)
    * Useful for profile photos, chat images, etc.

@@ -3,6 +3,7 @@ import { AttendanceSkeleton } from "@/components/molecules/AttendanceSkeleton";
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { useAuth } from "@/context/AuthContext";
 import {
+  isOfflineMutationQueuedResult,
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
@@ -636,9 +637,44 @@ export default function AbsensiScreen() {
       networkState: isOnline ? "online" : "offline",
     });
 
+    const offlineQueueMeta = {
+      photos: [processedUri],
+      photoType: "employee-attendance",
+      targetField: "photoUrl",
+      singleFile: true,
+    };
+
     if (!isOnline) {
-      setIsProcessing(false);
-      presentInfoMessage("Absensi hanya bisa dilakukan saat online.", "Koneksi Diperlukan");
+      setLoading(true);
+      setUploadProgress(0);
+      setLoadingMessage("Menyimpan data offline...");
+
+      try {
+        const data = await mutation.mutateAsync({
+          ...payload,
+          photoUrl: processedUri,
+          meta: offlineQueueMeta,
+        });
+
+        setIsProcessing(false);
+        setLoading(false);
+        setPhoto(null);
+
+        if (isOfflineMutationQueuedResult(data)) {
+          presentInfoMessage(
+            "Absensi disimpan untuk dikirim otomatis saat internet kembali.",
+            "Offline"
+          );
+        }
+      } catch (error) {
+        setIsProcessing(false);
+        setLoading(false);
+        presentAppError(error, {
+          screen: 'AttendanceScreen',
+          route: '/(app)/absensi',
+        });
+      }
+
       return;
     }
 
@@ -671,37 +707,48 @@ export default function AbsensiScreen() {
 
       setLoadingMessage("Mengirim data...");
       setUploadProgress(0);
-      await mutation.mutate({ ...payload, photoUrl }, {
-        onSuccess: async (data) => {
-          try {
-            if (status === "idle") {
-              logger.info('[Absensi] Check-in success, starting location tracking...');
-              const trackingStarted = await LocationTrackingService.startTracking();
-              logger.info(`[Absensi] Tracking started: ${trackingStarted}`);
-            } else {
-              logger.info('[Absensi] Check-out success, stopping location tracking...');
-              await LocationTrackingService.stopTracking();
-            }
-          } catch (trackingError) {
-            logger.error('[Absensi] Tracking error:', trackingError);
-          }
+      let data;
 
-          setIsProcessing(false);
-          setLoading(false);
-          const warning = (data as { warning?: string })?.warning;
-          presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
-          refetchStatus();
-          setPhoto(null);
-        },
-        onError: (e) => {
-          setIsProcessing(false);
-          setLoading(false);
-          presentAppError(e, {
-            screen: 'AttendanceScreen',
-            route: '/(app)/absensi',
-          });
-        },
-      });
+      try {
+        data = await mutation.mutateAsync({ ...payload, photoUrl });
+      } catch (mutationError) {
+        try {
+          await uploadService.deleteUploadedFile(photoUrl);
+        } catch (cleanupError) {
+          logger.warn('[Absensi] Failed to cleanup uploaded attendance photo:', cleanupError);
+        }
+
+        throw mutationError;
+      }
+
+      setIsProcessing(false);
+      setLoading(false);
+      setPhoto(null);
+
+      if (isOfflineMutationQueuedResult(data)) {
+        presentInfoMessage(
+          "Koneksi terputus setelah foto berhasil diupload. Absensi disimpan dan akan dikirim otomatis saat internet kembali.",
+          "Offline"
+        );
+        return;
+      }
+
+      try {
+        if (status === "idle") {
+          logger.info('[Absensi] Check-in success, starting location tracking...');
+          const trackingStarted = await LocationTrackingService.startTracking();
+          logger.info(`[Absensi] Tracking started: ${trackingStarted}`);
+        } else {
+          logger.info('[Absensi] Check-out success, stopping location tracking...');
+          await LocationTrackingService.stopTracking();
+        }
+      } catch (trackingError) {
+        logger.error('[Absensi] Tracking error:', trackingError);
+      }
+
+      const warning = (data as { warning?: string })?.warning;
+      presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
+      refetchStatus();
     } catch (error) {
       AttendanceTelemetryService.track("attendance_photo_upload_failed", {
         requestId: payload.requestId,

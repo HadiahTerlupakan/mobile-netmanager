@@ -14,6 +14,7 @@ export interface SyncQueueItem {
   createdAt: string;
   meta: string; // JSON string for extra info
   retryCount?: number;
+  terminalReason?: string;
 }
 
 class DatabaseServiceImpl {
@@ -141,10 +142,21 @@ class DatabaseServiceImpl {
 
   public async markAsRetry(id: number) {
     if (!this.isReady) await this.waitForReady();
-    const item = this.memoryQueue.find((item) => item.id === id);
+    const item = this.memoryQueue.find((queueItem) => queueItem.id === id);
     if (item) {
       item.status = "RETRY";
       item.retryCount = (item.retryCount || 0) + 1;
+      delete item.terminalReason;
+      await this.persistQueue();
+    }
+  }
+
+  public async markAsFailed(id: number, reason: string) {
+    if (!this.isReady) await this.waitForReady();
+    const item = this.memoryQueue.find((queueItem) => queueItem.id === id);
+    if (item) {
+      item.status = "FAILED";
+      item.terminalReason = reason;
       await this.persistQueue();
     }
   }
@@ -202,6 +214,7 @@ export const DatabaseService = {
   getPendingQueue: () => DatabaseServiceImpl.getInstance().getPendingQueue(),
   removeFromQueue: (id: number) => DatabaseServiceImpl.getInstance().removeFromQueue(id),
   markAsRetry: (id: number) => DatabaseServiceImpl.getInstance().markAsRetry(id),
+  markAsFailed: (id: number, reason: string) => DatabaseServiceImpl.getInstance().markAsFailed(id, reason),
   saveOfflineData: (key: string, data: any) => DatabaseServiceImpl.getInstance().saveOfflineData(key, data),
   getOfflineData: <T>(key: string) => DatabaseServiceImpl.getInstance().getOfflineData<T>(key),
   clearSessionData: () => DatabaseServiceImpl.getInstance().clearSessionData(),

@@ -146,17 +146,25 @@ describe('useApiMutation', () => {
     queryClient.clear();
   });
 
-  it('throws offline error instead of queueing attendance mutations', async () => {
+  it('queues attendance mutations offline and preserves requestId for replay', async () => {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false, gcTime: Infinity },
         mutations: { retry: false, gcTime: Infinity },
       },
     });
+    const invalidateQueriesSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
-    const { useApiMutation } = require('@/hooks/queries/useApiMutation');
+    const { useApiMutation, isOfflineMutationQueuedResult } = require('@/hooks/queries/useApiMutation');
     const attendanceIdempotency = require('@/utils/attendanceIdempotency');
     attendanceIdempotency.isAttendanceEndpoint.mockReturnValue(true);
+    attendanceIdempotency.ensureAttendanceRequestId.mockImplementation((payload: Record<string, unknown>) => ({
+      ...payload,
+      requestId: 'att-queued-1',
+    }));
+    attendanceIdempotency.buildAttendanceIdempotencyHeaders.mockReturnValue({
+      'Idempotency-Key': 'att-queued-1',
+    });
     mockIsOnline.mockResolvedValue(false);
 
     const { result, unmount } = renderHook(
@@ -164,17 +172,45 @@ describe('useApiMutation', () => {
         useApiMutation({
           endpoint: '/api/mobile/attendance/check-in',
           method: 'POST',
+          invalidateKeys: [['attendanceStatus']],
+          successMessage: 'Saved',
         }),
       { wrapper: createWrapper(queryClient) }
     );
 
-    await expect(
-      act(async () => {
-        await result.current.mutateAsync({ location: 'HQ' });
-      })
-    ).rejects.toThrow('Offline');
+    let mutationResult: unknown;
+    await act(async () => {
+      mutationResult = await result.current.mutateAsync({ location: 'HQ' });
+    });
 
-    expect(mockAddToQueue).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(isOfflineMutationQueuedResult(mutationResult)).toBe(true);
+    expect(mutationResult).toEqual(
+      expect.objectContaining({
+        __offline_queued__: true,
+        kind: 'offline-queued',
+        endpoint: '/api/mobile/attendance/check-in',
+        method: 'POST',
+      })
+    );
+    expect(mockAddToQueue).toHaveBeenCalledWith(
+      '/api/mobile/attendance/check-in',
+      'POST',
+      expect.objectContaining({
+        location: 'HQ',
+        requestId: 'att-queued-1',
+      }),
+      expect.objectContaining({
+        requestId: 'att-queued-1',
+      })
+    );
+    expect(invalidateQueriesSpy).not.toHaveBeenCalled();
+    expect(presentInfoMessage).toHaveBeenCalledWith(
+      expect.stringContaining('disimpan'),
+      'Offline',
+    );
+    expect(presentSuccessMessage).not.toHaveBeenCalled();
 
     unmount();
     queryClient.clear();

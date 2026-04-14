@@ -266,10 +266,6 @@ export function useApiMutation<
           error instanceof Error && error.message === "Offline";
 
         if (isExplicitOffline || isNetworkError) {
-          if (attendanceMutation) {
-            throw new Error("Offline");
-          }
-
           logger.info(
             `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${endpoint}`,
           );
