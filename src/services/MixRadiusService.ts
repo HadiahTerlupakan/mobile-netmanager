@@ -89,12 +89,12 @@ export const MixRadiusService = {
       }
 
       // Note: api baseURL is dynamic from TenantService, so we append /api/...
-      logger.info(`[MixRadius] Requesting: /api/integrations/mixradius/customers params:`, JSON.stringify(params));
+      logger.info(`[MixRadius] Requesting: /api/mobile/mixradius/customers params:`, JSON.stringify(params));
       const response = await api.get<{
         success?: boolean;
         data?: MixRadiusResponse | MixRadiusCustomer[];
       }>(
-        "/api/integrations/mixradius/customers",
+        "/api/mobile/mixradius/customers",
         { params },
       );
 
