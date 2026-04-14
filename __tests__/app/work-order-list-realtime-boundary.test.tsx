@@ -8,11 +8,28 @@ const authState = {
 };
 
 const mockSubscribeToUserStream = jest.fn();
+const mockUseIsFocused = jest.fn(() => false);
+const mockUseAvailableWorkOrders = jest.fn(() => ({
+  data: { data: [] },
+  isPending: false,
+  refetch: jest.fn(),
+  isRefetching: false,
+}));
+const mockUseWorkOrders = jest.fn(() => ({
+  data: { data: [] },
+  isPending: false,
+  refetch: jest.fn(),
+  isRefetching: false,
+}));
 
 jest.mock('@/services/RealtimeService', () => ({
   realtimeService: {
     subscribeToUserStream: mockSubscribeToUserStream,
   },
+}));
+
+jest.mock('@react-navigation/native', () => ({
+  useIsFocused: () => mockUseIsFocused(),
 }));
 
 jest.mock('@/constants/features', () => ({
@@ -37,18 +54,8 @@ jest.mock('@/context/AuthContext', () => ({
 }));
 
 jest.mock('@/hooks/queries', () => ({
-  useAvailableWorkOrders: jest.fn(() => ({
-    data: { data: [] },
-    isPending: false,
-    refetch: jest.fn(),
-    isRefetching: false,
-  })),
-  useWorkOrders: jest.fn(() => ({
-    data: { data: [] },
-    isPending: false,
-    refetch: jest.fn(),
-    isRefetching: false,
-  })),
+  useAvailableWorkOrders: mockUseAvailableWorkOrders,
+  useWorkOrders: mockUseWorkOrders,
   useClaimWorkOrder: jest.fn(() => ({
     mutate: jest.fn(),
   })),
@@ -94,7 +101,20 @@ describe('mobile work order list realtime boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     authState.token = null;
+    mockUseIsFocused.mockReturnValue(false);
     mockSubscribeToUserStream.mockReturnValue(jest.fn());
+    mockUseAvailableWorkOrders.mockReturnValue({
+      data: { data: [] },
+      isPending: false,
+      refetch: jest.fn(),
+      isRefetching: false,
+    });
+    mockUseWorkOrders.mockReturnValue({
+      data: { data: [] },
+      isPending: false,
+      refetch: jest.fn(),
+      isRefetching: false,
+    });
   });
 
   it('does not subscribe to the user realtime stream before auth token is available', () => {
@@ -105,12 +125,38 @@ describe('mobile work order list realtime boundary', () => {
     expect(mockSubscribeToUserStream).not.toHaveBeenCalled();
   });
 
-  it('subscribes through the user realtime stream when auth is ready', () => {
+  it('does not subscribe or mount work order queries while the screen is not focused', () => {
     authState.token = 'token-123';
     const WorkOrderScreen = require('../../app/(app)/work-order').default;
 
     render(<WorkOrderScreen />);
 
+    expect(mockUseAvailableWorkOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+    expect(mockUseWorkOrders).toHaveBeenNthCalledWith(
+      1,
+      { type: 'active', limit: 50 },
+      { enabled: false },
+    );
+    expect(mockUseWorkOrders).toHaveBeenNthCalledWith(
+      2,
+      { type: 'history', limit: 50 },
+      { enabled: false },
+    );
+    expect(mockSubscribeToUserStream).not.toHaveBeenCalled();
+  });
+
+  it('subscribes through the user realtime stream when auth is ready and the screen is focused', () => {
+    authState.token = 'token-123';
+    mockUseIsFocused.mockReturnValue(true);
+    const WorkOrderScreen = require('../../app/(app)/work-order').default;
+
+    render(<WorkOrderScreen />);
+
+    expect(mockUseAvailableWorkOrders).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: true }),
+    );
     expect(mockSubscribeToUserStream).toHaveBeenCalledWith('user-1', expect.any(Function));
   });
 });

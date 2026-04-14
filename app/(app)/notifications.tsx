@@ -8,6 +8,7 @@ import { getUserFriendlyError } from "@/utils/errorHandling";
 import { FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Href, useFocusEffect, useRouter } from "expo-router";
+import { useIsFocused } from '@react-navigation/native';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -18,7 +19,7 @@ import {
   Megaphone,
   Package,
 } from "lucide-react-native";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -107,6 +108,8 @@ NotificationItem.displayName = 'NotificationItem';
 export default function NotificationsScreen() {
   const { token } = useAuth();
   const router = useRouter();
+  const isFocused = useIsFocused();
+  const hasHandledInitialFocusRef = useRef(false);
   const queryClient = useQueryClient();
 
   // Infinite Query for Notifications
@@ -133,7 +136,7 @@ export default function NotificationsScreen() {
     },
     getNextPageParam: (lastPage: NotificationsPage) => lastPage.nextCursor || undefined,
     initialPageParam: null,
-    enabled: !!token,
+    enabled: isFocused && !!token,
     staleTime: 1000 * 60 * 5,
   });
 
@@ -162,8 +165,17 @@ export default function NotificationsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (!isFocused) {
+        return;
+      }
+
+      if (!hasHandledInitialFocusRef.current) {
+        hasHandledInitialFocusRef.current = true;
+        return;
+      }
+
       refetch();
-    }, [refetch]),
+    }, [isFocused, refetch]),
   );
 
   const onLoadMore = () => {

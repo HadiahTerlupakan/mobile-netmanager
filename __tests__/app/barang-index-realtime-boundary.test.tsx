@@ -4,11 +4,21 @@ import { render } from '@testing-library/react-native';
 
 const mockSubscribeToUserStream = jest.fn();
 const mockSetQueryData = jest.fn();
+const mockUseIsFocused = jest.fn(() => false);
+const mockUseApiQuery = jest.fn(() => ({
+  data: { barangMasukToday: 2, barangKeluarToday: 1 },
+  isPending: false,
+  refetch: jest.fn(),
+}));
 
 jest.mock('@/services/RealtimeService', () => ({
   realtimeService: {
     subscribeToUserStream: mockSubscribeToUserStream,
   },
+}));
+
+jest.mock('@react-navigation/native', () => ({
+  useIsFocused: () => mockUseIsFocused(),
 }));
 
 jest.mock('expo-router', () => ({
@@ -29,11 +39,7 @@ jest.mock('@tanstack/react-query', () => ({
 }));
 
 jest.mock('@/hooks/queries', () => ({
-  useApiQuery: jest.fn(() => ({
-    data: { barangMasukToday: 2, barangKeluarToday: 1 },
-    isPending: false,
-    refetch: jest.fn(),
-  })),
+  useApiQuery: mockUseApiQuery,
 }));
 
 jest.mock('@/hooks/useFeatureGuard', () => ({
@@ -77,14 +83,35 @@ jest.mock('twrnc', () => () => ({}));
 describe('barang index realtime boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseIsFocused.mockReturnValue(false);
     mockSubscribeToUserStream.mockReturnValue(jest.fn());
+    mockUseApiQuery.mockReturnValue({
+      data: { barangMasukToday: 2, barangKeluarToday: 1 },
+      isPending: false,
+      refetch: jest.fn(),
+    });
   });
 
-  it('subscribes through the user realtime stream instead of SocketContext helpers', () => {
+  it('does not subscribe or mount dashboard stats query while the screen is not focused', () => {
     const BarangIndexScreen = require('../../app/(app)/barang/index').default;
 
     render(<BarangIndexScreen />);
 
+    expect(mockUseApiQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+    expect(mockSubscribeToUserStream).not.toHaveBeenCalled();
+  });
+
+  it('subscribes through the user realtime stream when the screen is focused', () => {
+    mockUseIsFocused.mockReturnValue(true);
+    const BarangIndexScreen = require('../../app/(app)/barang/index').default;
+
+    render(<BarangIndexScreen />);
+
+    expect(mockUseApiQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: true }),
+    );
     expect(mockSubscribeToUserStream).toHaveBeenCalledWith('user-1', expect.any(Function));
   });
 });

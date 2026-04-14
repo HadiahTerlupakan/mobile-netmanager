@@ -4,6 +4,7 @@ import { render } from '@testing-library/react-native';
 
 const mockSubscribeToScope = jest.fn();
 const mockUseLocalSearchParams = jest.fn<() => Record<string, string | undefined>>(() => ({ id: undefined }));
+const mockUseIsFocused = jest.fn(() => false);
 
 jest.mock('@/services/RealtimeService', () => ({
   realtimeService: {
@@ -21,6 +22,10 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockUseLocalSearchParams(),
   useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
   useFocusEffect: jest.fn(),
+}));
+
+jest.mock('@react-navigation/native', () => ({
+  useIsFocused: () => mockUseIsFocused(),
 }));
 
 jest.mock('@/hooks/useFeatureGuard', () => ({
@@ -141,6 +146,7 @@ jest.mock('twrnc', () => () => ({}));
 describe('mobile work order detail realtime boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseIsFocused.mockReturnValue(false);
     mockSubscribeToScope.mockReturnValue(jest.fn());
     mockUseLocalSearchParams.mockReturnValue({ id: undefined });
   });
@@ -153,7 +159,17 @@ describe('mobile work order detail realtime boundary', () => {
     expect(mockSubscribeToScope).not.toHaveBeenCalled();
   });
 
-  it('subscribes through the workorder realtime scope when the route id is available', () => {
+  it('does not subscribe to workorder realtime scope while the screen is not focused', () => {
+    mockUseLocalSearchParams.mockReturnValue({ id: 'wo-1' } as { id?: string });
+    const WorkOrderDetailScreen = require('../../app/(app)/work-order-detail/[id]').default;
+
+    render(<WorkOrderDetailScreen />);
+
+    expect(mockSubscribeToScope).not.toHaveBeenCalled();
+  });
+
+  it('subscribes through the workorder realtime scope when the route id is available and the screen is focused', () => {
+    mockUseIsFocused.mockReturnValue(true);
     mockUseLocalSearchParams.mockReturnValue({ id: 'wo-1' } as { id?: string });
     const WorkOrderDetailScreen = require('../../app/(app)/work-order-detail/[id]').default;
 

@@ -56,12 +56,62 @@ export interface MixRadiusResponse {
   data: MixRadiusCustomer[];
 }
 
+interface MixRadiusWrappedResponse {
+  success?: boolean;
+  data?: MixRadiusResponse | MixRadiusCustomer[];
+}
+
 export interface OwnerGroup {
   id: string;
   name: string;
   owners: string[];
   isActive: boolean;
 }
+
+const DEFAULT_MIXRADIUS_DRAW = 1;
+
+const buildPaginatedMixRadiusResponse = (
+  customers: MixRadiusCustomer[],
+  draw: number = DEFAULT_MIXRADIUS_DRAW,
+  recordsTotal: number = customers.length,
+  recordsFiltered: number = customers.length,
+): MixRadiusResponse => ({
+  draw,
+  recordsTotal,
+  recordsFiltered,
+  data: customers,
+});
+
+const isPaginatedMixRadiusResponse = (
+  payload: unknown,
+): payload is MixRadiusResponse => {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidate = payload as Partial<MixRadiusResponse>;
+
+  return (
+    typeof candidate.draw === "number" &&
+    typeof candidate.recordsTotal === "number" &&
+    typeof candidate.recordsFiltered === "number" &&
+    Array.isArray(candidate.data)
+  );
+};
+
+const normalizeMixRadiusResponse = (
+  payload?: MixRadiusResponse | MixRadiusCustomer[],
+): MixRadiusResponse => {
+  if (isPaginatedMixRadiusResponse(payload)) {
+    return payload;
+  }
+
+  if (Array.isArray(payload)) {
+    return buildPaginatedMixRadiusResponse(payload);
+  }
+
+  return buildPaginatedMixRadiusResponse([]);
+};
 
 export const MixRadiusService = {
   getIsolirCustomers: async (
@@ -90,36 +140,38 @@ export const MixRadiusService = {
 
       // Note: api baseURL is dynamic from TenantService, so we append /api/...
       logger.info(`[MixRadius] Requesting: /api/mobile/mixradius/customers params:`, JSON.stringify(params));
-      const response = await api.get<{
-        success?: boolean;
-        data?: MixRadiusResponse | MixRadiusCustomer[];
-      }>(
+      const response = await api.get<MixRadiusWrappedResponse | MixRadiusCustomer[]>(
         "/api/mobile/mixradius/customers",
         { params },
       );
 
-      logger.info(`[MixRadius] Raw response keys:`, Object.keys(response.data));
-      if (response.data?.data) {
-         logger.info(`[MixRadius] response.data.data keys:`, Object.keys(response.data.data));
-         if (Array.isArray(response.data.data)) {
-             logger.info(`[MixRadius] response.data.data is Array length: ${response.data.data.length}`);
-         } else {
-             logger.info(`[MixRadius] response.data.data is Object`);
-             if (response.data.data.data) {
-                 logger.info(`[MixRadius] response.data.data.data is Array length: ${response.data.data.data.length}`);
-             }
-         }
+      const responseBody = response.data;
+
+      if (Array.isArray(responseBody)) {
+        logger.info(`[MixRadius] Raw response is legacy array length: ${responseBody.length}`);
+        return normalizeMixRadiusResponse(responseBody);
       }
 
-      // Handle wrapped response { success: true, data: { ... } }
-      if (response.data?.success && response.data?.data) {
-        logger.info(`[MixRadius] Returning response.data.data (wrapped)`);
-        return response.data.data;
+      logger.info(`[MixRadius] Raw response keys:`, Object.keys(responseBody));
+      if (responseBody.data) {
+        logger.info(`[MixRadius] response.data.data keys:`, Object.keys(responseBody.data));
+        if (Array.isArray(responseBody.data)) {
+          logger.info(`[MixRadius] response.data.data is Array length: ${responseBody.data.length}`);
+        } else {
+          logger.info(`[MixRadius] response.data.data is Object`);
+          if (responseBody.data.data) {
+            logger.info(`[MixRadius] response.data.data.data is Array length: ${responseBody.data.data.length}`);
+          }
+        }
       }
 
-      // Handle direct response (unwrapped or different structure)
-      logger.info(`[MixRadius] Returning response.data (unwrapped/other)`);
-      return response.data;
+      if (responseBody.success && responseBody.data) {
+        logger.info(`[MixRadius] Returning normalized wrapped payload`);
+        return normalizeMixRadiusResponse(responseBody.data);
+      }
+
+      logger.info(`[MixRadius] Returning normalized fallback payload`);
+      return normalizeMixRadiusResponse(responseBody.data);
     } catch (error) {
       throw error;
     }
