@@ -3,7 +3,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useApiQuery } from "@/hooks/queries";
 import api from "@/services/api";
 import { getUserFriendlyError } from "@/utils/errorHandling";
-import { presentErrorMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import { getMapLibre, isMapLibreAvailable, isWeb } from "@/utils/maplibre";
 import toGeoJSON from "@/utils/togeojson-wrapper";
@@ -44,7 +43,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { DeviceCreateModal } from "@/components/organisms/topology/DeviceCreateModal";
 import {
   DeviceData,
   DeviceDetailModal,
@@ -430,9 +428,6 @@ export default function TopologyMapScreen() {
     data: DeviceData;
     type: DeviceType;
   } | null>(null);
-
-  const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [createLocation, setCreateLocation] = useState<{ latitude: number; longitude: number } | undefined>(undefined);
 
   const [showFilters, setShowFilters] = useState(false);
 
@@ -976,53 +971,17 @@ export default function TopologyMapScreen() {
     return { type: "FeatureCollection", features: kmzFeatures };
   }, [visibility.kmz, kmzFeatures]);
 
-  const deleteEdge = useCallback(async (edgeId: string) => {
-    try {
-      await api.delete(`/api/map/edges/${edgeId}`);
-      presentSuccessMessage("Jalur fiber berhasil dihapus");
-      fetchData();
-    } catch (error) {
-      logger.error("topology", "Failed to delete edge", { edgeId, error });
-      const { message } = getUserFriendlyError(error);
-      presentErrorMessage(message || "Gagal menghapus jalur fiber", "Error");
-    }
-  }, [fetchData]);
-
   const onLineSelected = useCallback((event: any) => {
     const feature = event.features[0];
     if (!feature) return;
 
-    const { edgeId, sourceName, targetName, distance } = feature.properties;
+    const { sourceName, targetName, distance } = feature.properties;
     Alert.alert(
       "Info Jalur Kabel",
       `Dari: ${sourceName}\nKe: ${targetName}\nJarak Estimasi: ${distance || "?"}`,
-      [
-        { text: "Tutup" },
-        {
-          text: "Hapus",
-          style: "destructive",
-          onPress: () => {
-            if (edgeId) {
-              Alert.alert(
-                "Konfirmasi",
-                "Apakah Anda yakin ingin menghapus jalur fiber ini?",
-                [
-                  { text: "Batal", style: "cancel" },
-                  {
-                    text: "Hapus",
-                    style: "destructive",
-                    onPress: () => deleteEdge(edgeId),
-                  },
-                ]
-              );
-            } else {
-              presentErrorMessage("ID jalur fiber tidak ditemukan", "Error");
-            }
-          },
-        },
-      ]
+      [{ text: "Tutup" }],
     );
-  }, [deleteEdge]);
+  }, []);
 
   const onAnnotationSelected = useCallback((feature: GeoJSONFeature) => {
     const {
@@ -1190,17 +1149,6 @@ export default function TopologyMapScreen() {
         east: bounds.ne[0],
         west: bounds.sw[0],
       };
-    }
-  }, []);
-
-  const handleMapLongPress = useCallback((feature: any) => {
-    const coords = feature.geometry.coordinates;
-    if (coords) {
-      setCreateLocation({
-        longitude: coords[0],
-        latitude: coords[1],
-      });
-      setCreateModalVisible(true);
     }
   }, []);
 
@@ -1550,7 +1498,6 @@ export default function TopologyMapScreen() {
             attributionEnabled={false}
             onRegionDidChange={handleCameraChange}
             onDidFinishLoadingStyle={handleStyleLoaded}
-            onLongPress={handleMapLongPress}
           >
             <MapLibreGL.Camera
               ref={cameraRef}
@@ -1635,16 +1582,6 @@ export default function TopologyMapScreen() {
           deviceType={selectedDevice?.type || null}
         />
 
-        {/* Device Create Modal */}
-        <DeviceCreateModal
-          visible={createModalVisible}
-          onClose={() => setCreateModalVisible(false)}
-          initialLocation={createLocation}
-          onSuccess={() => {
-            fetchData();
-            setCreateModalVisible(false);
-          }}
-        />
       </SafeAreaView>
     </TopologyErrorBoundary>
   );
