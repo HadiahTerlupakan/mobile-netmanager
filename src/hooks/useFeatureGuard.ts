@@ -4,6 +4,11 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Alert } from 'react-native';
 
+/**
+ * UX-only feature guard untuk mobile client.
+ * Jangan diperlakukan sebagai security boundary; backend API authorization
+ * dan tenant isolation tetap source of truth.
+ */
 export function useFeatureGuard(
   requiredFeature: AppFeature | AppFeature[],
   showMessage: boolean = true
