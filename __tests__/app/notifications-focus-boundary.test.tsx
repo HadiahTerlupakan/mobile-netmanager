@@ -1,18 +1,23 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 
 const mockUseIsFocused = jest.fn(() => false);
 const mockRefetch = jest.fn();
+const mockMutate = jest.fn();
+const mockSetQueryData = jest.fn();
 let latestFocusEffect: (() => void) | undefined;
 
-const createInfiniteQueryResult = () => ({
+const createInfiniteQueryResult = (
+  pageOverrides: Partial<{ notifications: unknown[]; unreadCount: number; nextCursor: string | null }> = {},
+) => ({
   data: {
     pages: [
       {
         notifications: [],
         unreadCount: 0,
         nextCursor: null,
+        ...pageOverrides,
       },
     ],
   },
@@ -48,7 +53,7 @@ jest.mock('@/context/AuthContext', () => ({
 
 jest.mock('@/hooks/queries', () => ({
   useApiMutation: () => ({
-    mutate: jest.fn(),
+    mutate: mockMutate,
     isPending: false,
   }),
 }));
@@ -56,14 +61,16 @@ jest.mock('@/hooks/queries', () => ({
 jest.mock('@/lib/queryClient', () => ({
   queryKeys: {
     notifications: {
-      list: () => ['notifications'],
+      all: ['notifications'],
+      list: () => ['notifications', 'list'],
+      unread: () => ['notifications', 'unread'],
     },
   },
 }));
 
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({
-    setQueryData: jest.fn(),
+    setQueryData: mockSetQueryData,
   }),
   useInfiniteQuery: (options: unknown) => mockUseInfiniteQuery(options),
   useMutation: () => ({
@@ -84,7 +91,25 @@ jest.mock('@react-navigation/native', () => ({
 jest.mock('@/components/molecules/NotificationSkeleton', () => ({
   NotificationSkeleton: () => null,
 }));
-jest.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }));
+jest.mock('@shopify/flash-list', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+
+  return {
+    FlashList: ({ data, renderItem, ListEmptyComponent, ListFooterComponent }: any) => (
+      <View>
+        {data?.length
+          ? data.map((item: unknown, index: number) => (
+              <React.Fragment key={String((item as { id?: string })?.id ?? index)}>
+                {renderItem?.({ item, index })}
+              </React.Fragment>
+            ))
+          : ListEmptyComponent}
+        {ListFooterComponent}
+      </View>
+    ),
+  };
+});
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
 jest.mock('lucide-react-native', () => ({
   AlertTriangle: 'AlertTriangle',
@@ -103,6 +128,8 @@ describe('mobile notifications focus boundary', () => {
     jest.clearAllMocks();
     latestFocusEffect = undefined;
     mockRefetch.mockReset();
+    mockMutate.mockReset();
+    mockSetQueryData.mockReset();
     mockUseIsFocused.mockReturnValue(false);
     mockUseInfiniteQuery.mockImplementation((_options: unknown) => createInfiniteQueryResult());
   });
@@ -147,5 +174,44 @@ describe('mobile notifications focus boundary', () => {
     latestFocusEffect?.();
 
     expect(mockRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates unread cache alongside list cache when marking a notification as read', () => {
+    mockUseIsFocused.mockReturnValue(true);
+    mockUseInfiniteQuery.mockImplementation((_options: unknown) =>
+      createInfiniteQueryResult({
+        notifications: [
+          {
+            id: 'notif-1',
+            type: 'ANNOUNCEMENT',
+            title: 'Notif 1',
+            message: 'Pesan',
+            link: null,
+            isRead: false,
+            sourceType: null,
+            sourceId: null,
+            createdAt: '2026-04-16T00:00:00.000Z',
+          },
+        ],
+        unreadCount: 1,
+      }),
+    );
+
+    const NotificationsScreen = require('../../app/(app)/notifications').default;
+    const screen = render(<NotificationsScreen />);
+
+    fireEvent.press(screen.getByText('Notif 1'));
+
+    expect(mockSetQueryData).toHaveBeenNthCalledWith(
+      1,
+      ['notifications', 'list'],
+      expect.any(Function),
+    );
+    expect(mockSetQueryData).toHaveBeenNthCalledWith(
+      2,
+      ['notifications', 'unread'],
+      expect.any(Function),
+    );
+    expect(mockMutate).toHaveBeenCalledWith({ action: 'markRead', notificationId: 'notif-1' });
   });
 });

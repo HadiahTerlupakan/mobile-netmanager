@@ -1,6 +1,7 @@
 import { NotificationSkeleton } from "@/components/molecules/NotificationSkeleton";
 import { useAuth } from "@/context/AuthContext";
 import { useApiMutation } from "@/hooks/queries";
+import { applyNotificationsOptimisticUpdate } from "@/lib/notificationCache";
 import { queryKeys } from "@/lib/queryClient";
 import api from "@/services/api"; // Use centralized API
 import { formatTimeAgo } from "@/utils/date";
@@ -186,19 +187,9 @@ export default function NotificationsScreen() {
 
   // Optimistic mark as read - update UI immediately, rollback on error
   const markAsRead = useCallback((notificationId: string) => {
-    // Optimistic update: mark as read immediately in cache
-    queryClient.setQueryData<any>(queryKeys.notifications.list(), (oldData: any) => {
-      if (!oldData?.pages) return oldData;
-      return {
-        ...oldData,
-        pages: oldData.pages.map((page: any) => ({
-          ...page,
-          notifications: page.notifications?.map((n: Notification) =>
-            n.id === notificationId ? { ...n, isRead: true } : n
-          ),
-          unreadCount: Math.max(0, (page.unreadCount || 0) - 1)
-        }))
-      };
+    applyNotificationsOptimisticUpdate(queryClient, {
+      type: 'markRead',
+      notificationId,
     });
 
     // Fire and forget - if it fails, the next refetch will correct the state
@@ -206,17 +197,8 @@ export default function NotificationsScreen() {
   }, [notificationMutation, queryClient]);
 
   const markAllAsRead = useCallback(() => {
-    // Optimistic update: mark all as read immediately
-    queryClient.setQueryData<any>(queryKeys.notifications.list(), (oldData: any) => {
-      if (!oldData?.pages) return oldData;
-      return {
-        ...oldData,
-        pages: oldData.pages.map((page: any) => ({
-          ...page,
-          notifications: page.notifications?.map((n: Notification) => ({ ...n, isRead: true })),
-          unreadCount: 0
-        }))
-      };
+    applyNotificationsOptimisticUpdate(queryClient, {
+      type: 'markAllRead',
     });
 
     notificationMutation.mutate({ action: "markAllRead" });
