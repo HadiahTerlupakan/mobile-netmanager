@@ -30,12 +30,24 @@ describe('firebase-only mobile notification cleanup', () => {
     }));
   });
 
-  it('registers the local Notifee Android Maven repository for native builds', () => {
-    const androidBuildGradleSource = readFileSync(join(__dirname, '../../android/build.gradle'), 'utf8');
+  it('keeps the managed Expo native notification wiring in app config until prebuild generates android files', () => {
+    const appJson = JSON.parse(readFileSync(join(__dirname, '../../app.json'), 'utf8'));
 
-    expect(androidBuildGradleSource).toContain('node_modules/@notifee/react-native/android/libs');
-    expect(androidBuildGradleSource).toContain('allprojects');
-    expect(androidBuildGradleSource).toContain('repositories');
+    expect(existsSync(join(__dirname, '../../android/build.gradle'))).toBe(false);
+    expect(appJson.expo.plugins).toEqual(
+      expect.arrayContaining([
+        [
+          'expo-build-properties',
+          expect.objectContaining({
+            android: expect.objectContaining({
+              minSdkVersion: 26,
+            }),
+          }),
+        ],
+        '@react-native-firebase/app/app.plugin.js',
+        '@react-native-firebase/messaging/app.plugin.js',
+      ]),
+    );
   });
 
   it('routes sync failure feedback through the shared error presenter instead of expo local notifications', () => {

@@ -177,6 +177,7 @@ export default function RequestWorkOrderScreen() {
 
   // Reset form when switching mode
   const handleModeChange = (mode: "CUSTOMER" | "INTERNAL") => {
+    searchCustomers.cancel();
     setWoMode(mode);
     // Reset form
     setTitle("");
@@ -188,6 +189,8 @@ export default function RequestWorkOrderScreen() {
     setSearchQuery("");
     setCustomers([]);
     setSearchError(null);
+    setShowSearchResults(false);
+    setSearching(false);
     // Reset department
     setSelectedDepartment(null);
   };
@@ -223,12 +226,18 @@ export default function RequestWorkOrderScreen() {
     [],
   );
 
+  useEffect(() => () => {
+    searchCustomers.cancel();
+  }, [searchCustomers]);
+
   // Handle search input change
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
     if (text.length >= 2) {
       searchCustomers(text);
     } else {
+      searchCustomers.cancel();
+      setSearching(false);
       setCustomers([]);
       setShowSearchResults(false);
       setSearchError(null);
@@ -237,9 +246,11 @@ export default function RequestWorkOrderScreen() {
 
   // Select customer
   const selectCustomer = (customer: MixRadiusCustomer) => {
+    searchCustomers.cancel();
     setSelectedCustomer(customer);
     setShowSearchResults(false);
     setSearchError(null);
+    setSearching(false);
     setSearchQuery(customer.fullname);
     if (!title) {
       setTitle(`Troubleshoot - ${customer.fullname}`);
@@ -248,10 +259,13 @@ export default function RequestWorkOrderScreen() {
 
   // Clear selected customer
   const clearCustomer = () => {
+    searchCustomers.cancel();
     setSelectedCustomer(null);
     setSearchQuery("");
     setCustomers([]);
     setSearchError(null);
+    setShowSearchResults(false);
+    setSearching(false);
   };
 
   // Select department

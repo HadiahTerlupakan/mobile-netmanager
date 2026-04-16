@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Alert } from 'react-native';
 
+const APP_DASHBOARD_ROUTE = '/(app)/dashboard';
+
 /**
  * UX-only feature guard untuk mobile client.
  * Jangan diperlakukan sebagai security boundary; backend API authorization
@@ -43,10 +45,10 @@ export function useFeatureGuard(
         Alert.alert(
           'Akses Terbatas',
           'Anda tidak memiliki izin untuk mengakses halaman ini.',
-          [{ text: 'OK', onPress: () => router.replace('/dashboard') }]
+          [{ text: 'OK', onPress: () => router.replace(APP_DASHBOARD_ROUTE) }]
         );
       } else {
-        router.replace('/dashboard');
+        router.replace(APP_DASHBOARD_ROUTE);
       }
     }
   }, [user, isLoading, requiredFeature, router, showMessage]);

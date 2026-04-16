@@ -168,4 +168,49 @@ describe('applyNotificationsOptimisticUpdate', () => {
       },
     });
   });
+
+  it('does not decrement unread cache when the marked notification is missing from the list cache', () => {
+    const queryClient = createQueryClient();
+
+    queryClient.setQueryData(queryKeys.notifications.list(), {
+      pages: [
+        {
+          notifications: [
+            { id: 'notif-1', isRead: false },
+          ],
+          unreadCount: 1,
+          nextCursor: null,
+        },
+      ],
+      pageParams: [null],
+    });
+    queryClient.setQueryData(queryKeys.notifications.unread(), {
+      data: {
+        unreadCount: 1,
+      },
+    });
+
+    applyNotificationsOptimisticUpdate(queryClient, {
+      type: 'markRead',
+      notificationId: 'notif-missing',
+    });
+
+    expect(queryClient.getQueryData(queryKeys.notifications.list())).toEqual({
+      pages: [
+        {
+          notifications: [
+            { id: 'notif-1', isRead: false },
+          ],
+          unreadCount: 1,
+          nextCursor: null,
+        },
+      ],
+      pageParams: [null],
+    });
+    expect(queryClient.getQueryData(queryKeys.notifications.unread())).toEqual({
+      data: {
+        unreadCount: 1,
+      },
+    });
+  });
 });

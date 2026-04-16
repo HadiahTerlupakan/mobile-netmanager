@@ -23,6 +23,10 @@ type NotificationUnreadCache = {
   };
 };
 
+type NotificationMatch = {
+  isUnread: boolean;
+};
+
 type MarkReadUpdate = {
   type: 'markRead';
   notificationId: string;
@@ -38,6 +42,24 @@ function decrementUnreadCount(unreadCount?: number) {
   return Math.max(MIN_UNREAD_COUNT, (unreadCount ?? MIN_UNREAD_COUNT) - SINGLE_UNREAD_DECREMENT);
 }
 
+function findNotificationMatch(
+  cachedNotifications?: NotificationListCache,
+  notificationId?: string,
+): NotificationMatch {
+  if (!cachedNotifications?.pages || !notificationId) {
+    return { isUnread: false };
+  }
+
+  for (const page of cachedNotifications.pages) {
+    const notification = page.notifications?.find((item) => item.id === notificationId);
+    if (notification) {
+      return { isUnread: !notification.isRead };
+    }
+  }
+
+  return { isUnread: false };
+}
+
 function updateListCacheForMarkRead(
   cachedNotifications?: NotificationListCache,
   notificationId?: string,
@@ -49,7 +71,7 @@ function updateListCacheForMarkRead(
   return {
     ...cachedNotifications,
     pages: cachedNotifications.pages.map((page) => {
-      const hasTargetNotification = page.notifications?.some(
+      const notificationMatch = page.notifications?.find(
         (notification) => notification.id === notificationId,
       );
 
@@ -60,7 +82,7 @@ function updateListCacheForMarkRead(
             ? { ...notification, isRead: true }
             : notification,
         ),
-        unreadCount: hasTargetNotification
+        unreadCount: notificationMatch?.isRead === false
           ? decrementUnreadCount(page.unreadCount)
           : page.unreadCount,
       };
@@ -120,15 +142,26 @@ export function applyNotificationsOptimisticUpdate(
   update: NotificationOptimisticUpdate,
 ) {
   if (update.type === 'markRead') {
+    const cachedNotifications = queryClient.getQueryData<NotificationListCache | undefined>(
+      queryKeys.notifications.list(),
+    );
+    const notificationMatch = findNotificationMatch(
+      cachedNotifications,
+      update.notificationId,
+    );
+
     queryClient.setQueryData<NotificationListCache | undefined>(
       queryKeys.notifications.list(),
-      (cachedNotifications) =>
-        updateListCacheForMarkRead(cachedNotifications, update.notificationId),
+      (nextCachedNotifications) =>
+        updateListCacheForMarkRead(nextCachedNotifications, update.notificationId),
     );
-    queryClient.setQueryData<NotificationUnreadCache | undefined>(
-      queryKeys.notifications.unread(),
-      updateUnreadCacheForMarkRead,
-    );
+
+    if (notificationMatch.isUnread) {
+      queryClient.setQueryData<NotificationUnreadCache | undefined>(
+        queryKeys.notifications.unread(),
+        updateUnreadCacheForMarkRead,
+      );
+    }
     return;
   }
 

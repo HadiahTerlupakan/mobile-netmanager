@@ -6,6 +6,7 @@ const mockUseIsFocused = jest.fn(() => false);
 const mockRefetch = jest.fn();
 const mockMutate = jest.fn();
 const mockSetQueryData = jest.fn();
+const mockGetQueryData = jest.fn();
 let latestFocusEffect: (() => void) | undefined;
 
 const createInfiniteQueryResult = (
@@ -70,6 +71,7 @@ jest.mock('@/lib/queryClient', () => ({
 
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({
+    getQueryData: mockGetQueryData,
     setQueryData: mockSetQueryData,
   }),
   useInfiniteQuery: (options: unknown) => mockUseInfiniteQuery(options),
@@ -130,6 +132,7 @@ describe('mobile notifications focus boundary', () => {
     mockRefetch.mockReset();
     mockMutate.mockReset();
     mockSetQueryData.mockReset();
+    mockGetQueryData.mockReset();
     mockUseIsFocused.mockReturnValue(false);
     mockUseInfiniteQuery.mockImplementation((_options: unknown) => createInfiniteQueryResult());
   });
@@ -196,6 +199,22 @@ describe('mobile notifications focus boundary', () => {
         unreadCount: 1,
       }),
     );
+    mockGetQueryData.mockImplementation((key: unknown) => {
+      if (Array.isArray(key) && key[0] === 'notifications' && key[1] === 'list') {
+        return {
+          pages: [
+            {
+              notifications: [{ id: 'notif-1', isRead: false }],
+              unreadCount: 1,
+              nextCursor: null,
+            },
+          ],
+          pageParams: [null],
+        };
+      }
+
+      return undefined;
+    });
 
     const NotificationsScreen = require('../../app/(app)/notifications').default;
     const screen = render(<NotificationsScreen />);

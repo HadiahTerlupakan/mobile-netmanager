@@ -95,6 +95,29 @@ describe('useFeatureGuard', () => {
         [{ text: 'OK', onPress: expect.any(Function) }]
       );
     });
+
+    const alertButtons = mockAlert.mock.calls[0][2] as Array<{ onPress?: () => void }>;
+    alertButtons[0].onPress?.();
+
+    expect(mockReplace).toHaveBeenCalledWith('/(app)/dashboard');
+  });
+
+  it('redirect langsung ke dashboard app canonical saat pesan guard dimatikan', async () => {
+    mockUseAuth.mockReturnValue(createAuthState({
+      id: 'mitra-1',
+      tenantId: 'tenant-1',
+      name: 'Mitra Teknisi',
+      email: 'mitra@example.com',
+      role: 'MITRA',
+      employeeType: 'MITRA_TEKNISI',
+      features: [AppFeature.WORK_ORDER],
+    }));
+
+    renderHook(() => useFeatureGuard(AppFeature.BARANG, false));
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/(app)/dashboard');
+    });
   });
 
   it('redirect ke login auth saat user belum login', async () => {
