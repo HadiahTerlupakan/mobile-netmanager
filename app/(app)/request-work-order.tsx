@@ -4,7 +4,12 @@ import { isOfflineMutationQueuedResult, useApiQuery, useCreateWorkOrderRequest }
 import api from "@/services/api";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
-import { getCustomerSearchFailureMessage, shouldShowCustomerSearchEmptyState, shouldShowCustomerSearchErrorState } from "@/utils/requestWorkOrderSearch";
+import {
+  getCustomerSearchFailureMessage,
+  readCustomerSearchResults,
+  shouldShowCustomerSearchEmptyState,
+  shouldShowCustomerSearchErrorState,
+} from "@/utils/requestWorkOrderSearch";
 import { RequestWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { useRouter } from "expo-router";
 import debounce from "lodash/debounce";
@@ -203,8 +208,8 @@ export default function RequestWorkOrderScreen() {
           `/api/mobile/mixradius/customers?search=${encodeURIComponent(query)}`,
           { skipRetry: true },
         );
-        const data = res.data?.data || [];
-        setCustomers(data);
+        const results = readCustomerSearchResults(res.data);
+        setCustomers(results);
         setShowSearchResults(true);
       } catch (error) {
         logger.error("Search failed:", error);

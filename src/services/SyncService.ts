@@ -3,7 +3,7 @@ import { isAxiosError } from 'axios';
 import pLimit from 'p-limit';
 import { DatabaseService, SyncQueueItem } from './DatabaseService';
 import * as SecureStore from 'expo-secure-store'; // Ensure SyncQueueItem is exported
-import { NotificationService } from './NotificationService';
+import { presentErrorMessage } from '@/utils/errorPresenter';
 import { logger } from '../utils/logger';
 import { uploadService, UploadType } from './UploadService';
 import { eventManager } from '@/utils/EventManager';
@@ -247,9 +247,9 @@ export const SyncService = {
       } catch (error) {
           logger.error('[SyncService] Invalid queued payload, removing item:', error);
           await DatabaseService.removeFromQueue(item.id);
-          await NotificationService.showLocalNotification(
-              'Data Antrean Rusak',
-              'Ada data offline yang tidak bisa diproses dan dibatalkan.'
+          presentErrorMessage(
+              'Ada data offline yang tidak bisa diproses dan dibatalkan.',
+              'Data Antrean Rusak'
           );
           return;
       }
@@ -439,9 +439,9 @@ export const SyncService = {
                      else if (urlPart.includes('keluar')) title = 'Gagal Sync Barang Keluar';
                      else if (urlPart.includes('check-in')) title = 'Gagal Sync Absensi';
 
-                     await NotificationService.showLocalNotification(
-                         title,
-                         `Data dibatalkan: ${errorMsg}`
+                     presentErrorMessage(
+                         `Data dibatalkan: ${errorMsg}`,
+                         title
                      );
                      return; // Permanent failure, exit
                 }

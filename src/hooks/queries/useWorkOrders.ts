@@ -33,6 +33,13 @@ interface UpdateWorkOrderPayload {
   photos?: string[];
 }
 
+interface CompleteWorkOrderPayload {
+  [key: string]: unknown;
+  id: string;
+  notes?: string;
+  photos?: string[];
+}
+
 /**
  * Fetch all work orders with optional type filtering
  */
@@ -129,12 +136,16 @@ export function useUpdateWorkOrder() {
 export function useCompleteWorkOrder() {
   return useApiMutation<
     { data: WorkOrder },
-    { id: string; notes?: string; photos?: string[] }
+    CompleteWorkOrderPayload
   >({
-    endpoint: "/api/mobile/work-orders/complete",
+    endpoint: ({ id }) => `/api/mobile/work-orders/${id}/update`,
     method: "POST",
     includeLocation: true,
     invalidateKeys: [queryKeys.workOrders.list()],
     successMessage: "Work Order berhasil diselesaikan",
+    buildPayload: (variables) => ({
+      ...variables,
+      action: "COMPLETE",
+    }),
   });
 }

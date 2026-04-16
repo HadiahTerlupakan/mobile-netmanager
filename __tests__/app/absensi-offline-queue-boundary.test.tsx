@@ -191,6 +191,8 @@ jest.mock('twrnc', () => () => ({}));
 describe('absensi offline queue boundary', () => {
   const actualUseState = React.useState;
   let useStateCallCount = 0;
+  let statusQueryResult: any;
+  let firstRenderOverrides: Map<number, unknown>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -203,7 +205,7 @@ describe('absensi offline queue boundary', () => {
       },
     };
 
-    const statusQueryResult = {
+    statusQueryResult = {
       data: {
         success: true,
         today: {
@@ -252,7 +254,7 @@ describe('absensi offline queue boundary', () => {
       queuedAt: '2026-04-13T10:00:00.000Z',
     } as never);
 
-    const firstRenderOverrides = new Map<number, unknown>([
+    firstRenderOverrides = new Map<number, unknown>([
       [4, 'file:///attendance-photo.jpg'],
       [5, { coords: { latitude: -6.2, longitude: 106.8 } }],
       [6, 'Kantor Pusat'],
@@ -269,6 +271,27 @@ describe('absensi offline queue boundary', () => {
 
       return actualUseState(initialValue);
     }) as typeof React.useState);
+  });
+
+  it('tetap membuka jalur check-in pada replacement day tukar libur meski payload holiday masih true', async () => {
+    statusQueryResult.data.today = {
+      isHoliday: true,
+      holidayName: 'Hari Raya',
+      isOffDay: false,
+      isTukarLiburWorkDay: true,
+      isTukarLiburLeaveDay: false,
+    };
+    firstRenderOverrides.delete(4);
+
+    const AbsensiScreen = require('../../app/(app)/absensi').default;
+    const { queryByText, getByText } = render(<AbsensiScreen />);
+
+    await waitFor(() => {
+      expect(getByText('MASUK GANTI LIBUR')).toBeTruthy();
+    });
+
+    expect(getByText('Ambil Foto Masuk')).toBeTruthy();
+    expect(queryByText('Libur Nasional')).toBeNull();
   });
 
   it('tetap mengantre absensi saat offline sejak awal tanpa sukses final', async () => {

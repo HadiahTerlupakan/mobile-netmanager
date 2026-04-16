@@ -9,7 +9,11 @@ jest.mock('@/utils/logger', () => ({
 }));
 
 import api from '@/services/api';
-import { MixRadiusService, MixRadiusResponse } from '@/services/MixRadiusService';
+import {
+  MixRadiusResponse,
+  MixRadiusService,
+  OwnerGroup,
+} from '@/services/MixRadiusService';
 
 describe('MixRadiusService.getIsolirCustomers', () => {
   beforeEach(() => {
@@ -78,45 +82,68 @@ describe('MixRadiusService.getIsolirCustomers', () => {
     await expect(MixRadiusService.getIsolirCustomers()).resolves.toEqual(wrappedPayload);
   });
 
-  it('wraps legacy array payloads into paginated responses', async () => {
+  it('falls back to an empty paginated payload when the response body is invalid', async () => {
     const apiGetMock = api.get as jest.MockedFunction<typeof api.get>;
     apiGetMock.mockResolvedValueOnce({
-      data: [
-        {
-          id: 'cust-2',
-          member_id: 'member-2',
-          username: 'budi',
-          fullname: 'Budi Isolir',
-          address: 'Jl. Melati',
-          phonenumber: '08999999999',
-          plan_name: '30 Mbps',
-          auth_status: 'Disabled-Users',
-          expired_on: '2026-05-01 00:00:00',
-          owner_name: 'Owner B',
-          online: true,
-        },
-      ],
+      data: {
+        success: true,
+        data: undefined,
+      },
     });
 
     await expect(MixRadiusService.getIsolirCustomers('budi')).resolves.toEqual({
       draw: 1,
-      recordsTotal: 1,
-      recordsFiltered: 1,
-      data: [
-        {
-          id: 'cust-2',
-          member_id: 'member-2',
-          username: 'budi',
-          fullname: 'Budi Isolir',
-          address: 'Jl. Melati',
-          phonenumber: '08999999999',
-          plan_name: '30 Mbps',
-          auth_status: 'Disabled-Users',
-          expired_on: '2026-05-01 00:00:00',
-          owner_name: 'Owner B',
-          online: true,
-        },
-      ],
+      recordsTotal: 0,
+      recordsFiltered: 0,
+      data: [],
     });
+  });
+});
+
+describe('MixRadiusService.getOwnerGroups', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('uses the mobile groups endpoint and returns the response data', async () => {
+    const apiGetMock = api.get as jest.MockedFunction<typeof api.get>;
+    const groups: OwnerGroup[] = [
+      {
+        id: 'group-1',
+        name: 'Site A',
+        owners: ['owner-a'],
+        isActive: true,
+        siteId: 'site-1',
+      },
+    ];
+
+    apiGetMock.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: groups,
+      },
+    });
+
+    await expect(MixRadiusService.getOwnerGroups()).resolves.toEqual(groups);
+    expect(apiGetMock).toHaveBeenCalledWith('/api/mobile/mixradius/groups');
+  });
+
+  it('returns an empty array when backend payload is not an array', async () => {
+    const apiGetMock = api.get as jest.MockedFunction<typeof api.get>;
+    apiGetMock.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: undefined,
+      },
+    });
+
+    await expect(MixRadiusService.getOwnerGroups()).resolves.toEqual([]);
+  });
+
+  it('returns an empty array when the request fails', async () => {
+    const apiGetMock = api.get as jest.MockedFunction<typeof api.get>;
+    apiGetMock.mockRejectedValueOnce(new Error('network failed'));
+
+    await expect(MixRadiusService.getOwnerGroups()).resolves.toEqual([]);
   });
 });

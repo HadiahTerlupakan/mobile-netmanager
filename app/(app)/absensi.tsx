@@ -125,13 +125,14 @@ interface AttendanceHeaderProps {
 }
 
 const AttendanceHeader = React.memo(({ todayHoliday, isTukarLiburWorkDay, isTukarLiburLeaveDay, isOffDay }: AttendanceHeaderProps) => {
-  const bgColor = todayHoliday.isHoliday ? "bg-red-600" : "bg-blue-600";
+  const isDisplayHoliday = todayHoliday.isHoliday && !isTukarLiburWorkDay;
+  const bgColor = isDisplayHoliday ? "bg-red-600" : "bg-blue-600";
 
   return (
     <View style={tw`${bgColor} px-6 pt-6 pb-12 rounded-b-[40px]`}>
       <DigitalClock />
       <View style={tw`items-center mt-2`}>
-        {todayHoliday.isHoliday && (
+        {isDisplayHoliday && (
           <View style={tw`bg-white/20 px-3 py-1 rounded-full mt-2 flex-row items-center`}>
             <CalendarOff size={14} color="white" />
             <Text style={tw`text-white font-bold text-xs ml-1`}>LIBUR NASIONAL</Text>
@@ -143,19 +144,19 @@ const AttendanceHeader = React.memo(({ todayHoliday, isTukarLiburWorkDay, isTuka
             <Text style={tw`text-green-700 font-bold text-xs ml-1`}>MASUK GANTI LIBUR</Text>
           </View>
         )}
-        {isTukarLiburLeaveDay && !todayHoliday.isHoliday && (
+        {isTukarLiburLeaveDay && !isDisplayHoliday && (
           <View style={tw`bg-purple-100/90 px-3 py-1 rounded-full mt-2 flex-row items-center`}>
             <CalendarOff size={14} color="#9333ea" />
             <Text style={tw`text-purple-700 font-bold text-xs ml-1`}>TUKAR LIBUR HARI INI</Text>
           </View>
         )}
-        {isOffDay && !todayHoliday.isHoliday && !isTukarLiburWorkDay && !isTukarLiburLeaveDay && (
+        {isOffDay && !isDisplayHoliday && !isTukarLiburWorkDay && !isTukarLiburLeaveDay && (
           <View style={tw`bg-amber-100/80 px-3 py-1 rounded-full mt-2 flex-row items-center`}>
             <CalendarOff size={14} color="#d97706" />
             <Text style={tw`text-amber-700 font-bold text-xs ml-1`}>HARI LIBUR ANDA</Text>
           </View>
         )}
-        {todayHoliday.name && (
+        {todayHoliday.name && isDisplayHoliday && (
           <Text style={tw`text-white/80 text-xs mt-1 text-center max-w-[80%]`}>
             {todayHoliday.name}
           </Text>
@@ -302,6 +303,7 @@ export default function AbsensiScreen() {
     status,
     isHoliday: todayHoliday.isHoliday,
     isOffDay,
+    isTukarLiburWorkDay,
   });
 
   // --- Camera & Face Detection State ---
@@ -922,14 +924,14 @@ export default function AbsensiScreen() {
                 onPress={() => setShowCamera(true)}
                 disabled={captureState.disabled}
                 style={tw`${status === "checked-out" ? "bg-gray-100 border-gray-300" :
-                  !captureState.hasActiveSession && todayHoliday.isHoliday ? "bg-red-50 border-red-200" :
+                  !captureState.hasActiveSession && todayHoliday.isHoliday && !isTukarLiburWorkDay ? "bg-red-50 border-red-200" :
                     isTukarLiburLeaveDay ? "bg-purple-50 border-purple-200" :
                       !captureState.hasActiveSession && isOffDay ? "bg-amber-50 border-amber-200" :
                         isTukarLiburWorkDay ? "bg-green-50 border-green-200" :
                           "bg-blue-50 border-blue-200"
                   } border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
               >
-                {!captureState.hasActiveSession && todayHoliday.isHoliday ? (
+                {!captureState.hasActiveSession && todayHoliday.isHoliday && !isTukarLiburWorkDay ? (
                   <View style={tw`items-center`}><CalendarOff size={32} color="#dc2626" /><Text style={tw`text-red-600 font-bold mt-2`}>Libur Nasional</Text></View>
                 ) : status === "checked-out" ? (
                   <View style={tw`items-center`}><Text style={tw`text-gray-500 font-bold text-lg`}>🎉 Absensi Selesai</Text><Text style={tw`text-gray-400 text-sm mt-1`}>Terima kasih untuk hari ini</Text></View>

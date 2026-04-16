@@ -25,7 +25,6 @@ module.exports = {
     "^@react-native-community/netinfo$":
       "<rootDir>/__mocks__/@react-native-community/netinfo.js",
     "^expo-location$": "<rootDir>/__mocks__/expo-location.js",
-    "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.js",
     "^expo$": "<rootDir>/__mocks__/expo.js",
     "^expo-crypto$": "<rootDir>/__mocks__/expo-crypto.js",
     "^expo-battery$": "<rootDir>/__mocks__/expo-battery.js",

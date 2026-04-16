@@ -1,4 +1,5 @@
 import React, { PropsWithChildren } from 'react';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -11,7 +12,9 @@ jest.mock('@/utils/errorPresenter', () => ({
   presentSuccessMessage: jest.fn(),
 }));
 
-const mockRequest = jest.fn();
+const mockRequest = jest.fn<
+  (config: unknown) => Promise<{ data: unknown }>
+>();
 jest.mock('@/services/api', () => ({
   __esModule: true,
   default: {
@@ -19,15 +22,15 @@ jest.mock('@/services/api', () => ({
   },
 }));
 
-const mockIsOnline = jest.fn();
+const mockIsOnline = jest.fn<() => Promise<boolean>>();
 jest.mock('@/services/SyncService', () => ({
   SyncService: {
     isOnline: mockIsOnline,
   },
 }));
 
-const mockAddToQueue = jest.fn();
-const mockGetPendingQueue = jest.fn();
+const mockAddToQueue = jest.fn<() => Promise<void>>();
+const mockGetPendingQueue = jest.fn<() => Promise<unknown[]>>();
 jest.mock('@/services/DatabaseService', () => ({
   DatabaseService: {
     addToQueue: mockAddToQueue,
@@ -80,9 +83,9 @@ jest.mock('@/utils/logger', () => ({
 describe('useApiMutation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockIsOnline.mockResolvedValue(false);
-    mockAddToQueue.mockResolvedValue(undefined);
-    mockGetPendingQueue.mockResolvedValue([]);
+    mockIsOnline.mockResolvedValue(false as never);
+    mockAddToQueue.mockResolvedValue(undefined as never);
+    mockGetPendingQueue.mockResolvedValue([] as never);
     const { Alert } = require('react-native');
     Alert.alert = mockAlert;
   });
@@ -146,6 +149,51 @@ describe('useApiMutation', () => {
     queryClient.clear();
   });
 
+  it('uses a dynamic endpoint and payload builder when mutation needs canonical routing', async () => {
+    mockIsOnline.mockResolvedValue(true as never);
+    mockRequest.mockResolvedValue({ data: { data: { id: 'wo-123' } } } as never);
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity },
+        mutations: { retry: false, gcTime: Infinity },
+      },
+    });
+    const { useApiMutation } = require('@/hooks/queries/useApiMutation');
+
+    const { result, unmount } = renderHook(
+      () =>
+        useApiMutation({
+          endpoint: ({ id }: { id: string }) => `/api/mobile/work-orders/${id}/update`,
+          method: 'POST',
+          buildPayload: (variables: { id: string; notes?: string }) => ({
+            ...variables,
+            action: 'COMPLETE',
+          }),
+        }),
+      { wrapper: createWrapper(queryClient) }
+    );
+
+    await act(async () => {
+      await result.current.mutateAsync({ id: 'wo-123', notes: 'done' });
+    });
+
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/api/mobile/work-orders/wo-123/update',
+        method: 'POST',
+        data: expect.objectContaining({
+          id: 'wo-123',
+          notes: 'done',
+          action: 'COMPLETE',
+        }),
+      })
+    );
+
+    unmount();
+    queryClient.clear();
+  });
+
   it('queues attendance mutations offline and preserves requestId for replay', async () => {
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -165,7 +213,7 @@ describe('useApiMutation', () => {
     attendanceIdempotency.buildAttendanceIdempotencyHeaders.mockReturnValue({
       'Idempotency-Key': 'att-queued-1',
     });
-    mockIsOnline.mockResolvedValue(false);
+    mockIsOnline.mockResolvedValue(false as never);
 
     const { result, unmount } = renderHook(
       () =>

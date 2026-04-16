@@ -6,6 +6,7 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+import { CURRENT_VERSION_CODE_LABEL, CURRENT_VERSION_NAME } from '@/constants/appVersion';
 import { logger } from '@/utils/logger';
 import { TokenService } from './TokenService';
 import { TenantService } from './TenantService';
@@ -97,6 +98,8 @@ class RefreshTokenServiceClass {
         {
           headers: {
             'Content-Type': 'application/json',
+            'X-App-Version-Code': CURRENT_VERSION_CODE_LABEL,
+            'X-App-Version-Name': CURRENT_VERSION_NAME,
           },
           timeout: 10000,
         }

@@ -1,3 +1,6 @@
+// @ts-nocheck
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { act, render } from '@testing-library/react-native';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
@@ -7,6 +10,12 @@ const mockPush = jest.fn();
 const mockUseSegments = jest.fn<() => string[]>();
 const mockUseAuth = jest.fn();
 const mockAddBreadcrumb = jest.fn();
+const mockGetInitialNotificationData = jest.fn();
+const mockAddNotificationListeners = jest.fn(() => jest.fn());
+const mockInvalidateQueries = jest.fn();
+const mockPresentForegroundNotification = jest.fn(() => Promise.resolve());
+const mockToastShow = jest.fn();
+const mockStopMonitoring = jest.fn();
 
 jest.mock('@/components/atoms/EnvironmentIndicator', () => ({
   EnvironmentIndicator: () => null,
@@ -57,7 +66,13 @@ jest.mock('@/hooks/useAppVersion', () => ({
 jest.mock('@/lib/queryClient', () => ({
   asyncStoragePersister: {},
   queryClient: {
-    invalidateQueries: jest.fn(),
+    invalidateQueries: mockInvalidateQueries,
+  },
+  queryKeys: {
+    notifications: {
+      list: () => ['notifications', 'list'],
+      unread: () => ['notifications', 'unread'],
+    },
   },
 }));
 
@@ -93,6 +108,7 @@ jest.mock('@/services/PerformanceMonitor', () => ({
 jest.mock('@/services/SyncService', () => ({
   SyncService: {
     startMonitoring: jest.fn(),
+    stopMonitoring: mockStopMonitoring,
   },
 }));
 
@@ -137,8 +153,14 @@ jest.mock('@tanstack/react-query-persist-client', () => ({
   PersistQueryClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('expo-notifications', () => ({
-  getLastNotificationResponseAsync: jest.fn(() => Promise.resolve(null)),
+jest.mock('@/services/PushNotificationService', () => ({
+  getInitialNotificationData: mockGetInitialNotificationData,
+  addNotificationListeners: mockAddNotificationListeners,
+}));
+
+jest.mock('@/services/ForegroundNotificationService', () => ({
+  ensureForegroundNotificationChannel: jest.fn(() => Promise.resolve('high-priority')),
+  presentForegroundNotification: mockPresentForegroundNotification,
 }));
 
 jest.mock('expo-router', () => ({
@@ -153,13 +175,27 @@ jest.mock('expo-status-bar', () => ({
 
 jest.mock('react-native-toast-message', () => ({
   __esModule: true,
-  default: () => null,
+  default: Object.assign(() => null, {
+    show: mockToastShow,
+  }),
 }));
 
 describe('RootLayout privacy route guard', () => {
+  it('uses the FCM notification bridge instead of the legacy Expo notification APIs', () => {
+    const rootLayoutSource = readFileSync(
+      join(__dirname, '../../app/_layout.tsx'),
+      'utf8'
+    );
+
+    expect(rootLayoutSource).toContain('getInitialNotificationData');
+    expect(rootLayoutSource).not.toContain('expo-notifications');
+    expect(rootLayoutSource).not.toContain('getLastNotificationResponseAsync');
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    mockGetInitialNotificationData.mockResolvedValue(null);
   });
 
   it('does not redirect logged-out users away from kebijakan-privasi', async () => {
@@ -203,5 +239,176 @@ describe('RootLayout privacy route guard', () => {
     });
 
     expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it('shows a foreground toast when a push notification arrives while the app is open', async () => {
+    let onForegroundNotification: ((notification: { title?: string | null; body?: string | null }) => void) | undefined;
+
+    mockUseSegments.mockReturnValue(['(app)', 'dashboard']);
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user-1',
+        role: 'SUPER_ADMIN',
+        name: 'Test User',
+        email: 'test@example.com',
+      },
+      token: 'token-123',
+      isLoading: false,
+    });
+
+    mockAddNotificationListeners.mockImplementation((onReceived) => {
+      onForegroundNotification = onReceived;
+      return jest.fn();
+    });
+
+    const RootLayout = require('../../app/_layout').default;
+
+    render(<RootLayout />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(150);
+    });
+
+    await act(async () => {
+      onForegroundNotification?.({
+        title: 'Work Order Baru',
+        body: 'WO-20260415-0002',
+      });
+    });
+
+    expect(mockToastShow).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'info',
+      text1: 'Work Order Baru',
+      text2: 'WO-20260415-0002',
+    }));
+  });
+
+  it('refreshes both notification list and unread badge when a foreground push arrives', async () => {
+    let onForegroundNotification: ((notification: { title?: string | null; body?: string | null; data?: Record<string, string> }) => void) | undefined;
+
+    mockUseSegments.mockReturnValue(['(app)', 'dashboard']);
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user-1',
+        role: 'SUPER_ADMIN',
+        name: 'Test User',
+        email: 'test@example.com',
+      },
+      token: 'token-123',
+      isLoading: false,
+    });
+
+    mockAddNotificationListeners.mockImplementation((onReceived) => {
+      onForegroundNotification = onReceived;
+      return jest.fn();
+    });
+
+    const RootLayout = require('../../app/_layout').default;
+
+    render(<RootLayout />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(150);
+    });
+
+    await act(async () => {
+      await onForegroundNotification?.({
+        title: 'Work Order Baru',
+        body: 'WO-20260415-0002',
+        data: {
+          url: '/(app)/work-order-detail/wo-1',
+        },
+      });
+    });
+
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['notifications', 'list'],
+    });
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['notifications', 'unread'],
+    });
+  });
+
+  it('keeps refreshing notification caches even when Android heads-up rendering fails', async () => {
+    let onForegroundNotification: ((notification: { title?: string | null; body?: string | null; data?: Record<string, string> }) => void) | undefined;
+
+    mockUseSegments.mockReturnValue(['(app)', 'dashboard']);
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user-1',
+        role: 'SUPER_ADMIN',
+        name: 'Test User',
+        email: 'test@example.com',
+      },
+      token: 'token-123',
+      isLoading: false,
+    });
+    mockPresentForegroundNotification.mockRejectedValueOnce(new Error('native display failed'));
+
+    mockAddNotificationListeners.mockImplementation((onReceived) => {
+      onForegroundNotification = onReceived;
+      return jest.fn();
+    });
+
+    const RootLayout = require('../../app/_layout').default;
+
+    render(<RootLayout />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(150);
+    });
+
+    await act(async () => {
+      await onForegroundNotification?.({
+        title: 'Work Order Baru',
+        body: 'WO-20260415-0002',
+        data: {
+          url: '/(app)/work-order-detail/wo-1',
+        },
+      });
+    });
+
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['notifications', 'list'],
+    });
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['notifications', 'unread'],
+    });
+  });
+
+  it('routes Android foreground notifications through the dedicated native foreground notification service', () => {
+    const rootLayoutSource = readFileSync(
+      join(__dirname, '../../app/_layout.tsx'),
+      'utf8'
+    );
+
+    expect(rootLayoutSource).toContain('ForegroundNotificationService');
+    expect(rootLayoutSource).toContain('presentForegroundNotification');
+  });
+
+  it('stops sync monitoring when the root layout unmounts after startup', async () => {
+    mockUseSegments.mockReturnValue(['(app)', 'dashboard']);
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user-1',
+        role: 'SUPER_ADMIN',
+        name: 'Test User',
+        email: 'test@example.com',
+      },
+      token: 'token-123',
+      isLoading: false,
+    });
+
+    const RootLayout = require('../../app/_layout').default;
+
+    const { unmount } = render(<RootLayout />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(1500);
+    });
+
+    unmount();
+
+    expect(mockStopMonitoring).toHaveBeenCalled();
   });
 });

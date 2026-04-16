@@ -4,11 +4,12 @@ interface AttendanceCaptureStateInput {
   status: AttendanceCaptureStatus;
   isHoliday: boolean;
   isOffDay: boolean;
+  isTukarLiburWorkDay?: boolean;
 }
 
-export function getAttendanceCaptureState({ status, isHoliday, isOffDay }: AttendanceCaptureStateInput) {
+export function getAttendanceCaptureState({ status, isHoliday, isOffDay, isTukarLiburWorkDay = false }: AttendanceCaptureStateInput) {
   const hasActiveSession = status === 'checked-in';
-  const isBlockedDay = isHoliday || isOffDay;
+  const isBlockedDay = !isTukarLiburWorkDay && (isHoliday || isOffDay);
   const disabled = status === 'checked-out' || (!hasActiveSession && isBlockedDay);
 
   return {

@@ -84,7 +84,12 @@ interface ApiMutationOptions<TData, TVariables>
   /**
    * API endpoint
    */
-  endpoint: string;
+  endpoint: string | ((variables: TVariables) => string);
+
+  /**
+   * Build request payload from mutation variables before transport.
+   */
+  buildPayload?: (variables: TVariables) => Record<string, unknown>;
 
   /**
    * HTTP Method
@@ -185,23 +190,30 @@ export function useApiMutation<
     showErrorAlert = true,
     onSuccess,
     onError,
+    buildPayload,
     ...mutationOptions
   } = options;
+
+  const getEndpoint = (variables: TVariables) =>
+    typeof endpoint === "function" ? endpoint(variables) : endpoint;
 
   return useMutation<ApiMutationResult<TData>, ApiMutationError, TVariables>({
     ...mutationOptions,
     mutationFn: async (variables) => {
       const startedAt = Date.now();
-      const attendanceMutation = isAttendanceEndpoint(endpoint);
-      const payload: Record<string, unknown> = attendanceMutation
-        ? ensureAttendanceRequestId({ ...variables })
-        : { ...variables };
+      const resolvedEndpoint = getEndpoint(variables);
+      const attendanceMutation = isAttendanceEndpoint(resolvedEndpoint);
+      const payload: Record<string, unknown> = buildPayload
+        ? buildPayload(variables)
+        : attendanceMutation
+          ? ensureAttendanceRequestId({ ...variables })
+          : { ...variables };
       const requestId = typeof payload.requestId === "string" ? payload.requestId : undefined;
 
       if (attendanceMutation) {
         AttendanceTelemetryService.track("attendance_submit_started", {
           requestId,
-          endpoint,
+          endpoint: resolvedEndpoint,
           networkState: "online",
         });
       }
@@ -239,7 +251,7 @@ export function useApiMutation<
 
         // Make API request with updated payload
         const response = await api.request<TData>({
-          url: endpoint,
+          url: resolvedEndpoint,
           method,
           data: payload,
           timeout: 15000, // Timeout for mobile networks
@@ -249,7 +261,7 @@ export function useApiMutation<
         if (attendanceMutation) {
           AttendanceTelemetryService.track("attendance_api_succeeded", {
             requestId,
-            endpoint,
+            endpoint: resolvedEndpoint,
             networkState: "online",
             latencyMs: Date.now() - startedAt,
           });
@@ -267,7 +279,7 @@ export function useApiMutation<
 
         if (isExplicitOffline || isNetworkError) {
           logger.info(
-            `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${endpoint}`,
+            `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${resolvedEndpoint}`,
           );
 
           const queueMeta = {
@@ -277,7 +289,7 @@ export function useApiMutation<
 
           // Add to offline queue
           await DatabaseService.addToQueue(
-            endpoint,
+            resolvedEndpoint,
             method,
             payload,
             queueMeta,
@@ -286,7 +298,7 @@ export function useApiMutation<
           return {
             __offline_queued__: true,
             kind: "offline-queued",
-            endpoint,
+            endpoint: resolvedEndpoint,
             method,
             queuedAt: new Date().toISOString(),
           } satisfies OfflineQueuedMutationResult;
@@ -295,7 +307,7 @@ export function useApiMutation<
         if (attendanceMutation) {
           AttendanceTelemetryService.track("attendance_api_failed", {
             requestId,
-            endpoint,
+            endpoint: resolvedEndpoint,
             reason: error instanceof Error ? error.message : "Unknown error",
             latencyMs: Date.now() - startedAt,
           });
@@ -350,7 +362,7 @@ export function useApiMutation<
       if (showErrorAlert) {
         presentAppError(error, {
           source: "mutation",
-          route: endpoint,
+          route: typeof endpoint === "function" ? endpoint(variables) : endpoint,
           report: false,
         });
       }

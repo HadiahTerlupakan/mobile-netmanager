@@ -5,7 +5,17 @@ const mockInfo = jest.fn<(message: string, ...args: unknown[]) => void>();
 const mockWarn = jest.fn<(message: string, ...args: unknown[]) => void>();
 const mockError = jest.fn<(message: string, ...args: unknown[]) => void>();
 
-const mockPlatform = { OS: 'ios' };
+const mockPlatform = { OS: 'ios', Version: 17 };
+const mockPermissionsAndroid = {
+  PERMISSIONS: {
+    POST_NOTIFICATIONS: 'android.permission.POST_NOTIFICATIONS',
+  },
+  RESULTS: {
+    GRANTED: 'granted',
+    DENIED: 'denied',
+  },
+  request: jest.fn<(permission: string) => Promise<string>>(),
+};
 const mockAuthorizationStatus = {
   NOT_DETERMINED: -1,
   DENIED: 0,
@@ -29,6 +39,7 @@ const mockOnTokenRefresh = jest.fn<(
 
 jest.mock('react-native', () => ({
   Platform: mockPlatform,
+  PermissionsAndroid: mockPermissionsAndroid,
 }));
 
 jest.mock('@/services/api', () => ({
@@ -63,6 +74,7 @@ describe('FirebaseMessagingService', () => {
     jest.resetModules();
     jest.clearAllMocks();
     mockPlatform.OS = 'ios';
+    mockPlatform.Version = 17;
   });
 
   const loadService = () => {
@@ -84,6 +96,20 @@ describe('FirebaseMessagingService', () => {
     expect(mockRequestPermission).toHaveBeenCalledWith('mock-messaging');
   });
 
+  it('requests Android 13+ notification permission before allowing FCM notifications', async () => {
+    mockPlatform.OS = 'android';
+    mockPlatform.Version = 34;
+    mockPermissionsAndroid.request.mockResolvedValue(mockPermissionsAndroid.RESULTS.GRANTED);
+
+    const fcmService = loadService();
+
+    await expect(fcmService.requestUserPermission()).resolves.toBe(true);
+    expect(mockPermissionsAndroid.request).toHaveBeenCalledWith(
+      mockPermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    );
+    expect(mockRequestPermission).not.toHaveBeenCalled();
+  });
+
   it('registers the device, reads the token, and syncs add actions to the backend', async () => {
     mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
     mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(false);
@@ -96,10 +122,25 @@ describe('FirebaseMessagingService', () => {
     await expect(fcmService.syncFCMTokenToBackend('add')).resolves.toBe('fcm-token-123');
     expect(mockRegisterDeviceForRemoteMessages).toHaveBeenCalledWith('mock-messaging');
     expect(mockGetToken).toHaveBeenCalledWith('mock-messaging');
-    expect(mockPost).toHaveBeenCalledWith('/api/mobile/mitra/fcm-token', {
+    expect(mockPost).toHaveBeenCalledWith('/api/mobile/fcm-token', {
       fcmToken: 'fcm-token-123',
       action: 'add',
     });
+  });
+
+  it('does not write the raw token to logs while syncing to the backend', async () => {
+    mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
+    mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(false);
+    mockRegisterDeviceForRemoteMessages.mockResolvedValue(undefined);
+    mockGetToken.mockResolvedValue('fcm-token-123');
+    mockPost.mockResolvedValue({});
+
+    const fcmService = loadService();
+
+    await fcmService.syncFCMTokenToBackend('add');
+
+    const loggedOutput = mockInfo.mock.calls.flat().map(String).join(' ');
+    expect(loggedOutput).not.toContain('fcm-token-123');
   });
 
   it('removes the current token without requesting notification permission again', async () => {
@@ -111,7 +152,7 @@ describe('FirebaseMessagingService', () => {
 
     await expect(fcmService.syncFCMTokenToBackend('remove')).resolves.toBe('fcm-token-123');
     expect(mockRequestPermission).not.toHaveBeenCalled();
-    expect(mockPost).toHaveBeenCalledWith('/api/mobile/mitra/fcm-token', {
+    expect(mockPost).toHaveBeenCalledWith('/api/mobile/fcm-token', {
       fcmToken: 'fcm-token-123',
       action: 'remove',
     });
@@ -134,10 +175,29 @@ describe('FirebaseMessagingService', () => {
 
     await refreshListener?.('fcm-token-refreshed');
 
-    expect(mockPost).toHaveBeenCalledWith('/api/mobile/mitra/fcm-token', {
+    expect(mockPost).toHaveBeenCalledWith('/api/mobile/fcm-token', {
       fcmToken: 'fcm-token-refreshed',
       action: 'add',
     });
     expect(cleanup).toBe(unsubscribe);
+  });
+
+  it('does not write refreshed tokens to logs in clear text', async () => {
+    const unsubscribe = jest.fn();
+    let refreshListener: ((token: string) => Promise<void> | void) | undefined;
+
+    mockOnTokenRefresh.mockImplementation((_messaging, listener) => {
+      refreshListener = listener;
+      return unsubscribe;
+    });
+    mockPost.mockResolvedValue({});
+
+    const fcmService = loadService();
+    fcmService.onTokenRefresh();
+
+    await refreshListener?.('fcm-token-refreshed');
+
+    const loggedOutput = mockInfo.mock.calls.flat().map(String).join(' ');
+    expect(loggedOutput).not.toContain('fcm-token-refreshed');
   });
 });

@@ -33,6 +33,76 @@ export const getCustomerSearchFailureMessage = (error: unknown): string => {
   return genericMessage
 }
 
+interface RawCustomerSearchResult {
+  id?: string
+  member_id?: string
+  username?: string
+  fullname?: string
+  address?: string
+  phonenumber?: string
+  plan_name?: string
+  auth_status?: string
+  owner_name?: string
+  online?: boolean
+}
+
+export interface CustomerSearchResult {
+  id: string
+  memberId: string
+  username: string
+  fullname: string
+  phone: string
+  address: string
+  planName: string
+  status: string
+  ownerName: string
+  isOnline: boolean
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  typeof value === 'object' && value !== null
+)
+
+const readRawCustomerSearchResults = (payload: unknown): RawCustomerSearchResult[] => {
+  if (Array.isArray(payload)) {
+    return payload as RawCustomerSearchResult[]
+  }
+
+  if (!isRecord(payload)) {
+    return []
+  }
+
+  const firstLayer = payload.data
+  if (Array.isArray(firstLayer)) {
+    return firstLayer as RawCustomerSearchResult[]
+  }
+
+  if (!isRecord(firstLayer) || !Array.isArray(firstLayer.data)) {
+    return []
+  }
+
+  return firstLayer.data as RawCustomerSearchResult[]
+}
+
+const mapCustomerSearchResult = (
+  customer: RawCustomerSearchResult,
+): CustomerSearchResult => ({
+  id: customer.id || '',
+  memberId: customer.member_id || '',
+  username: customer.username || '',
+  fullname: customer.fullname || customer.username || '-',
+  phone: customer.phonenumber || '',
+  address: customer.address || '',
+  planName: customer.plan_name || '',
+  status: customer.auth_status || '',
+  ownerName: customer.owner_name || '',
+  isOnline: Boolean(customer.online),
+})
+
+export const readCustomerSearchResults = (payload: unknown): CustomerSearchResult[] => (
+  readRawCustomerSearchResults(payload).map(mapCustomerSearchResult)
+)
+
 export const shouldShowCustomerSearchEmptyState = ({
   showSearchResults,
   searching,

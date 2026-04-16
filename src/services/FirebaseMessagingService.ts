@@ -2,14 +2,30 @@ import { AuthorizationStatus, getMessaging, getToken, isDeviceRegisteredForRemot
 
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
-import { Platform } from 'react-native';
+import { PermissionsAndroid, Platform } from 'react-native';
+
+function maskToken(token: string): string {
+    if (token.length <= 8) {
+        return '***';
+    }
+
+    return `${token.slice(0, 4)}***${token.slice(-4)}`;
+}
 
 class FirebaseMessagingService {
     /**
      * Meminta izin notifikasi dari sistem pengguna
      */
     async requestUserPermission(): Promise<boolean> {
-        if (Platform.OS !== 'ios') {
+        if (Platform.OS === 'android') {
+            if (typeof Platform.Version === 'number' && Platform.Version >= 33) {
+                const status = await PermissionsAndroid.request(
+                    PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+                );
+
+                return status === PermissionsAndroid.RESULTS.GRANTED;
+            }
+
             return true;
         }
 
@@ -44,9 +60,9 @@ class FirebaseMessagingService {
                 return null;
             }
 
-            logger.info(`[FCM] Current token: ${token}, action: ${action}`);
+            logger.info(`[FCM] Current token: ${maskToken(token)}, action: ${action}`);
 
-            await api.post('/api/mobile/mitra/fcm-token', {
+            await api.post('/api/mobile/fcm-token', {
                 fcmToken: token,
                 action
             });
@@ -66,9 +82,9 @@ class FirebaseMessagingService {
         const messaging = getMessaging();
 
         return onTokenRefresh(messaging, async (newToken) => {
-            logger.info('[FCM] Token refreshed:', newToken);
+            logger.info('[FCM] Token refreshed:', maskToken(newToken));
             try {
-                await api.post('/api/mobile/mitra/fcm-token', {
+                await api.post('/api/mobile/fcm-token', {
                     fcmToken: newToken,
                     action: 'add'
                 });

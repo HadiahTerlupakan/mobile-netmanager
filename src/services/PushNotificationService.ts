@@ -1,123 +1,81 @@
-import api from '@/services/api';
+import messaging, {
+  FirebaseMessagingTypes,
+} from '@react-native-firebase/messaging';
+
 import { logger } from '@/utils/logger';
-import { isAxiosError } from 'axios';
-import Constants from 'expo-constants';
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
 
-// Configure how notifications are handled when app is in foreground
-// Note: Handled globally in NotificationService.ts
-// Notifications.setNotificationHandler({ ... });
+type NotificationBridgePayload = {
+  title?: string | null;
+  body?: string | null;
+  data?: Record<string, string>;
+};
 
-let lastRegisteredPushKey: string | null = null;
+type RemoteMessageLike = FirebaseMessagingTypes.RemoteMessage | null | undefined;
 
-// Setup Android notification channel early so first notification uses correct settings
-if (Platform.OS === 'android') {
-    Notifications.setNotificationChannelAsync('default', {
-        name: 'Default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-    }).catch((e) => logger.warn('Failed to setup notification channel:', e));
+function normalizeMessageData(
+  data: FirebaseMessagingTypes.RemoteMessage['data'] | undefined,
+): Record<string, string> {
+  if (!data) {
+    return {};
+  }
+
+  return Object.entries(data).reduce<Record<string, string>>(
+    (normalizedData, [key, value]) => {
+      if (typeof value === 'string') {
+        normalizedData[key] = value;
+      }
+
+      return normalizedData;
+    },
+    {},
+  );
 }
 
-export async function registerForPushNotificationsAsync(token?: string): Promise<string | null> {
-    let pushToken: string | null = null;
+function buildNotificationPayload(
+  remoteMessage: RemoteMessageLike,
+): NotificationBridgePayload | null {
+  if (!remoteMessage) {
+    return null;
+  }
 
-    // Check existing permissions
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    // Request permissions if not granted
-    if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-    }
-
-    if (finalStatus !== 'granted') {
-        logger.warn('Failed to get push token for push notification!');
-        return null;
-    }
-
-    // Get Expo Push Token
-    try {
-        const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-
-        if (!projectId) {
-            logger.error('Project ID not found');
-            return null;
-        }
-
-        const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
-        pushToken = tokenData.data;
-        logger.info('Push token:', pushToken);
-
-        // Register token with backend
-        if (pushToken) {
-            const registrationKey = `${token ?? 'anonymous'}:${pushToken}`;
-
-            if (lastRegisteredPushKey === registrationKey) {
-                logger.info('Push token already registered for current session');
-                return pushToken;
-            }
-
-            try {
-                const config: any = { skipGlobalAuthHandler: true };
-
-                // If token is provided explicitly, use it in headers
-                if (token) {
-                    config.headers = { Authorization: `Bearer ${token}` };
-                }
-
-                await api.post('/api/mobile/push-token', { pushToken }, config);
-                lastRegisteredPushKey = registrationKey;
-                logger.info('Push token registered with backend');
-            } catch (error) {
-                // Ignore 401 (Unauthorized) as it will be handled by AuthContext
-                if (isAxiosError(error) && error.response?.status === 401) {
-                    logger.info('Push registration skipped (unauthorized)');
-                } else {
-                    logger.error('Failed to register push token:', error);
-                }
-            }
-        }
-    } catch (error) {
-        logger.error('Error getting push token:', error);
-    }
-
-    return pushToken;
+  return {
+    title: remoteMessage.notification?.title ?? null,
+    body: remoteMessage.notification?.body ?? null,
+    data: normalizeMessageData(remoteMessage.data),
+  };
 }
 
-// Send local notification (for testing)
-export async function sendLocalNotification(title: string, body: string, data?: Record<string, unknown>) {
-    await Notifications.scheduleNotificationAsync({
-        content: {
-            title,
-            body,
-            data: data || {},
-            sound: true,
-        },
-        trigger: null, // immediately
-    });
+export async function getInitialNotificationData(): Promise<Record<string, string> | null> {
+  const remoteMessage = await messaging().getInitialNotification();
+  const notificationData = normalizeMessageData(remoteMessage?.data);
+
+  return Object.keys(notificationData).length > 0 ? notificationData : null;
 }
 
-// Add notification listeners
 export function addNotificationListeners(
-    onNotificationReceived?: (notification: Notifications.Notification) => void,
-    onNotificationResponse?: (response: Notifications.NotificationResponse) => void
+  onNotificationReceived?: (notification: NotificationBridgePayload) => void,
+  onNotificationResponse?: (response: NotificationBridgePayload) => void,
 ) {
-    const receivedListener = Notifications.addNotificationReceivedListener(notification => {
-        logger.info('Notification received:', notification);
-        onNotificationReceived?.(notification);
-    });
+  const unsubscribeOnMessage = messaging().onMessage(async (remoteMessage) => {
+    logger.info('Notification received:', remoteMessage);
+    const payload = buildNotificationPayload(remoteMessage);
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-        logger.info('Notification response:', response);
-        onNotificationResponse?.(response);
-    });
+    if (payload) {
+      onNotificationReceived?.(payload);
+    }
+  });
 
-    return () => {
-        receivedListener.remove();
-        responseListener.remove();
-    };
+  const unsubscribeOnOpen = messaging().onNotificationOpenedApp((remoteMessage) => {
+    logger.info('Notification response:', remoteMessage);
+    const payload = buildNotificationPayload(remoteMessage);
+
+    if (payload) {
+      onNotificationResponse?.(payload);
+    }
+  });
+
+  return () => {
+    unsubscribeOnMessage();
+    unsubscribeOnOpen();
+  };
 }

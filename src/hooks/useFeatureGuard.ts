@@ -22,26 +22,20 @@ export function useFeatureGuard(
 
     // If no user, they shouldn't be here (auth guard will usually handle this, but just in case)
     if (!user) {
-      router.replace('/');
+      router.replace('/(auth)/login');
       return;
     }
 
     // SUPER_ADMIN has access to everything
     if (user.role === 'SUPER_ADMIN') return;
 
-    // Mitra users have fixed menus — no permission check needed
-    const isMitra = user.employeeType === 'MITRA_TEKNISI' || user.employeeType === 'MITRA_SALES';
-    if (isMitra) return;
-
     // Check if user has required feature(s)
     const featuresArray = Array.isArray(requiredFeature)
       ? requiredFeature
       : [requiredFeature];
-
-    // User must have AT LEAST ONE of the required features (OR condition)
-    // You can change this to .every() if you want an AND condition
-    const hasAccess = featuresArray.some((feat) =>
-      user.features?.includes(feat)
+    const userFeatures = user.features || [];
+    const hasAccess = featuresArray.some((feature) =>
+      userFeatures.includes(feature)
     );
 
     if (!hasAccess) {
