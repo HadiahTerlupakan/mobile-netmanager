@@ -30,10 +30,10 @@ describe('firebase-only mobile notification cleanup', () => {
     }));
   });
 
-  it('keeps the managed Expo native notification wiring in app config until prebuild generates android files', () => {
+  it('keeps the managed Expo notification wiring valid before or after native prebuild output exists', () => {
     const appJson = JSON.parse(readFileSync(join(__dirname, '../../app.json'), 'utf8'));
+    const androidBuildGradlePath = join(__dirname, '../../android/build.gradle');
 
-    expect(existsSync(join(__dirname, '../../android/build.gradle'))).toBe(false);
     expect(appJson.expo.plugins).toEqual(
       expect.arrayContaining([
         [
@@ -48,6 +48,17 @@ describe('firebase-only mobile notification cleanup', () => {
         '@react-native-firebase/messaging/app.plugin.js',
       ]),
     );
+
+    if (existsSync(androidBuildGradlePath)) {
+      const androidBuildGradleSource = readFileSync(androidBuildGradlePath, 'utf8');
+
+      expect(androidBuildGradleSource).toContain('node_modules/@notifee/react-native/android/libs');
+      expect(androidBuildGradleSource).toContain('allprojects');
+      expect(androidBuildGradleSource).toContain('repositories');
+      return;
+    }
+
+    expect(existsSync(androidBuildGradlePath)).toBe(false);
   });
 
   it('routes sync failure feedback through the shared error presenter instead of expo local notifications', () => {
