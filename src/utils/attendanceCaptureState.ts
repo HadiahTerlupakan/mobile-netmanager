@@ -7,9 +7,9 @@ interface AttendanceCaptureStateInput {
   isTukarLiburWorkDay?: boolean;
 }
 
-export function getAttendanceCaptureState({ status, isHoliday, isOffDay, isTukarLiburWorkDay = false }: AttendanceCaptureStateInput) {
+export function getAttendanceCaptureState({ status, isHoliday, isOffDay }: AttendanceCaptureStateInput) {
   const hasActiveSession = status === 'checked-in';
-  const isBlockedDay = !isTukarLiburWorkDay && (isHoliday || isOffDay);
+  const isBlockedDay = isHoliday || isOffDay;
   const disabled = status === 'checked-out' || (!hasActiveSession && isBlockedDay);
 
   return {

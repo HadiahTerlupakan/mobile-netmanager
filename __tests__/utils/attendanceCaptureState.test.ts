@@ -29,16 +29,16 @@ describe('getAttendanceCaptureState', () => {
     });
   });
 
-  it('allows fresh check-in on tukar libur replacement days even when the calendar is a holiday', () => {
+  it('blocks fresh check-in on tukar libur replacement days when the calendar is a holiday', () => {
     expect(getAttendanceCaptureState({
       status: 'idle',
       isHoliday: true,
       isOffDay: false,
       isTukarLiburWorkDay: true,
     } as never)).toEqual({
-      disabled: false,
+      disabled: true,
       hasActiveSession: false,
-      isBlockedDay: false,
+      isBlockedDay: true,
     });
   });
 
