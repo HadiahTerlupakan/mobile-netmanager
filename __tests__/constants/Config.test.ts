@@ -120,4 +120,15 @@ describe('Config API_URL', () => {
     expect(Config.CAN_AUTO_CHECK_APP_UPDATES).toBe(false)
     expect(Config.CAN_MANUALLY_CHECK_APP_UPDATES).toBe(false)
   })
+
+  it('disables app update checks for Android production builds', () => {
+    process.env.EXPO_PUBLIC_APP_VARIANT = 'production'
+    mockPlatform('android')
+    mockExpoRuntime({ executionEnvironment: 'standalone' })
+
+    const Config = loadConfig()
+
+    expect(Config.CAN_AUTO_CHECK_APP_UPDATES).toBe(false)
+    expect(Config.CAN_MANUALLY_CHECK_APP_UPDATES).toBe(false)
+  })
 })

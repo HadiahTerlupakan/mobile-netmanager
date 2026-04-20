@@ -144,7 +144,7 @@ class AppVersionService {
                 isForceUpdate: false,
                 currentVersion: '',
                 latestVersion: null,
-                error: 'Cek update APK tidak tersedia pada build development atau Expo Go'
+                error: 'Cek update APK hanya tersedia pada build Android staging internal'
             }
         }
 
