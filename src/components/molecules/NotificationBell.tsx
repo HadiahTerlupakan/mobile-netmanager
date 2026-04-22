@@ -1,4 +1,5 @@
 import { useApiQuery } from '@/hooks/queries';
+import { queryKeys } from '@/lib/queryClient';
 import { useRouter } from 'expo-router';
 import { Bell } from 'lucide-react-native';
 import React from 'react';
@@ -21,7 +22,7 @@ function NotificationBellComponent({ color = '#ffffff' }: NotificationBellProps)
 
     // Use React Query with caching to prevent excessive API calls
     const { data } = useApiQuery<NotificationBellResponse>({
-        queryKey: ['notifications', 'unread'],
+        queryKey: queryKeys.notifications.unread(),
         endpoint: '/api/mobile/notifications',
         staleTime: 1000 * 60 * 5, // 5 minutes
         refetchInterval: 1000 * 60 * 15, // Refetch every 15 minutes as a slow fallback (relies on Push Notifications primarily)

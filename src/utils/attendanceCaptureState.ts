@@ -4,6 +4,7 @@ interface AttendanceCaptureStateInput {
   status: AttendanceCaptureStatus;
   isHoliday: boolean;
   isOffDay: boolean;
+  isTukarLiburWorkDay?: boolean;
 }
 
 export function getAttendanceCaptureState({ status, isHoliday, isOffDay }: AttendanceCaptureStateInput) {

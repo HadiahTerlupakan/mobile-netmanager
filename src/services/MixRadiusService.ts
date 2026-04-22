@@ -6,15 +6,15 @@ export interface MixRadiusCustomer {
   member_id: string;
   username: string;
   fullname: string;
-  name?: string; // Optional alias for compatibility
+  name?: string;
   address: string;
   phonenumber: string;
   plan_name: string;
   auth_status: string;
   expired_on: string;
-  expiration?: string; // Optional alias
+  expiration?: string;
   owner_name: string;
-  group_name?: string; // Optional alias
+  group_name?: string;
   online?: boolean;
   active_session_ip?: string;
 }
@@ -56,12 +56,77 @@ export interface MixRadiusResponse {
   data: MixRadiusCustomer[];
 }
 
+interface ApiEnvelope<T> {
+  success?: boolean;
+  data?: T;
+}
+
 export interface OwnerGroup {
   id: string;
   name: string;
   owners: string[];
   isActive: boolean;
+  siteId?: string;
 }
+
+const DEFAULT_MIXRADIUS_DRAW = 1;
+
+const buildPaginatedMixRadiusResponse = (
+  customers: MixRadiusCustomer[],
+  draw: number = DEFAULT_MIXRADIUS_DRAW,
+  recordsTotal: number = customers.length,
+  recordsFiltered: number = customers.length,
+): MixRadiusResponse => ({
+  draw,
+  recordsTotal,
+  recordsFiltered,
+  data: customers,
+});
+
+const isPaginatedMixRadiusResponse = (
+  payload: unknown,
+): payload is MixRadiusResponse => {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidate = payload as Partial<MixRadiusResponse>;
+
+  return (
+    typeof candidate.draw === "number" &&
+    typeof candidate.recordsTotal === "number" &&
+    typeof candidate.recordsFiltered === "number" &&
+    Array.isArray(candidate.data)
+  );
+};
+
+const isMixRadiusCustomerArray = (
+  payload: unknown,
+): payload is MixRadiusCustomer[] => Array.isArray(payload);
+
+const extractMixRadiusResponsePayload = (payload: unknown) => {
+  if (isPaginatedMixRadiusResponse(payload) || isMixRadiusCustomerArray(payload)) {
+    return payload;
+  }
+
+  if (!payload || typeof payload !== "object") {
+    return undefined;
+  }
+
+  return (payload as ApiEnvelope<unknown>).data;
+};
+
+const normalizeMixRadiusResponse = (payload?: unknown): MixRadiusResponse => {
+  if (isPaginatedMixRadiusResponse(payload)) {
+    return payload;
+  }
+
+  if (isMixRadiusCustomerArray(payload)) {
+    return buildPaginatedMixRadiusResponse(payload);
+  }
+
+  return buildPaginatedMixRadiusResponse([]);
+};
 
 export const MixRadiusService = {
   getIsolirCustomers: async (
@@ -70,59 +135,35 @@ export const MixRadiusService = {
     pageSize: number = 20,
     owner?: string,
     groupId?: string,
-    authStatus: string = "Disabled-Users", // Allow override
+    authStatus: string = "Disabled-Users",
   ) => {
-    try {
-      const params: Record<string, string | number> = {
-        authStatus: authStatus,
-        search: search,
-        searchType: "all",
-        start: page * pageSize,
-        length: pageSize,
-        draw: 1,
-      };
+    const params: Record<string, string | number> = {
+      authStatus,
+      search,
+      searchType: "all",
+      start: page * pageSize,
+      length: pageSize,
+      draw: DEFAULT_MIXRADIUS_DRAW,
+    };
 
-      if (groupId) {
-        params.groupId = groupId;
-      } else if (owner) {
-        params.ownerName = owner;
-      }
-
-      // Note: api baseURL is dynamic from TenantService, so we append /api/...
-      logger.info(`[MixRadius] Requesting: /api/mobile/mixradius/customers params:`, JSON.stringify(params));
-      const response = await api.get<{
-        success?: boolean;
-        data?: MixRadiusResponse | MixRadiusCustomer[];
-      }>(
-        "/api/mobile/mixradius/customers",
-        { params },
-      );
-
-      logger.info(`[MixRadius] Raw response keys:`, Object.keys(response.data));
-      if (response.data?.data) {
-         logger.info(`[MixRadius] response.data.data keys:`, Object.keys(response.data.data));
-         if (Array.isArray(response.data.data)) {
-             logger.info(`[MixRadius] response.data.data is Array length: ${response.data.data.length}`);
-         } else {
-             logger.info(`[MixRadius] response.data.data is Object`);
-             if (response.data.data.data) {
-                 logger.info(`[MixRadius] response.data.data.data is Array length: ${response.data.data.data.length}`);
-             }
-         }
-      }
-
-      // Handle wrapped response { success: true, data: { ... } }
-      if (response.data?.success && response.data?.data) {
-        logger.info(`[MixRadius] Returning response.data.data (wrapped)`);
-        return response.data.data;
-      }
-
-      // Handle direct response (unwrapped or different structure)
-      logger.info(`[MixRadius] Returning response.data (unwrapped/other)`);
-      return response.data;
-    } catch (error) {
-      throw error;
+    if (groupId) {
+      params.groupId = groupId;
+    } else if (owner) {
+      params.ownerName = owner;
     }
+
+    logger.info(
+      `[MixRadius] Requesting: /api/mobile/mixradius/customers params:`,
+      JSON.stringify(params),
+    );
+
+    const response = await api.get<
+      ApiEnvelope<MixRadiusResponse | MixRadiusCustomer[]> | MixRadiusResponse
+    >("/api/mobile/mixradius/customers", { params });
+
+    return normalizeMixRadiusResponse(
+      extractMixRadiusResponsePayload(response.data),
+    );
   },
 
   getCustomerDetail: async (
@@ -154,22 +195,15 @@ export const MixRadiusService = {
 
   getOwnerGroups: async (): Promise<OwnerGroup[]> => {
     try {
-      const response = await api.get<{
-        data?: OwnerGroup[];
-      }>(
-        "/api/integrations/mixradius/groups",
+      const response = await api.get<ApiEnvelope<OwnerGroup[]> | OwnerGroup[]>(
+        "/api/mobile/mixradius/groups",
       );
 
       if (Array.isArray(response.data)) {
-        return response.data as unknown as OwnerGroup[];
+        return response.data;
       }
 
-      if (response.data && Array.isArray(response.data.data)) {
-        return response.data.data;
-      }
-
-      logger.warn("Unexpected owner groups format:", response.data);
-      return [];
+      return Array.isArray(response.data.data) ? response.data.data : [];
     } catch (error) {
       logger.error("Failed to fetch owner groups", error);
       return [];

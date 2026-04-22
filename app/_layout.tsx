@@ -6,18 +6,22 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { RealtimeProvider } from "@/context/RealtimeProvider";
 import { TenantProvider } from "@/context/TenantContext";
 import { useAppVersion } from "@/hooks/useAppVersion";
-import { asyncStoragePersister, queryClient } from "@/lib/queryClient";
+import { asyncStoragePersister, queryClient, queryKeys } from "@/lib/queryClient";
 import { appVersionService } from "@/services/AppVersionService";
 import { DatabaseService } from "@/services/DatabaseService"; // Import DatabaseService
 import { errorReportingService } from "@/services/ErrorReportingService"; // Import ErrorReportingService
+import {
+  ensureForegroundNotificationChannel,
+  presentForegroundNotification,
+} from "@/services/ForegroundNotificationService";
 import { performanceMonitor } from "@/services/PerformanceMonitor"; // Import PerformanceMonitor
 import { SyncService } from "@/services/SyncService";
 import { CURRENT_VERSION_CODE, CURRENT_VERSION_NAME } from "@/constants/appVersion";
 import { eventManager } from "@/utils/EventManager";
 import { logger } from "@/utils/logger";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import * as Notifications from "expo-notifications";
 import { Href, Slot, useRouter, useSegments } from "expo-router";
+import { addNotificationListeners, getInitialNotificationData } from "@/services/PushNotificationService";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, DeviceEventEmitter, Platform, View } from "react-native";
@@ -26,6 +30,7 @@ import { Events } from "@/constants/Events";
 import { Config } from "@/constants/Config";
 import tw from "twrnc";
 import { toastConfig } from "@/config/toastConfig";
+import { presentInfoMessage } from "@/utils/errorPresenter";
 
 // Initialize error reporting as early as possible
 errorReportingService.init();
@@ -78,6 +83,8 @@ function RootLayoutNav() {
         logger.info("[Init] Phase 1: Database initialization");
         await DatabaseService.initDatabase();
 
+        await ensureForegroundNotificationChannel();
+
         // Phase 2: Non-critical services (delayed)
         logger.info("[Init] Phase 2: Starting sync monitoring");
         syncTimer = setTimeout(() => {
@@ -103,6 +110,8 @@ function RootLayoutNav() {
       if (syncTimer) {
         clearTimeout(syncTimer);
       }
+
+      SyncService.stopMonitoring();
     };
   }, []);
 
@@ -224,30 +233,44 @@ function RootLayoutNav() {
       }
     };
 
-    // Import dynamically to avoid circular dependencies if any
     const setupNotifications = async () => {
       if (Platform.OS === "web") return;
 
       try {
-        const { addNotificationListeners } =
-          await import("@/services/PushNotificationService");
-
-        const lastResponse = await Notifications.getLastNotificationResponseAsync();
-        if (lastResponse) {
-          const data = lastResponse.notification.request.content.data as { url?: string };
-          logger.info("App opened from notification (killed state):", data);
-          notificationNavigationTimer = setTimeout(() => handleNotificationNavigation(data), 500);
+        const initialNotificationData = await getInitialNotificationData();
+        if (initialNotificationData) {
+          logger.info("App opened from notification (killed state):", initialNotificationData);
+          notificationNavigationTimer = setTimeout(
+            () => handleNotificationNavigation(initialNotificationData),
+            500,
+          );
         }
 
         const cleanup = addNotificationListeners(
-          (notification: Notifications.Notification) => {
-            logger.info("Foreground notification:", notification.request.content.title);
-            queryClient.invalidateQueries({ queryKey: ["notifications", "list"] });
+          async (notification) => {
+            logger.info("Foreground notification:", notification.title);
+
+            try {
+              if (notification.title || notification.body) {
+                await presentForegroundNotification(notification);
+                presentInfoMessage(
+                  notification.body ?? 'Anda menerima notifikasi baru.',
+                  notification.title ?? 'Notifikasi Baru',
+                );
+              }
+            } catch (error) {
+              logger.error('Failed to render foreground notification:', error);
+              errorReportingService.captureException(error instanceof Error ? error : new Error('Failed to render foreground notification'), {
+                source: 'root.foregroundNotification',
+              });
+            } finally {
+              queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list() });
+              queryClient.invalidateQueries({ queryKey: queryKeys.notifications.unread() });
+            }
           },
-          (response: Notifications.NotificationResponse) => {
-            const data = response.notification.request.content.data as { url?: string };
-            logger.info("Notification tapped, data:", data);
-            handleNotificationNavigation(data);
+          (response) => {
+            logger.info("Notification tapped, data:", response.data);
+            handleNotificationNavigation(response.data ?? {});
           },
         );
 

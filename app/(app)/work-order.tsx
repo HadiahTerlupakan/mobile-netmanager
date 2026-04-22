@@ -16,6 +16,7 @@ import { presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresente
 import { logger } from "@/utils/logger";
 import { FlashList } from "@shopify/flash-list";
 import { Href, useRouter } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
 import {
   CheckCircle,
   FileText,
@@ -47,6 +48,7 @@ WorkOrderRow.displayName = "WorkOrderRow";
 function WorkOrderScreenContent() {
   const { token, user } = useAuth();
   const router = useRouter();
+  const isFocused = useIsFocused();
   const isConnected = !!token;
   const [activeTab, setActiveTab] = useState<TabType>("tersedia");
   const [claiming, setClaiming] = useState<string | null>(null);
@@ -58,7 +60,7 @@ function WorkOrderScreenContent() {
     refetch: refetchAvailable,
     isRefetching: refetchingAvailable,
   } = useAvailableWorkOrders({
-    enabled: activeTab === "tersedia" && !!token,
+    enabled: isFocused && activeTab === "tersedia" && !!token,
   });
 
   const {
@@ -68,7 +70,7 @@ function WorkOrderScreenContent() {
     isRefetching: refetchingActive,
   } = useWorkOrders(
     { type: "active", limit: 50 },
-    { enabled: activeTab === "aktif" && !!token },
+    { enabled: isFocused && activeTab === "aktif" && !!token },
   );
 
   const {
@@ -78,7 +80,7 @@ function WorkOrderScreenContent() {
     isRefetching: refetchingHistory,
   } = useWorkOrders(
     { type: "history", limit: 50 },
-    { enabled: activeTab === "riwayat" && !!token },
+    { enabled: isFocused && activeTab === "riwayat" && !!token },
   );
 
   // Derive current list data based on tab
@@ -198,7 +200,7 @@ function WorkOrderScreenContent() {
   );
 
   useEffect(() => {
-    if (!token || !user?.id) {
+    if (!isFocused || !token || !user?.id) {
       return;
     }
 
@@ -211,7 +213,7 @@ function WorkOrderScreenContent() {
         handleWOEvent();
       }
     });
-  }, [handleWOEvent, token, user?.id]);
+  }, [handleWOEvent, isFocused, token, user?.id]);
 
   const getTabStyle = useCallback((tab: TabType) => {
     const isActive = activeTab === tab;

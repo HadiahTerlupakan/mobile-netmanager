@@ -4,7 +4,12 @@ import { isOfflineMutationQueuedResult, useApiQuery, useCreateWorkOrderRequest }
 import api from "@/services/api";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
-import { getCustomerSearchFailureMessage, shouldShowCustomerSearchEmptyState, shouldShowCustomerSearchErrorState } from "@/utils/requestWorkOrderSearch";
+import {
+  getCustomerSearchFailureMessage,
+  readCustomerSearchResults,
+  shouldShowCustomerSearchEmptyState,
+  shouldShowCustomerSearchErrorState,
+} from "@/utils/requestWorkOrderSearch";
 import { RequestWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
 import { useRouter } from "expo-router";
 import debounce from "lodash/debounce";
@@ -172,6 +177,7 @@ export default function RequestWorkOrderScreen() {
 
   // Reset form when switching mode
   const handleModeChange = (mode: "CUSTOMER" | "INTERNAL") => {
+    searchCustomers.cancel();
     setWoMode(mode);
     // Reset form
     setTitle("");
@@ -183,6 +189,8 @@ export default function RequestWorkOrderScreen() {
     setSearchQuery("");
     setCustomers([]);
     setSearchError(null);
+    setShowSearchResults(false);
+    setSearching(false);
     // Reset department
     setSelectedDepartment(null);
   };
@@ -203,8 +211,8 @@ export default function RequestWorkOrderScreen() {
           `/api/mobile/mixradius/customers?search=${encodeURIComponent(query)}`,
           { skipRetry: true },
         );
-        const data = res.data?.data || [];
-        setCustomers(data);
+        const results = readCustomerSearchResults(res.data);
+        setCustomers(results);
         setShowSearchResults(true);
       } catch (error) {
         logger.error("Search failed:", error);
@@ -218,12 +226,18 @@ export default function RequestWorkOrderScreen() {
     [],
   );
 
+  useEffect(() => () => {
+    searchCustomers.cancel();
+  }, [searchCustomers]);
+
   // Handle search input change
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
     if (text.length >= 2) {
       searchCustomers(text);
     } else {
+      searchCustomers.cancel();
+      setSearching(false);
       setCustomers([]);
       setShowSearchResults(false);
       setSearchError(null);
@@ -232,9 +246,11 @@ export default function RequestWorkOrderScreen() {
 
   // Select customer
   const selectCustomer = (customer: MixRadiusCustomer) => {
+    searchCustomers.cancel();
     setSelectedCustomer(customer);
     setShowSearchResults(false);
     setSearchError(null);
+    setSearching(false);
     setSearchQuery(customer.fullname);
     if (!title) {
       setTitle(`Troubleshoot - ${customer.fullname}`);
@@ -243,10 +259,13 @@ export default function RequestWorkOrderScreen() {
 
   // Clear selected customer
   const clearCustomer = () => {
+    searchCustomers.cancel();
     setSelectedCustomer(null);
     setSearchQuery("");
     setCustomers([]);
     setSearchError(null);
+    setShowSearchResults(false);
+    setSearching(false);
   };
 
   // Select department

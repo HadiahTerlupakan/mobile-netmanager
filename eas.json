@@ -33,6 +33,10 @@
     },
     "production": {
       "autoIncrement": true,
+      "android": {
+        "gradleCommand": ":app:bundleRelease",
+        "credentialsSource": "remote"
+      },
       "env": {
         "EXPO_PUBLIC_APP_VARIANT": "production",
         "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyDihrl023fOQnXf8oZ7A2rU7YxzJzQN5Lc",

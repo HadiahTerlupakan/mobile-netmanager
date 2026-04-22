@@ -1,6 +1,5 @@
 import { Events } from '@/constants/Events';
 import { fcmService } from '@/services/FirebaseMessagingService';
-import { registerForPushNotificationsAsync } from '@/services/PushNotificationService';
 import { DatabaseService } from '@/services/DatabaseService';
 import { RefreshTokenService } from '@/services/RefreshTokenService';
 import { TokenService } from '@/services/TokenService';
@@ -9,8 +8,7 @@ import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { SecureStorage, Storage } from '@/utils/storage';
 import { queryClient } from '@/lib/queryClient';
-import { isAxiosError } from 'axios';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
 
 export type User = {
@@ -40,27 +38,31 @@ export type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper for push registration to avoid duplication
-const registerPush = async (authToken: string) => {
-    try {
-        await registerForPushNotificationsAsync(authToken);
-    } catch (err) {
-        // Ignore 401s here as they will trigger the unauthorized listener
-        if (!isAxiosError(err) || err.response?.status !== 401) {
-            logger.error('Push registration failed:', err);
-        }
-    }
-};
-
-const isMitraUser = (userData: User | null | undefined): userData is User =>
-    userData?.role === 'MITRA' || userData?.employeeType === 'MITRA_TEKNISI' || userData?.employeeType === 'MITRA_SALES';
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const tokenRefreshCleanupRef = useRef<(() => void) | null>(null);
+
+    const stopFcmTokenRefreshListener = useCallback(() => {
+        tokenRefreshCleanupRef.current?.();
+        tokenRefreshCleanupRef.current = null;
+    }, []);
+
+    const startFcmTokenRefreshListener = useCallback(() => {
+        stopFcmTokenRefreshListener();
+        tokenRefreshCleanupRef.current = fcmService.onTokenRefresh();
+    }, [stopFcmTokenRefreshListener]);
+
+    const syncFcmToken = useCallback((action: 'add' | 'remove') => {
+        const logLabel = action === 'remove' ? 'FCM remove' : 'FCM add';
+        fcmService.syncFCMTokenToBackend(action).catch((fcmError: unknown) => {
+            logger.warn(`[AuthContext] ${logLabel} failed`, fcmError);
+        });
+    }, []);
 
     const clearLocalSession = useCallback(async () => {
+        stopFcmTokenRefreshListener();
         TokenService.setToken(null);
         setToken(null);
         setUser(null);
@@ -80,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 logger.warn('[AuthContext] Local cleanup step failed', { index, reason: result.reason });
             }
         });
-    }, []);
+    }, [stopFcmTokenRefreshListener]);
 
     const signIn = useCallback(async (newToken: string, userData: User, refreshToken?: string) => {
         setIsLoading(true);
@@ -106,16 +108,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(userData);
             logger.setTenantId(userData.tenantId);
 
-            // Register for push notifications (non-blocking)
-            // Don't await - login should not be blocked by push registration
-            logger.auth('Registering push notifications (background)...');
-            registerPush(newToken);
-
-            // FCM Target for Mitra
-            if (isMitraUser(userData)) {
-                fcmService.syncFCMTokenToBackend('add').catch((fcmError: unknown) => logger.error('FCM Add error', fcmError));
-                fcmService.onTokenRefresh();
-            }
+            logger.auth('Syncing FCM token (background)...');
+            syncFcmToken('add');
+            startFcmTokenRefreshListener();
 
             logger.auth('signIn complete');
         } catch (error) {
@@ -130,24 +125,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsLoading(false);
             logger.auth('Loading state set to false');
         }
-    }, [clearLocalSession]);
+    }, [clearLocalSession, startFcmTokenRefreshListener, syncFcmToken]);
 
     const signOut = useCallback(async (options?: { skipApi?: boolean }) => {
         try {
-            // Remove push token from backend only if not skipping API (e.g. not a 401 logout)
-            // Use current token from state since this function will be recreated on token change
             if (token && !options?.skipApi) {
-                try {
-                    await api.delete('/api/mobile/push-token');
-                } catch (e) {
-                    // Ignore errors during signout
-                    logger.warn('Failed to remove push token during signout:', e);
-                }
-
-                // FCM Target Logout for Mitra (using current user state)
-                if (isMitraUser(user)) {
-                    fcmService.syncFCMTokenToBackend('remove').catch((fcmError: unknown) => logger.warn('Failed to remove FCM token', fcmError));
-                }
+                stopFcmTokenRefreshListener();
+                syncFcmToken('remove');
             }
         } catch (error) {
             logger.error('Sign out error', error);
@@ -157,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } finally {
             await clearLocalSession();
         }
-    }, [clearLocalSession, token, user]);
+    }, [clearLocalSession, stopFcmTokenRefreshListener, syncFcmToken, token]);
 
     const fetchProfile = useCallback(async () => {
         try {
@@ -210,7 +194,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         setUser(parsedUser);
                         logger.setTenantId(parsedUser.tenantId);
 
-                        registerPush(storedToken);
+                        syncFcmToken('add');
+                        startFcmTokenRefreshListener();
                     } catch (parseError) {
                         logger.error('Failed to parse stored user data', parseError);
                         await clearLocalSession();
@@ -232,8 +217,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         return () => {
             isMounted = false;
+            stopFcmTokenRefreshListener();
         };
-    }, [clearLocalSession]);
+    }, [clearLocalSession, startFcmTokenRefreshListener, stopFcmTokenRefreshListener, syncFcmToken]);
 
     // Event listeners effect (re-binds when signOut/fetchProfile changes)
     useEffect(() => {

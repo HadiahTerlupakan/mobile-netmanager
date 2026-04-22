@@ -1,15 +1,18 @@
+// @ts-nocheck
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-const mockPost = jest.fn<() => Promise<void>>();
-const mockGetPermissionsAsync = jest.fn<() => Promise<{ status: string }>>();
-const mockRequestPermissionsAsync = jest.fn<() => Promise<{ status: string }>>();
-const mockGetExpoPushTokenAsync = jest.fn<() => Promise<{ data: string }>>();
+const mockOnMessage = jest.fn();
+const mockOnNotificationOpenedApp = jest.fn();
+const mockGetInitialNotification = jest.fn();
+const mockMessaging = jest.fn(() => ({
+  onMessage: mockOnMessage,
+  onNotificationOpenedApp: mockOnNotificationOpenedApp,
+  getInitialNotification: mockGetInitialNotification,
+}));
 
-jest.mock('@/services/api', () => ({
+jest.mock('@react-native-firebase/messaging', () => ({
   __esModule: true,
-  default: {
-    post: mockPost,
-  },
+  default: mockMessaging,
 }));
 
 jest.mock('@/utils/logger', () => ({
@@ -20,66 +23,65 @@ jest.mock('@/utils/logger', () => ({
   },
 }));
 
-jest.mock('axios', () => ({
-  isAxiosError: (error: unknown) => Boolean((error as { isAxiosError?: boolean })?.isAxiosError),
-}));
-
-jest.mock('expo-constants', () => ({
-  __esModule: true,
-  default: {
-    expoConfig: {
-      extra: {
-        eas: {
-          projectId: 'project-1',
-        },
-      },
-    },
-    easConfig: {
-      projectId: 'project-1',
-    },
-  },
-}));
-
-jest.mock('expo-notifications', () => ({
-  getPermissionsAsync: mockGetPermissionsAsync,
-  requestPermissionsAsync: mockRequestPermissionsAsync,
-  getExpoPushTokenAsync: mockGetExpoPushTokenAsync,
-  setNotificationChannelAsync: jest.fn(),
-  addNotificationReceivedListener: jest.fn(),
-  addNotificationResponseReceivedListener: jest.fn(),
-  AndroidImportance: { MAX: 'MAX' },
-}));
-
-jest.mock('react-native', () => ({
-  Platform: {
-    OS: 'ios',
-  },
-}));
-
 describe('PushNotificationService', () => {
+  const foregroundUnsubscribe = jest.fn();
+  const openedUnsubscribe = jest.fn();
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.resetModules();
-    mockGetPermissionsAsync.mockResolvedValue({ status: 'granted' });
-    mockRequestPermissionsAsync.mockResolvedValue({ status: 'granted' });
-    mockGetExpoPushTokenAsync.mockResolvedValue({ data: 'ExponentPushToken[test]' });
-    mockPost.mockResolvedValue(undefined);
+    mockOnMessage.mockReturnValue(foregroundUnsubscribe);
+    mockOnNotificationOpenedApp.mockReturnValue(openedUnsubscribe);
+    mockGetInitialNotification.mockResolvedValue({
+      data: { url: '/notifications' },
+      notification: { title: 'Inbox', body: 'New item' },
+    });
   });
 
-  it('does not register the same push token twice for the same session token', async () => {
-    const { registerForPushNotificationsAsync } = require('@/services/PushNotificationService');
+  it('maps initial FCM notification data without using the legacy Expo push-token flow', async () => {
+    const { getInitialNotificationData } = require('@/services/PushNotificationService');
 
-    await registerForPushNotificationsAsync('session-token');
-    await registerForPushNotificationsAsync('session-token');
+    await expect(getInitialNotificationData()).resolves.toEqual({ url: '/notifications' });
 
-    expect(mockPost).toHaveBeenCalledTimes(1);
-    expect(mockPost).toHaveBeenCalledWith(
-      '/api/mobile/push-token',
-      { pushToken: 'ExponentPushToken[test]' },
-      {
-        skipGlobalAuthHandler: true,
-        headers: { Authorization: 'Bearer session-token' },
-      }
-    );
+    expect(mockMessaging).toHaveBeenCalled();
+  });
+
+  it('subscribes foreground and opened-app FCM listeners and returns a cleanup function', () => {
+    const { addNotificationListeners } = require('@/services/PushNotificationService');
+
+    const onNotificationReceived = jest.fn();
+    const onNotificationResponse = jest.fn();
+
+    const cleanup = addNotificationListeners(onNotificationReceived, onNotificationResponse);
+
+    expect(mockOnMessage).toHaveBeenCalledWith(expect.any(Function));
+    expect(mockOnNotificationOpenedApp).toHaveBeenCalledWith(expect.any(Function));
+
+    const foregroundHandler = mockOnMessage.mock.calls[0][0];
+    foregroundHandler({
+      data: { url: '/notifications' },
+      notification: { title: 'Inbox', body: 'Foreground body' },
+    });
+    expect(onNotificationReceived).toHaveBeenCalledWith({
+      title: 'Inbox',
+      body: 'Foreground body',
+      data: { url: '/notifications' },
+    });
+
+    const openedHandler = mockOnNotificationOpenedApp.mock.calls[0][0];
+    openedHandler({
+      data: { url: '/dashboard' },
+      notification: { title: 'Opened', body: 'Opened body' },
+    });
+    expect(onNotificationResponse).toHaveBeenCalledWith({
+      title: 'Opened',
+      body: 'Opened body',
+      data: { url: '/dashboard' },
+    });
+
+    cleanup();
+
+    expect(foregroundUnsubscribe).toHaveBeenCalledTimes(1);
+    expect(openedUnsubscribe).toHaveBeenCalledTimes(1);
   });
 });

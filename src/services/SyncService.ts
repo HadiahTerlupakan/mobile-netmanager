@@ -3,7 +3,7 @@ import { isAxiosError } from 'axios';
 import pLimit from 'p-limit';
 import { DatabaseService, SyncQueueItem } from './DatabaseService';
 import * as SecureStore from 'expo-secure-store'; // Ensure SyncQueueItem is exported
-import { NotificationService } from './NotificationService';
+import { presentErrorMessage } from '@/utils/errorPresenter';
 import { logger } from '../utils/logger';
 import { uploadService, UploadType } from './UploadService';
 import { eventManager } from '@/utils/EventManager';
@@ -14,6 +14,8 @@ import { extractApiErrorMessage } from '@/utils/errorHandling';
 
 const SYNC_REQUEST_TIMEOUT_MS = 15000;
 const PERMANENT_SYNC_FAILURE_STATUSES = new Set([400, 404, 409, 422]);
+const ATTENDANCE_RECONCILIATION_STATUSES = new Set([409, 422]);
+const ATTENDANCE_RECONCILIATION_RETRY_CAP = 3;
 
 type SyncQueueMeta = {
     photos?: string[];
@@ -24,6 +26,8 @@ type SyncQueueMeta = {
     photoMap?: Record<string, string>;
     requestId?: string;
 };
+
+class SyncQueuePhotoUploadError extends Error {}
 
 class SyncQueuePayloadError extends Error {}
 
@@ -243,9 +247,9 @@ export const SyncService = {
       } catch (error) {
           logger.error('[SyncService] Invalid queued payload, removing item:', error);
           await DatabaseService.removeFromQueue(item.id);
-          await NotificationService.showLocalNotification(
-              'Data Antrean Rusak',
-              'Ada data offline yang tidak bisa diproses dan dibatalkan.'
+          presentErrorMessage(
+              'Ada data offline yang tidak bisa diproses dan dibatalkan.',
+              'Data Antrean Rusak'
           );
           return;
       }
@@ -268,18 +272,25 @@ export const SyncService = {
                 const uploadPromises = meta.photos.map(async (photoUri: string) => {
                      if (photoUri.startsWith('file://')) {
                         return await uploadFile(photoUri, meta.photoType || 'general', meta.watermarkLines);
-                    } else {
-                        return photoUri;
                     }
+
+                    return photoUri;
                 });
 
-                const uploadedUrls = (await Promise.all(uploadPromises)).filter((url): url is string => url !== null);
+                const uploadedUrls = await Promise.all(uploadPromises);
+                const hasUploadFailure = uploadedUrls.some((url) => !url);
+
+                if (hasUploadFailure) {
+                    throw new SyncQueuePhotoUploadError('Gagal upload foto antrean attendance');
+                }
+
+                const validUploadedUrls = uploadedUrls.filter((url): url is string => typeof url === 'string' && url.length > 0);
 
                 if (meta.targetField) {
                      if (meta.singleFile) {
-                         body[meta.targetField] = uploadedUrls[0] || null;
+                         body[meta.targetField] = validUploadedUrls[0] || null;
                      } else {
-                         body[meta.targetField] = uploadedUrls;
+                         body[meta.targetField] = validUploadedUrls;
                      }
                 }
             }
@@ -292,7 +303,9 @@ export const SyncService = {
                 const uploadPromises = photoEntries.map(async ([field, uri]) => {
                     if (typeof uri === 'string' && uri.startsWith('file://')) {
                         const url = await uploadFile(uri, meta.photoType || 'general', meta.watermarkLines);
-                        if (!url) throw new Error(`Gagal upload foto untuk field ${field}`);
+                        if (!url) {
+                          throw new SyncQueuePhotoUploadError(`Gagal upload foto untuk field ${field}`);
+                        }
                         return { field, url };
                     }
                     return null;
@@ -347,6 +360,19 @@ export const SyncService = {
             }
 
           } catch (error) {
+            if (error instanceof SyncQueuePhotoUploadError) {
+              logger.warn(`[SyncService] Photo upload failed for item ${item.id}. Marking for later.`);
+              await DatabaseService.markAsRetry(item.id);
+              if (attendanceReplay) {
+                AttendanceTelemetryService.track('attendance_replay_failed', {
+                  requestId,
+                  endpoint: item.url,
+                  reason: error.message,
+                });
+              }
+              return;
+            }
+
             const backendMessage = isAxiosError(error) ? extractApiErrorMessage(error.response?.data) : undefined;
             const errorMessage = backendMessage || (error instanceof Error ? error.message : 'Unknown error');
 
@@ -355,6 +381,35 @@ export const SyncService = {
                 const status = error.response.status;
 
                 if (isPermanentSyncFailure(status)) {
+                     const shouldReconcileAttendanceReplay =
+                       attendanceReplay && ATTENDANCE_RECONCILIATION_STATUSES.has(status);
+
+                     if (shouldReconcileAttendanceReplay) {
+                       const currentRetryCount = item.retryCount || 0;
+                       const nextRetryCount = currentRetryCount + 1;
+
+                       if (nextRetryCount >= ATTENDANCE_RECONCILIATION_RETRY_CAP) {
+                         logger.sync(`Attendance replay reconciliation cap reached (${status}). Marking item ${item.id} failed.`);
+                         AttendanceTelemetryService.track('attendance_replay_failed', {
+                           requestId,
+                           endpoint: item.url,
+                           reason: `Reconciliation cap reached ${status}`,
+                           retryCount: nextRetryCount,
+                         });
+                         await DatabaseService.markAsFailed(item.id, `Attendance reconciliation exhausted after ${nextRetryCount} attempts (${status})`);
+                         return;
+                       }
+
+                       logger.sync(`Attendance replay requires reconciliation (${status}). Marking item ${item.id} for retry.`);
+                       AttendanceTelemetryService.track('attendance_replay_failed', {
+                         requestId,
+                         endpoint: item.url,
+                         reason: `Reconciliation required ${status}`,
+                       });
+                       await DatabaseService.markAsRetry(item.id);
+                       return;
+                     }
+
                      logger.sync(`Client Error (${status}). Removing item ${item.id}.`);
 
                      if (attendanceReplay) {
@@ -384,9 +439,9 @@ export const SyncService = {
                      else if (urlPart.includes('keluar')) title = 'Gagal Sync Barang Keluar';
                      else if (urlPart.includes('check-in')) title = 'Gagal Sync Absensi';
 
-                     await NotificationService.showLocalNotification(
-                         title,
-                         `Data dibatalkan: ${errorMsg}`
+                     presentErrorMessage(
+                         `Data dibatalkan: ${errorMsg}`,
+                         title
                      );
                      return; // Permanent failure, exit
                 }

@@ -21,6 +21,13 @@ import { formatDate } from "@/utils/date";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import {
+  getWorkOrderDetailActionBarPaddingBottom,
+  getWorkOrderDetailScrollPaddingBottom,
+} from "@/utils/workOrderDetailLayout";
+import {
+  buildWorkOrderMaterialKey,
+} from "@/utils/workOrderMaterialKey";
+import {
   normalizeWorkOrderRouteParam,
   resolveCanonicalWorkOrderId,
 } from "@/utils/workOrderRoute";
@@ -28,6 +35,7 @@ import { FlashList } from '@shopify/flash-list';
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useIsFocused } from '@react-navigation/native';
 import {
   ArrowLeft,
   Calendar,
@@ -63,6 +71,7 @@ export default function WorkOrderDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { token, user } = useAuth();
+  const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const routeWorkOrderId = normalizeWorkOrderRouteParam(id);
 
@@ -255,7 +264,7 @@ export default function WorkOrderDetailScreen() {
   );
 
   useEffect(() => {
-    if (!resolvedWorkOrderId) {
+    if (!isFocused || !resolvedWorkOrderId) {
       return;
     }
 
@@ -271,7 +280,7 @@ export default function WorkOrderDetailScreen() {
         }
       },
     );
-  }, [handleActivityUpdate, handleWOUpdate, resolvedWorkOrderId]);
+  }, [handleActivityUpdate, handleWOUpdate, isFocused, resolvedWorkOrderId]);
 
   // Partner search and pagination effect
   const fetchPartners = useCallback(async (pageNum = 1, shouldAppend = false) => {
@@ -1060,7 +1069,7 @@ export default function WorkOrderDetailScreen() {
         wo.usedMaterials.length > 0 ? (
         wo.usedMaterials.map((item, idx: number) => (
           <View
-            key={`${item.name || item.barangName || item.nama || 'used'}-${item.quantity || item.jumlah || idx}`}
+            key={buildWorkOrderMaterialKey(item, idx, 'used')}
             style={tw`flex-row justify-between items-center py-2 border-b border-gray-100`}
           >
             <Text style={tw`text-gray-700`}>
@@ -1087,7 +1096,7 @@ export default function WorkOrderDetailScreen() {
             </Text>
             {wo.returnedMaterials.map((item, idx: number) => (
               <View
-                key={`${item.name || item.barangName || item.nama || 'returned'}-${item.quantity || item.jumlah || idx}`}
+                key={buildWorkOrderMaterialKey(item, idx, 'returned')}
                 style={tw`flex-row justify-between items-center py-2 border-b border-gray-100`}
               >
                 <View style={tw`flex-1`}>
@@ -1627,7 +1636,9 @@ export default function WorkOrderDetailScreen() {
         </View>
       )}
 
-      <ScrollView contentContainerStyle={tw`p-4 pb-32`}>
+      <ScrollView
+        contentContainerStyle={[tw`p-4`, { paddingBottom: getWorkOrderDetailScrollPaddingBottom(insets.bottom) }]}
+      >
         {activeTab === "INFO" && renderInfoTab()}
         {activeTab === "TASKS" && renderTasksTab()}
         {activeTab === "ITEMS" && renderItemsTab()}
@@ -1742,7 +1753,7 @@ export default function WorkOrderDetailScreen() {
             <View
               style={[
                 tw`absolute bottom-0 left-0 right-0 bg-yellow-50 p-4 border-t border-yellow-200 shadow-lg z-20`,
-                { paddingBottom: Math.max(insets.bottom, 100) },
+                { paddingBottom: getWorkOrderDetailActionBarPaddingBottom(insets.bottom) },
               ]}
             >
               <Text
@@ -1778,7 +1789,7 @@ export default function WorkOrderDetailScreen() {
             <View
               style={[
                 tw`absolute bottom-0 left-0 right-0 bg-white p-4 border-t border-gray-200 flex-row gap-3 shadow-lg z-20`,
-                { paddingBottom: Math.max(insets.bottom, 100) },
+                { paddingBottom: getWorkOrderDetailActionBarPaddingBottom(insets.bottom) },
               ]}
             >
               <TouchableOpacity
@@ -1807,7 +1818,7 @@ export default function WorkOrderDetailScreen() {
             <View
               style={[
                 tw`absolute bottom-0 left-0 right-0 bg-white p-4 border-t border-gray-200 shadow-lg z-20`,
-                { paddingBottom: Math.max(insets.bottom, 100) },
+                { paddingBottom: getWorkOrderDetailActionBarPaddingBottom(insets.bottom) },
               ]}
             >
               <TouchableOpacity
@@ -1832,7 +1843,7 @@ export default function WorkOrderDetailScreen() {
             <View
               style={[
                 tw`absolute bottom-0 left-0 right-0 bg-yellow-50 p-4 border-t border-yellow-200 shadow-lg z-20`,
-                { paddingBottom: Math.max(insets.bottom, 100) },
+                { paddingBottom: getWorkOrderDetailActionBarPaddingBottom(insets.bottom) },
               ]}
             >
               <Text style={tw`text-sm text-yellow-800 font-medium text-center`}>
@@ -1848,7 +1859,7 @@ export default function WorkOrderDetailScreen() {
             <View
               style={[
                 tw`absolute bottom-0 left-0 right-0 bg-white p-4 border-t border-gray-200 shadow-lg z-20`,
-                { paddingBottom: Math.max(insets.bottom, 100) },
+                { paddingBottom: getWorkOrderDetailActionBarPaddingBottom(insets.bottom) },
               ]}
             >
               <TouchableOpacity

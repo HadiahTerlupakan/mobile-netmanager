@@ -28,13 +28,15 @@ interface CanProps {
 }
 
 /**
- * Granular Access Control component for UI masking.
+ * UX-only access control component untuk masking UI di mobile client.
+ * Jangan diperlakukan sebagai security boundary; backend API authorization
+ * dan tenant isolation tetap source of truth.
  * Usage:
  * <Can I={AppFeature.WORK_ORDER}>
  *   <Button title="Create Work Order" />
  * </Can>
  */
-export const Can: React.FC<CanProps> = ({ 
+export const Can: React.FC<CanProps> = ({
     I, 
     any = false, 
     role, 

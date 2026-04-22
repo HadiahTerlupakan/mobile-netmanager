@@ -1,4 +1,4 @@
-import { Storage } from '@/utils/storage';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 // Define mocks
 const mockLogger = {
@@ -9,10 +9,10 @@ const mockLogger = {
 };
 
 const mockStorage = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
+  getItem: jest.fn<(key: string) => string | null>(),
+  setItem: jest.fn<(key: string, value: string) => void>(),
+  removeItem: jest.fn<(key: string) => void>(),
+  clear: jest.fn<() => void>(),
 };
 
 // Mock dependencies
@@ -118,9 +118,31 @@ describe('DatabaseService', () => {
       }
     });
 
+    it('should mark item as failed with terminal reason', async () => {
+      mockStorage.getItem.mockReturnValue(null);
+      await DatabaseService.initDatabase();
+
+      await DatabaseService.addToQueue('/api/failed', 'POST', {});
+      const pending = await DatabaseService.getPendingQueue();
+      const item = pending.find((i: any) => i.url === '/api/failed');
+
+      if (item) {
+        await DatabaseService.markAsFailed(item.id, 'attendance reconciliation exhausted');
+        expect(mockStorage.setItem).toHaveBeenCalledWith(
+          'NETMANAGER_SYNC_QUEUE',
+          expect.stringContaining('"status":"FAILED"'),
+        );
+        expect(mockStorage.setItem).toHaveBeenCalledWith(
+          'NETMANAGER_SYNC_QUEUE',
+          expect.stringContaining('attendance reconciliation exhausted'),
+        );
+      }
+    });
+
     it('should clear session queue and offline cache keys', async () => {
-      mockStorage.getItem.mockImplementation((key: string) => {
-        if (key === 'NETMANAGER_SYNC_QUEUE') {
+      mockStorage.getItem.mockImplementation((key) => {
+        const storageKey = String(key);
+        if (storageKey === 'NETMANAGER_SYNC_QUEUE') {
           return JSON.stringify([
             {
               id: 1,

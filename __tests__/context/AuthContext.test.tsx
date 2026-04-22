@@ -165,25 +165,25 @@ describe('AuthContext', () => {
       expect(mockSecureStorage.setItemStrict).toHaveBeenCalledWith('user_data', JSON.stringify(newUser));
     });
 
-    it('resolves signIn before Expo push registration finishes for Mitra users', async () => {
+    it('resolves signIn before FCM token sync finishes for mobile users and does not call Expo push registration', async () => {
       const authContext = await renderAuth();
-      const mitraUser = { id: '3', tenantId: 'tenant-1', name: 'Mitra User', email: 'mitra@test.com', role: 'MITRA' };
+      const mobileUser = { id: '3', tenantId: 'tenant-1', name: 'Admin Mobile', email: 'admin@test.com', role: 'ADMIN' };
 
-      let resolvePushRegistration: (() => void) | undefined;
-      let pushRegistrationFinished = false;
-      const pushRegistrationPromise = new Promise<void>((resolve) => {
-        resolvePushRegistration = () => {
-          pushRegistrationFinished = true;
+      let resolveFcmSync: (() => void) | undefined;
+      let fcmSyncFinished = false;
+      const fcmSyncPromise = new Promise<void>((resolve) => {
+        resolveFcmSync = () => {
+          fcmSyncFinished = true;
           resolve();
         };
       });
-      mockPushNotificationService.registerForPushNotificationsAsync.mockReturnValue(pushRegistrationPromise);
+      mockFcmService.syncFCMTokenToBackend.mockReturnValue(fcmSyncPromise);
 
       let signInResolved = false;
       let signInPromise: Promise<void>;
 
       await act(async () => {
-        signInPromise = authContext.signIn('mitra-token', mitraUser);
+        signInPromise = authContext.signIn('mobile-token', mobileUser);
         signInPromise.then(() => {
           signInResolved = true;
         });
@@ -193,12 +193,12 @@ describe('AuthContext', () => {
         expect(signInResolved).toBe(true);
       });
 
-      expect(mockPushNotificationService.registerForPushNotificationsAsync).toHaveBeenCalledWith('mitra-token');
-      expect(pushRegistrationFinished).toBe(false);
+      expect(mockPushNotificationService.registerForPushNotificationsAsync).not.toHaveBeenCalled();
       expect(mockFcmService.syncFCMTokenToBackend).toHaveBeenCalledWith('add');
+      expect(fcmSyncFinished).toBe(false);
       expect(mockFcmService.onTokenRefresh).toHaveBeenCalledTimes(1);
 
-      resolvePushRegistration?.();
+      resolveFcmSync?.();
       await expect(signInPromise!).resolves.toBeUndefined();
     });
 
@@ -238,7 +238,7 @@ describe('AuthContext', () => {
       expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('user_data');
     });
 
-    it('triggers FCM remove for Mitra users on sign out', async () => {
+    it('triggers FCM remove on sign out without calling the legacy mobile push-token endpoint', async () => {
       const storedUser = { id: '1', tenantId: 'tenant-1', name: 'Mitra User', email: 'mitra@test.com', role: 'MITRA' };
       mockSecureStorage.getItem.mockResolvedValueOnce('stored-token').mockResolvedValueOnce(JSON.stringify(storedUser));
 
@@ -248,6 +248,7 @@ describe('AuthContext', () => {
         await authContext.signOut();
       });
 
+      expect(mockApi.delete).not.toHaveBeenCalledWith('/api/mobile/push-token');
       expect(mockFcmService.syncFCMTokenToBackend).toHaveBeenCalledWith('remove');
     });
 

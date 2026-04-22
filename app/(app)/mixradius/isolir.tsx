@@ -1,6 +1,8 @@
 import { IsolirSkeleton } from "@/components/molecules/IsolirSkeleton";
+import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
-import { useApiMutation, useApiQuery } from "@/hooks/queries";
+import { useApiQuery, useCreateWorkOrderRequest } from "@/hooks/queries";
+import type { MixRadiusResponse } from "@/services/MixRadiusService";
 import {
   MixRadiusCustomer,
   MixRadiusService,
@@ -49,7 +51,13 @@ const safeDate = (dateString?: string): Date | null => {
 };
 
 // Customer Item Component
-const CustomerItem = memo(({ item, onDismantle }: { item: MixRadiusCustomer, onDismantle: (c: MixRadiusCustomer) => void }) => {
+const CustomerItem = memo(({
+  item,
+  onDismantle,
+}: {
+  item: MixRadiusCustomer;
+  onDismantle: (c: MixRadiusCustomer) => void;
+}) => {
   const displayDate = useMemo(() => {
     try {
       const d = safeDate(item.expired_on) || safeDate(item.expiration);
@@ -163,7 +171,7 @@ const CustomerItem = memo(({ item, onDismantle }: { item: MixRadiusCustomer, onD
               borderRadius: 8,
               borderWidth: 1,
               borderColor: '#fecaca',
-              marginLeft: 8
+              marginLeft: 8,
             }}
           >
             <Trash2 size={16} color="#dc2626" />
@@ -200,7 +208,7 @@ export default function MixRadiusIsolirScreen() {
     isRefetching: refreshing,
     isError,
     error,
-  } = useApiQuery<any>({
+  } = useApiQuery<MixRadiusResponse>({
     queryKey: ["mixradius", "isolir", selectedGroup?.id, search],
     queryFn: () =>
       MixRadiusService.getIsolirCustomers(
@@ -218,12 +226,7 @@ export default function MixRadiusIsolirScreen() {
   // Use isFetching for actual loading state (isPending stays true when query is disabled)
   const loading = isFetching && !refreshing;
 
-  const data = useMemo(() => {
-    if (!customerData) return [];
-    if (Array.isArray(customerData)) return customerData;
-    if (customerData.data && Array.isArray(customerData.data)) return customerData.data;
-    return [];
-  }, [customerData]);
+  const data = useMemo(() => customerData?.data ?? [], [customerData]);
 
   // Helper to get user-friendly error message
   const getErrorMessage = useMemo(() => {
@@ -234,15 +237,12 @@ export default function MixRadiusIsolirScreen() {
 
   const totalCount = useMemo(() => {
     if (!customerData) return 0;
-    return customerData.recordsFiltered ?? customerData.recordsTotal ?? (Array.isArray(customerData) ? customerData.length : 0);
-  }, [customerData]);
+    return customerData.recordsFiltered ?? customerData.recordsTotal ?? data.length;
+  }, [customerData, data.length]);
 
   // Dismantle Mutation
-  const dismantleMutation = useApiMutation({
-    endpoint: "/api/integrations/mixradius/dismantle",
-    method: "POST",
-    successMessage: "Work Order Dismantle berhasil dibuat!",
-    invalidateKeys: [["mixradius", "isolir"]],
+  const dismantleMutation = useCreateWorkOrderRequest({
+    successMessage: "Request WO Dismantle berhasil dikirim. Menunggu persetujuan Admin.",
   });
 
   const handleSelectGroup = useCallback((group: OwnerGroup | null) => {
@@ -263,12 +263,24 @@ export default function MixRadiusIsolirScreen() {
           onPress: () => {
             dismantleMutation.mutate(
               {
-                customerId: customer.id,
-                reason: "Isolir/Tunggakan",
-                notes: "Request otomatis dari Aplikasi Mobile (Menu Isolir)"
+                type: "DISCONNECTION",
+                priority: "HIGH",
+                title: `Request Dismantle: ${customer.fullname} (${customer.username})`,
+                description:
+                  `Permintaan pembongkaran perangkat (dismantle) untuk pelanggan MixRadius.\n\n` +
+                  `Alasan: Isolir/Tunggakan\n` +
+                  `Catatan: Request otomatis dari Aplikasi Mobile (Menu Isolir)\n\n` +
+                  `Data MixRadius:\n` +
+                  `- Member ID: ${customer.member_id}\n` +
+                  `- Paket: ${customer.plan_name}\n` +
+                  `- Alamat: ${customer.address}`,
+                contactName: customer.fullname,
+                contactPhone: customer.phonenumber,
+                locationAddress: customer.address,
+                notes: "Request otomatis dari Aplikasi Mobile (Menu Isolir)",
               },
               {
-                onError: (err) => {
+                onError: (err: unknown) => {
                   presentAppError(err, {
                     screen: 'MixRadiusIsolirScreen',
                     route: '/(app)/mixradius/isolir',
@@ -286,6 +298,8 @@ export default function MixRadiusIsolirScreen() {
   const onRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const isSubmittingDismantle = dismantleMutation.isPending;
 
   const ListHeader = useMemo(() => (
     <View style={tw`p-4 pb-2`}>
@@ -341,7 +355,12 @@ export default function MixRadiusIsolirScreen() {
 
       <FlashList
         data={data}
-        renderItem={({ item }: { item: MixRadiusCustomer }) => <CustomerItem item={item} onDismantle={handleDismantle} />}
+        renderItem={({ item }: { item: MixRadiusCustomer }) => (
+          <CustomerItem
+            item={item}
+            onDismantle={handleDismantle}
+          />
+        )}
         keyExtractor={(item: MixRadiusCustomer, index: number) => `${item.username}-${index}`}
         ListHeaderComponent={ListHeader}
         onEndReachedThreshold={0.5}
@@ -403,6 +422,11 @@ export default function MixRadiusIsolirScreen() {
         }))}
         onSelect={(item) => handleSelectGroup(item.value as OwnerGroup)}
         selectedValue={selectedGroup}
+      />
+
+      <LoadingModal
+        visible={isSubmittingDismantle}
+        message="Mengirim request dismantle..."
       />
     </View>
   );

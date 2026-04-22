@@ -139,6 +139,47 @@ describe("deriveAttendanceStatus", () => {
     });
   });
 
+  it("prefers canonical warning metadata over locally derived business messaging when present", () => {
+    const result = deriveAttendanceStatus(
+      {
+        checkIn: "2026-03-08T02:00:00.000Z",
+        canonical: {
+          finalStatus: "PERMIT",
+          reviewState: "PENDING_REVIEW",
+          warningMessage: "APPROVED_LEAVE_OVERRIDES_ATTENDANCE",
+        },
+      },
+      new Date("2026-03-08T03:00:00.000Z"),
+    );
+
+    expect(result).toEqual({
+      status: "checked-in",
+      checkInTime: "09:00",
+      checkOutTime: null,
+      warningMessage: "APPROVED_LEAVE_OVERRIDES_ATTENDANCE",
+    });
+  });
+
+  it("surfaces pending review warning from canonical payload without re-deriving business status", () => {
+    const result = deriveAttendanceStatus(
+      {
+        checkIn: "2026-03-08T02:00:00.000Z",
+        canonical: {
+          finalStatus: "PERMIT",
+          reviewState: "PENDING_REVIEW",
+        },
+      },
+      new Date("2026-03-08T03:00:00.000Z"),
+    );
+
+    expect(result).toEqual({
+      status: "checked-in",
+      checkInTime: "09:00",
+      checkOutTime: null,
+      warningMessage: "Status absensi ini masih menunggu review.",
+    });
+  });
+
   it("treats a previous-day closed session as idle", () => {
     const result = deriveAttendanceStatus(
       {

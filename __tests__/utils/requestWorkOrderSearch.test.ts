@@ -1,5 +1,6 @@
 import {
   getCustomerSearchFailureMessage,
+  readCustomerSearchResults,
   shouldShowCustomerSearchEmptyState,
   shouldShowCustomerSearchErrorState,
 } from '@/utils/requestWorkOrderSearch'
@@ -23,6 +24,46 @@ describe('requestWorkOrderSearch helpers', () => {
     expect(getCustomerSearchFailureMessage(new Error('boom'))).toBe(
       'Pencarian pelanggan sedang bermasalah. Coba lagi.'
     )
+  })
+
+  it('reads customer search results from wrapped mixradius payloads', () => {
+    expect(
+      readCustomerSearchResults({
+        success: true,
+        data: {
+          draw: 1,
+          recordsTotal: 1,
+          recordsFiltered: 1,
+          data: [
+            {
+              id: 'cust-1',
+              member_id: 'member-1',
+              username: 'andi',
+              fullname: 'Andi Teknisi',
+              phonenumber: '08123456789',
+              address: 'Jl. Mawar',
+              plan_name: '20 Mbps',
+              owner_name: 'Owner A',
+              auth_status: 'Disabled-Users',
+              online: false,
+            },
+          ],
+        },
+      })
+    ).toEqual([
+      {
+        id: 'cust-1',
+        memberId: 'member-1',
+        username: 'andi',
+        fullname: 'Andi Teknisi',
+        phone: '08123456789',
+        address: 'Jl. Mawar',
+        planName: '20 Mbps',
+        ownerName: 'Owner A',
+        status: 'Disabled-Users',
+        isOnline: false,
+      },
+    ])
   })
 
   it('shows empty state only when there is no search error', () => {

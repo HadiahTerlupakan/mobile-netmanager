@@ -36,7 +36,7 @@ export function MitraTeknisiProfileScreen() {
 
     const handleCheckUpdate = async () => {
         if (!Config.CAN_MANUALLY_CHECK_APP_UPDATES) {
-            Alert.alert('Info', 'Cek update APK hanya tersedia pada build Android staging/production.');
+            Alert.alert('Info', 'Cek update APK hanya tersedia pada build Android staging internal.');
             return;
         }
 
@@ -216,7 +216,7 @@ export function MitraTeknisiProfileScreen() {
                             <ActivityIndicator size="small" color="#a8a29e" />
                         ) : (
                             <Text style={tw`text-center text-stone-400 text-[10px] font-bold uppercase tracking-widest`}>
-                                NetManager Mobile v{CURRENT_VERSION_NAME} (Build {CURRENT_VERSION_CODE_LABEL})
+                                RADPRO v{CURRENT_VERSION_NAME} (Build {CURRENT_VERSION_CODE_LABEL})
                                 {'\n'}Ketuk untuk cek update
                             </Text>
                         )}

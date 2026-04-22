@@ -1,23 +1,60 @@
-import NetInfo from '@react-native-community/netinfo';
-import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
-import { DatabaseService } from '@/services/DatabaseService';
-import { SyncService } from '@/services/SyncService';
-import api from '@/services/api';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import type { SyncQueueItem } from '@/services/DatabaseService';
 
-jest.mock('axios', () => {
-  const axiosMock = jest.fn();
-  return {
-    __esModule: true,
-    default: axiosMock,
-    isAxiosError: (error: unknown) => Boolean((error as { isAxiosError?: boolean })?.isAxiosError),
-  };
-});
+type DatabaseServiceModule = typeof import('@/services/DatabaseService');
+type SyncServiceModule = typeof import('@/services/SyncService');
+
+type NetInfoFetchResult = {
+  isConnected: boolean | null;
+  isInternetReachable: boolean | null;
+};
+
+type ApiRequestConfig = Record<string, unknown>;
+type ApiResponse = { status: number; data: Record<string, unknown> };
+type UploadOptions = Record<string, unknown>;
+type SecureStoreValue = string | null;
+type NetInfoListener = (state?: unknown) => void;
+
+const mockNetInfoFetch = jest.fn<() => Promise<NetInfoFetchResult>>();
+const mockNetInfoAddEventListener = jest
+  .fn<(listener: NetInfoListener) => () => void>()
+  .mockReturnValue(jest.fn());
+const mockSecureStoreGetItemAsync = jest.fn<(key: string) => Promise<SecureStoreValue>>();
+const mockAxios = jest.fn<(...args: unknown[]) => unknown>();
+const mockApiRequest = jest.fn<(config: ApiRequestConfig) => Promise<ApiResponse>>();
+const mockUploadFile = jest
+  .fn<(uri: string, type: string, options?: UploadOptions) => Promise<string | null>>()
+  .mockResolvedValue('https://example.com/photo.jpg');
+const mockDatabaseIsReady = jest.fn<() => boolean>(() => true);
+const mockDatabaseWaitForReady = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+const mockDatabaseGetPendingQueue = jest.fn<() => Promise<SyncQueueItem[]>>().mockResolvedValue([]);
+const mockDatabaseRemoveFromQueue = jest.fn<(id: number) => Promise<void>>().mockResolvedValue(undefined);
+const mockDatabaseMarkAsRetry = jest.fn<(id: number) => Promise<void>>().mockResolvedValue(undefined);
+const mockDatabaseMarkAsFailed = jest
+  .fn<(id: number, reason: string) => Promise<void>>()
+  .mockResolvedValue(undefined);
+const mockDatabaseClearSessionData = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+
+jest.mock('@react-native-community/netinfo', () => ({
+  fetch: mockNetInfoFetch,
+  addEventListener: mockNetInfoAddEventListener,
+}));
+
+jest.mock('expo-secure-store', () => ({
+  __esModule: true,
+  getItemAsync: mockSecureStoreGetItemAsync,
+}));
+
+jest.mock('axios', () => ({
+  __esModule: true,
+  default: mockAxios,
+  isAxiosError: (error: unknown) => Boolean((error as { isAxiosError?: boolean })?.isAxiosError),
+}));
 
 jest.mock('@/services/api', () => ({
   __esModule: true,
   default: {
-    request: jest.fn(),
+    request: mockApiRequest,
   },
 }));
 
@@ -34,39 +71,40 @@ jest.mock('@/utils/logger', () => ({
 // Mock UploadService to avoid expo-file-system dependencies
 jest.mock('@/services/UploadService', () => ({
   uploadService: {
-    uploadFile: jest.fn().mockResolvedValue('https://example.com/photo.jpg'),
+    uploadFile: mockUploadFile,
   },
 }));
 
 // Mock DatabaseService
 jest.mock('@/services/DatabaseService', () => ({
   DatabaseService: {
-    isReady: jest.fn(() => true),
-    waitForReady: jest.fn().mockResolvedValue(undefined),
-    getPendingQueue: jest.fn().mockResolvedValue([]),
-    removeFromQueue: jest.fn().mockResolvedValue(undefined),
-    markAsRetry: jest.fn().mockResolvedValue(undefined),
-    clearSessionData: jest.fn().mockResolvedValue(undefined),
+    isReady: mockDatabaseIsReady,
+    waitForReady: mockDatabaseWaitForReady,
+    getPendingQueue: mockDatabaseGetPendingQueue,
+    removeFromQueue: mockDatabaseRemoveFromQueue,
+    markAsRetry: mockDatabaseMarkAsRetry,
+    markAsFailed: mockDatabaseMarkAsFailed,
+    clearSessionData: mockDatabaseClearSessionData,
   }
 }));
+
+const { DatabaseService } = require('@/services/DatabaseService') as DatabaseServiceModule;
+const { SyncService } = require('@/services/SyncService') as SyncServiceModule;
 
 beforeEach(() => {
   jest.clearAllMocks();
   SyncService.isMonitoring = false;
   SyncService.isProcessing = false;
-  (NetInfo.fetch as jest.Mock).mockResolvedValue({
+  mockNetInfoFetch.mockResolvedValue({
     isConnected: true,
     isInternetReachable: true,
   });
 });
 
-const mockedAxios = axios as unknown as jest.Mock;
-const mockedApiRequest = api.request as jest.Mock;
-
 describe('SyncService', () => {
   describe('isOnline', () => {
     it('should return true when connected and reachable', async () => {
-      (NetInfo.fetch as jest.Mock).mockResolvedValue({
+      mockNetInfoFetch.mockResolvedValue({
         isConnected: true,
         isInternetReachable: true
       });
@@ -76,7 +114,7 @@ describe('SyncService', () => {
     });
 
     it('should return false when not connected', async () => {
-      (NetInfo.fetch as jest.Mock).mockResolvedValue({
+      mockNetInfoFetch.mockResolvedValue({
         isConnected: false,
         isInternetReachable: false
       });
@@ -86,7 +124,7 @@ describe('SyncService', () => {
     });
 
     it('should return false when connected but not reachable', async () => {
-      (NetInfo.fetch as jest.Mock).mockResolvedValue({
+      mockNetInfoFetch.mockResolvedValue({
         isConnected: true,
         isInternetReachable: false
       });
@@ -100,7 +138,7 @@ describe('SyncService', () => {
     it('should subscribe to network changes', () => {
       SyncService.startMonitoring();
       
-      expect(NetInfo.addEventListener).toHaveBeenCalled();
+      expect(mockNetInfoAddEventListener).toHaveBeenCalled();
       expect(SyncService.isMonitoring).toBe(true);
     });
 
@@ -108,7 +146,7 @@ describe('SyncService', () => {
       SyncService.startMonitoring();
       SyncService.startMonitoring();
       
-      expect(NetInfo.addEventListener).toHaveBeenCalledTimes(1);
+      expect(mockNetInfoAddEventListener).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -118,52 +156,54 @@ describe('SyncService', () => {
     });
 
     it('should do nothing when queue is empty', async () => {
-      (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([]);
+      mockDatabaseGetPendingQueue.mockResolvedValue([]);
       
       await SyncService.processQueue();
       
       expect(DatabaseService.getPendingQueue).toHaveBeenCalled();
-      expect(mockedApiRequest).not.toHaveBeenCalled();
+      expect(mockApiRequest).not.toHaveBeenCalled();
     });
 
     it('should skip replay when there is no active session token', async () => {
-      const mockItem = {
+      const mockItem: SyncQueueItem = {
         id: 5,
         url: '/api/mobile/attendance/check-in',
-        method: 'POST',
+        method: 'POST' as const,
         body: JSON.stringify({ requestId: 'att-no-token', data: 'test' }),
-        status: 'PENDING',
+        status: 'PENDING' as const,
         meta: '{}',
+        createdAt: new Date().toISOString(),
       };
 
-      (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([mockItem]);
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+      mockDatabaseGetPendingQueue.mockResolvedValue([mockItem]);
+      mockSecureStoreGetItemAsync.mockResolvedValue(null);
 
       await SyncService.processQueue();
 
-      expect(mockedApiRequest).not.toHaveBeenCalled();
+      expect(mockApiRequest).not.toHaveBeenCalled();
       expect(DatabaseService.markAsRetry).not.toHaveBeenCalled();
       expect(DatabaseService.removeFromQueue).not.toHaveBeenCalled();
     });
 
     it('should process items and remove on success', async () => {
-      const mockItem = {
+      const mockItem: SyncQueueItem = {
         id: 1,
         url: '/api/test',
-        method: 'POST',
+        method: 'POST' as const,
         body: JSON.stringify({ data: 'test' }),
-        status: 'PENDING',
-        meta: '{}'
+        status: 'PENDING' as const,
+        meta: '{}',
+        createdAt: new Date().toISOString(),
       };
       
-      (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([mockItem]);
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('test-token');
-      mockedApiRequest.mockResolvedValue({ status: 200, data: { success: true } });
+      mockDatabaseGetPendingQueue.mockResolvedValue([mockItem]);
+      mockSecureStoreGetItemAsync.mockResolvedValue('test-token');
+      mockApiRequest.mockResolvedValue({ status: 200, data: { success: true } });
       
       await SyncService.processQueue();
       
-      expect(mockedApiRequest).toHaveBeenCalledWith(expect.objectContaining({
-        method: 'POST',
+      expect(mockApiRequest).toHaveBeenCalledWith(expect.objectContaining({
+        method: 'POST' as const,
         timeout: 15000,
         skipGlobalAuthHandler: true,
         headers: expect.objectContaining({
@@ -174,22 +214,23 @@ describe('SyncService', () => {
     });
 
     it('should forward idempotency key header from queued request body', async () => {
-      const mockItem = {
+      const mockItem: SyncQueueItem = {
         id: 2,
         url: '/api/mobile/attendance/check-in',
-        method: 'POST',
+        method: 'POST' as const,
         body: JSON.stringify({ requestId: 'att-222-abc123', data: 'test' }),
-        status: 'PENDING',
-        meta: '{}'
+        status: 'PENDING' as const,
+        meta: '{}',
+        createdAt: new Date().toISOString(),
       };
 
-      (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([mockItem]);
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('test-token');
-      mockedApiRequest.mockResolvedValue({ status: 200, data: { success: true } });
+      mockDatabaseGetPendingQueue.mockResolvedValue([mockItem]);
+      mockSecureStoreGetItemAsync.mockResolvedValue('test-token');
+      mockApiRequest.mockResolvedValue({ status: 200, data: { success: true } });
 
       await SyncService.processQueue();
 
-      expect(mockedApiRequest).toHaveBeenCalledWith(expect.objectContaining({
+      expect(mockApiRequest).toHaveBeenCalledWith(expect.objectContaining({
         headers: expect.objectContaining({
           'Authorization': 'Bearer test-token',
           'Idempotency-Key': 'att-222-abc123'
@@ -200,18 +241,19 @@ describe('SyncService', () => {
     it('should mark as retry on failure', async () => {
       jest.useFakeTimers();
 
-      const mockItem = {
+      const mockItem: SyncQueueItem = {
         id: 1,
         url: '/api/test',
-        method: 'POST',
+        method: 'POST' as const,
         body: JSON.stringify({ data: 'test' }),
-        status: 'PENDING',
-        meta: '{}'
+        status: 'PENDING' as const,
+        meta: '{}',
+        createdAt: new Date().toISOString(),
       };
 
-      (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([mockItem]);
-      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('test-token');
-      mockedApiRequest.mockRejectedValue(new Error('Network error'));
+      mockDatabaseGetPendingQueue.mockResolvedValue([mockItem]);
+      mockSecureStoreGetItemAsync.mockResolvedValue('test-token');
+      mockApiRequest.mockRejectedValue(new Error('Network error'));
 
       const processingPromise = SyncService.processQueueItem(mockItem as any, 'test-token');
       await jest.runAllTimersAsync();
@@ -223,8 +265,8 @@ describe('SyncService', () => {
     }, 15000); // Increase timeout for backoff delays (2s + 4s + processing time)
 
     it('should wait for database if not ready', async () => {
-      (DatabaseService.isReady as jest.Mock).mockReturnValue(false);
-      (DatabaseService.getPendingQueue as jest.Mock).mockResolvedValue([]);
+      mockDatabaseIsReady.mockReturnValue(false);
+      mockDatabaseGetPendingQueue.mockResolvedValue([]);
       
       await SyncService.processQueue();
       
@@ -232,35 +274,37 @@ describe('SyncService', () => {
     });
 
     it('should remove malformed queued payloads without retrying them', async () => {
-      const mockItem = {
+      const mockItem: SyncQueueItem = {
         id: 3,
         url: '/api/test',
-        method: 'POST',
+        method: 'POST' as const,
         body: '{invalid-json',
-        status: 'PENDING',
+        status: 'PENDING' as const,
         meta: '{}',
+        createdAt: new Date().toISOString(),
       };
 
       await SyncService.processQueueItem(mockItem as any, 'test-token');
 
       expect(DatabaseService.removeFromQueue).toHaveBeenCalledWith(3);
       expect(DatabaseService.markAsRetry).not.toHaveBeenCalled();
-      expect(mockedApiRequest).not.toHaveBeenCalled();
+      expect(mockApiRequest).not.toHaveBeenCalled();
     });
 
     it('should retry unauthorized sync items instead of removing them immediately', async () => {
       jest.useFakeTimers();
 
-      const mockItem = {
+      const mockItem: SyncQueueItem = {
         id: 4,
         url: '/api/mobile/attendance/check-in',
-        method: 'POST',
+        method: 'POST' as const,
         body: JSON.stringify({ requestId: 'att-401', data: 'test' }),
-        status: 'PENDING',
+        status: 'PENDING' as const,
         meta: '{}',
+        createdAt: new Date().toISOString(),
       };
 
-      mockedApiRequest.mockRejectedValue({
+      mockApiRequest.mockRejectedValue({
         isAxiosError: true,
         response: {
           status: 401,
@@ -277,5 +321,87 @@ describe('SyncService', () => {
 
       jest.useRealTimers();
     }, 15000);
+
+    it('should keep attendance replay queued on 409 conflict responses', async () => {
+      const mockItem: SyncQueueItem = {
+        id: 6,
+        url: '/api/mobile/attendance/check-in',
+        method: 'POST' as const,
+        body: JSON.stringify({ requestId: 'att-409', data: 'test' }),
+        status: 'PENDING' as const,
+        meta: '{}',
+        createdAt: new Date().toISOString(),
+      };
+
+      mockApiRequest.mockRejectedValue({
+        isAxiosError: true,
+        response: {
+          status: 409,
+          data: { error: 'Conflict' },
+        },
+      });
+
+      await SyncService.processQueueItem(mockItem as any, 'test-token');
+
+      expect(DatabaseService.removeFromQueue).not.toHaveBeenCalledWith(6);
+      expect(DatabaseService.markAsRetry).toHaveBeenCalledWith(6);
+    });
+
+    it('should keep attendance replay queued on 422 reconciliation responses', async () => {
+      const mockItem: SyncQueueItem = {
+        id: 7,
+        url: '/api/mobile/attendance/check-out',
+        method: 'POST' as const,
+        body: JSON.stringify({ requestId: 'att-422', data: 'test' }),
+        status: 'PENDING' as const,
+        meta: '{}',
+        createdAt: new Date().toISOString(),
+      };
+
+      mockApiRequest.mockRejectedValue({
+        isAxiosError: true,
+        response: {
+          status: 422,
+          data: { error: 'Reconciliation required' },
+        },
+      });
+
+      await SyncService.processQueueItem(mockItem as any, 'test-token');
+
+      expect(DatabaseService.removeFromQueue).not.toHaveBeenCalledWith(7);
+      expect(DatabaseService.markAsRetry).toHaveBeenCalledWith(7);
+    });
+
+    it('should keep attendance replay queued when queued photo upload fails before mutation request', async () => {
+      const mockItem: SyncQueueItem = {
+        id: 8,
+        url: '/api/mobile/attendance/check-in',
+        method: 'POST' as const,
+        body: JSON.stringify({ requestId: 'att-photo-upload-failed', location: 'HQ' }),
+        status: 'PENDING' as const,
+        meta: JSON.stringify({
+          photos: ['file:///queued-photo.jpg'],
+          photoType: 'employee-attendance',
+          targetField: 'photoUrl',
+          singleFile: true,
+          requestId: 'att-photo-upload-failed',
+        }),
+        createdAt: new Date().toISOString(),
+      };
+
+      const { uploadService } = require('@/services/UploadService');
+      uploadService.uploadFile.mockRejectedValueOnce(new Error('Upload photo gagal'));
+
+      await SyncService.processQueueItem(mockItem as any, 'test-token');
+
+      expect(uploadService.uploadFile).toHaveBeenCalledWith(
+        'file:///queued-photo.jpg',
+        'employee-attendance',
+        expect.objectContaining({ params: {} }),
+      );
+      expect(mockApiRequest).not.toHaveBeenCalled();
+      expect(DatabaseService.removeFromQueue).not.toHaveBeenCalledWith(8);
+      expect(DatabaseService.markAsRetry).toHaveBeenCalledWith(8);
+    });
   });
 });

@@ -3,6 +3,7 @@ import { AttendanceSkeleton } from "@/components/molecules/AttendanceSkeleton";
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { useAuth } from "@/context/AuthContext";
 import {
+  isOfflineMutationQueuedResult,
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
@@ -124,13 +125,14 @@ interface AttendanceHeaderProps {
 }
 
 const AttendanceHeader = React.memo(({ todayHoliday, isTukarLiburWorkDay, isTukarLiburLeaveDay, isOffDay }: AttendanceHeaderProps) => {
-  const bgColor = todayHoliday.isHoliday ? "bg-red-600" : "bg-blue-600";
+  const isDisplayHoliday = todayHoliday.isHoliday;
+  const bgColor = isDisplayHoliday ? "bg-red-600" : "bg-blue-600";
 
   return (
     <View style={tw`${bgColor} px-6 pt-6 pb-12 rounded-b-[40px]`}>
       <DigitalClock />
       <View style={tw`items-center mt-2`}>
-        {todayHoliday.isHoliday && (
+        {isDisplayHoliday && (
           <View style={tw`bg-white/20 px-3 py-1 rounded-full mt-2 flex-row items-center`}>
             <CalendarOff size={14} color="white" />
             <Text style={tw`text-white font-bold text-xs ml-1`}>LIBUR NASIONAL</Text>
@@ -142,19 +144,19 @@ const AttendanceHeader = React.memo(({ todayHoliday, isTukarLiburWorkDay, isTuka
             <Text style={tw`text-green-700 font-bold text-xs ml-1`}>MASUK GANTI LIBUR</Text>
           </View>
         )}
-        {isTukarLiburLeaveDay && !todayHoliday.isHoliday && (
+        {isTukarLiburLeaveDay && !isDisplayHoliday && (
           <View style={tw`bg-purple-100/90 px-3 py-1 rounded-full mt-2 flex-row items-center`}>
             <CalendarOff size={14} color="#9333ea" />
             <Text style={tw`text-purple-700 font-bold text-xs ml-1`}>TUKAR LIBUR HARI INI</Text>
           </View>
         )}
-        {isOffDay && !todayHoliday.isHoliday && !isTukarLiburWorkDay && !isTukarLiburLeaveDay && (
+        {isOffDay && !isDisplayHoliday && !isTukarLiburLeaveDay && (
           <View style={tw`bg-amber-100/80 px-3 py-1 rounded-full mt-2 flex-row items-center`}>
             <CalendarOff size={14} color="#d97706" />
             <Text style={tw`text-amber-700 font-bold text-xs ml-1`}>HARI LIBUR ANDA</Text>
           </View>
         )}
-        {todayHoliday.name && (
+        {todayHoliday.name && isDisplayHoliday && (
           <Text style={tw`text-white/80 text-xs mt-1 text-center max-w-[80%]`}>
             {todayHoliday.name}
           </Text>
@@ -301,6 +303,7 @@ export default function AbsensiScreen() {
     status,
     isHoliday: todayHoliday.isHoliday,
     isOffDay,
+    isTukarLiburWorkDay,
   });
 
   // --- Camera & Face Detection State ---
@@ -636,9 +639,44 @@ export default function AbsensiScreen() {
       networkState: isOnline ? "online" : "offline",
     });
 
+    const offlineQueueMeta = {
+      photos: [processedUri],
+      photoType: "employee-attendance",
+      targetField: "photoUrl",
+      singleFile: true,
+    };
+
     if (!isOnline) {
-      setIsProcessing(false);
-      presentInfoMessage("Absensi hanya bisa dilakukan saat online.", "Koneksi Diperlukan");
+      setLoading(true);
+      setUploadProgress(0);
+      setLoadingMessage("Menyimpan data offline...");
+
+      try {
+        const data = await mutation.mutateAsync({
+          ...payload,
+          photoUrl: processedUri,
+          meta: offlineQueueMeta,
+        });
+
+        setIsProcessing(false);
+        setLoading(false);
+        setPhoto(null);
+
+        if (isOfflineMutationQueuedResult(data)) {
+          presentInfoMessage(
+            "Absensi disimpan untuk dikirim otomatis saat internet kembali.",
+            "Offline"
+          );
+        }
+      } catch (error) {
+        setIsProcessing(false);
+        setLoading(false);
+        presentAppError(error, {
+          screen: 'AttendanceScreen',
+          route: '/(app)/absensi',
+        });
+      }
+
       return;
     }
 
@@ -671,37 +709,48 @@ export default function AbsensiScreen() {
 
       setLoadingMessage("Mengirim data...");
       setUploadProgress(0);
-      await mutation.mutate({ ...payload, photoUrl }, {
-        onSuccess: async (data) => {
-          try {
-            if (status === "idle") {
-              logger.info('[Absensi] Check-in success, starting location tracking...');
-              const trackingStarted = await LocationTrackingService.startTracking();
-              logger.info(`[Absensi] Tracking started: ${trackingStarted}`);
-            } else {
-              logger.info('[Absensi] Check-out success, stopping location tracking...');
-              await LocationTrackingService.stopTracking();
-            }
-          } catch (trackingError) {
-            logger.error('[Absensi] Tracking error:', trackingError);
-          }
+      let data;
 
-          setIsProcessing(false);
-          setLoading(false);
-          const warning = (data as { warning?: string })?.warning;
-          presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
-          refetchStatus();
-          setPhoto(null);
-        },
-        onError: (e) => {
-          setIsProcessing(false);
-          setLoading(false);
-          presentAppError(e, {
-            screen: 'AttendanceScreen',
-            route: '/(app)/absensi',
-          });
-        },
-      });
+      try {
+        data = await mutation.mutateAsync({ ...payload, photoUrl });
+      } catch (mutationError) {
+        try {
+          await uploadService.deleteUploadedFile(photoUrl);
+        } catch (cleanupError) {
+          logger.warn('[Absensi] Failed to cleanup uploaded attendance photo:', cleanupError);
+        }
+
+        throw mutationError;
+      }
+
+      setIsProcessing(false);
+      setLoading(false);
+      setPhoto(null);
+
+      if (isOfflineMutationQueuedResult(data)) {
+        presentInfoMessage(
+          "Koneksi terputus setelah foto berhasil diupload. Absensi disimpan dan akan dikirim otomatis saat internet kembali.",
+          "Offline"
+        );
+        return;
+      }
+
+      try {
+        if (status === "idle") {
+          logger.info('[Absensi] Check-in success, starting location tracking...');
+          const trackingStarted = await LocationTrackingService.startTracking();
+          logger.info(`[Absensi] Tracking started: ${trackingStarted}`);
+        } else {
+          logger.info('[Absensi] Check-out success, stopping location tracking...');
+          await LocationTrackingService.stopTracking();
+        }
+      } catch (trackingError) {
+        logger.error('[Absensi] Tracking error:', trackingError);
+      }
+
+      const warning = (data as { warning?: string })?.warning;
+      presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
+      refetchStatus();
     } catch (error) {
       AttendanceTelemetryService.track("attendance_photo_upload_failed", {
         requestId: payload.requestId,
@@ -878,8 +927,7 @@ export default function AbsensiScreen() {
                   !captureState.hasActiveSession && todayHoliday.isHoliday ? "bg-red-50 border-red-200" :
                     isTukarLiburLeaveDay ? "bg-purple-50 border-purple-200" :
                       !captureState.hasActiveSession && isOffDay ? "bg-amber-50 border-amber-200" :
-                        isTukarLiburWorkDay ? "bg-green-50 border-green-200" :
-                          "bg-blue-50 border-blue-200"
+                        "bg-blue-50 border-blue-200"
                   } border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
               >
                 {!captureState.hasActiveSession && todayHoliday.isHoliday ? (

@@ -5,6 +5,12 @@ export type AttendanceUiStatus = "idle" | "checked-in" | "checked-out";
 export interface AttendanceStatusEntry {
   checkIn: string;
   checkOut?: string | null;
+  warningMessage?: string | null;
+  canonical?: {
+    finalStatus?: string | null;
+    reviewState?: "FINAL" | "PENDING_REVIEW" | null;
+    warningMessage?: string | null;
+  } | null;
   sessionMeta?: {
     isStaleFlexibleSession?: boolean;
   } | null;
@@ -30,6 +36,20 @@ const IDLE_ATTENDANCE_STATUS: DerivedAttendanceStatus = {
   checkOutTime: null,
   warningMessage: null,
 };
+
+const PENDING_REVIEW_WARNING_MESSAGE = "Status absensi ini masih menunggu review.";
+
+function getCanonicalWarningMessage(attendance: AttendanceStatusEntry): string | null {
+  if (attendance.canonical?.warningMessage) {
+    return attendance.canonical.warningMessage;
+  }
+
+  if (attendance.canonical?.reviewState === "PENDING_REVIEW") {
+    return PENDING_REVIEW_WARNING_MESSAGE;
+  }
+
+  return attendance.warningMessage ?? null;
+}
 
 function isOvernightShiftSessionActive(attendance: AttendanceStatusEntry, now: Date): boolean {
   if (attendance.user?.workingHourMode !== "SHIFT" || !attendance.user.shift || attendance.checkOut) {
@@ -68,12 +88,16 @@ export function deriveAttendanceStatus(
     return IDLE_ATTENDANCE_STATUS;
   }
 
+  const warningMessage = getCanonicalWarningMessage(attendance);
+
   if (isStaleFlexibleSession(attendance)) {
     return {
       status: "idle",
       checkInTime: null,
       checkOutTime: null,
-      warningMessage: `Sesi fleksibel lama sejak ${formatDate(attendance.checkIn, "dd/MM/yyyy HH:mm")} belum checkout.`,
+      warningMessage:
+        warningMessage
+        ?? `Sesi fleksibel lama sejak ${formatDate(attendance.checkIn, "dd/MM/yyyy HH:mm")} belum checkout.`,
     };
   }
 
@@ -90,7 +114,7 @@ export function deriveAttendanceStatus(
       status: "checked-in",
       checkInTime: formatDate(attendance.checkIn, "HH:mm"),
       checkOutTime: null,
-      warningMessage: null,
+      warningMessage,
     };
   }
 
@@ -98,6 +122,6 @@ export function deriveAttendanceStatus(
     status: "checked-out",
     checkInTime: formatDate(attendance.checkIn, "HH:mm"),
     checkOutTime: formatDate(attendance.checkOut, "HH:mm"),
-    warningMessage: null,
+    warningMessage,
   };
 }

@@ -1,3 +1,5 @@
+import { describe, expect, it } from '@jest/globals';
+
 import { queryKeys } from '@/lib/queryClient';
 
 describe('queryKeys.attendance.status', () => {
@@ -25,6 +27,22 @@ describe('queryKeys.attendance.status', () => {
     ]);
     expect(queryKeys.attendance.status()).not.toEqual(
       queryKeys.attendance.status('user-1')
+    );
+  });
+});
+
+describe('queryKeys.notifications', () => {
+  it('uses a dedicated unread key separate from the notifications list', () => {
+    expect(queryKeys.notifications.list()).toEqual([
+      'notifications',
+      'list',
+    ]);
+    expect(queryKeys.notifications.unread()).toEqual([
+      'notifications',
+      'unread',
+    ]);
+    expect(queryKeys.notifications.unread()).not.toEqual(
+      queryKeys.notifications.list()
     );
   });
 });

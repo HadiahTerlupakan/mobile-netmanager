@@ -6,6 +6,7 @@ import { realtimeService, RealtimeStreamEvent } from '@/services/RealtimeService
 import { useApiQuery } from '@/hooks/queries';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState, ComponentProps } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
@@ -36,6 +37,7 @@ export default function BarangIndexScreen() {
   useFeatureGuard(AppFeature.BARANG);
     const router = useRouter();
     const { token, user } = useAuth();
+    const isFocused = useIsFocused();
     const queryClient = useQueryClient();
     const [refreshing, setRefreshing] = useState(false);
 
@@ -48,7 +50,7 @@ export default function BarangIndexScreen() {
             barangMasukToday: data.barangMasukToday || 0,
             barangKeluarToday: data.barangKeluarToday || 0
         }),
-        enabled: !!token,
+        enabled: isFocused && !!token,
     });
 
     // Real-time updates via user stream
@@ -71,12 +73,12 @@ export default function BarangIndexScreen() {
     }, [queryClient]);
 
     useEffect(() => {
-        if (!token || !user?.id) {
+        if (!isFocused || !token || !user?.id) {
             return;
         }
 
         return realtimeService.subscribeToUserStream(user.id, handleInventoryUpdate as (event: RealtimeStreamEvent) => void);
-    }, [handleInventoryUpdate, token, user?.id]);
+    }, [handleInventoryUpdate, isFocused, token, user?.id]);
 
     const onRefresh = async () => {
         setRefreshing(true);

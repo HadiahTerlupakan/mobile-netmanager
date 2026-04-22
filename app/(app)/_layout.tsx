@@ -22,6 +22,8 @@ import { isRouteAllowedDuringLeave } from '@/utils/leaveAccess';
 import { logger } from "@/utils/logger";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+const APP_DASHBOARD_ROUTE = "/(app)/dashboard";
+
 export default function AppLayout() {
   const router = useRouter();
   const pathname = usePathname();
@@ -71,7 +73,7 @@ export default function AppLayout() {
 
       if (!isAllowed) {
         // Redirect to dashboard if user is on restricted screen
-        router.replace('/dashboard');
+        router.replace(APP_DASHBOARD_ROUTE);
       }
     }
   }, [user?.isOnLeave, pathname, router]);
@@ -93,7 +95,7 @@ export default function AppLayout() {
         "Fitur ini dinonaktifkan karena Anda sedang cuti.",
         [{
           text: "OK",
-          onPress: () => router.replace("/dashboard")
+          onPress: () => router.replace(APP_DASHBOARD_ROUTE)
         }],
       );
       return;
