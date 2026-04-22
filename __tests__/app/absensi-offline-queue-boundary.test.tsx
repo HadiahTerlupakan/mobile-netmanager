@@ -273,7 +273,7 @@ describe('absensi offline queue boundary', () => {
     }) as typeof React.useState);
   });
 
-  it('tetap membuka jalur check-in pada replacement day tukar libur meski payload holiday masih true', async () => {
+  it('tetap menandai replacement day sambil memblokir check-in saat payload holiday masih true', async () => {
     statusQueryResult.data.today = {
       isHoliday: true,
       holidayName: 'Hari Raya',
@@ -284,14 +284,14 @@ describe('absensi offline queue boundary', () => {
     firstRenderOverrides.delete(4);
 
     const AbsensiScreen = require('../../app/(app)/absensi').default;
-    const { queryByText, getByText } = render(<AbsensiScreen />);
+    const { getByText, queryByText } = render(<AbsensiScreen />);
 
     await waitFor(() => {
       expect(getByText('MASUK GANTI LIBUR')).toBeTruthy();
     });
 
-    expect(getByText('Ambil Foto Masuk')).toBeTruthy();
-    expect(queryByText('Libur Nasional')).toBeNull();
+    expect(getByText('Libur Nasional')).toBeTruthy();
+    expect(queryByText('Ambil Foto Masuk')).toBeNull();
   });
 
   it('tetap mengantre absensi saat offline sejak awal tanpa sukses final', async () => {
