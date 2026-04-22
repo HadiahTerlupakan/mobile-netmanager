@@ -1,4 +1,4 @@
-# Logger Documentation - Mobile NetManager
+# Logger Documentation - Mobile RADPRO
 
 ## Problem Solved: Terminal Corruption & Messy Output ✅
 
@@ -50,16 +50,16 @@ EXPO_USE_COLORS=false
 import logger from '@/utils/logger';
 
 // General logging
-logger.log('Info message');                    // [NetManager] ✓ Info message
-logger.warn('Warning message');                // [NetManager] ⚠ Warning message
-logger.error('Error message');                 // [NetManager] ✗ Error message (selalu tampil)
-logger.info('Info with emoji');                // [NetManager] ℹ Info with emoji
+logger.log('Info message');                    // [RADPRO] ✓ Info message
+logger.warn('Warning message');                // [RADPRO] ⚠ Warning message
+logger.error('Error message');                 // [RADPRO] ✗ Error message (selalu tampil)
+logger.info('Info with emoji');                // [RADPRO] ℹ Info with emoji
 
 // Category-specific logging
-logger.auth('User logged in');                 // [NetManager] [AUTH] User logged in
-logger.socket('WebSocket connected');          // [NetManager] [SOCKET] WebSocket connected (disabled by default)
-logger.sync('Data synced');                    // [NetManager] [SYNC] Data synced
-logger.db('Database initialized');             // [NetManager] [DB] Database initialized
+logger.auth('User logged in');                 // [RADPRO] [AUTH] User logged in
+logger.socket('WebSocket connected');          // [RADPRO] [SOCKET] WebSocket connected (disabled by default)
+logger.sync('Data synced');                    // [RADPRO] [SYNC] Data synced
+logger.db('Database initialized');             // [RADPRO] [DB] Database initialized
 ```
 
 ### Migration from console.log

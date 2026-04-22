@@ -1,4 +1,4 @@
-# 🚀 Mobile NetManager - Expo Start Guide
+# 🚀 Mobile RADPRO - Expo Start Guide
 
 ## Masalah QR Code & Terminal Tidak Rapi ✅ SOLVED
 

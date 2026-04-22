@@ -113,7 +113,7 @@ export default function CustomerProfileScreen() {
         </View>
 
         <View style={tw`mt-8 mb-4 items-center`}>
-            <Text style={tw`text-gray-400 text-xs`}>SBL NET Mobile App</Text>
+            <Text style={tw`text-gray-400 text-xs`}>RADPRO Mobile App</Text>
             <Text style={tw`text-gray-400 text-xs`}>Version 1.0.0</Text>
         </View>
       </ScrollView>

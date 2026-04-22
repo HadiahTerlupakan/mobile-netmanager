@@ -167,7 +167,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                     `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&addressdetails=1&limit=5&countrycodes=id`,
                     {
                         headers: {
-                            'User-Agent': 'NetManagerMobile/1.0'
+                            'User-Agent': 'RADPROMobile/1.0'
                         }
                     }
                 );

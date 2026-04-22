@@ -1,6 +1,6 @@
 # App Architecture Documentation
 
-This document outlines the architectural standards and patterns used in the NetManager Mobile application.
+This document outlines the architectural standards and patterns used in the RADPRO Mobile application.
 
 ## 1. Offline-First Strategy
 

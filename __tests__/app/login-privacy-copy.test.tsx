@@ -68,10 +68,17 @@ jest.mock('@/constants/Events', () => ({
 
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useRouter: () => ({
+    back: jest.fn(),
+  }),
 }));
 
 jest.mock('expo-status-bar', () => ({
   StatusBar: () => null,
+}));
+
+jest.mock('@expo/vector-icons', () => ({
+  Ionicons: () => null,
 }));
 
 jest.mock('lucide-react-native', () => ({
@@ -89,11 +96,25 @@ describe('Login privacy copy', () => {
     jest.clearAllMocks();
   });
 
-  it('renders a cleaner privacy policy link copy', async () => {
+  it('renders RADPRO branding on login screen', async () => {
     const LoginScreen = require('../../app/(auth)/login').default;
     const { getByText, queryByText } = render(<LoginScreen />);
 
+    expect(queryByText('SBL NET')).toBeNull();
+    expect(getByText('RADPRO')).toBeTruthy();
     expect(queryByText('Kebijakan Privasi')).toBeNull();
     expect(getByText('Kebijakan Privasi kami')).toBeTruthy();
+  });
+
+  it('renders RADPRO branding on privacy policy screen', () => {
+    const PrivacyPolicyScreen = require('../../app/kebijakan-privasi').default;
+    const { getByText, queryByText } = render(<PrivacyPolicyScreen />);
+
+    expect(getByText(/RADPRO/)).toBeTruthy();
+    expect(getByText(/admin@radpro\.id/i)).toBeTruthy();
+    expect(queryByText(/SBL NET/i)).toBeNull();
+    expect(queryByText(/sblnet/i)).toBeNull();
+    expect(queryByText(/PT Surya Bintang Langit/i)).toBeNull();
+    expect(queryByText(/admin@suryabintanglangit\.com/i)).toBeNull();
   });
 });

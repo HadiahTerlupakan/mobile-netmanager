@@ -7,7 +7,7 @@
  * Solusi: Menggunakan environment variable untuk mengontrol logging
  */
 
-const LOG_PREFIX = '[NetManager]';
+const LOG_PREFIX = '[RADPRO]';
 const ENABLE_LOGS = process.env.EXPO_DEBUG === 'true' || __DEV__;
 
 let currentTenantId: string | null = null;

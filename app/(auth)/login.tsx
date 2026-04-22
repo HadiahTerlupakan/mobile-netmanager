@@ -134,7 +134,7 @@ export default function LoginScreen() {
                     style={tw`h-24 w-24 rounded-2xl mb-4`}
                     resizeMode="contain"
                 />
-                <Text style={tw`text-2xl font-bold text-gray-900`}>SBL NET</Text>
+                <Text style={tw`text-2xl font-bold text-gray-900`}>RADPRO</Text>
                 <Text style={tw`text-gray-500 mt-1`}>
                     Client & Staff Portal
                 </Text>

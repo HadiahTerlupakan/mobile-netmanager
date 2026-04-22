@@ -33,7 +33,7 @@ export default function PrivacyPolicyScreen() {
 
                 <View style={tw`mb-6`}>
                     <Text style={tw`text-base text-gray-700 leading-relaxed`}>
-                        Aplikasi NetManager (&quot;Aplikasi&quot;) dibangun dan dioperasikan oleh SBL NET (PT Surya Bintang Langit). Kebijakan Privasi ini menjelaskan bagaimana kami mengumpulkan, menggunakan, dan melindungi informasi Anda saat menggunakan Aplikasi kami.
+                        Aplikasi RADPRO (&quot;Aplikasi&quot;) dibangun dan dioperasikan oleh RADPRO. Kebijakan Privasi ini menjelaskan bagaimana kami mengumpulkan, menggunakan, dan melindungi informasi Anda saat menggunakan Aplikasi kami.
                     </Text>
                 </View>
 
@@ -91,7 +91,7 @@ export default function PrivacyPolicyScreen() {
                         5. Hubungi Kami
                     </Text>
                     <Text style={tw`text-base text-gray-700 leading-relaxed`}>
-                        Jika Anda memiliki pertanyaan tentang Kebijakan Privasi ini, Anda dapat menghubungi tim administrator IT melalui admin@suryabintanglangit.com atau menu bantuan di Aplikasi.
+                        Jika Anda memiliki pertanyaan tentang Kebijakan Privasi ini, Anda dapat menghubungi tim administrator IT melalui admin@radpro.id atau menu bantuan di Aplikasi.
                     </Text>
                 </View>
 
