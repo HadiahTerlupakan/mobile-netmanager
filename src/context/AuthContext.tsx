@@ -109,8 +109,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logger.setTenantId(userData.tenantId);
 
             logger.auth('Syncing FCM token (background)...');
-            syncFcmToken('add');
-            startFcmTokenRefreshListener();
+            // FCM sync is non-critical - don't block login if it fails
+            try {
+                syncFcmToken('add');
+                startFcmTokenRefreshListener();
+            } catch (fcmError) {
+                logger.warn('[AuthContext] FCM sync failed, continuing with login', fcmError);
+                // Don't throw - FCM is optional feature
+            }
 
             logger.auth('signIn complete');
         } catch (error) {

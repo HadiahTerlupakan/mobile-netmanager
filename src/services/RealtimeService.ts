@@ -1,6 +1,7 @@
 import { addDoc, collection, getFirestore, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
 
 import { getMobileFirebaseApp } from '@/services/firebaseApp'
+import { logger } from '@/utils/logger'
 
 export type RealtimeScopeKind = 'user' | 'department' | 'workorder' | 'ticket' | 'chat' | 'admin'
 
@@ -69,35 +70,45 @@ class RealtimeService {
     const seenDocIds = new Set<string>()
     let isHydrated = false
 
-    return onSnapshot(channelQuery, (snapshot) => {
-      if (!isHydrated) {
-        snapshot.docs.forEach((doc) => {
-          seenDocIds.add(doc.id)
+    return onSnapshot(
+      channelQuery,
+      (snapshot) => {
+        if (!isHydrated) {
+          snapshot.docs.forEach((doc) => {
+            seenDocIds.add(doc.id)
+          })
+          isHydrated = true
+          return
+        }
+
+        snapshot.docChanges().forEach((change) => {
+          if (change.type !== 'added' || seenDocIds.has(change.doc.id)) {
+            return
+          }
+
+          seenDocIds.add(change.doc.id)
+          const data = change.doc.data() as Partial<RealtimeStreamEvent>
+
+          if (!data.type) {
+            return
+          }
+
+          onEvent({
+            type: data.type,
+            payload: data.payload,
+            scope: (data.scope as RealtimeScope | undefined) ?? scope,
+            createdAt: data.createdAt,
+          })
         })
-        isHydrated = true
-        return
+      },
+      (error) => {
+        logger.warn('[Realtime] Firestore subscription failed', {
+          scope,
+          message: error.message,
+          code: (error as { code?: string }).code,
+        })
       }
-
-      snapshot.docChanges().forEach((change) => {
-        if (change.type !== 'added' || seenDocIds.has(change.doc.id)) {
-          return
-        }
-
-        seenDocIds.add(change.doc.id)
-        const data = change.doc.data() as Partial<RealtimeStreamEvent>
-
-        if (!data.type) {
-          return
-        }
-
-        onEvent({
-          type: data.type,
-          payload: data.payload,
-          scope: (data.scope as RealtimeScope | undefined) ?? scope,
-          createdAt: data.createdAt,
-        })
-      })
-    })
+    )
   }
 
   async emitToRoom(room: string, type: string, payload: unknown): Promise<void> {

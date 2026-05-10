@@ -101,18 +101,17 @@ export default function CanvasingDetailScreen() {
         }
     };
 
-    // Check if can claim - WO must be completed
-    // const canClaim = () => {
-    //     if (!item) return false;
-    //     if (claim) return false; // Already claimed
-    //     if (item.isLocked) return false;
-    //
-    //     const wo = item.workOrder;
-    //     if (!wo) return false;
-    //
-    //     const completedStatuses = ['COMPLETED', 'VERIFIED', 'CLOSED'];
-    //     return completedStatuses.includes(wo.status);
-    // };
+    const canClaim = () => {
+        if (!item) return false;
+        if (claim) return false;
+        if (item.isLocked) return false;
+
+        const wo = item.workOrder;
+        if (!wo) return false;
+
+        const completedStatuses = ['COMPLETED', 'VERIFIED', 'CLOSED'];
+        return completedStatuses.includes(wo.status);
+    };
 
     const getClaimStatusUI = () => {
         if (!claim) return null;
@@ -214,6 +213,25 @@ export default function CanvasingDetailScreen() {
                             )}
                         </View>
                     </View>
+                )}
+
+                {/* Claim Poin Button - Show if eligible */}
+                {canClaim() && (
+                    <TouchableOpacity
+                        onPress={() => router.push(`/marketing/canvasing/${id}/claim`)}
+                        style={tw`bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-4 mb-4 flex-row items-center justify-between shadow-lg`}
+                    >
+                        <View style={tw`flex-row items-center flex-1`}>
+                            <View style={tw`w-12 h-12 bg-white/20 rounded-xl items-center justify-center mr-3`}>
+                                <Ionicons name="gift" size={24} color="white" />
+                            </View>
+                            <View style={tw`flex-1`}>
+                                <Text style={tw`text-white font-black text-base`}>Claim Poin Sekarang</Text>
+                                <Text style={tw`text-purple-100 text-xs mt-0.5`}>Work Order selesai, klaim +2 poin</Text>
+                            </View>
+                        </View>
+                        <Ionicons name="chevron-forward" size={20} color="white" />
+                    </TouchableOpacity>
                 )}
 
                 {/* Quick Actions Card */}

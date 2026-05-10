@@ -60,17 +60,36 @@ class FirebaseMessagingService {
                 return null;
             }
 
-            logger.info(`[FCM] Current token: ${maskToken(token)}, action: ${action}`);
+            // Validate token format before sending
+            if (typeof token !== 'string' || token.trim().length === 0) {
+                logger.error('[FCM] Invalid token format:', { tokenType: typeof token, tokenLength: token?.length });
+                return null;
+            }
 
-            await api.post('/api/mobile/fcm-token', {
+            const payload = {
                 fcmToken: token,
                 action
-            });
+            };
+
+            logger.info(`[FCM] Sending token to backend: ${maskToken(token)}, action: ${action}`);
+            logger.debug('[FCM] Payload:', { action, tokenLength: token.length });
+
+            await api.post('/api/mobile/fcm-token', payload);
 
             logger.info(`[FCM] Token successfully synced to backend (${action})`);
             return token;
         } catch (error) {
             logger.error('[FCM] Error syncing FCM token:', error);
+
+            // Log detailed error information for debugging
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { status?: number; data?: unknown } };
+                logger.error('[FCM] Backend response:', {
+                    status: axiosError.response?.status,
+                    data: axiosError.response?.data
+                });
+            }
+
             return null;
         }
     }
@@ -83,13 +102,33 @@ class FirebaseMessagingService {
 
         return onTokenRefresh(messaging, async (newToken) => {
             logger.info('[FCM] Token refreshed:', maskToken(newToken));
+
+            // Validate token before sending
+            if (!newToken || typeof newToken !== 'string' || newToken.trim().length === 0) {
+                logger.error('[FCM] Invalid refreshed token format');
+                return;
+            }
+
             try {
-                await api.post('/api/mobile/fcm-token', {
+                const payload = {
                     fcmToken: newToken,
-                    action: 'add'
-                });
+                    action: 'add' as const
+                };
+
+                logger.debug('[FCM] Sending refreshed token to backend');
+                await api.post('/api/mobile/fcm-token', payload);
+                logger.info('[FCM] Refreshed token synced successfully');
             } catch (error) {
                 logger.error('[FCM] Error syncing refreshed token:', error);
+
+                // Log detailed error for debugging
+                if (error && typeof error === 'object' && 'response' in error) {
+                    const axiosError = error as { response?: { status?: number; data?: unknown } };
+                    logger.error('[FCM] Backend response on refresh:', {
+                        status: axiosError.response?.status,
+                        data: axiosError.response?.data
+                    });
+                }
             }
         });
     }

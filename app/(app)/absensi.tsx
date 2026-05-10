@@ -272,6 +272,40 @@ const GeofenceWarning = React.memo(({ visible, onCancel, onContinue, geofenceSta
 ));
 GeofenceWarning.displayName = 'GeofenceWarning';
 
+interface CheckoutWarningModalProps {
+  visible: boolean;
+  onClose: () => void;
+  warningMessage: string | null;
+}
+
+const CheckoutWarningModal = React.memo(({ visible, onClose, warningMessage }: CheckoutWarningModalProps) => (
+  <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={onClose}>
+    <View style={tw`flex-1 bg-black/50 justify-center items-center px-6`}>
+      <View style={tw`bg-white rounded-2xl p-6 w-full max-w-sm`}>
+        <View style={tw`items-center mb-4`}>
+          <View style={tw`bg-amber-100 p-3 rounded-full mb-3`}>
+            <AlertTriangle size={32} color="#f59e0b" />
+          </View>
+          <Text style={tw`text-lg font-bold text-gray-800 text-center`}>⚠️ Checkout Lebih Awal</Text>
+        </View>
+        <View style={tw`bg-amber-50 p-4 rounded-xl mb-4`}>
+          <Text style={tw`text-amber-800 text-center text-sm`}>
+            {warningMessage}
+          </Text>
+        </View>
+        <Text style={tw`text-gray-500 text-center text-sm mb-4`}>Checkout Anda telah berhasil dicatat.</Text>
+        <TouchableOpacity
+          onPress={onClose}
+          style={tw`bg-amber-500 py-3 rounded-xl items-center`}
+        >
+          <Text style={tw`font-bold text-white`}>Mengerti</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  </Modal>
+));
+CheckoutWarningModal.displayName = 'CheckoutWarningModal';
+
 export default function AbsensiScreen() {
   useFeatureGuard(AppFeature.ABSENSI);
   const { user, token } = useAuth();
@@ -299,6 +333,8 @@ export default function AbsensiScreen() {
   const [isOffDay, setIsOffDay] = useState(false);
   const [isTukarLiburWorkDay, setIsTukarLiburWorkDay] = useState(false);
   const [isTukarLiburLeaveDay, setIsTukarLiburLeaveDay] = useState(false);
+  const [showCheckoutWarning, setShowCheckoutWarning] = useState(false);
+  const [pendingCheckoutWarning, setPendingCheckoutWarning] = useState<string | null>(null);
   const captureState = getAttendanceCaptureState({
     status,
     isHoliday: todayHoliday.isHoliday,
@@ -749,7 +785,17 @@ export default function AbsensiScreen() {
       }
 
       const warning = (data as { warning?: string })?.warning;
-      presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : warning ? `⚠️ ${warning}\n\nCheckout berhasil.` : "Check-out Berhasil!");
+
+      // Jika checkout dan ada warning, tampilkan modal konfirmasi
+      if (status === "checked-in" && warning) {
+        setIsProcessing(false);
+        setLoading(false);
+        setPendingCheckoutWarning(warning);
+        setShowCheckoutWarning(true);
+        return;
+      }
+
+      presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : "Check-out Berhasil!");
       refetchStatus();
     } catch (error) {
       AttendanceTelemetryService.track("attendance_photo_upload_failed", {
@@ -796,6 +842,11 @@ export default function AbsensiScreen() {
     setLoadingMessage("Memvalidasi data...");
     await submitAttendance();
   }, [submitAttendance]);
+
+  const handleCancelCheckoutWarning = useCallback(() => {
+    setShowCheckoutWarning(false);
+    setPendingCheckoutWarning(null);
+  }, []);
 
   if (showCamera) {
     if (!hasPermission) {
@@ -949,6 +1000,11 @@ export default function AbsensiScreen() {
         onContinue={handleConfirmOutsideSubmit}
         geofenceStatus={geofenceStatus}
         loading={isProcessing}
+      />
+      <CheckoutWarningModal
+        visible={showCheckoutWarning}
+        onClose={handleCancelCheckoutWarning}
+        warningMessage={pendingCheckoutWarning}
       />
       <LoadingModal visible={isProcessing} message={loadingMessage} progress={uploadProgress > 0 ? uploadProgress : undefined} />
     </SafeAreaView>

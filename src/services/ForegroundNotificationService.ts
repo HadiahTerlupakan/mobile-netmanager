@@ -50,7 +50,7 @@ export async function presentForegroundNotification(
       pressAction: {
         id: 'default',
       },
-      smallIcon: 'notification_icon',
+      smallIcon: 'ic_notification',
     },
   });
 }

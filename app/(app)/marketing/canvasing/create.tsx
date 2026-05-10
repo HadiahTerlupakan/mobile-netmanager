@@ -566,7 +566,7 @@ export default function CreateCanvasingScreen() {
           >
             <InputField
               label="Pilihan Paket Internet"
-              placeholder="Contoh: HOME 20 MBps"
+              placeholder="Contoh: HOME 20 Mbps"
               value={form.paket}
               onChangeText={(text: string) =>
                 setForm({ ...form, paket: text })

@@ -2,7 +2,7 @@
   "expo": {
     "name": "RADPRO",
     "slug": "netmanager",
-    "version": "1.0.38",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "netmanager",
@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.netmanager.mobile",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -23,7 +24,7 @@
     "android": {
       "package": "com.netmanager.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#0F49B7",
+        "backgroundColor": "#0a46aa",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "permissions": [
@@ -104,6 +105,10 @@
                 "value": "-Xmx4096m -XX:MaxMetaspaceSize=1024m"
               }
             ]
+          },
+          "ios": {
+            "deploymentTarget": "15.5",
+            "useFrameworks": "static"
           }
         }
       ],
@@ -118,7 +123,7 @@
         "projectId": "0e8762f0-6c54-4bc5-82f2-18aa3f8e765a"
       },
       "router": {},
-      "versionCode": 39
+      "versionCode": 2
     },
     "owner": "rohadimrajas-organization"
   }

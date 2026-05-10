@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
+const mockWarn = jest.fn();
 const mockCollection = jest.fn();
 const mockGetFirestore = jest.fn();
 const mockLimit = jest.fn();
@@ -20,6 +21,12 @@ jest.mock('firebase/firestore', () => ({
 
 jest.mock('@/services/firebaseApp', () => ({
   getMobileFirebaseApp: mockGetMobileFirebaseApp,
+}));
+
+jest.mock('@/utils/logger', () => ({
+  logger: {
+    warn: mockWarn,
+  },
 }));
 
 describe('RealtimeService', () => {
@@ -143,6 +150,30 @@ describe('RealtimeService', () => {
       payload: { type: 'keluar' },
       scope: { kind: 'user', id: 'user-1' },
       createdAt: undefined,
+    });
+  });
+
+  it('handles Firestore listener errors without throwing uncaught exceptions', () => {
+    const unsubscribe = jest.fn();
+
+    mockOnSnapshot.mockImplementation((...args: any[]) => {
+      const errorCallback = args[2] as ((error: { message: string; code: string }) => void) | undefined;
+      errorCallback?.({
+        message: 'Missing or insufficient permissions.',
+        code: 'permission-denied',
+      });
+      return unsubscribe;
+    });
+
+    const { realtimeService } = require('../../src/services/RealtimeService');
+
+    const cleanup = realtimeService.subscribeToUserStream('user-1', jest.fn());
+
+    expect(cleanup).toBe(unsubscribe);
+    expect(mockWarn).toHaveBeenCalledWith('[Realtime] Firestore subscription failed', {
+      scope: { kind: 'user', id: 'user-1' },
+      message: 'Missing or insufficient permissions.',
+      code: 'permission-denied',
     });
   });
 });

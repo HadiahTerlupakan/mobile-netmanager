@@ -50,6 +50,33 @@ const safeDate = (dateString?: string): Date | null => {
   return isNaN(date.getTime()) ? null : date;
 };
 
+const DISMANTLE_REASONS = [
+  { id: 'isolir-tunggakan', label: 'Isolir / Tunggakan', value: 'Isolir/Tunggakan' },
+  { id: 'pindah-alamat', label: 'Pindah Alamat', value: 'Pindah Alamat' },
+  { id: 'tidak-puas', label: 'Tidak Puas Layanan', value: 'Tidak Puas Layanan' },
+  { id: 'biaya-mahal', label: 'Biaya Terlalu Mahal', value: 'Biaya Terlalu Mahal' },
+  { id: 'lainnya', label: 'Lainnya', value: 'Lainnya' },
+] as const;
+
+type DismantleReason = (typeof DISMANTLE_REASONS)[number];
+
+function buildDismantleDescription(customer: MixRadiusCustomer, reason: string) {
+  return (
+    `Permintaan pembongkaran perangkat (dismantle) untuk pelanggan MixRadius.\n\n` +
+    `Alasan: ${reason}\n` +
+    `Catatan: Request otomatis dari Aplikasi Mobile (Menu Isolir)\n\n` +
+    `Data MixRadius:\n` +
+    `- Member ID: ${customer.member_id}\n` +
+    `- Paket: ${customer.plan_name}\n` +
+    `- Alamat: ${customer.address}`
+  );
+}
+
+function buildDismantleConfirmationMessage(customer: MixRadiusCustomer, reason: string) {
+  return `Apakah Anda yakin ingin membuat Work Order (SPK) untuk membongkar perangkat pelanggan ${customer.username}?\n\nAlasan: ${reason}`;
+}
+
+
 // Customer Item Component
 const CustomerItem = memo(({
   item,
@@ -191,6 +218,8 @@ export default function MixRadiusIsolirScreen() {
   const [hasSelected, setHasSelected] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<OwnerGroup | null>(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [pendingDismantleCustomer, setPendingDismantleCustomer] = useState<MixRadiusCustomer | null>(null);
 
   // Load Groups
   const { data: groups = [] } = useApiQuery<OwnerGroup[]>({
@@ -252,11 +281,27 @@ export default function MixRadiusIsolirScreen() {
   }, []);
 
   const handleDismantle = useCallback((customer: MixRadiusCustomer) => {
+    setPendingDismantleCustomer(customer);
+    setShowReasonModal(true);
+  }, []);
+
+  const handleReasonSelected = useCallback((reason: DismantleReason) => {
+    setShowReasonModal(false);
+
+    if (!pendingDismantleCustomer) return;
+
+    const customer = pendingDismantleCustomer;
+    const reasonText = reason.value;
+
     Alert.alert(
       "Konfirmasi Bongkar",
-      `Apakah Anda yakin ingin membuat Work Order (SPK) untuk membongkar perangkat pelanggan ${customer.username}?`,
+      buildDismantleConfirmationMessage(customer, reasonText),
       [
-        { text: "Batal", style: "cancel" },
+        {
+          text: "Batal",
+          style: "cancel",
+          onPress: () => setPendingDismantleCustomer(null),
+        },
         {
           text: "Ya, Buat WO",
           style: "destructive",
@@ -266,21 +311,18 @@ export default function MixRadiusIsolirScreen() {
                 type: "DISCONNECTION",
                 priority: "HIGH",
                 title: `Request Dismantle: ${customer.fullname} (${customer.username})`,
-                description:
-                  `Permintaan pembongkaran perangkat (dismantle) untuk pelanggan MixRadius.\n\n` +
-                  `Alasan: Isolir/Tunggakan\n` +
-                  `Catatan: Request otomatis dari Aplikasi Mobile (Menu Isolir)\n\n` +
-                  `Data MixRadius:\n` +
-                  `- Member ID: ${customer.member_id}\n` +
-                  `- Paket: ${customer.plan_name}\n` +
-                  `- Alamat: ${customer.address}`,
+                description: buildDismantleDescription(customer, reasonText),
                 contactName: customer.fullname,
                 contactPhone: customer.phonenumber,
                 locationAddress: customer.address,
                 notes: "Request otomatis dari Aplikasi Mobile (Menu Isolir)",
               },
               {
+                onSuccess: () => {
+                  setPendingDismantleCustomer(null);
+                },
                 onError: (err: unknown) => {
+                  setPendingDismantleCustomer(null);
                   presentAppError(err, {
                     screen: 'MixRadiusIsolirScreen',
                     route: '/(app)/mixradius/isolir',
@@ -293,13 +335,11 @@ export default function MixRadiusIsolirScreen() {
         }
       ]
     );
-  }, [dismantleMutation]);
+  }, [pendingDismantleCustomer, dismantleMutation]);
 
   const onRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
-
-  const isSubmittingDismantle = dismantleMutation.isPending;
 
   const ListHeader = useMemo(() => (
     <View style={tw`p-4 pb-2`}>
@@ -424,8 +464,23 @@ export default function MixRadiusIsolirScreen() {
         selectedValue={selectedGroup}
       />
 
+      <SelectionModal
+        visible={showReasonModal}
+        onClose={() => {
+          setShowReasonModal(false);
+          setPendingDismantleCustomer(null);
+        }}
+        title="Pilih Alasan Dismantle"
+        items={DISMANTLE_REASONS.map(r => ({
+          id: r.id,
+          label: r.label,
+          value: r
+        }))}
+        onSelect={(item) => handleReasonSelected(item.value as DismantleReason)}
+      />
+
       <LoadingModal
-        visible={isSubmittingDismantle}
+        visible={dismantleMutation.isPending}
         message="Mengirim request dismantle..."
       />
     </View>

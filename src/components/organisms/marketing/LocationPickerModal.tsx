@@ -135,7 +135,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                 }
             }
         } catch (error) {
-            logger.error('Error getting location', error);
+            logger.warn('Location unavailable, using fallback', error);
             if (isInitialId) {
                  // Fallback on error so user isn't stuck
                  setIsInitialized(true);
