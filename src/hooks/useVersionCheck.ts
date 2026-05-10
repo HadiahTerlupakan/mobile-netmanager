@@ -66,6 +66,13 @@ export function useVersionCheck(user: User | null, token: string | null) {
     let reportTimer: ReturnType<typeof setTimeout>;
 
     if (user && token) {
+      // Set user context for error reporting
+      errorReportingService.setUser({
+        id: user.id,
+        email: user.email,
+        username: user.name,
+      });
+
       // Throttle version reporting to avoid congestion on startup
       reportTimer = setTimeout(() => {
         appVersionService
@@ -74,6 +81,9 @@ export function useVersionCheck(user: User | null, token: string | null) {
             logger.error('Failed to report version:', e);
           });
       }, 5000);
+    } else {
+      // Clear user context when logged out
+      errorReportingService.clearUser();
     }
 
     return () => {
