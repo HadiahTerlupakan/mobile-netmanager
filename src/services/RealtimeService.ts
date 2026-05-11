@@ -1,7 +1,52 @@
+import { signInWithCustomToken } from 'firebase/auth'
 import { addDoc, collection, getFirestore, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
 
-import { getMobileFirebaseApp } from '@/services/firebaseApp'
+import api from '@/services/api'
+import { getMobileFirebaseApp, getMobileFirebaseAuth } from '@/services/firebaseApp'
 import { logger } from '@/utils/logger'
+
+interface FirebaseTokenResponse {
+  token?: string
+}
+
+async function fetchRealtimeCustomToken(): Promise<string> {
+  const response = await api.post<FirebaseTokenResponse>('/api/mobile/auth/firebase-token')
+  const token = response.data?.token
+
+  if (!token) {
+    throw new Error('Realtime custom token was not returned by backend')
+  }
+
+  return token
+}
+
+async function authenticateRealtimeClient(): Promise<void> {
+  const auth = getMobileFirebaseAuth()
+
+  if (auth.currentUser) {
+    return
+  }
+
+  const customToken = await fetchRealtimeCustomToken()
+  await signInWithCustomToken(auth, customToken)
+}
+
+let connectPromise: Promise<void> | null = null
+
+function ensureRealtimeAuthenticated(): Promise<void> {
+  if (!connectPromise) {
+    connectPromise = authenticateRealtimeClient().catch((error) => {
+      connectPromise = null
+      throw error
+    })
+  }
+
+  return connectPromise
+}
+
+function resetRealtimeAuthentication(): void {
+  connectPromise = null
+}
 
 export type RealtimeScopeKind = 'user' | 'department' | 'workorder' | 'ticket' | 'chat' | 'admin'
 
@@ -42,11 +87,13 @@ function buildScopeChannel(scope: RealtimeScope): string {
 }
 
 class RealtimeService {
-  connect(_options: ConnectOptions): void {
+  connect(_options: ConnectOptions): Promise<void> {
     getMobileFirebaseApp()
+    return ensureRealtimeAuthenticated()
   }
 
   disconnect(): void {
+    resetRealtimeAuthentication()
     // Listener cleanup is owned by each subscription.
   }
 

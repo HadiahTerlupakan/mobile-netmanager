@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { logger } from '@/utils/logger';
+import * as Location from 'expo-location';
 
 const mockTrack = jest.fn();
 const mockStartTracking = jest.fn();
@@ -130,7 +132,8 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('react-native-vision-camera', () => ({
   Camera: () => null,
-  useCameraDevice: () => ({ formats: [{}] }),
+  useCameraDevice: () => ({ formats: [{}], supportsLowLightBoost: false }),
+  useCameraFormat: () => undefined,
   useCameraPermission: () => ({ hasPermission: true, requestPermission: jest.fn() }),
   useFrameProcessor: () => undefined,
 }));
@@ -154,6 +157,7 @@ jest.mock('expo-haptics', () => ({
 
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  hasServicesEnabledAsync: jest.fn(async () => true),
   getLastKnownPositionAsync: jest.fn(async () => ({
     coords: { latitude: -6.2, longitude: 106.8 },
   })),
@@ -371,5 +375,26 @@ describe('absensi offline queue boundary', () => {
       'https://cdn.radpro.id/attendance/photo-1.jpg',
     );
     expect(mockPresentInfoMessage).not.toHaveBeenCalled();
+  });
+
+  it('tidak meminta current location dan tidak spam warning saat location services mati', async () => {
+    const hasServicesEnabledAsync = Location.hasServicesEnabledAsync as jest.Mock;
+    const getLastKnownPositionAsync = Location.getLastKnownPositionAsync as jest.Mock;
+    const getCurrentPositionAsync = Location.getCurrentPositionAsync as jest.Mock;
+    const warn = logger.warn as jest.Mock;
+
+    hasServicesEnabledAsync.mockResolvedValue(false as never);
+    getLastKnownPositionAsync.mockResolvedValue(null as never);
+
+    const AbsensiScreen = require('../../app/(app)/absensi').default;
+    const { getAllByText } = render(<AbsensiScreen />);
+
+    await waitFor(() => {
+      expect(getAllByText('GPS perangkat tidak aktif').length).toBeGreaterThan(0);
+    });
+
+    expect(getCurrentPositionAsync).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(hasServicesEnabledAsync).toHaveBeenCalled();
   });
 });

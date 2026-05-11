@@ -28,29 +28,37 @@ export function RealtimeProvider({ children }: RealtimeProviderProps) {
     }
 
     let stopPresence: (() => void) | null = null;
+    let isCancelled = false;
 
-    try {
-      realtimeService.connect({
-        token,
-        userId,
-        userRole,
-        tenantUrl,
-      });
+    const startRealtime = async () => {
+      try {
+        await realtimeService.connect({
+          token,
+          userId,
+          userRole,
+          tenantUrl,
+        });
 
-      stopPresence = presenceService.startPresence(userId, { role: userRole });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Realtime connection failed';
+        if (isCancelled) {
+          return;
+        }
 
-      if (message !== 'Firebase mobile config is incomplete') {
-        logger.error('[Realtime] Connection error:', message);
-      } else {
-        logger.warn('[Realtime] Realtime disabled:', message);
+        stopPresence = presenceService.startPresence(userId, { role: userRole });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Realtime connection failed';
+
+        if (message !== 'Firebase mobile config is incomplete') {
+          logger.error('[Realtime] Connection error:', message);
+        } else {
+          logger.warn('[Realtime] Realtime disabled:', message);
+        }
       }
+    };
 
-      return;
-    }
+    void startRealtime();
 
     return () => {
+      isCancelled = true;
       stopPresence?.();
       realtimeService.disconnect();
     };

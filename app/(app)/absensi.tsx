@@ -35,6 +35,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Camera,
   useCameraDevice,
+  useCameraFormat,
   useCameraPermission,
   useFrameProcessor,
 } from "react-native-vision-camera";
@@ -345,10 +346,115 @@ export default function AbsensiScreen() {
   // --- Camera & Face Detection State ---
   const cameraRef = useRef<any>(null);
   const device = useCameraDevice(facing);
+  const format = useCameraFormat(device, [
+    { photoResolution: 'max' },
+    { videoResolution: { width: 1280, height: 720 } },
+    { fps: 30 },
+  ]);
   const { hasPermission, requestPermission } = useCameraPermission();
   const [faceInFrame, setFaceInFrame] = useState(false);
   const [instructionText, setInstructionText] = useState("Dekatkan wajah");
   const lastFaceReadyRef = useRef(false);
+  const lastLocationWarningRef = useRef<string | null>(null);
+
+  const warnLocationOnce = useCallback((warningKey: string, error?: unknown) => {
+    if (lastLocationWarningRef.current === warningKey) {
+      return;
+    }
+
+    lastLocationWarningRef.current = warningKey;
+    logger.warn("Location Error:", error ?? warningKey);
+  }, []);
+
+  const clearLocationWarning = useCallback(() => {
+    lastLocationWarningRef.current = null;
+  }, []);
+
+  const setResolvedLocationName = useCallback((nextLocationName: string) => {
+    clearLocationWarning();
+    setLocationName(nextLocationName);
+  }, [clearLocationWarning]);
+
+  const setUnavailableLocationState = useCallback((nextLocationName: string, warningKey: string, error?: unknown) => {
+    setLocation(null);
+    setLocationName(nextLocationName);
+    warnLocationOnce(warningKey, error);
+  }, [warnLocationOnce]);
+
+  const getLocationUnavailableMessage = useCallback((error: unknown) => {
+    if (error instanceof Error && /location services are enabled/i.test(error.message)) {
+      return "GPS perangkat tidak aktif";
+    }
+
+    return "Lokasi tidak ditemukan (Cek GPS)";
+  }, []);
+
+  const getLocationWarningKey = useCallback((error: unknown) => {
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return "location-unavailable";
+  }, []);
+
+  const handleLocationUnavailable = useCallback((error: unknown) => {
+    setUnavailableLocationState(
+      getLocationUnavailableMessage(error),
+      getLocationWarningKey(error),
+      error,
+    );
+  }, [getLocationUnavailableMessage, getLocationWarningKey, setUnavailableLocationState]);
+
+  const handleLocationServicesDisabled = useCallback(() => {
+    setUnavailableLocationState(
+      "GPS perangkat tidak aktif",
+      "location-services-disabled",
+    );
+  }, [setUnavailableLocationState]);
+
+  const resolveLocationCoordinates = useCallback(async () => {
+    const lastKnownLocation = await Location.getLastKnownPositionAsync({});
+    if (lastKnownLocation) {
+      clearLocationWarning();
+      return lastKnownLocation;
+    }
+
+    const hasServicesEnabled = await Location.hasServicesEnabledAsync();
+    if (!hasServicesEnabled) {
+      handleLocationServicesDisabled();
+      return null;
+    }
+
+    clearLocationWarning();
+    return Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+  }, [clearLocationWarning, handleLocationServicesDisabled]);
+
+  const resolveLocationLabel = useCallback(async (loc: Location.LocationObject) => {
+    try {
+      const reverse = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+      if (reverse.length > 0) {
+        const addr = reverse[0];
+        setResolvedLocationName(`${addr.street || ""} ${addr.district || ""}, ${addr.city || ""}`);
+        return;
+      }
+    } catch {
+      // noop, fallback below
+    }
+
+    setResolvedLocationName(`${loc.coords.latitude}, ${loc.coords.longitude}`);
+  }, [setResolvedLocationName]);
+
+  const getForegroundLocationPermission = useCallback(async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    return status;
+  }, []);
+
+  const handleLocationPermissionDenied = useCallback(() => {
+    Alert.alert("Izin Ditolak", "Aplikasi membutuhkan izin lokasi untuk absensi.");
+  }, []);
 
   const triggerFaceGuideHaptic = useCallback((isFaceReady: boolean) => {
     if (lastFaceReadyRef.current === isFaceReady) return;
@@ -473,39 +579,35 @@ export default function AbsensiScreen() {
     });
   }, []);
 
+  const syncLocationState = useCallback(async (loc: Location.LocationObject) => {
+    clearLocationWarning();
+    setLocation(loc);
+    checkGeofence(loc.coords.latitude, loc.coords.longitude, geofenceZones);
+    await resolveLocationLabel(loc);
+  }, [checkGeofence, clearLocationWarning, geofenceZones, resolveLocationLabel]);
+
+  const handleLocationLookup = useCallback(async () => {
+    const loc = await resolveLocationCoordinates();
+    if (!loc) {
+      return;
+    }
+
+    await syncLocationState(loc);
+  }, [resolveLocationCoordinates, syncLocationState]);
+
   const getLocation = useCallback(async () => {
     try {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Izin Ditolak", "Aplikasi membutuhkan izin lokasi untuk absensi.");
+      const permissionStatus = await getForegroundLocationPermission();
+      if (permissionStatus !== "granted") {
+        handleLocationPermissionDenied();
         return;
       }
 
-      let loc = await Location.getLastKnownPositionAsync({});
-      if (!loc) {
-        loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      }
-
-      setLocation(loc);
-      checkGeofence(loc.coords.latitude, loc.coords.longitude, geofenceZones);
-
-      try {
-        const reverse = await Location.reverseGeocodeAsync({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
-        if (reverse.length > 0) {
-          const addr = reverse[0];
-          setLocationName(`${addr.street || ""} ${addr.district || ""}, ${addr.city || ""}`);
-        }
-      } catch {
-        setLocationName(`${loc.coords.latitude}, ${loc.coords.longitude}`);
-      }
+      await handleLocationLookup();
     } catch (error) {
-      logger.warn("Location Error:", error);
-      setLocationName("Lokasi tidak ditemukan (Cek GPS)");
+      handleLocationUnavailable(error);
     }
-  }, [geofenceZones, checkGeofence]);
+  }, [getForegroundLocationPermission, handleLocationLookup, handleLocationPermissionDenied, handleLocationUnavailable]);
 
   const checkInMutation = useApiMutation({
     endpoint: "/api/mobile/attendance/check-in",
@@ -873,7 +975,8 @@ export default function AbsensiScreen() {
           ref={cameraRef}
           photo={true}
           frameProcessor={frameProcessor}
-          format={device.formats[0]} // Optional: choose best format
+          format={format}
+          lowLightBoost={device.supportsLowLightBoost}
         />
         <View style={tw`absolute inset-0 items-center justify-center pointer-events-none`}>
           <View style={[

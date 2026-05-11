@@ -4,6 +4,7 @@ const mockPost = jest.fn<(url: string, body: unknown) => Promise<unknown>>();
 const mockInfo = jest.fn<(message: string, ...args: unknown[]) => void>();
 const mockWarn = jest.fn<(message: string, ...args: unknown[]) => void>();
 const mockError = jest.fn<(message: string, ...args: unknown[]) => void>();
+const mockDebug = jest.fn<(message: string, ...args: unknown[]) => void>();
 
 const mockPlatform = { OS: 'ios', Version: 17 };
 const mockPermissionsAndroid = {
@@ -54,6 +55,7 @@ jest.mock('@/utils/logger', () => ({
     info: mockInfo,
     warn: mockWarn,
     error: mockError,
+    debug: mockDebug,
   },
 }));
 
@@ -141,6 +143,47 @@ describe('FirebaseMessagingService', () => {
 
     const loggedOutput = mockInfo.mock.calls.flat().map(String).join(' ');
     expect(loggedOutput).not.toContain('fcm-token-123');
+  });
+
+  it('skips duplicate add syncs for the same token in a single runtime session', async () => {
+    mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
+    mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(true);
+    mockGetToken.mockResolvedValue('fcm-token-123');
+    mockPost.mockResolvedValue({});
+
+    const fcmService = loadService();
+
+    await expect(fcmService.syncFCMTokenToBackend('add')).resolves.toBe('fcm-token-123');
+    await expect(fcmService.syncFCMTokenToBackend('add')).resolves.toBe('fcm-token-123');
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-syncs add after the same token was removed previously', async () => {
+    mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
+    mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(true);
+    mockGetToken.mockResolvedValue('fcm-token-123');
+    mockPost.mockResolvedValue({});
+
+    const fcmService = loadService();
+
+    await fcmService.syncFCMTokenToBackend('add');
+    await fcmService.syncFCMTokenToBackend('remove');
+    await fcmService.syncFCMTokenToBackend('add');
+
+    expect(mockPost).toHaveBeenCalledTimes(3);
+    expect(mockPost).toHaveBeenNthCalledWith(1, '/api/mobile/fcm-token', {
+      fcmToken: 'fcm-token-123',
+      action: 'add',
+    });
+    expect(mockPost).toHaveBeenNthCalledWith(2, '/api/mobile/fcm-token', {
+      fcmToken: 'fcm-token-123',
+      action: 'remove',
+    });
+    expect(mockPost).toHaveBeenNthCalledWith(3, '/api/mobile/fcm-token', {
+      fcmToken: 'fcm-token-123',
+      action: 'add',
+    });
   });
 
   it('removes the current token without requesting notification permission again', async () => {

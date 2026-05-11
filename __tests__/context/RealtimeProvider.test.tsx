@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
 import { act, render } from '@testing-library/react-native';
@@ -58,6 +59,7 @@ beforeEach(() => {
   mockAuthState.user = null;
   mockTenantState.tenantUrl = null;
   mockConnectionState.canConnect = false;
+  (realtimeService.connect as jest.Mock).mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -78,7 +80,9 @@ describe('RealtimeProvider', () => {
       </RealtimeProvider>
     );
 
-    await act(async () => {});
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(realtimeService.connect).toHaveBeenCalledWith({
       token: 'token-1',
@@ -104,7 +108,9 @@ describe('RealtimeProvider', () => {
       </RealtimeProvider>
     );
 
-    await act(async () => {});
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(realtimeService.connect).toHaveBeenCalledTimes(1);
     expect(presenceService.startPresence).not.toHaveBeenCalled();

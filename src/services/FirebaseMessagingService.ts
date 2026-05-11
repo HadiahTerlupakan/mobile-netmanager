@@ -13,6 +13,10 @@ function maskToken(token: string): string {
 }
 
 class FirebaseMessagingService {
+    private lastSyncedToken: string | null = null
+
+    private lastSyncedAction: 'add' | 'remove' | null = null
+
     /**
      * Meminta izin notifikasi dari sistem pengguna
      */
@@ -60,10 +64,14 @@ class FirebaseMessagingService {
                 return null;
             }
 
-            // Validate token format before sending
             if (typeof token !== 'string' || token.trim().length === 0) {
                 logger.error('[FCM] Invalid token format:', { tokenType: typeof token, tokenLength: token?.length });
                 return null;
+            }
+
+            if (this.lastSyncedToken === token && this.lastSyncedAction === action) {
+                logger.info(`[FCM] Skipping duplicate token sync: ${maskToken(token)}, action: ${action}`);
+                return token;
             }
 
             const payload = {
@@ -75,6 +83,9 @@ class FirebaseMessagingService {
             logger.debug('[FCM] Payload:', { action, tokenLength: token.length });
 
             await api.post('/api/mobile/fcm-token', payload);
+
+            this.lastSyncedToken = token;
+            this.lastSyncedAction = action;
 
             logger.info(`[FCM] Token successfully synced to backend (${action})`);
             return token;

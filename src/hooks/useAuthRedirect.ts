@@ -17,13 +17,14 @@ export function useAuthRedirect(
   isLoading: boolean
 ) {
   const router = useRouter();
+  const currentSegment = segments[0];
 
   useEffect(() => {
     logger.auth(
       'Effect triggered. User:',
       !!user,
-      'Segments:',
-      segments,
+      'Segment:',
+      currentSegment,
       'Loading:',
       isLoading
     );
@@ -33,10 +34,10 @@ export function useAuthRedirect(
       return;
     }
 
-    const inAuthGroup = segments[0] === '(auth)';
-    const inAppGroup = segments[0] === '(app)';
-    const inCustomerGroup = segments[0] === '(customer)';
-    const isPublicRoute = segments[0] === 'kebijakan-privasi';
+    const inAuthGroup = currentSegment === '(auth)';
+    const inAppGroup = currentSegment === '(app)';
+    const inCustomerGroup = currentSegment === '(customer)';
+    const isPublicRoute = currentSegment === 'kebijakan-privasi';
 
     logger.auth('Status:', {
       user: !!user,
@@ -45,13 +46,13 @@ export function useAuthRedirect(
       inCustomerGroup,
       isPublicRoute,
       role: user?.role,
-      segments,
+      segment: currentSegment,
     });
 
     // Debounce redirects to prevent loops during initialization
     const redirectTimer = setTimeout(() => {
       if (isPublicRoute) {
-        logger.auth('Allowing public route:', segments[0]);
+        logger.auth('Allowing public route:', currentSegment);
         return;
       }
 
@@ -80,12 +81,12 @@ export function useAuthRedirect(
         'Root redirect evaluated',
         {
           hasUser: !!user,
-          segment: segments[0] ?? null,
+          segment: currentSegment ?? null,
           isPublicRoute,
         }
       );
     }, 100);
 
     return () => clearTimeout(redirectTimer);
-  }, [user, segments, isLoading, router]);
+  }, [currentSegment, isLoading, router, user]);
 }

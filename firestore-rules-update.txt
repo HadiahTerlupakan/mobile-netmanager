@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.isSuperAdmin == true ||
+        request.auth.token.role == "SUPER_ADMIN"
+      );
+    }
+
+    function canAccessAdminPanel() {
+      return isSignedIn() && (
+        isSuperAdmin() ||
+        request.auth.token.accessAdminPanel == true ||
+        (
+          request.auth.token.roles is list &&
+          request.auth.token.roles.hasAny(['ADMIN', 'MANAGER', 'OPERATOR', 'NOC', 'FINANCE'])
+        )
+      );
+    }
+
+    match /users/{userId}/events/{eventId} {
+      allow read: if isSuperAdmin() || request.auth.uid == userId;
+    }
+
+    match /admins/{scope}/events/{eventId} {
+      allow read: if canAccessAdminPanel();
+    }
+
+    match /workorders/{woId}/events/{eventId} {
+      allow read: if canAccessAdminPanel();
+    }
+
+    match /tickets/{ticketId}/events/{eventId} {
+      allow read: if canAccessAdminPanel();
+    }
+
+    // Presence system untuk realtime online status
+    match /presence/{userId} {
+      // User bisa read/write presence mereka sendiri
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+
+      // Semua authenticated user bisa read presence orang lain
+      allow read: if isSignedIn();
+    }
+  }
+}

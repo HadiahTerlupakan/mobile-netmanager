@@ -4,15 +4,13 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 const mockOnMessage = jest.fn();
 const mockOnNotificationOpenedApp = jest.fn();
 const mockGetInitialNotification = jest.fn();
-const mockMessaging = jest.fn(() => ({
+const mockGetMessaging = jest.fn(() => 'mock-messaging');
+
+jest.mock('@react-native-firebase/messaging', () => ({
+  getMessaging: mockGetMessaging,
   onMessage: mockOnMessage,
   onNotificationOpenedApp: mockOnNotificationOpenedApp,
   getInitialNotification: mockGetInitialNotification,
-}));
-
-jest.mock('@react-native-firebase/messaging', () => ({
-  __esModule: true,
-  default: mockMessaging,
 }));
 
 jest.mock('@/utils/logger', () => ({
@@ -43,7 +41,8 @@ describe('PushNotificationService', () => {
 
     await expect(getInitialNotificationData()).resolves.toEqual({ url: '/notifications' });
 
-    expect(mockMessaging).toHaveBeenCalled();
+    expect(mockGetMessaging).toHaveBeenCalled();
+    expect(mockGetInitialNotification).toHaveBeenCalledWith('mock-messaging');
   });
 
   it('subscribes foreground and opened-app FCM listeners and returns a cleanup function', () => {
@@ -54,10 +53,10 @@ describe('PushNotificationService', () => {
 
     const cleanup = addNotificationListeners(onNotificationReceived, onNotificationResponse);
 
-    expect(mockOnMessage).toHaveBeenCalledWith(expect.any(Function));
-    expect(mockOnNotificationOpenedApp).toHaveBeenCalledWith(expect.any(Function));
+    expect(mockOnMessage).toHaveBeenCalledWith('mock-messaging', expect.any(Function));
+    expect(mockOnNotificationOpenedApp).toHaveBeenCalledWith('mock-messaging', expect.any(Function));
 
-    const foregroundHandler = mockOnMessage.mock.calls[0][0];
+    const foregroundHandler = mockOnMessage.mock.calls[0][1];
     foregroundHandler({
       data: { url: '/notifications' },
       notification: { title: 'Inbox', body: 'Foreground body' },
@@ -68,7 +67,7 @@ describe('PushNotificationService', () => {
       data: { url: '/notifications' },
     });
 
-    const openedHandler = mockOnNotificationOpenedApp.mock.calls[0][0];
+    const openedHandler = mockOnNotificationOpenedApp.mock.calls[0][1];
     openedHandler({
       data: { url: '/dashboard' },
       notification: { title: 'Opened', body: 'Opened body' },

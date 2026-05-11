@@ -1,5 +1,9 @@
-import messaging, {
+import {
   FirebaseMessagingTypes,
+  getInitialNotification,
+  getMessaging,
+  onMessage,
+  onNotificationOpenedApp,
 } from '@react-native-firebase/messaging';
 
 import { logger } from '@/utils/logger';
@@ -46,7 +50,8 @@ function buildNotificationPayload(
 }
 
 export async function getInitialNotificationData(): Promise<Record<string, string> | null> {
-  const remoteMessage = await messaging().getInitialNotification();
+  const messaging = getMessaging();
+  const remoteMessage = await getInitialNotification(messaging);
   const notificationData = normalizeMessageData(remoteMessage?.data);
 
   return Object.keys(notificationData).length > 0 ? notificationData : null;
@@ -56,7 +61,9 @@ export function addNotificationListeners(
   onNotificationReceived?: (notification: NotificationBridgePayload) => void,
   onNotificationResponse?: (response: NotificationBridgePayload) => void,
 ) {
-  const unsubscribeOnMessage = messaging().onMessage(async (remoteMessage) => {
+  const messaging = getMessaging();
+
+  const unsubscribeOnMessage = onMessage(messaging, async (remoteMessage) => {
     logger.info('Notification received:', remoteMessage);
     const payload = buildNotificationPayload(remoteMessage);
 
@@ -65,7 +72,7 @@ export function addNotificationListeners(
     }
   });
 
-  const unsubscribeOnOpen = messaging().onNotificationOpenedApp((remoteMessage) => {
+  const unsubscribeOnOpen = onNotificationOpenedApp(messaging, (remoteMessage) => {
     logger.info('Notification response:', remoteMessage);
     const payload = buildNotificationPayload(remoteMessage);
 
