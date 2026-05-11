@@ -219,18 +219,18 @@ export default function CanvasingDetailScreen() {
                 {canClaim() && (
                     <TouchableOpacity
                         onPress={() => router.push(`/marketing/canvasing/${id}/claim`)}
-                        style={tw`bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-4 mb-4 flex-row items-center justify-between shadow-lg`}
+                        style={tw`bg-emerald-500 rounded-2xl p-5 mb-4 flex-row items-center justify-between shadow-lg`}
                     >
                         <View style={tw`flex-row items-center flex-1`}>
-                            <View style={tw`w-12 h-12 bg-white/20 rounded-xl items-center justify-center mr-3`}>
-                                <Ionicons name="gift" size={24} color="white" />
+                            <View style={tw`w-14 h-14 bg-white/20 rounded-2xl items-center justify-center mr-4`}>
+                                <Ionicons name="gift" size={28} color="white" />
                             </View>
                             <View style={tw`flex-1`}>
-                                <Text style={tw`text-white font-black text-base`}>Claim Poin Sekarang</Text>
-                                <Text style={tw`text-purple-100 text-xs mt-0.5`}>Work Order selesai, klaim +2 poin</Text>
+                                <Text style={tw`text-white font-black text-lg`}>Claim Poin Sekarang</Text>
+                                <Text style={tw`text-emerald-100 text-sm mt-1`}>Work Order selesai, klaim +2 poin</Text>
                             </View>
                         </View>
-                        <Ionicons name="chevron-forward" size={20} color="white" />
+                        <Ionicons name="chevron-forward" size={24} color="white" />
                     </TouchableOpacity>
                 )}
 

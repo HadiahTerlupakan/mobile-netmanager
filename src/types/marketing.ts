@@ -32,6 +32,7 @@ export interface Canvasing {
     isLocked: boolean;
     createdAt: string;
     workOrder?: CanvasingWorkOrder;
+    pointClaims?: CanvasingClaim;
 }
 
 export interface CanvasingClaimResponse {

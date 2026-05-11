@@ -34,10 +34,12 @@ interface CanvasingRequest {
   paket: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
   createdAt: string;
-  workOrder?: {
+  workOrder: {
+    id: string;
+    workOrderNumber: string;
     status: string;
-  };
-  pointClaims?: PointClaim[];
+  } | null;
+  pointClaims: PointClaim | null;
 }
 
 interface PointSummary {
@@ -97,10 +99,8 @@ const CanvasingItem = React.memo(({
   const statusUI = getStatusUI(item.status, item.workOrder?.status);
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.7}
+    <View
       style={tw`bg-white rounded-[24px] p-4 mb-4 shadow-sm border border-slate-100/80`}
-      onPress={() => onPress(item.id)}
     >
       <View style={tw`flex-row justify-between items-start mb-3`}>
         <View style={tw`flex-1 mr-3`}>
@@ -123,7 +123,7 @@ const CanvasingItem = React.memo(({
         </View>
       </View>
 
-      <View style={tw`border border-slate-100 bg-slate-50/50 rounded-[16px] p-3 mb-4 flex-row items-center`}>
+      <View style={tw`border border-slate-100 bg-slate-50/50 rounded-[16px] p-3 mb-3 flex-row items-center`}>
         <View style={tw`w-8 h-8 rounded-full bg-white items-center justify-center shadow-sm mr-3 border border-slate-50`}>
           <Ionicons name="location" size={14} color="#64748b" />
         </View>
@@ -145,16 +145,6 @@ const CanvasingItem = React.memo(({
         </View>
 
         <View style={tw`flex-row items-center gap-2`}>
-          {canClaimPoints(item) && (
-            <TouchableOpacity
-              onPress={() => onClaimPress(item.id)}
-              activeOpacity={0.7}
-              style={tw`flex-row items-center bg-violet-50 px-3 py-1.5 rounded-full border border-violet-100`}
-            >
-              <Ionicons name="gift" size={14} color="#7c3aed" />
-              <Text style={tw`text-[10px] font-black text-violet-600 ml-1.5 uppercase`}>Klaim</Text>
-            </TouchableOpacity>
-          )}
           {hasClaimPending(item) && (
             <View style={tw`flex-row items-center bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100`}>
               <Ionicons name="hourglass" size={12} color="#e11d48" />
@@ -168,12 +158,26 @@ const CanvasingItem = React.memo(({
             </View>
           )}
 
-          <View style={tw`w-8 h-8 rounded-full bg-slate-50 items-center justify-center border border-slate-100`}>
+          {canClaimPoints(item) && (
+            <TouchableOpacity
+              onPress={() => onClaimPress(item.id)}
+              activeOpacity={0.7}
+              style={tw`w-8 h-8 rounded-full bg-emerald-500 items-center justify-center shadow-sm`}
+            >
+              <Ionicons name="gift" size={16} color="white" />
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            onPress={() => onPress(item.id)}
+            activeOpacity={0.7}
+            style={tw`w-8 h-8 rounded-full bg-slate-50 items-center justify-center border border-slate-100`}
+          >
             <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 });
 CanvasingItem.displayName = 'CanvasingItem';
@@ -277,12 +281,12 @@ export default function CanvasingListScreen() {
 
   const canClaimPoints = useCallback((item: CanvasingRequest) => {
     const woCompleted = !!(item.workOrder?.status && ["COMPLETED", "VERIFIED", "CLOSED"].includes(item.workOrder.status));
-    const hasNoClaim = !item.pointClaims || item.pointClaims.length === 0;
+    const hasNoClaim = !item.pointClaims;
     return woCompleted && hasNoClaim;
   }, []);
 
-  const hasClaimPending = useCallback((item: CanvasingRequest) => item.pointClaims?.[0]?.status === "PENDING", []);
-  const hasClaimApproved = useCallback((item: CanvasingRequest) => item.pointClaims?.[0]?.status === "APPROVED", []);
+  const hasClaimPending = useCallback((item: CanvasingRequest) => item.pointClaims?.status === "PENDING", []);
+  const hasClaimApproved = useCallback((item: CanvasingRequest) => item.pointClaims?.status === "APPROVED", []);
 
   const onLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
