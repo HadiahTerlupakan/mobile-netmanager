@@ -57,6 +57,8 @@ function deg2rad(deg: number) {
 
 
 export class LocationTrackingService {
+    private static initialPushTimer: ReturnType<typeof setTimeout> | null = null;
+
     /**
      * Get adaptive location configuration based on battery and movement
      */
@@ -225,8 +227,9 @@ export class LocationTrackingService {
             await Storage.setItem(STORAGE_KEY_TRACKING, 'true');
             logger.info('[LocationTracking] Started background tracking');
 
-            // Initial position push
-            setTimeout(async () => {
+            // Initial position push (tracked for cleanup on stopTracking)
+            this.initialPushTimer = setTimeout(async () => {
+                this.initialPushTimer = null;
                 try {
                     const initialLoc = await this.getCurrentPosition();
                     if (initialLoc) {
@@ -258,6 +261,10 @@ export class LocationTrackingService {
      */
     static async stopTracking(): Promise<void> {
         try {
+            if (this.initialPushTimer) {
+                clearTimeout(this.initialPushTimer);
+                this.initialPushTimer = null;
+            }
             const isTracking = await Location.hasStartedLocationUpdatesAsync(TASK_NAME);
             if (isTracking) {
                 await Location.stopLocationUpdatesAsync(TASK_NAME);
@@ -314,7 +321,7 @@ export class LocationTrackingService {
             // Only log summary in prod to save logs space, detailed in DEV
             if (__DEV__) logger.info(`[LocationTracking] Data:`, JSON.stringify(locationData));
 
-            await api.post(
+            const response = await api.post(
                 `/api/mobile/location`,
                 locationData,
                 {
@@ -327,6 +334,13 @@ export class LocationTrackingService {
             );
 
             logger.info(`[LocationTracking] ✅ Location sent successfully!`);
+
+            if (response.data?.shouldStopTracking) {
+                logger.info(`[LocationTracking] Server requested stop tracking`);
+                await this.stopTracking();
+                return false;
+            }
+
             return true;
 
             } catch (error) {
@@ -457,6 +471,14 @@ export class LocationTrackingService {
 TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManagerTaskBody<{ locations: Location.LocationObject[] }>) => {
     const timestamp = new Date().toISOString();
     logger.info(`[LocationTracking][${timestamp}] Background task triggered`);
+
+    // Guard: stop gracefully if permission was revoked while checked in
+    const { status: permissionStatus } = await Location.getForegroundPermissionsAsync();
+    if (permissionStatus !== 'granted') {
+        logger.warn(`[LocationTracking][${timestamp}] Permission revoked, stopping tracking`);
+        await LocationTrackingService.stopTracking();
+        return;
+    }
 
     if (error) {
         logger.error(`[LocationTracking][${timestamp}] Background task error:`, error);

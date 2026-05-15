@@ -22,6 +22,8 @@ class DatabaseServiceImpl {
   private isReady: boolean = false;
   private memoryQueue: SyncQueueItem[] = [];
   private initPromise: Promise<void> | null = null;
+  private mutex: Promise<void> = Promise.resolve();
+  private idCounter: number = 0;
 
   private constructor() {}
 
@@ -62,6 +64,25 @@ class DatabaseServiceImpl {
     })();
 
     return this.initPromise;
+  }
+
+  private async withMutex<T>(fn: () => Promise<T>): Promise<T> {
+    let release: () => void;
+    const next = new Promise<void>(resolve => { release = resolve; });
+    const prev = this.mutex;
+    this.mutex = next;
+    await prev;
+    try {
+      return await fn();
+    } finally {
+      release!();
+    }
+  }
+
+  private generateId(): number {
+    const timestamp = Date.now();
+    this.idCounter = (this.idCounter + 1) % 1000;
+    return timestamp * 1000 + this.idCounter;
   }
 
   private async persistQueue(): Promise<void> {
@@ -108,20 +129,22 @@ class DatabaseServiceImpl {
   ) {
     if (!this.isReady) await this.waitForReady();
 
-    const newItem: SyncQueueItem = {
-      id: Date.now(),
-      url,
-      method: method as SyncQueueItem["method"],
-      body: JSON.stringify(body),
-      status: "PENDING",
-      createdAt: new Date().toISOString(),
-      meta: JSON.stringify(meta),
-      retryCount: 0,
-    };
+    return this.withMutex(async () => {
+      const newItem: SyncQueueItem = {
+        id: this.generateId(),
+        url,
+        method: method as SyncQueueItem["method"],
+        body: JSON.stringify(body),
+        status: "PENDING",
+        createdAt: new Date().toISOString(),
+        meta: JSON.stringify(meta),
+        retryCount: 0,
+      };
 
-    this.memoryQueue.push(newItem);
-    await this.persistQueue();
-    logger.db(`Added to sync queue: ${url}`);
+      this.memoryQueue.push(newItem);
+      await this.persistQueue();
+      logger.db(`Added to sync queue: ${url}`);
+    });
   }
 
   public async getPendingQueue(): Promise<SyncQueueItem[]> {
@@ -136,32 +159,41 @@ class DatabaseServiceImpl {
 
   public async removeFromQueue(id: number) {
     if (!this.isReady) await this.waitForReady();
-    this.memoryQueue = this.memoryQueue.filter((item) => item.id !== id);
-    await this.persistQueue();
+
+    return this.withMutex(async () => {
+      this.memoryQueue = this.memoryQueue.filter((item) => item.id !== id);
+      await this.persistQueue();
+    });
   }
 
   public async markAsRetry(id: number) {
     if (!this.isReady) await this.waitForReady();
-    const item = this.memoryQueue.find((queueItem) => queueItem.id === id);
-    if (item) {
-      item.status = "RETRY";
-      item.retryCount = (item.retryCount || 0) + 1;
-      delete item.terminalReason;
-      await this.persistQueue();
-    }
+
+    return this.withMutex(async () => {
+      const item = this.memoryQueue.find((queueItem) => queueItem.id === id);
+      if (item) {
+        item.status = "RETRY";
+        item.retryCount = (item.retryCount || 0) + 1;
+        delete item.terminalReason;
+        await this.persistQueue();
+      }
+    });
   }
 
   public async markAsFailed(id: number, reason: string) {
     if (!this.isReady) await this.waitForReady();
-    const item = this.memoryQueue.find((queueItem) => queueItem.id === id);
-    if (item) {
-      item.status = "FAILED";
-      item.terminalReason = reason;
-      await this.persistQueue();
-    }
+
+    return this.withMutex(async () => {
+      const item = this.memoryQueue.find((queueItem) => queueItem.id === id);
+      if (item) {
+        item.status = "FAILED";
+        item.terminalReason = reason;
+        await this.persistQueue();
+      }
+    });
   }
 
-  public async saveOfflineData(key: string, data: any): Promise<void> {
+  public async saveOfflineData(key: string, data: unknown): Promise<void> {
     try {
       const storageKey = `${OFFLINE_PREFIX}${key}`;
       await Storage.setItem(storageKey, JSON.stringify(data));
@@ -189,17 +221,19 @@ class DatabaseServiceImpl {
   public async clearSessionData(): Promise<void> {
     if (!this.isReady) await this.waitForReady();
 
-    this.memoryQueue = [];
+    return this.withMutex(async () => {
+      this.memoryQueue = [];
 
-    try {
-      await Storage.removeItem(QUEUE_KEY);
+      try {
+        await Storage.removeItem(QUEUE_KEY);
 
-      const offlineKeys = await this.getOfflineIndex();
-      await Promise.all(offlineKeys.map((key) => Storage.removeItem(key)));
-      await Storage.removeItem(OFFLINE_INDEX_KEY);
-    } catch (error) {
-      logger.error('Failed to clear session data:', error);
-    }
+        const offlineKeys = await this.getOfflineIndex();
+        await Promise.all(offlineKeys.map((key) => Storage.removeItem(key)));
+        await Storage.removeItem(OFFLINE_INDEX_KEY);
+      } catch (error) {
+        logger.error('Failed to clear session data:', error);
+      }
+    });
   }
 }
 
@@ -215,7 +249,7 @@ export const DatabaseService = {
   removeFromQueue: (id: number) => DatabaseServiceImpl.getInstance().removeFromQueue(id),
   markAsRetry: (id: number) => DatabaseServiceImpl.getInstance().markAsRetry(id),
   markAsFailed: (id: number, reason: string) => DatabaseServiceImpl.getInstance().markAsFailed(id, reason),
-  saveOfflineData: (key: string, data: any) => DatabaseServiceImpl.getInstance().saveOfflineData(key, data),
+  saveOfflineData: (key: string, data: unknown) => DatabaseServiceImpl.getInstance().saveOfflineData(key, data),
   getOfflineData: <T>(key: string) => DatabaseServiceImpl.getInstance().getOfflineData<T>(key),
   clearSessionData: () => DatabaseServiceImpl.getInstance().clearSessionData(),
 };

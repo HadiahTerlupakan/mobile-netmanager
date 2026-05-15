@@ -56,7 +56,7 @@ export default function ConversationScreen() {
 
     const [newMessage, setNewMessage] = useState('');
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
-    const [typingUsers, setTypingUsers] = useState<string[]>([]);
+    const [typingUsers, setTypingUsers] = useState<{ userId: string; name: string }[]>([]);
 
     const flashListRef = useRef<any>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -204,10 +204,10 @@ export default function ConversationScreen() {
             }
 
             setTypingUsers((prev) => {
-                if (!prev.includes(data.senderName)) {
-                    return [...prev, data.senderName];
+                if (prev.some(u => u.userId === data.userId)) {
+                    return prev;
                 }
-                return prev;
+                return [...prev, { userId: data.userId, name: data.senderName }];
             });
             return;
         }
@@ -218,7 +218,7 @@ export default function ConversationScreen() {
                 return;
             }
 
-            setTypingUsers([]);
+            setTypingUsers((prev) => prev.filter(u => u.userId !== data.userId));
         }
     }, [conversationId, handleIncomingMessage, user?.id]);
 
@@ -266,7 +266,7 @@ export default function ConversationScreen() {
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             allowsEditing: true,
             quality: 0.8,
             aspect: [4, 3],
@@ -391,7 +391,7 @@ export default function ConversationScreen() {
                 {typingUsers.length > 0 && (
                     <View style={tw`px-4 py-1 bg-white border-t border-gray-100`}>
                         <Text style={tw`text-xs text-gray-400 italic`}>
-                            {typingUsers.join(', ')} sedang mengetik...
+                            {typingUsers.map(u => u.name).join(', ')} sedang mengetik...
                         </Text>
                     </View>
                 )}

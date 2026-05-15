@@ -85,7 +85,7 @@ export default function CustomerTagihanScreen() {
   // Upload State
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
-  const { data: invoices, isLoading, refetch } = useQuery({
+  const { data: invoices, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['customer-invoices'],
     queryFn: fetchInvoices
   });
@@ -94,7 +94,6 @@ export default function CustomerTagihanScreen() {
     queryKey: ['payment-methods'],
     queryFn: async () => {
       const res = await api.get('/api/customer/payment-methods');
-      console.log('API RESPONSE PAYMENT METHODS:', JSON.stringify(res.data, null, 2));
       return res.data.data as PaymentMethodOption[];
     }
   });
@@ -379,7 +378,7 @@ export default function CustomerTagihanScreen() {
       <ScrollView
         contentContainerStyle={tw`pb-24`}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
         }
       >
         {isLoading && !invoices ? (

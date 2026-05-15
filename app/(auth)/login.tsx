@@ -4,8 +4,9 @@ import { useAuth } from '@/context/AuthContext';
 import { Events } from '@/constants/Events';
 import { useFormWithValidation } from '@/hooks/useFormWithValidation';
 import { biometricService } from '@/services/BiometricService';
+import { credentialStorageService } from '@/services/CredentialStorageService';
 import api from '@/services/api';
-import { presentAppError, presentErrorMessage, presentInfoMessage } from '@/utils/errorPresenter';
+import { presentAppError, presentErrorMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
 import { LoginSchema } from '@/utils/validation';
 import { AxiosError } from 'axios';
@@ -23,6 +24,7 @@ export default function LoginScreen() {
     const [loading, setLoading] = useState(false);
     const [biometricAvailable, setBiometricAvailable] = useState(false);
     const [biometricEnabled, setBiometricEnabled] = useState(false);
+    const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
     const [biometricTypes, setBiometricTypes] = useState<string[]>([]);
     const { signIn } = useAuth();
 
@@ -38,7 +40,6 @@ export default function LoginScreen() {
         }
     });
 
-    // Check biometric availability on mount
     useEffect(() => {
         const checkBiometric = async () => {
             const available = await biometricService.isAvailable();
@@ -49,13 +50,15 @@ export default function LoginScreen() {
                 setBiometricEnabled(enabled);
                 const types = await biometricService.getSupportedTypes();
                 setBiometricTypes(types);
+                const hasCreds = await credentialStorageService.hasStoredCredentials();
+                setHasStoredCredentials(hasCreds);
             }
         };
 
         checkBiometric();
     }, []);
 
-    const performLogin = useCallback(async (email: string, password: string) => {
+    const performLogin = useCallback(async (email: string, password: string, saveCreds = true) => {
         setLoading(true);
         try {
             logger.auth('Attempting login...');
@@ -65,22 +68,22 @@ export default function LoginScreen() {
                 versionCode: CURRENT_VERSION_CODE.toString(),
                 versionName: CURRENT_VERSION_NAME
             }, {
-                // IMPORTANT: Prevent global 401 interceptor from hanging the request
-                // We want to handle 401 manually (Invalid Password) in this component
                 skipGlobalAuthHandler: true
             });
 
             if (res.data.success) {
                 logger.auth('[LoginScreen] Login success, calling signIn...');
 
-                // Add robust token saving and state update
+                if (saveCreds) {
+                    await credentialStorageService.saveCredentials(email, password);
+                }
+
                 await signIn(
                     res.data.token,
                     res.data.user,
                     res.data.refreshToken
                 );
 
-                // Note: AuthContext handles navigation via Effect based on user state
                 logger.auth('[LoginScreen] signIn completed, waiting for redirect...');
             } else {
                 logger.warn('[LoginScreen] Login failed logic:', res.data);
@@ -93,6 +96,10 @@ export default function LoginScreen() {
 
             if (status === 401) {
                 presentErrorMessage('Email atau password salah.', 'Login Gagal');
+                if (saveCreds) {
+                    await credentialStorageService.clearCredentials();
+                    setHasStoredCredentials(false);
+                }
             } else if (status === 426) {
                 DeviceEventEmitter.emit(Events.APP_VERSION_UNSUPPORTED, isAxiosErr ? error.response?.data : undefined);
             } else {
@@ -111,23 +118,29 @@ export default function LoginScreen() {
     });
 
     const handleBiometricLogin = useCallback(async () => {
-        const result = await biometricService.authenticate('Login dengan biometrik');
-
-        if (result.success) {
-            presentInfoMessage(
-                'Autentikasi berhasil. Silakan masukkan kredensial Anda untuk melanjutkan.',
-                'Biometrik Berhasil'
+        const credentials = await credentialStorageService.getCredentials();
+        if (!credentials) {
+            presentErrorMessage(
+                'Belum ada kredensial tersimpan. Silakan login manual terlebih dahulu.',
+                'Biometrik Belum Siap'
             );
+            return;
+        }
+
+        const result = await biometricService.authenticate('Login dengan biometrik');
+        if (result.success) {
+            await performLogin(credentials.email, credentials.password, false);
         } else if (result.error) {
             presentErrorMessage(result.error, 'Autentikasi Gagal');
         }
-    }, []);
+    }, [performLogin]);
+
+    const showBiometricButton = biometricAvailable && biometricEnabled && hasStoredCredentials;
 
     return (
         <View style={tw`flex-1 bg-white items-center justify-center p-6`}>
             <StatusBar style="dark" />
 
-            {/* Logo */}
             <View style={tw`mb-8 items-center`}>
                 <Image
                     source={require('@assets/images/icon.png')}
@@ -141,7 +154,6 @@ export default function LoginScreen() {
             </View>
 
             <View style={tw`w-full max-w-sm`}>
-                {/* Email/Username Input with React Hook Form */}
                 <FormInput
                     name="email"
                     control={control}
@@ -152,9 +164,9 @@ export default function LoginScreen() {
                     leftIcon={<User color="#9ca3af" size={20} />}
                     error={errors.email?.message}
                     testID="email-input"
+                    accessibilityLabel="Input email atau username"
                 />
 
-                {/* Password Input with React Hook Form */}
                 <View style={tw`mt-4`}>
                     <FormInput
                         name="password"
@@ -165,13 +177,15 @@ export default function LoginScreen() {
                         leftIcon={<Lock color="#9ca3af" size={20} />}
                         error={errors.password?.message}
                         testID="password-input"
+                        accessibilityLabel="Input password"
                     />
                 </View>
 
-                {/* Login Button */}
                 <TouchableOpacity
                     onPress={handleLogin}
                     disabled={loading}
+                    accessibilityLabel="Tombol masuk"
+                    accessibilityRole="button"
                     style={tw`bg-blue-600 h-14 rounded-xl items-center justify-center shadow-md mt-8 ${loading ? 'opacity-70' : ''}`}
                 >
                     {loading ? (
@@ -181,11 +195,12 @@ export default function LoginScreen() {
                     )}
                 </TouchableOpacity>
 
-                {/* Biometric Login Button */}
-                {biometricAvailable && biometricEnabled && (
+                {showBiometricButton && (
                     <TouchableOpacity
                         onPress={handleBiometricLogin}
                         disabled={loading}
+                        accessibilityLabel={`Login dengan ${biometricTypes[0] || 'biometrik'}`}
+                        accessibilityRole="button"
                         style={tw`mt-4 h-14 rounded-xl items-center justify-center border border-blue-600 flex-row`}
                     >
                         <Fingerprint color="#2563eb" size={24} />
@@ -195,13 +210,12 @@ export default function LoginScreen() {
                     </TouchableOpacity>
                 )}
 
-                {/* Privacy Policy Link */}
                 <View style={tw`mt-8 items-center gap-1`}>
                     <Text style={tw`text-gray-500 text-sm text-center`}>
                         Dengan masuk, Anda menyetujui
                     </Text>
                     <Link href={'/kebijakan-privasi' as Href} asChild>
-                        <TouchableOpacity>
+                        <TouchableOpacity accessibilityRole="link">
                             <Text style={tw`text-blue-600 font-semibold text-sm text-center`}>
                                 Kebijakan Privasi kami
                             </Text>

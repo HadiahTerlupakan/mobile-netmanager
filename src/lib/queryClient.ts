@@ -8,10 +8,10 @@
 
 import { errorReportingService } from "@/services/ErrorReportingService";
 import { logger } from "@/utils/logger";
+import { showToast } from "@/utils/errorPresenter";
 import { Storage } from "@/utils/storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
-import Toast from "react-native-toast-message";
 
 const normalizeQueryError = (error: unknown): Error => {
   if (error instanceof Error) {
@@ -49,11 +49,7 @@ export const queryClient = new QueryClient({
       // Show toast if it's a critical error or background fetch failure
       // (Ignore unauthorized as it's handled by API interceptor)
       if (!normalizedError.message.includes('401') && !normalizedError.message.includes('426')) {
-        Toast.show({
-          type: 'error',
-          text1: 'Gagal Memuat Data',
-          text2: normalizedError.message || 'Terjadi kesalahan koneksi',
-        });
+        showToast('error', 'Gagal Memuat Data', normalizedError.message || 'Terjadi kesalahan koneksi');
       }
     },
   }),
@@ -70,11 +66,7 @@ export const queryClient = new QueryClient({
 
       // Mutations usually need explicit feedback
       if (!normalizedError.message.includes('401') && !normalizedError.message.includes('426')) {
-        Toast.show({
-          type: 'error',
-          text1: 'Gagal Menyimpan Perubahan',
-          text2: normalizedError.message || 'Terjadi kesalahan saat memproses data',
-        });
+        showToast('error', 'Gagal Menyimpan Perubahan', normalizedError.message || 'Terjadi kesalahan saat memproses data');
       }
     },
   }),

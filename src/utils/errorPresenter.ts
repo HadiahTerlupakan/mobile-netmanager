@@ -10,10 +10,6 @@ export interface ErrorReporter {
 
 let registeredReporter: ErrorReporter | null = null;
 
-/**
- * Register a reporter to be used by presentAppError.
- * This decouples the utility from the specific service implementation.
- */
 export const registerErrorReporter = (reporter: ErrorReporter) => {
   registeredReporter = reporter;
 };
@@ -34,15 +30,16 @@ interface MessageOptions {
 
 type PresentableMessage = Pick<ErrorMessage, 'title' | 'message' | 'severity'>;
 
+type ToastType = 'success' | 'error' | 'info' | 'warning';
+
+/** Single entry point untuk semua toast notification. Position di-set global di _layout.tsx. */
+export const showToast = (type: ToastType, title: string, message?: string, visibilityTime = 4000) => {
+  Toast.show({ type, text1: title, text2: message, visibilityTime });
+};
+
 const normalizeError = (error: unknown, fallbackMessage: string): Error => {
-  if (error instanceof Error) {
-    return error;
-  }
-
-  if (typeof error === 'string') {
-    return new Error(error);
-  }
-
+  if (error instanceof Error) return error;
+  if (typeof error === 'string') return new Error(error);
   return new Error(fallbackMessage);
 };
 
@@ -57,28 +54,20 @@ export const presentMessage = (
     return;
   }
 
-  // Use Toast for non-blocking UI feedback
   const type = presentation.severity === 'error' ? 'error' : 'info';
-
-  Toast.show({
-    type,
-    text1: title,
-    text2: presentation.message,
-    position: 'bottom',
-    visibilityTime: 4000,
-  });
+  showToast(type, title, presentation.message);
 };
 
 export const presentSuccessMessage = (message: string, title = 'Berhasil') => {
-  Toast.show({ type: 'success', text1: title, text2: message, position: 'bottom' });
+  showToast('success', title, message);
 };
 
 export const presentInfoMessage = (message: string, title = 'Info') => {
-  Toast.show({ type: 'info', text1: title, text2: message, position: 'bottom' });
+  showToast('info', title, message);
 };
 
 export const presentErrorMessage = (message: string, title = 'Gagal') => {
-  Toast.show({ type: 'error', text1: title, text2: message, position: 'bottom', visibilityTime: 5000 });
+  showToast('error', title, message, 5000);
 };
 
 export const presentAppError = (error: unknown, options: PresenterOptions = {}): ErrorMessage => {

@@ -22,6 +22,7 @@ import {
 import { extractApiErrorMessage } from "@/utils/errorHandling";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
+import { persistPhotoForOffline } from "@/utils/persistPhoto";
 import {
   useMutation,
   UseMutationOptions,
@@ -282,10 +283,23 @@ export function useApiMutation<
             `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${resolvedEndpoint}`,
           );
 
-          const queueMeta = {
+          const queueMeta: Record<string, unknown> = {
             ...((variables.meta as Record<string, unknown>) || {}),
             ...(requestId ? { requestId } : {}),
           };
+
+          // Persist photo URIs to stable storage before queuing
+          // so the OS doesn't clean temp files before sync occurs
+          if (queueMeta.photoMap && typeof queueMeta.photoMap === "object") {
+            const photoMap = queueMeta.photoMap as Record<string, string>;
+            const persistedMap: Record<string, string> = {};
+            for (const [field, uri] of Object.entries(photoMap)) {
+              if (uri && typeof uri === "string") {
+                persistedMap[field] = await persistPhotoForOffline(uri);
+              }
+            }
+            queueMeta.photoMap = persistedMap;
+          }
 
           // Add to offline queue
           await DatabaseService.addToQueue(

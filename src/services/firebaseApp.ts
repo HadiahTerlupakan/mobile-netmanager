@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app'
 import { Auth, Persistence, getAuth, initializeAuth } from 'firebase/auth'
-
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- Firebase RN persistence has no ESM export
 const { getReactNativePersistence } = require('@firebase/auth/dist/rn/index.js') as {
   getReactNativePersistence: (storage: typeof AsyncStorage) => Persistence
 }

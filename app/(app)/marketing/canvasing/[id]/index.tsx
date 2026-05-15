@@ -69,8 +69,15 @@ export default function CanvasingDetailScreen() {
             presentInfoMessage('Nomor telepon tidak tersedia');
             return;
         }
-        let phone = item.noTelpon.replace(/\D/g, '').replace(/^0/, '62');
-        if (!phone.startsWith('62')) phone = '62' + phone;
+        // Normalize: strip all non-digit characters first
+        let phone = item.noTelpon.replace(/\D/g, '');
+        // Handle Indonesian numbers: 08xxx → 628xxx, already 628xxx → keep
+        if (phone.startsWith('0')) {
+            phone = '62' + phone.slice(1);
+        } else if (!phone.startsWith('62')) {
+            phone = '62' + phone;
+        }
+        // phone already starts with 62 at this point — no double prefix
         Linking.openURL(`https://wa.me/${phone}`);
     };
 

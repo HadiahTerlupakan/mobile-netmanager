@@ -3,23 +3,20 @@ import { AttendanceSkeleton } from "@/components/molecules/AttendanceSkeleton";
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { useAuth } from "@/context/AuthContext";
 import {
-  isOfflineMutationQueuedResult,
-  useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
+import { useAttendanceSubmission } from "@/hooks/useAttendanceSubmission";
 import { queryKeys } from "@/lib/queryClient";
-import { AttendanceTelemetryService } from "@/services/AttendanceTelemetryService";
 import { LocationTrackingService } from "@/services/LocationTrackingService";
 import { SyncService } from "@/services/SyncService";
-import { uploadService } from "@/services/UploadService";
-import { ensureAttendanceRequestId } from "@/utils/attendanceIdempotency";
 import {
   AttendanceGeofencePolicy,
   resolveAttendanceGeofenceAction,
 } from "@/utils/attendanceGeofencePolicy";
 import { formatDate } from "@/utils/date";
+import { calculateDistance } from "@/utils/geo";
 import { getAttendanceCaptureState } from "@/utils/attendanceCaptureState";
-import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
+import { presentInfoMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import {
   AlertTriangle,
@@ -69,31 +66,6 @@ interface GeofenceZone {
 }
 
 type AttendanceUiStatus = "idle" | "checked-in" | "checked-out" | "loading";
-
-// --- Utils ---
-const calculateDistance = (
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number => {
-  const EARTH_RADIUS_METERS = 6371000;
-  const toRad = (deg: number) => deg * (Math.PI / 180);
-
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-    Math.cos(toRad(lat2)) *
-    Math.sin(dLng / 2) *
-    Math.sin(dLng / 2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return EARTH_RADIUS_METERS * c;
-};
 
 // --- Memoized Sub-components ---
 
@@ -326,7 +298,6 @@ export default function AbsensiScreen() {
   const [showCamera, setShowCamera] = useState(false);
   const [facing, setFacing] = useState<"front" | "back">("front");
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [todayHoliday, setTodayHoliday] = useState<{ isHoliday: boolean; name: string | null }>({
     isHoliday: false,
     name: null,
@@ -413,8 +384,9 @@ export default function AbsensiScreen() {
   }, [setUnavailableLocationState]);
 
   const resolveLocationCoordinates = useCallback(async () => {
+    const MAX_LOCATION_AGE_MS = 60 * 1000; // 1 minute
     const lastKnownLocation = await Location.getLastKnownPositionAsync({});
-    if (lastKnownLocation) {
+    if (lastKnownLocation && (Date.now() - lastKnownLocation.timestamp) < MAX_LOCATION_AGE_MS) {
       clearLocationWarning();
       return lastKnownLocation;
     }
@@ -544,9 +516,6 @@ export default function AbsensiScreen() {
     siteName: string | null;
   } | null>(null);
   const [showOutsideWarning, setShowOutsideWarning] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState("Memproses...");
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isOnline, setIsOnline] = useState(true);
 
   // --- Handlers ---
@@ -609,29 +578,8 @@ export default function AbsensiScreen() {
     }
   }, [getForegroundLocationPermission, handleLocationLookup, handleLocationPermissionDenied, handleLocationUnavailable]);
 
-  const checkInMutation = useApiMutation({
-    endpoint: "/api/mobile/attendance/check-in",
-    method: "POST",
-    invalidateKeys: [attendanceStatusQueryKey],
-    showErrorAlert: false
-  });
-
-  const checkOutMutation = useApiMutation({
-    endpoint: "/api/mobile/attendance/check-out",
-    method: "POST",
-    invalidateKeys: [attendanceStatusQueryKey],
-    showErrorAlert: false
-  });
-
   const { data: statusData, refetch: refetchStatus } = useApiQuery<{
     success: boolean;
-    today?: {
-      isHoliday?: boolean;
-      holidayName?: string;
-      isOffDay?: boolean;
-      isTukarLiburWorkDay?: boolean;
-      isTukarLiburLeaveDay?: boolean;
-    };
     data: {
       status: AttendanceUiStatus;
       checkInTime: string | null;
@@ -643,6 +591,13 @@ export default function AbsensiScreen() {
       attendanceStatus: string | null;
       workingHourMode?: "FIXED" | "SHIFT" | "FLEXIBLE" | null;
       flexibleTargetHour?: number | null;
+      today?: {
+        isHoliday?: boolean;
+        holidayName?: string;
+        isOffDay?: boolean;
+        isTukarLiburWorkDay?: boolean;
+        isTukarLiburLeaveDay?: boolean;
+      };
     };
   }>({
     queryKey: attendanceStatusQueryKey,
@@ -659,13 +614,17 @@ export default function AbsensiScreen() {
 
   useEffect(() => {
     if (statusData?.success) {
+      // FIX: `today` ada di dalam `statusData.data.today`, bukan `statusData.today`.
+      // API response structure: { success, data: { status, ..., today: { isHoliday, ... } } }
+      // Bug sebelumnya: baca dari root → holiday flag selalu undefined → absen tidak terkunci di hari libur.
+      const todayData = statusData.data?.today;
       setTodayHoliday({
-        isHoliday: !!statusData.today?.isHoliday,
-        name: statusData.today?.holidayName || null,
+        isHoliday: !!todayData?.isHoliday,
+        name: todayData?.holidayName || null,
       });
-      setIsOffDay(!!statusData.today?.isOffDay);
-      setIsTukarLiburWorkDay(!!statusData.today?.isTukarLiburWorkDay);
-      setIsTukarLiburLeaveDay(!!statusData.today?.isTukarLiburLeaveDay);
+      setIsOffDay(!!todayData?.isOffDay);
+      setIsTukarLiburWorkDay(!!todayData?.isTukarLiburWorkDay);
+      setIsTukarLiburLeaveDay(!!todayData?.isTukarLiburLeaveDay);
 
       const currentStatus = statusData.data;
       if (!currentStatus || typeof currentStatus !== 'object' || !('status' in currentStatus)) {
@@ -744,177 +703,27 @@ export default function AbsensiScreen() {
     }
   }, [photo]);
 
-  const submitAttendance = useCallback(async () => {
-    if (!photo || !location) {
-      setIsProcessing(false);
-      presentInfoMessage("Pastikan foto dan lokasi sudah tersedia.", "Data Belum Lengkap");
-      return;
-    }
-
-    const mutation = status === "idle" ? checkInMutation : checkOutMutation;
-    if (!isProcessing) setIsProcessing(true);
-
-    setLoadingMessage("Memproses foto...");
-    const processedUri = await captureWatermarkedPhoto();
-    if (!processedUri) {
-      setIsProcessing(false);
-      Alert.alert("Error", "Gagal memproses foto.");
-      return;
-    }
-
-    const isOnline = await SyncService.isOnline();
-    const payload = ensureAttendanceRequestId({
-      location: locationName,
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      capturedAt: (capturedTime || new Date()).toISOString(),
-    });
-
-    AttendanceTelemetryService.track("attendance_submit_started", {
-      requestId: payload.requestId,
-      userId: user?.id,
-      action: status === "idle" ? "check-in" : "check-out",
-      networkState: isOnline ? "online" : "offline",
-    });
-
-    const offlineQueueMeta = {
-      photos: [processedUri],
-      photoType: "employee-attendance",
-      targetField: "photoUrl",
-      singleFile: true,
-    };
-
-    if (!isOnline) {
-      setLoading(true);
-      setUploadProgress(0);
-      setLoadingMessage("Menyimpan data offline...");
-
-      try {
-        const data = await mutation.mutateAsync({
-          ...payload,
-          photoUrl: processedUri,
-          meta: offlineQueueMeta,
-        });
-
-        setIsProcessing(false);
-        setLoading(false);
-        setPhoto(null);
-
-        if (isOfflineMutationQueuedResult(data)) {
-          presentInfoMessage(
-            "Absensi disimpan untuk dikirim otomatis saat internet kembali.",
-            "Offline"
-          );
-        }
-      } catch (error) {
-        setIsProcessing(false);
-        setLoading(false);
-        presentAppError(error, {
-          screen: 'AttendanceScreen',
-          route: '/(app)/absensi',
-        });
-      }
-
-      return;
-    }
-
-    setLoading(true);
-    setUploadProgress(0);
-    try {
-      setLoadingMessage("Mengupload foto...");
-      AttendanceTelemetryService.track("attendance_photo_upload_started", {
-        requestId: payload.requestId,
-        userId: user?.id,
-        action: status === "idle" ? "check-in" : "check-out",
-        networkState: "online",
-      });
-      const uploadedUrls = await uploadService.uploadBatch(
-        [processedUri],
-        "employee-attendance",
-        (_, __, progress) => {
-          setUploadProgress(progress.percentage);
-        }
-      );
-      const photoUrl = uploadedUrls[0];
-      if (!photoUrl) throw new Error("Gagal upload foto.");
-
-      AttendanceTelemetryService.track("attendance_photo_upload_succeeded", {
-        requestId: payload.requestId,
-        userId: user?.id,
-        action: status === "idle" ? "check-in" : "check-out",
-        networkState: "online",
-      });
-
-      setLoadingMessage("Mengirim data...");
-      setUploadProgress(0);
-      let data;
-
-      try {
-        data = await mutation.mutateAsync({ ...payload, photoUrl });
-      } catch (mutationError) {
-        try {
-          await uploadService.deleteUploadedFile(photoUrl);
-        } catch (cleanupError) {
-          logger.warn('[Absensi] Failed to cleanup uploaded attendance photo:', cleanupError);
-        }
-
-        throw mutationError;
-      }
-
-      setIsProcessing(false);
-      setLoading(false);
-      setPhoto(null);
-
-      if (isOfflineMutationQueuedResult(data)) {
-        presentInfoMessage(
-          "Koneksi terputus setelah foto berhasil diupload. Absensi disimpan dan akan dikirim otomatis saat internet kembali.",
-          "Offline"
-        );
-        return;
-      }
-
-      try {
-        if (status === "idle") {
-          logger.info('[Absensi] Check-in success, starting location tracking...');
-          const trackingStarted = await LocationTrackingService.startTracking();
-          logger.info(`[Absensi] Tracking started: ${trackingStarted}`);
-        } else {
-          logger.info('[Absensi] Check-out success, stopping location tracking...');
-          await LocationTrackingService.stopTracking();
-        }
-      } catch (trackingError) {
-        logger.error('[Absensi] Tracking error:', trackingError);
-      }
-
-      const warning = (data as { warning?: string })?.warning;
-
-      // Jika checkout dan ada warning, tampilkan modal konfirmasi
-      if (status === "checked-in" && warning) {
-        setIsProcessing(false);
-        setLoading(false);
-        setPendingCheckoutWarning(warning);
-        setShowCheckoutWarning(true);
-        return;
-      }
-
-      presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : "Check-out Berhasil!");
-      refetchStatus();
-    } catch (error) {
-      AttendanceTelemetryService.track("attendance_photo_upload_failed", {
-        requestId: payload.requestId,
-        userId: user?.id,
-        action: status === "idle" ? "check-in" : "check-out",
-        networkState: "online",
-        reason: error instanceof Error ? error.message : "Unknown error",
-      });
-      setIsProcessing(false);
-      setLoading(false);
-      presentAppError(error, {
-        screen: 'AttendanceScreen',
-        route: '/(app)/absensi',
-      });
-    }
-  }, [photo, location, status, isProcessing, captureWatermarkedPhoto, locationName, capturedTime, checkInMutation, checkOutMutation, user?.id, refetchStatus]);
+  const {
+    submitAttendance,
+    isSubmitting: loading,
+    isProcessing,
+    loadingMessage,
+    uploadProgress,
+    setIsProcessing,
+    setLoadingMessage,
+  } = useAttendanceSubmission({
+    user,
+    status,
+    location,
+    locationName,
+    capturedTime,
+    photo,
+    captureWatermarkedPhoto,
+    refetchStatus,
+    setPhoto,
+    setPendingCheckoutWarning,
+    setShowCheckoutWarning,
+  });
 
   const handleSubmit = useCallback(async () => {
     if (!photo || !location) {
@@ -943,7 +752,7 @@ export default function AbsensiScreen() {
     setIsProcessing(true);
     setLoadingMessage("Memvalidasi data...");
     await submitAttendance();
-  }, [submitAttendance]);
+  }, [submitAttendance, setIsProcessing, setLoadingMessage]);
 
   const handleCancelCheckoutWarning = useCallback(() => {
     setShowCheckoutWarning(false);

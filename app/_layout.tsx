@@ -102,7 +102,7 @@ export default function RootLayout() {
             persistOptions={{ persister: asyncStoragePersister }}
           >
             <RootLayoutNav />
-            <Toast config={toastConfig} />
+            <Toast config={toastConfig} position="top" topOffset={50} />
           </PersistQueryClientProvider>
         </AuthProvider>
       </TenantProvider>

@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { ArrowLeft, RefreshCw, Download, Upload, Activity, Zap, Power, Wrench, Lightbulb } from 'lucide-react-native';
+import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 
 const fetchUsage = async () => {
   const res = await api.get('/api/customer/usage');
@@ -14,7 +15,7 @@ const fetchUsage = async () => {
 
 export default function CustomerConnectionScreen() {
   const router = useRouter();
-  const { data: connection, isLoading, refetch } = useQuery({
+  const { data: connection, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['customer-connection'],
     queryFn: fetchUsage
   });
@@ -26,9 +27,9 @@ export default function CustomerConnectionScreen() {
   const isOnline = connection?.isOnline ?? false;
   const ipAddress = connection?.ipAddress ?? '-';
   const uptime = connection?.sessionDurationFormatted ?? '0j 0m';
-  const downloadSpeed = '150'; // Placeholder
-  const uploadSpeed = '50';   // Placeholder
-  const ping = '12';          // Placeholder
+  const downloadSpeed = connection?.downloadSpeed ?? '-';
+  const uploadSpeed = connection?.uploadSpeed ?? '-';
+  const ping = connection?.ping ?? '-';
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
@@ -43,10 +44,13 @@ export default function CustomerConnectionScreen() {
         </TouchableOpacity>
       </View>
 
+      {isError ? (
+        <QueryErrorState onRetry={refetch} />
+      ) : (
       <ScrollView
         contentContainerStyle={tw`p-4 pb-20`}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
         }
       >
         {/* Status Card */}
@@ -85,8 +89,9 @@ export default function CustomerConnectionScreen() {
                 <Text style={tw`text-xs text-gray-500 mb-1`}>IP Address</Text>
                 <Text style={tw`text-sm font-medium text-gray-900 font-mono`}>{ipAddress}</Text>
               </View>
-              <TouchableOpacity style={tw`bg-teal-50 px-3 py-1.5 rounded-lg`}>
+              <TouchableOpacity disabled style={tw`bg-teal-50 px-3 py-1.5 rounded-lg opacity-50`}>
                 <Text style={tw`text-teal-700 text-xs font-bold`}>Detail Perangkat</Text>
+                <Text style={tw`text-teal-600 text-[10px]`}>Segera hadir</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -122,22 +127,22 @@ export default function CustomerConnectionScreen() {
 
         {/* Actions */}
         <View style={tw`flex-row gap-3 mb-4`}>
-          <TouchableOpacity style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex-row items-center gap-3 active:bg-gray-50`}>
+          <TouchableOpacity disabled style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex-row items-center gap-3 opacity-50`}>
             <View style={tw`w-10 h-10 rounded-full bg-teal-50 items-center justify-center`}>
               <Zap size={20} color="#0d9488" />
             </View>
             <View>
               <Text style={tw`font-bold text-gray-900`}>Tes Kecepatan</Text>
-              <Text style={tw`text-xs text-gray-500`}>Cek performa</Text>
+              <Text style={tw`text-xs text-gray-400`}>Segera hadir</Text>
             </View>
           </TouchableOpacity>
-          <TouchableOpacity style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex-row items-center gap-3 active:bg-gray-50`}>
+          <TouchableOpacity disabled style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex-row items-center gap-3 opacity-50`}>
             <View style={tw`w-10 h-10 rounded-full bg-orange-50 items-center justify-center`}>
               <Power size={20} color="#ea580c" />
             </View>
             <View>
               <Text style={tw`font-bold text-gray-900`}>Restart</Text>
-              <Text style={tw`text-xs text-gray-500`}>Reboot router</Text>
+              <Text style={tw`text-xs text-gray-400`}>Segera hadir</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -155,8 +160,9 @@ export default function CustomerConnectionScreen() {
               </Text>
             </View>
           </View>
-          <TouchableOpacity style={tw`w-full bg-teal-600 py-2.5 rounded-lg items-center`}>
+          <TouchableOpacity disabled style={tw`w-full bg-teal-600 py-2.5 rounded-lg items-center opacity-50`}>
             <Text style={tw`text-white font-bold text-sm`}>Mulai Diagnosa</Text>
+            <Text style={tw`text-white/70 text-xs`}>Segera hadir</Text>
           </TouchableOpacity>
         </View>
 
@@ -172,6 +178,7 @@ export default function CustomerConnectionScreen() {
         </View>
 
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }

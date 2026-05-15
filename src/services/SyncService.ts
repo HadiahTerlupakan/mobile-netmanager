@@ -14,6 +14,12 @@ import { extractApiErrorMessage } from '@/utils/errorHandling';
 
 const SYNC_REQUEST_TIMEOUT_MS = 15000;
 const PERMANENT_SYNC_FAILURE_STATUSES = new Set([400, 404, 409, 422]);
+const MAX_ATTENDANCE_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_GENERAL_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/** Returns true if the URL belongs to an attendance endpoint. */
+const isAttendanceEndpoint = (url: string): boolean =>
+    url.includes('/attendance/') || url.includes('check-in') || url.includes('check-out') || url.includes('absensi');
 const ATTENDANCE_RECONCILIATION_STATUSES = new Set([409, 422]);
 const ATTENDANCE_RECONCILIATION_RETRY_CAP = 3;
 
@@ -240,6 +246,15 @@ export const SyncService = {
       let attempt = 0;
       let baseBody: Record<string, unknown>;
       let baseMeta: SyncQueueMeta;
+
+      // TTL check: skip stale items to prevent replaying outdated data
+      const itemAge = Date.now() - new Date(item.createdAt).getTime();
+      const maxAge = isAttendanceEndpoint(item.url) ? MAX_ATTENDANCE_AGE_MS : MAX_GENERAL_AGE_MS;
+      if (itemAge > maxAge) {
+          logger.warn(`[SyncService] Item ${item.id} expired (age: ${Math.round(itemAge / 60000)}min, max: ${Math.round(maxAge / 60000)}min). Removing.`);
+          await DatabaseService.removeFromQueue(item.id);
+          return;
+      }
 
       try {
           baseBody = parseQueuePayload<Record<string, unknown>>(item.body, item.id, 'body');

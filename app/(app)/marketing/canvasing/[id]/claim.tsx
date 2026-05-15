@@ -8,6 +8,7 @@ import { ClaimPointSchema, sanitizeInput, validateData } from '@/utils/validatio
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -57,10 +58,13 @@ export default function ClaimPointScreen() {
             });
 
             if (photo?.uri) {
-                setBuktiUrls(prev => [...prev, photo.uri]);
+                const ref = await ImageManipulator.manipulate(photo.uri).resize({ width: 1024 }).renderAsync();
+                const resized = await ref.saveAsync({ compress: 0.7, format: SaveFormat.JPEG });
+
+                setBuktiUrls(prev => [...prev, resized.uri]);
                 setBuktiMetadata(prev => [...prev, {
-                    width: photo.width,
-                    height: photo.height,
+                    width: ref.width,
+                    height: ref.height,
                     type: 'camera'
                 }]);
                 setShowCamera(false);
@@ -84,14 +88,22 @@ export default function ClaimPointScreen() {
             });
 
             if (!result.canceled && result.assets.length > 0) {
-                const newUris = result.assets.map(asset => asset.uri);
-                const newMeta = result.assets.map(asset => ({
-                    width: asset.width,
-                    height: asset.height,
-                    type: 'gallery'
-                }));
-                setBuktiUrls(prev => [...prev, ...newUris]);
-                setBuktiMetadata(prev => [...prev, ...newMeta]);
+                const resizedUris: string[] = [];
+                const resizedMeta: { width: number; height: number; type: string }[] = [];
+
+                for (const asset of result.assets) {
+                    const ref = await ImageManipulator.manipulate(asset.uri).resize({ width: 1024 }).renderAsync();
+                    const resized = await ref.saveAsync({ compress: 0.7, format: SaveFormat.JPEG });
+                    resizedUris.push(resized.uri);
+                    resizedMeta.push({
+                        width: ref.width,
+                        height: ref.height,
+                        type: 'gallery'
+                    });
+                }
+
+                setBuktiUrls(prev => [...prev, ...resizedUris]);
+                setBuktiMetadata(prev => [...prev, ...resizedMeta]);
             }
         } catch (error) {
             logger.error('Gallery pick error:', error);

@@ -16,7 +16,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Camera, CheckCircle, X } from "lucide-react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
@@ -47,8 +47,14 @@ export default function CompleteWorkOrderScreen() {
   );
   const resolvedWorkOrderId = canonicalWorkOrderId ?? routeWorkOrderId;
 
+  // Prevent state updates after unmount
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => { isMountedRef.current = false; };
+  }, []);
+
   // API Mutation
-  const { mutate, isPending: isMutating } = useApiMutation({
+  const { mutateAsync, isPending: isMutating } = useApiMutation({
     endpoint: resolvedWorkOrderId
       ? `/api/mobile/work-orders/${resolvedWorkOrderId}/update`
       : "",
@@ -157,15 +163,9 @@ export default function CompleteWorkOrderScreen() {
     }
 
     // 1. Prepare & Sanitize Data
-    // Get location first to include in validation if needed, or validate base fields first
-    // For schema validation, we'll use placeholder or optional location if not yet fetched
-    // But better to fetch location inside the process.
-
-    // Validate Notes first
     const rawData = {
       action: "COMPLETE" as const,
       notes: sanitizeInput(resolutionNotes),
-      // latitude/longitude will be added later
     };
 
     const validation = validateData(CompleteWorkOrderSchema, rawData);
@@ -182,9 +182,9 @@ export default function CompleteWorkOrderScreen() {
 
     // Get fresh location
     setIsProcessingComplete(true);
+    setLoadingMessage("Mencari Lokasi...");
 
-    // Use setTimeout to allow UI to render the loading overlay first
-    setTimeout(async () => {
+    try {
       let finalLocation = location;
       let locationName = "";
 
@@ -208,17 +208,15 @@ export default function CompleteWorkOrderScreen() {
       }
 
       // Watermark Lines
-      // Construct Location String similar to backend logic
       const coords = finalLocation
         ? `(${finalLocation.coords.latitude.toFixed(6)}, ${finalLocation.coords.longitude.toFixed(6)})`
         : "";
       let locStr = locationName || `Loc: ${coords}` || "Loc: Unknown";
 
-      // Note: Indexing 1/N is not supported in bulk generic sync yet, simplified watermark
       const watermarkLines = [
         formatDate(new Date(), "dd MMM yyyy HH:mm"),
         `#${ticketNumber}`,
-        `Tech: ${"Teknisi"}`, // Specific user name might not be available if not in context, 'Teknisi' is generic safe
+        `Tech: ${"Teknisi"}`,
         locStr,
       ];
 
@@ -240,76 +238,60 @@ export default function CompleteWorkOrderScreen() {
       const isOnline = await SyncService.isOnline();
 
       if (isOnline) {
-        try {
-          setLoadingMessage("Mengupload foto...");
-          setUploadProgress(0);
+        setLoadingMessage("Mengupload foto...");
+        setUploadProgress(0);
 
-          const uploadedUrls = await uploadService.uploadBatch(
-            photos,
-            "workorder-completion",
-            (index, total, progress) => {
-              setLoadingMessage(`Mengupload foto ${index}/${total}...`);
-              setUploadProgress(progress.percentage);
-            }
-          );
+        const uploadedUrls = await uploadService.uploadBatch(
+          photos,
+          "workorder-completion",
+          (index, total, progress) => {
+            if (!isMountedRef.current) return;
+            setLoadingMessage(`Mengupload foto ${index}/${total}...`);
+            setUploadProgress(progress.percentage);
+          }
+        );
 
-          setLoadingMessage("Mengirim laporan...");
-          setUploadProgress(0); // Indeterminate
+        if (!isMountedRef.current) return;
+        setLoadingMessage("Mengirim laporan...");
+        setUploadProgress(0);
 
-          await mutate(
-            {
-              ...payload,
-              photoUrls: uploadedUrls, // Send URLs directly
-            },
-            {
-              onSuccess: () => {
-                setIsProcessingComplete(false);
-                presentSuccessMessage("Pekerjaan telah diselesaikan dan laporan terkirim!");
-                router.replace("/(app)/dashboard");
-              },
-              onError: (err) => {
-                setIsProcessingComplete(false);
-                presentAppError(err, {
-                  screen: 'CompleteWorkOrderScreen',
-                  route: '/(app)/complete-work-order/[id]',
-                });
-              }
-            }
-          );
-        } catch {
-          setIsProcessingComplete(false);
-          presentErrorMessage("Gagal mengupload foto atau mengirim data", "Error");
-          // Consider using getUserFriendlyError here if 'catch' catches something specific
-        }
+        await mutateAsync({
+          ...payload,
+          photoUrls: uploadedUrls,
+        });
+
+        if (!isMountedRef.current) return;
+        presentSuccessMessage("Pekerjaan telah diselesaikan dan laporan terkirim!");
+        router.replace("/(app)/dashboard");
       } else {
         // Offline flow
         setLoadingMessage("Menyimpan offline...");
-        await mutate(
-          {
-            ...payload,
-            meta: {
-              photoMap,
-              targetField: "photoUrls", // Backend expects photoUrls array
-              photoType: "workorder-completion",
-              watermarkLines,
-            },
+
+        await mutateAsync({
+          ...payload,
+          meta: {
+            photoMap,
+            targetField: "photoUrls",
+            photoType: "workorder-completion",
+            watermarkLines,
           },
-          {
-            onSuccess: (data, isOffline) => {
-              setIsProcessingComplete(false);
-              if (isOffline) {
-                presentInfoMessage("Laporan disimpan di antrian.", "Offline");
-                router.replace("/(app)/dashboard");
-              }
-            },
-            onError: (err) => {
-              setIsProcessingComplete(false);
-              presentErrorMessage(err.message || "Gagal menyelesaikan pekerjaan", "Gagal");
-            },
-          },
-        );
+        });
+
+        if (!isMountedRef.current) return;
+        presentInfoMessage("Laporan disimpan di antrian.", "Offline");
+        router.replace("/(app)/dashboard");
       }
-    }, 100);
+    } catch (error) {
+      if (!isMountedRef.current) return;
+      presentAppError(error, {
+        screen: 'CompleteWorkOrderScreen',
+        route: '/(app)/complete-work-order/[id]',
+      });
+    } finally {
+      if (isMountedRef.current) {
+        setIsProcessingComplete(false);
+      }
+    }
   };
 
   return (

@@ -1,4 +1,5 @@
 import { ScreenErrorBoundary } from "@/components/atoms/ScreenErrorBoundary";
+import { QueryErrorState } from "@/components/molecules/QueryErrorState";
 import { WorkOrderSkeleton } from "@/components/molecules/WorkOrderSkeleton";
 import AvailableWorkOrderListItem from "@/components/organisms/dashboard/AvailableWorkOrderListItem";
 import { WorkOrderListItem } from "@/components/organisms/dashboard/WorkOrderListItem";
@@ -39,7 +40,11 @@ type TabType = "tersedia" | "aktif" | "riwayat";
 
 // Memoized row component for Active/History items
 const WorkOrderRow = React.memo(({ item, userId, onPress }: { item: WorkOrder, userId?: string, onPress: (id: string) => void }) => (
-  <TouchableOpacity onPress={() => onPress(item.id)}>
+  <TouchableOpacity
+    onPress={() => onPress(item.id)}
+    accessibilityRole="button"
+    accessibilityLabel={`Work order ${item.id}, ketuk untuk detail`}
+  >
     <WorkOrderListItem item={item} userId={userId} />
   </TouchableOpacity>
 ));
@@ -57,6 +62,7 @@ function WorkOrderScreenContent() {
   const {
     data: availableData,
     isPending: loadingAvailable,
+    isError: errorAvailable,
     refetch: refetchAvailable,
     isRefetching: refetchingAvailable,
   } = useAvailableWorkOrders({
@@ -66,6 +72,7 @@ function WorkOrderScreenContent() {
   const {
     data: activeData,
     isPending: loadingActive,
+    isError: errorActive,
     refetch: refetchActive,
     isRefetching: refetchingActive,
   } = useWorkOrders(
@@ -76,6 +83,7 @@ function WorkOrderScreenContent() {
   const {
     data: historyData,
     isPending: loadingHistory,
+    isError: errorHistory,
     refetch: refetchHistory,
     isRefetching: refetchingHistory,
   } = useWorkOrders(
@@ -101,6 +109,11 @@ function WorkOrderScreenContent() {
     (activeTab === "tersedia" && loadingAvailable) ||
     (activeTab === "aktif" && loadingActive) ||
     (activeTab === "riwayat" && loadingHistory);
+
+  const isError =
+    (activeTab === "tersedia" && errorAvailable) ||
+    (activeTab === "aktif" && errorActive) ||
+    (activeTab === "riwayat" && errorHistory);
 
   const isRefetching =
     refetchingAvailable || refetchingActive || refetchingHistory;
@@ -133,7 +146,7 @@ function WorkOrderScreenContent() {
                 presentInfoMessage("Permintaan disimpan di antrian.", "Offline");
               }
 
-              await claimMutate(
+              claimMutate(
                 {
                   workOrderId,
                 },
@@ -144,10 +157,13 @@ function WorkOrderScreenContent() {
                       presentSuccessMessage("Tugas berhasil diambil!");
                     }
                     setActiveTab("aktif");
+                    setClaiming(null);
+                  },
+                  onSettled: () => {
+                    setClaiming(null);
                   },
                 },
               );
-              setClaiming(null);
             },
           },
         ],
@@ -251,7 +267,10 @@ function WorkOrderScreenContent() {
       <View style={tw`px-6 pt-4 pb-3`}>
         <View style={tw`flex-row items-center justify-between`}>
           <Text style={tw`text-2xl font-bold text-gray-800`}>Work Order</Text>
-          <View style={tw`flex-row items-center`}>
+          <View
+            style={tw`flex-row items-center`}
+            accessibilityLabel={isConnected ? "Status: terhubung" : "Status: offline"}
+          >
             <View
               style={tw`w-2 h-2 rounded-full mr-1.5 ${isConnected ? "bg-green-500" : "bg-red-500"}`}
             />
@@ -270,11 +289,14 @@ function WorkOrderScreenContent() {
         {/* Helper function to avoid repetition */}
         {(["tersedia", "aktif", "riwayat"] as TabType[]).map((tab) => {
           const styles = getTabStyle(tab);
+          const isActive = activeTab === tab;
           return (
             <TouchableOpacity
               key={tab}
               onPress={() => setActiveTab(tab)}
               style={tw`${styles.container}`}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
             >
               <Text style={tw`${styles.text}`}>
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -285,7 +307,9 @@ function WorkOrderScreenContent() {
       </View>
 
       {/* Content */}
-      {loadingWO && workOrders.length === 0 ? (
+      {isError ? (
+        <QueryErrorState onRetry={onRefresh} />
+      ) : loadingWO && workOrders.length === 0 ? (
         <View style={tw`flex-1 px-4`}>
           <WorkOrderSkeleton />
         </View>

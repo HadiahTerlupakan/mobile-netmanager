@@ -1,5 +1,6 @@
 import { DatabaseService } from '@/services/DatabaseService';
 import { ensureForegroundNotificationChannel } from '@/services/ForegroundNotificationService';
+import { networkStateService } from '@/services/NetworkStateService';
 import { performanceMonitor } from '@/services/PerformanceMonitor';
 import { SyncService } from '@/services/SyncService';
 import { errorReportingService } from '@/services/ErrorReportingService';
@@ -29,7 +30,8 @@ export function useAppInitialization(isLoading: boolean) {
 
     const initServices = async () => {
       try {
-        logger.info('[Init] Phase 1: Database initialization');
+        logger.info('[Init] Phase 1: Database & network initialization');
+        networkStateService.initialize();
         await DatabaseService.initDatabase();
         await ensureForegroundNotificationChannel();
 
@@ -62,6 +64,7 @@ export function useAppInitialization(isLoading: boolean) {
       }
 
       SyncService.stopMonitoring();
+      networkStateService.dispose();
     };
   }, []);
 }

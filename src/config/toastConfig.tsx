@@ -1,75 +1,65 @@
 import React from 'react';
-import { View } from 'react-native';
-import { BaseToast, ErrorToast, ToastConfig } from 'react-native-toast-message';
+import { Text, View } from 'react-native';
+import { ToastConfig } from 'react-native-toast-message';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react-native';
 import tw from 'twrnc';
 
+interface CustomToastProps {
+  text1?: string;
+  text2?: string;
+}
+
+const SuccessToast = ({ text1, text2 }: CustomToastProps) => (
+  <View style={tw`mx-4 bg-green-50 border border-green-200 rounded-2xl p-4 flex-row items-start shadow-lg`}>
+    <View style={tw`w-10 h-10 rounded-full bg-green-100 items-center justify-center mr-3`}>
+      <CheckCircle2 size={22} color="#16a34a" />
+    </View>
+    <View style={tw`flex-1`}>
+      {text1 && <Text style={tw`text-sm font-bold text-green-800`}>{text1}</Text>}
+      {text2 && <Text style={tw`text-xs text-green-600 mt-0.5 leading-4`}>{text2}</Text>}
+    </View>
+  </View>
+);
+
+const ErrorToastCustom = ({ text1, text2 }: CustomToastProps) => (
+  <View style={tw`mx-4 bg-red-50 border border-red-200 rounded-2xl p-4 flex-row items-start shadow-lg`}>
+    <View style={tw`w-10 h-10 rounded-full bg-red-100 items-center justify-center mr-3`}>
+      <AlertCircle size={22} color="#dc2626" />
+    </View>
+    <View style={tw`flex-1`}>
+      {text1 && <Text style={tw`text-sm font-bold text-red-800`}>{text1}</Text>}
+      {text2 && <Text style={tw`text-xs text-red-600 mt-0.5 leading-4`}>{text2}</Text>}
+    </View>
+  </View>
+);
+
+const InfoToast = ({ text1, text2 }: CustomToastProps) => (
+  <View style={tw`mx-4 bg-blue-50 border border-blue-200 rounded-2xl p-4 flex-row items-start shadow-lg`}>
+    <View style={tw`w-10 h-10 rounded-full bg-blue-100 items-center justify-center mr-3`}>
+      <Info size={22} color="#2563eb" />
+    </View>
+    <View style={tw`flex-1`}>
+      {text1 && <Text style={tw`text-sm font-bold text-blue-800`}>{text1}</Text>}
+      {text2 && <Text style={tw`text-xs text-blue-600 mt-0.5 leading-4`}>{text2}</Text>}
+    </View>
+  </View>
+);
+
+const WarningToast = ({ text1, text2 }: CustomToastProps) => (
+  <View style={tw`mx-4 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex-row items-start shadow-lg`}>
+    <View style={tw`w-10 h-10 rounded-full bg-amber-100 items-center justify-center mr-3`}>
+      <AlertTriangle size={22} color="#d97706" />
+    </View>
+    <View style={tw`flex-1`}>
+      {text1 && <Text style={tw`text-sm font-bold text-amber-800`}>{text1}</Text>}
+      {text2 && <Text style={tw`text-xs text-amber-600 mt-0.5 leading-4`}>{text2}</Text>}
+    </View>
+  </View>
+);
+
 export const toastConfig: ToastConfig = {
-  success: (props) => (
-    <BaseToast
-      {...props}
-      style={tw`border-l-8 border-green-500 bg-white h-auto py-3 shadow-lg rounded-xl mx-4`}
-      contentContainerStyle={tw`px-4`}
-      renderLeadingIcon={() => (
-        <View style={tw`pl-4 justify-center`}>
-          <CheckCircle2 size={24} color="#10b981" />
-        </View>
-      )}
-      text1Style={tw`text-base font-bold text-gray-900`}
-      text2Style={tw`text-sm text-gray-600`}
-      text1NumberOfLines={2}
-      text2NumberOfLines={3}
-    />
-  ),
-
-  error: (props) => (
-    <ErrorToast
-      {...props}
-      style={tw`border-l-8 border-red-500 bg-white h-auto py-3 shadow-lg rounded-xl mx-4`}
-      contentContainerStyle={tw`px-4`}
-      renderLeadingIcon={() => (
-        <View style={tw`pl-4 justify-center`}>
-          <AlertCircle size={24} color="#ef4444" />
-        </View>
-      )}
-      text1Style={tw`text-base font-bold text-gray-900`}
-      text2Style={tw`text-sm text-gray-600`}
-      text1NumberOfLines={2}
-      text2NumberOfLines={3}
-    />
-  ),
-
-  info: (props) => (
-    <BaseToast
-      {...props}
-      style={tw`border-l-8 border-blue-500 bg-white h-auto py-3 shadow-lg rounded-xl mx-4`}
-      contentContainerStyle={tw`px-4`}
-      renderLeadingIcon={() => (
-        <View style={tw`pl-4 justify-center`}>
-          <Info size={24} color="#3b82f6" />
-        </View>
-      )}
-      text1Style={tw`text-base font-bold text-gray-900`}
-      text2Style={tw`text-sm text-gray-600`}
-      text1NumberOfLines={2}
-      text2NumberOfLines={3}
-    />
-  ),
-
-  warning: (props) => (
-    <BaseToast
-      {...props}
-      style={tw`border-l-8 border-amber-500 bg-white h-auto py-3 shadow-lg rounded-xl mx-4`}
-      contentContainerStyle={tw`px-4`}
-      renderLeadingIcon={() => (
-        <View style={tw`pl-4 justify-center`}>
-          <AlertTriangle size={24} color="#f59e0b" />
-        </View>
-      )}
-      text1Style={tw`text-base font-bold text-gray-900`}
-      text2Style={tw`text-sm text-gray-600`}
-      text1NumberOfLines={2}
-      text2NumberOfLines={3}
-    />
-  ),
+  success: (props) => <SuccessToast text1={props.text1} text2={props.text2} />,
+  error: (props) => <ErrorToastCustom text1={props.text1} text2={props.text2} />,
+  info: (props) => <InfoToast text1={props.text1} text2={props.text2} />,
+  warning: (props) => <WarningToast text1={props.text1} text2={props.text2} />,
 };

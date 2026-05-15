@@ -2,12 +2,95 @@ import { AppVersionInfo, appVersionService, CheckUpdateResult, DownloadProgress 
 import { eventManager } from '@/utils/EventManager'
 import { logger } from '@/utils/logger'
 import { Storage } from '@/utils/storage'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useReducer } from 'react'
 import { AppState, AppStateStatus, Platform } from 'react-native'
 
 export type DownloadStatus = 'idle' | 'downloading' | 'installing' | 'error'
 
 const IGNORED_VERSION_KEY = 'ignored_app_version'
+
+interface VersionState {
+    isChecking: boolean
+    downloadStatus: DownloadStatus
+    downloadProgress: DownloadProgress | null
+    updateAvailable: boolean
+    isForceUpdate: boolean
+    latestVersion: AppVersionInfo | null
+    error: string | null
+}
+
+type VersionAction =
+    | { type: 'CHECK_START' }
+    | { type: 'CHECK_SUCCESS'; updateAvailable: boolean; isForceUpdate: boolean; latestVersion: AppVersionInfo | null }
+    | { type: 'CHECK_IGNORED' }
+    | { type: 'CHECK_ERROR'; error: string }
+    | { type: 'DOWNLOAD_START' }
+    | { type: 'DOWNLOAD_PROGRESS'; progress: DownloadProgress }
+    | { type: 'INSTALL_START' }
+    | { type: 'UPDATE_ERROR'; error: string }
+    | { type: 'RESET_STATUS' }
+    | { type: 'APPLY_FORCE_UPDATE'; latestVersion: AppVersionInfo | null; error?: string }
+    | { type: 'DISMISS_ERROR' }
+    | { type: 'IGNORE_UPDATE' }
+
+const initialState: VersionState = {
+    isChecking: false,
+    downloadStatus: 'idle',
+    downloadProgress: null,
+    updateAvailable: false,
+    isForceUpdate: false,
+    latestVersion: null,
+    error: null,
+}
+
+function versionReducer(state: VersionState, action: VersionAction): VersionState {
+    switch (action.type) {
+        case 'CHECK_START':
+            return { ...state, isChecking: true, error: null }
+        case 'CHECK_SUCCESS':
+            return {
+                ...state,
+                isChecking: false,
+                updateAvailable: action.updateAvailable,
+                isForceUpdate: action.isForceUpdate,
+                latestVersion: action.latestVersion,
+            }
+        case 'CHECK_IGNORED':
+            return {
+                ...state,
+                isChecking: false,
+                updateAvailable: false,
+                isForceUpdate: false,
+                latestVersion: null,
+            }
+        case 'CHECK_ERROR':
+            return { ...state, isChecking: false, error: action.error }
+        case 'DOWNLOAD_START':
+            return { ...state, downloadStatus: 'downloading', downloadProgress: null, error: null }
+        case 'DOWNLOAD_PROGRESS':
+            return { ...state, downloadProgress: action.progress }
+        case 'INSTALL_START':
+            return { ...state, downloadStatus: 'installing' }
+        case 'UPDATE_ERROR':
+            return { ...state, downloadStatus: 'error', error: action.error }
+        case 'RESET_STATUS':
+            return { ...state, downloadStatus: 'idle' }
+        case 'APPLY_FORCE_UPDATE':
+            return {
+                ...state,
+                updateAvailable: true,
+                isForceUpdate: true,
+                latestVersion: action.latestVersion,
+                error: action.error || null,
+            }
+        case 'DISMISS_ERROR':
+            return { ...state, error: null, downloadStatus: 'idle' }
+        case 'IGNORE_UPDATE':
+            return { ...state, updateAvailable: false, latestVersion: null }
+        default:
+            return state
+    }
+}
 
 export interface UseAppVersionState {
     isChecking: boolean
@@ -25,37 +108,24 @@ export interface UseAppVersionState {
 }
 
 export function useAppVersion(): UseAppVersionState {
-    const [isChecking, setIsChecking] = useState(false)
-    const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle')
-    const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null)
-    const [updateAvailable, setUpdateAvailable] = useState(false)
-    const [isForceUpdate, setIsForceUpdate] = useState(false)
-    const [latestVersion, setLatestVersion] = useState<AppVersionInfo | null>(null)
-    const [error, setError] = useState<string | null>(null)
+    const [state, dispatch] = useReducer(versionReducer, initialState)
 
-    // Listen for app coming to foreground (returning from settings)
     useEffect(() => {
         const handleAppStateChange = async (nextAppState: AppStateStatus) => {
             if (nextAppState === 'active') {
-                // Check if we have a pending install
                 const pendingUri = appVersionService.getPendingApkUri()
                 if (pendingUri) {
                     logger.info('[Update] Resuming pending install...', pendingUri)
-                    setDownloadStatus('installing')
-                    // Give a small delay to ensure UI is ready
+                    dispatch({ type: 'INSTALL_START' })
                     setTimeout(async () => {
                         await appVersionService.retryPendingInstall()
-                        // We keep status as installing, if it fails alert will show
-                        // StartUpdate will reset status to idle if needed, or user can dismiss
-                        setDownloadStatus('idle')
+                        dispatch({ type: 'RESET_STATUS' })
                     }, 1000)
                 }
             }
         }
 
         const subscription = AppState.addEventListener('change', handleAppStateChange)
-
-        // Register with EventManager
         eventManager.addListener('appVersion', handleAppStateChange, () => subscription.remove())
 
         return () => {
@@ -64,14 +134,12 @@ export function useAppVersion(): UseAppVersionState {
     }, [])
 
     const checkForUpdate = useCallback(async (currentVersionCode: number): Promise<CheckUpdateResult> => {
-        setIsChecking(true)
-        setError(null)
+        dispatch({ type: 'CHECK_START' })
 
         try {
             const result = await appVersionService.checkForUpdate(currentVersionCode)
 
             if (result.success) {
-                // Check if this version is ignored
                 const ignoredVersion = await Storage.getItem(IGNORED_VERSION_KEY)
                 const isIgnored = !result.isForceUpdate &&
                     result.latestVersion?.version &&
@@ -79,22 +147,23 @@ export function useAppVersion(): UseAppVersionState {
 
                 if (isIgnored) {
                     logger.info('[Update] Ignoring version:', ignoredVersion)
-                    setUpdateAvailable(false)
-                    setIsForceUpdate(false)
-                    setLatestVersion(null)
+                    dispatch({ type: 'CHECK_IGNORED' })
                 } else {
-                    setUpdateAvailable(result.updateAvailable)
-                    setIsForceUpdate(result.isForceUpdate)
-                    setLatestVersion(result.latestVersion)
+                    dispatch({
+                        type: 'CHECK_SUCCESS',
+                        updateAvailable: result.updateAvailable,
+                        isForceUpdate: result.isForceUpdate,
+                        latestVersion: result.latestVersion,
+                    })
                 }
             } else {
-                setError(result.error || 'Gagal cek update')
+                dispatch({ type: 'CHECK_ERROR', error: result.error || 'Gagal cek update' })
             }
 
             return result
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : 'Gagal cek update'
-            setError(errorMsg)
+            dispatch({ type: 'CHECK_ERROR', error: errorMsg })
             return {
                 success: false,
                 updateAvailable: false,
@@ -103,38 +172,33 @@ export function useAppVersion(): UseAppVersionState {
                 latestVersion: null,
                 error: errorMsg
             }
-        } finally {
-            setIsChecking(false)
         }
     }, [])
 
-    // Single button: Download -> Install automatically
     const startUpdate = useCallback(async () => {
-        if (!latestVersion || !latestVersion.id) {
-            setError('Tidak ada update')
+        if (!state.latestVersion || !state.latestVersion.id) {
+            dispatch({ type: 'UPDATE_ERROR', error: 'Tidak ada update' })
             return
         }
 
         if (Platform.OS !== 'android') {
-            setError('Update APK hanya untuk Android')
+            dispatch({ type: 'UPDATE_ERROR', error: 'Update APK hanya untuk Android' })
             return
         }
 
         logger.info('[Update] Starting update process...')
-        setDownloadStatus('downloading')
-        setDownloadProgress(null)
-        setError(null)
+        dispatch({ type: 'DOWNLOAD_START' })
 
         try {
-            const filename = `netmanager_v${latestVersion.version}.apk`
+            const filename = `netmanager_v${state.latestVersion.version}.apk`
 
             logger.info('[Update] Downloading APK...')
             const fileUri = await appVersionService.downloadApk(
-                latestVersion.id,
+                state.latestVersion.id,
                 filename,
-                latestVersion.hash,
+                state.latestVersion.hash,
                 (progress) => {
-                    setDownloadProgress(progress)
+                    dispatch({ type: 'DOWNLOAD_PROGRESS', progress })
                 }
             )
 
@@ -143,60 +207,44 @@ export function useAppVersion(): UseAppVersionState {
             }
 
             logger.info('[Update] Download complete, installing...')
-            setDownloadStatus('installing')
+            dispatch({ type: 'INSTALL_START' })
 
-            // Try to install
             await appVersionService.installApk(fileUri)
-            // Note: installApk checks permissions internally and might open settings.
-            // If it opens settings, the AppState listener above will catch the return.
-
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Gagal update'
             logger.error('[Update] Error:', errorMessage)
-            setError(errorMessage)
-            setDownloadStatus('error')
+            dispatch({ type: 'UPDATE_ERROR', error: errorMessage })
             return
         }
 
-        // Reset to idle so user can retry
-        setDownloadStatus('idle')
-    }, [latestVersion])
+        dispatch({ type: 'RESET_STATUS' })
+    }, [state.latestVersion])
 
     const applyVersionRequirement = useCallback((versionInfo: AppVersionInfo | null) => {
         if (!versionInfo) {
-            setError('Versi aplikasi tidak didukung. Silakan unduh APK terbaru.')
+            dispatch({
+                type: 'APPLY_FORCE_UPDATE',
+                latestVersion: null,
+                error: 'Versi aplikasi tidak didukung. Silakan unduh APK terbaru.',
+            })
             return
         }
-
-        setError(null)
-        setUpdateAvailable(true)
-        setIsForceUpdate(true)
-        setLatestVersion(versionInfo)
+        dispatch({ type: 'APPLY_FORCE_UPDATE', latestVersion: versionInfo })
     }, [])
 
-
-
     const dismissError = useCallback(() => {
-        setError(null)
-        setDownloadStatus('idle')
+        dispatch({ type: 'DISMISS_ERROR' })
     }, [])
 
     const ignoreUpdate = useCallback(async () => {
-        if (latestVersion?.version) {
-            await Storage.setItem(IGNORED_VERSION_KEY, latestVersion.version)
-            setUpdateAvailable(false)
-            setLatestVersion(null)
+        if (state.latestVersion?.version) {
+            await Storage.setItem(IGNORED_VERSION_KEY, state.latestVersion.version)
+            dispatch({ type: 'IGNORE_UPDATE' })
         }
-    }, [latestVersion])
+    }, [state.latestVersion])
 
     return {
-        isChecking,
-        downloadStatus,
-        downloadProgress,
-        updateAvailable,
-        isForceUpdate,
-        latestVersion,
-        error,
+        ...state,
         checkForUpdate,
         startUpdate,
         applyVersionRequirement,

@@ -242,6 +242,9 @@ export default function LemburScreen() {
           } else {
             presentSuccessMessage("Pengajuan berhasil dikirim");
           }
+          // Optimistic update: langsung sembunyikan tombol "Ajukan Lembur" tanpa menunggu refetch.
+          // Mencegah double-submit saat offline (queue belum sync, cache belum update).
+          setTodayRequest({ status: "PENDING", reason: validation.data.reason } as Overtime);
           setShowRequestModal(false);
           setReason("");
           fetchData();
@@ -413,7 +416,9 @@ export default function LemburScreen() {
             </View>
           ) : (
             <>
-              {(!todayRequest || todayRequest.status === "REJECTED" || todayRequest.status === "COMPLETED") && (
+              {/* Lembur hanya boleh 1x per hari (pengajuan→approval→checkin→checkout = 1 siklus penuh).
+                 Tombol hanya muncul jika belum ada request sama sekali atau request sebelumnya REJECTED. */}
+              {(!todayRequest || todayRequest.status === "REJECTED") && (
                 <TouchableOpacity onPress={() => setShowRequestModal(true)} style={tw`bg-indigo-50 border-2 border-dashed border-indigo-200 rounded-2xl h-32 items-center justify-center mb-4`}>
                   <Plus size={32} color="#4f46e5" />
                   <Text style={tw`text-indigo-600 font-bold mt-2`}>Ajukan Lembur</Text>
@@ -449,6 +454,14 @@ export default function LemburScreen() {
                   <Text style={tw`text-red-600 font-bold mt-2`}>Selesai Lembur</Text>
                 </TouchableOpacity>
               )}
+
+              {todayRequest?.status === "COMPLETED" && (
+                <View style={tw`bg-gray-50 border border-gray-200 rounded-2xl p-4 items-center mb-4`}>
+                  <CheckCircle size={32} color="#6b7280" />
+                  <Text style={tw`text-gray-600 font-bold text-lg mt-2`}>Lembur Hari Ini Selesai</Text>
+                  <Text style={tw`text-gray-400 text-xs text-center mt-1`}>Pengajuan lembur hanya dapat dilakukan 1x per hari.</Text>
+                </View>
+              )}
             </>
           )}
         </View>
@@ -464,9 +477,17 @@ export default function LemburScreen() {
       setHasCheckedOut(overtimeData.hasCheckedOut || false);
       setHolidayInfo(overtimeData.holidayInfo || null);
 
-      const todayStr = new Date().toISOString().split("T")[0];
+      // FIX: Gunakan local timezone, bukan UTC.
+      // `toISOString().split("T")[0]` menghasilkan tanggal UTC — di WIB (UTC+7) bisa beda hari
+      // sebelum jam 07:00 pagi, menyebabkan todayRequest = null dan tombol "Ajukan Lembur" muncul padahal sudah ada request hari ini.
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const today = historyList.find(
-        (item: Overtime) => item.createdAt.startsWith(todayStr) || item.status === "IN_PROGRESS",
+        (item: Overtime) => {
+          const itemDate = new Date(item.createdAt);
+          const itemDateStr = `${itemDate.getFullYear()}-${String(itemDate.getMonth() + 1).padStart(2, '0')}-${String(itemDate.getDate()).padStart(2, '0')}`;
+          return itemDateStr === todayStr || item.status === "IN_PROGRESS";
+        },
       );
       setTodayRequest(today || null);
     }

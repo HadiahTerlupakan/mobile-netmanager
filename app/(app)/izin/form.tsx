@@ -22,7 +22,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Camera, ChevronDown, X } from "lucide-react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
@@ -101,6 +101,9 @@ export default function LeaveFormScreen() {
   const [loadingMessage, setLoadingMessage] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
 
+  /** Ref-based guard to prevent double-submit on rapid taps. */
+  const isSubmittingRef = useRef(false);
+
   const removePhoto = (index: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
@@ -177,18 +180,25 @@ export default function LeaveFormScreen() {
 
   // Submit
   const handleSubmit = async () => {
+    // Prevent double-submit from rapid taps before showLoading state propagates
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     // Basic validation
     if (!reason.trim()) {
+      isSubmittingRef.current = false;
       presentInfoMessage("Alasan wajib diisi.", "Data Tidak Lengkap");
       return;
     }
 
     if (reason.trim().length < 5) {
+      isSubmittingRef.current = false;
       presentInfoMessage("Alasan minimal 5 karakter.", "Data Tidak Lengkap");
       return;
     }
 
     if (type !== "CUTI" && type !== "TUKAR_LIBUR" && photos.length === 0) {
+      isSubmittingRef.current = false;
       presentInfoMessage("Foto bukti wajib diupload untuk pengajuan " + LEAVE_TYPES.find(t => t.value === type)?.label + ".", "Data Tidak Lengkap");
       return;
     }
@@ -197,6 +207,7 @@ export default function LeaveFormScreen() {
     if (type === "TUKAR_LIBUR") {
       const tukarLiburValidation = validateTukarLibur();
       if (!tukarLiburValidation.valid) {
+        isSubmittingRef.current = false;
         presentInfoMessage(tukarLiburValidation.error || "Validasi tukar libur gagal.", "Validasi Tukar Libur");
         return;
       }
@@ -215,6 +226,7 @@ export default function LeaveFormScreen() {
     const validation = validateData(LeaveRequestSchema, rawData);
 
     if (!validation.success) {
+      isSubmittingRef.current = false;
       presentInfoMessage(validation.error, "Data Tidak Valid");
       return;
     }
@@ -262,12 +274,21 @@ export default function LeaveFormScreen() {
             {
               onSuccess: () => {
                 setShowLoading(false);
+                isSubmittingRef.current = false;
                 const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
                 presentSuccessMessage(`Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`);
                 router.back();
               },
               onError: (err: Error) => {
                 setShowLoading(false);
+                isSubmittingRef.current = false;
+                if (uploadedUrls.length > 0) {
+                  Promise.all(
+                    uploadedUrls.map((url) => uploadService.deleteUploadedFile(url)),
+                  ).catch((deleteErr: unknown) => {
+                    logger.error("[Leave Form] Failed to clean up uploaded photos:", deleteErr);
+                  });
+                }
                 presentAppError(err, {
                   screen: 'LeaveFormScreen',
                   route: '/(app)/izin/form',
@@ -277,6 +298,7 @@ export default function LeaveFormScreen() {
           );
         } catch (uploadError) {
           setShowLoading(false);
+          isSubmittingRef.current = false;
           logger.error("[Leave Form] Upload error:", uploadError);
           presentAppError(uploadError, {
             screen: 'LeaveFormScreen',
@@ -298,6 +320,7 @@ export default function LeaveFormScreen() {
           {
             onSuccess: (data) => {
               setShowLoading(false);
+              isSubmittingRef.current = false;
               const isOffline = isOfflineMutationQueuedResult(data);
               const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
               if (isOffline) {
@@ -309,6 +332,7 @@ export default function LeaveFormScreen() {
             },
             onError: (err: Error) => {
               setShowLoading(false);
+              isSubmittingRef.current = false;
               presentAppError(err, {
                 screen: 'LeaveFormScreen',
                 route: '/(app)/izin/form',
@@ -319,6 +343,7 @@ export default function LeaveFormScreen() {
       }
     } catch (unexpectedError) {
       setShowLoading(false);
+      isSubmittingRef.current = false;
       logger.error("[Leave Form] Unexpected error:", unexpectedError);
       presentAppError(unexpectedError, {
         screen: 'LeaveFormScreen',
@@ -520,6 +545,7 @@ export default function LeaveFormScreen() {
           <DateTimePicker
             value={startDate}
             mode="date"
+            minimumDate={new Date()}
             onChange={(_, date) => {
               setShowStartPicker(false);
               if (date) {
@@ -533,6 +559,7 @@ export default function LeaveFormScreen() {
           <DateTimePicker
             value={endDate}
             mode="date"
+            minimumDate={startDate}
             onChange={(_, date) => {
               setShowEndPicker(false);
               if (date) setEndDate(date);
@@ -716,17 +743,6 @@ export default function LeaveFormScreen() {
           </>
         )}
 
-        {/* Native Picker for other types OR if not TUKAR_LIBUR */}
-        {type !== "TUKAR_LIBUR" && showStartPicker && (
-          <DateTimePicker
-            value={startDate}
-            mode="date"
-            onChange={(_, date) => {
-              setShowStartPicker(false);
-              if (date) setStartDate(date);
-            }}
-          />
-        )}
         {/* Only show Native Replacement Picker if NOT TUKAR_LIBUR (which shouldn't happen logic-wise but good safeguard) */}
         {type !== "TUKAR_LIBUR" && showReplacementPicker && (
           <DateTimePicker

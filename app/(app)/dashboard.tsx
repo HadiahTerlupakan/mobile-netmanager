@@ -233,6 +233,8 @@ function DashboardScreen() {
                     <TouchableOpacity
                         onPress={() => router.push('/(app)/chat' as Href)}
                         style={tw`bg-purple-600 w-full py-4 rounded-xl flex-row items-center justify-center gap-2`}
+                        accessibilityLabel="Buka chat"
+                        accessibilityRole="button"
                     >
                         <MessageCircle size={24} color="white" />
                         <Text style={tw`text-white font-bold text-lg`}>Buka Chat</Text>
@@ -287,6 +289,7 @@ function DashboardScreen() {
                                         ? 'bg-blue-600 w-6'
                                         : 'bg-gray-300 w-2'
                                         }`}
+                                    accessibilityLabel={`Halaman ${index + 1}`}
                                 />
                             ))}
                         </View>
@@ -367,6 +370,8 @@ function DashboardScreen() {
                                             );
                                         }}
                                         style={tw`w-full py-3 rounded-xl items-center justify-center ${statsData?.unclaimedCanvasing !== undefined && statsData?.canvasingTarget && statsData.unclaimedCanvasing >= statsData.canvasingTarget ? 'bg-emerald-600' : 'bg-gray-200'}`}
+                                        accessibilityLabel="Cairkan komisi"
+                                        accessibilityRole="button"
                                     >
                                         <Text style={tw`font-bold ${statsData?.unclaimedCanvasing !== undefined && statsData?.canvasingTarget && statsData.unclaimedCanvasing >= statsData.canvasingTarget ? 'text-white' : 'text-gray-400'}`}>
                                             Cairkan Bonus Belum Diklaim

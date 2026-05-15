@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { ArrowLeft, Wifi, Download, Upload, Calendar, Router, MapPin, CheckCircle } from 'lucide-react-native';
+import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 
 const fetchProfile = async () => {
   const res = await api.get('/api/customer/profile');
@@ -14,7 +15,7 @@ const fetchProfile = async () => {
 
 export default function CustomerPaketScreen() {
   const router = useRouter();
-  const { data: profile, isLoading, refetch } = useQuery({
+  const { data: profile, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['customer-profile-paket'],
     queryFn: fetchProfile
   });
@@ -48,10 +49,13 @@ export default function CustomerPaketScreen() {
         <Text style={tw`text-lg font-bold text-gray-900`}>Detail Layanan</Text>
       </View>
 
+      {isError ? (
+        <QueryErrorState onRetry={refetch} />
+      ) : (
       <ScrollView
         contentContainerStyle={tw`p-4 pb-20`}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
         }
       >
         {/* Hero Card */}
@@ -174,6 +178,7 @@ export default function CustomerPaketScreen() {
           </View>
         </TouchableOpacity>
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }

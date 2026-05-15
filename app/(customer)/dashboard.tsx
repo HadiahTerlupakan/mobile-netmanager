@@ -50,7 +50,7 @@ export default function CustomerDashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['customer-dashboard-full'],
     queryFn: fetchDashboardData,
     enabled: !!user // Only run if user exists
@@ -84,7 +84,7 @@ export default function CustomerDashboardScreen() {
       <ScrollView
         contentContainerStyle={tw`pb-24`}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
         }
       >
         {/* Greeting Section */}
@@ -105,7 +105,10 @@ export default function CustomerDashboardScreen() {
                 <Text style={tw`text-sm text-gray-500 mt-0.5`}>{packageName}</Text>
 
                 <View style={tw`flex-row items-center mt-2`}>
-                  <View style={tw`w-2.5 h-2.5 mr-2 relative`}>
+                  <View
+                    style={tw`w-2.5 h-2.5 mr-2 relative`}
+                    accessibilityLabel={isOnline ? "Status koneksi: aktif" : "Status koneksi: offline"}
+                  >
                     <View style={tw`absolute inset-0 rounded-full opacity-75 ${isOnline ? 'bg-green-400 animate-ping' : 'bg-red-400'}`} />
                     <View style={tw`absolute inset-0 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
                   </View>
@@ -185,6 +188,8 @@ export default function CustomerDashboardScreen() {
             <TouchableOpacity
               onPress={() => router.push('/(customer)/paket')}
               style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
+              accessibilityRole="button"
+              accessibilityLabel="Detail Layanan - Info Paket"
             >
               <View style={tw`w-10 h-10 rounded-lg bg-teal-50 items-center justify-center mb-3`}>
                 <FileText size={24} color="#0d9488" />
@@ -197,6 +202,8 @@ export default function CustomerDashboardScreen() {
             <TouchableOpacity
               onPress={() => router.push('/(customer)/tickets')}
               style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
+              accessibilityRole="button"
+              accessibilityLabel="Dukungan - Bantuan Live"
             >
               <View style={tw`w-10 h-10 rounded-lg bg-orange-50 items-center justify-center mb-3`}>
                 <Headset size={24} color="#ea580c" />
@@ -209,6 +216,8 @@ export default function CustomerDashboardScreen() {
             <TouchableOpacity
               onPress={() => router.push('/(customer)/riwayat')}
               style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
+              accessibilityRole="button"
+              accessibilityLabel="Riwayat - Transaksi"
             >
               <View style={tw`w-10 h-10 rounded-lg bg-purple-50 items-center justify-center mb-3`}>
                 <History size={24} color="#9333ea" />
@@ -218,7 +227,12 @@ export default function CustomerDashboardScreen() {
             </TouchableOpacity>
 
             {/* Upgrade */}
-            <TouchableOpacity style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}>
+            <TouchableOpacity
+              style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
+              accessibilityRole="button"
+              accessibilityLabel="Upgrade paket - segera hadir"
+              accessibilityState={{ disabled: true }}
+            >
               <View style={tw`w-10 h-10 rounded-lg bg-green-50 items-center justify-center mb-3`}>
                 <Rocket size={24} color="#16a34a" />
               </View>

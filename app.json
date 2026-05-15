@@ -2,7 +2,7 @@
   "expo": {
     "name": "RADPRO",
     "slug": "netmanager",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "netmanager",
@@ -113,7 +113,8 @@
         }
       ],
       "@react-native-firebase/app/app.plugin.js",
-      "@react-native-firebase/messaging/app.plugin.js"
+      "@react-native-firebase/messaging/app.plugin.js",
+      "./plugins/withNetworkSecurity"
     ],
     "experiments": {
       "typedRoutes": true
@@ -123,7 +124,7 @@
         "projectId": "0e8762f0-6c54-4bc5-82f2-18aa3f8e765a"
       },
       "router": {},
-      "versionCode": 4
+      "versionCode": 5
     },
     "owner": "rohadimrajas-organization"
   }

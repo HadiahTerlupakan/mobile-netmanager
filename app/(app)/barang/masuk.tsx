@@ -17,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { formatDateRaw } from "@/utils/date";
 import { logger } from "@/utils/logger";
-import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -63,6 +63,7 @@ export default function BarangMasukScreen() {
   const [gudangs, setGudangs] = useState<Gudang[]>([]);
   const [barangs, setBarangs] = useState<Barang[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   // Form state
   const [selectedGudang, setSelectedGudang] = useState("");
@@ -138,11 +139,8 @@ export default function BarangMasukScreen() {
     uri: string,
   ): Promise<{ uri: string; width: number; height: number }> => {
     try {
-      const manipResult = await manipulateAsync(
-        uri,
-        [{ resize: { width: 1080 } }], // Resize to 1080px width, auto height
-        { compress: 0.8, format: SaveFormat.JPEG },
-      );
+      const ref = await ImageManipulator.manipulate(uri).resize({ width: 1080 }).renderAsync();
+      const manipResult = await ref.saveAsync({ compress: 0.8, format: SaveFormat.JPEG });
       return {
         uri: manipResult.uri,
         width: manipResult.width,
@@ -270,6 +268,9 @@ export default function BarangMasukScreen() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     // 1. Prepare & Sanitize Data
     const rawData = {
       barangId: selectedBarang,
@@ -284,10 +285,12 @@ export default function BarangMasukScreen() {
 
     if (!validation.success) {
       presentInfoMessage(validation.error, "Data Tidak Valid");
+      isSubmittingRef.current = false;
       return;
     }
 
     // 1. Process Photos (Capture Watermark)
+    setSubmitting(true);
     setShowLoading(true);
     setLoadingMessage("Memproses foto...");
 
@@ -301,7 +304,6 @@ export default function BarangMasukScreen() {
       const payload = validation.data;
 
       if (isOnline) {
-        setSubmitting(true);
         try {
           // Upload photos first
           setLoadingMessage("Mengupload foto...");
@@ -337,6 +339,7 @@ export default function BarangMasukScreen() {
             route: '/(app)/barang/masuk',
           });
         } finally {
+          isSubmittingRef.current = false;
           setSubmitting(false);
         }
       } else {
@@ -368,6 +371,8 @@ export default function BarangMasukScreen() {
       }
     } catch (error) {
       setShowLoading(false);
+      isSubmittingRef.current = false;
+      setSubmitting(false);
       logger.error(error);
       presentAppError(error, {
         screen: 'InventoryInScreen',

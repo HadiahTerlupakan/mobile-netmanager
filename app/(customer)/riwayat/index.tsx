@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { ArrowLeft, Search, Receipt, Router, XCircle, CheckCircle } from 'lucide-react-native';
+import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 
@@ -31,7 +32,7 @@ export default function CustomerHistoryScreen() {
   const [filter, setFilter] = useState<'ALL' | 'SUCCESS' | 'PENDING' | 'FAILED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: invoices, isLoading, refetch } = useQuery({
+  const { data: invoices, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['customer-history'],
     queryFn: fetchHistory
   });
@@ -124,10 +125,13 @@ export default function CustomerHistoryScreen() {
       </View>
 
       {/* List */}
+      {isError ? (
+        <QueryErrorState onRetry={refetch} />
+      ) : (
       <ScrollView
         contentContainerStyle={tw`pb-20`}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
         }
       >
         {isLoading && !invoices ? (
@@ -145,7 +149,7 @@ export default function CustomerHistoryScreen() {
               <Text style={tw`px-4 py-2 text-xs font-bold text-gray-500 bg-gray-50 uppercase tracking-wider`}>
                 {month}
               </Text>
-              {items.map((invoice, idx) => {
+              {items.map((invoice) => {
                 const config = getStatusConfig(invoice.status);
                 const Icon = config.icon;
                 
@@ -184,6 +188,7 @@ export default function CustomerHistoryScreen() {
           ))
         )}
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }

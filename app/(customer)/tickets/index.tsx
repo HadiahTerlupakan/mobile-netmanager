@@ -1,4 +1,5 @@
 import api from '@/services/api';
+import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { extractApiErrorMessage } from '@/utils/errorHandling';
 import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -46,7 +47,7 @@ export default function CustomerTicketsScreen() {
   const [description, setDescription] = useState('');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
-  const { data: tickets, isLoading, refetch } = useQuery({
+  const { data: tickets, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['customer-tickets'],
     queryFn: fetchTickets
   });
@@ -179,10 +180,13 @@ export default function CustomerTicketsScreen() {
       </View>
 
       {/* List */}
+      {isError ? (
+        <QueryErrorState onRetry={refetch} />
+      ) : (
       <ScrollView
         contentContainerStyle={tw`p-4 pb-20`}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
+          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
         }
       >
         {filteredTickets.length === 0 ? (
@@ -236,6 +240,7 @@ export default function CustomerTicketsScreen() {
           })
         )}
       </ScrollView>
+      )}
 
       {/* Create Ticket Modal */}
       <Modal

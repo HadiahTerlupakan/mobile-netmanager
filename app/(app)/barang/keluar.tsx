@@ -17,7 +17,7 @@ import { InventoryKeluarSchema, sanitizeInput, validateData } from "@/utils/vali
 import { Ionicons } from "@expo/vector-icons";
 
 import { formatDateRaw } from "@/utils/date";
-import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -65,6 +65,7 @@ export default function BarangKeluarScreen() {
 
   const [barangs, setBarangs] = useState<Barang[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   // Form state
   const [selectedGudang, setSelectedGudang] = useState("");
@@ -149,11 +150,8 @@ export default function BarangKeluarScreen() {
     uri: string,
   ): Promise<{ uri: string; width: number; height: number }> => {
     try {
-      const manipResult = await manipulateAsync(
-        uri,
-        [{ resize: { width: 1080 } }], // Resize to 1080px width
-        { compress: 0.8, format: SaveFormat.JPEG },
-      );
+      const ref = await ImageManipulator.manipulate(uri).resize({ width: 1080 }).renderAsync();
+      const manipResult = await ref.saveAsync({ compress: 0.8, format: SaveFormat.JPEG });
       return {
         uri: manipResult.uri,
         width: manipResult.width,
@@ -292,6 +290,9 @@ export default function BarangKeluarScreen() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     // 1. Prepare & Sanitize Data
     const rawData = {
       barangId: selectedBarang,
@@ -307,6 +308,7 @@ export default function BarangKeluarScreen() {
 
     if (!validation.success) {
       presentInfoMessage(validation.error, "Data Tidak Valid");
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -315,10 +317,12 @@ export default function BarangKeluarScreen() {
     const availableStock = getAvailableStock();
     if (qty > availableStock) {
       presentInfoMessage(`Stok ${kondisi} tidak mencukupi. Tersedia: ${availableStock}`, "Stok Tidak Cukup");
+      isSubmittingRef.current = false;
       return;
     }
 
     // 1. Process Photos (Capture Watermark)
+    setSubmitting(true);
     setShowLoading(true);
     setLoadingMessage("Memproses foto...");
 
@@ -332,7 +336,6 @@ export default function BarangKeluarScreen() {
       const payload = validation.data;
 
       if (isOnline) {
-        setSubmitting(true);
         try {
           // Upload photos first
           setLoadingMessage("Mengupload foto...");
@@ -368,6 +371,7 @@ export default function BarangKeluarScreen() {
             route: '/(app)/barang/keluar',
           });
         } finally {
+          isSubmittingRef.current = false;
           setSubmitting(false);
         }
       } else {
@@ -399,6 +403,8 @@ export default function BarangKeluarScreen() {
       }
     } catch (error) {
       setShowLoading(false);
+      isSubmittingRef.current = false;
+      setSubmitting(false);
       logger.error(error);
       presentAppError(error, {
         screen: 'InventoryOutScreen',

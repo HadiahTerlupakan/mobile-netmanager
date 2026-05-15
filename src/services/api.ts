@@ -7,8 +7,8 @@ import { TokenService } from '@/services/TokenService';
 import { logger } from '@/utils/logger';
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { DeviceEventEmitter } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
-import Toast from 'react-native-toast-message';
+import { networkStateService } from '@/services/NetworkStateService';
+import { showToast } from '@/utils/errorPresenter';
 
 declare module "axios" {
   export interface AxiosRequestConfig {
@@ -70,7 +70,7 @@ const api = axios.create({
 
 // Request interceptor to add token and handle dynamic base URL
 api.interceptors.request.use(
-  async (config) => {
+  (config) => {
     // Start performance tracking
     config.metadata = { startTime: performance.now() };
     const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
@@ -79,9 +79,8 @@ api.interceptors.request.use(
     // Inject dynamic base URL
     config.baseURL = TenantService.getTenantUrl();
 
-    // Check internet connection
-    const netInfo = await NetInfo.fetch();
-    if (!netInfo.isConnected && !config.url?.includes('localhost')) {
+    // Check internet connection (cached, no async overhead)
+    if (!networkStateService.getIsConnected() && !config.url?.includes('localhost')) {
       return Promise.reject(new Error('No Internet connection'));
     }
 
@@ -156,19 +155,9 @@ api.interceptors.response.use(
     // Critical Error Feedback (UX Improvement)
     if (!config.skipErrorToast) {
       if (!error.response) {
-        // Network or Timeout
-        Toast.show({
-          type: 'error',
-          text1: 'Masalah Koneksi',
-          text2: 'Mohon periksa koneksi internet Anda.',
-        });
+        showToast('error', 'Masalah Koneksi', 'Mohon periksa koneksi internet Anda.');
       } else if (error.response.status >= 500) {
-        // Server Error
-        Toast.show({
-          type: 'error',
-          text1: 'Masalah Server',
-          text2: 'Terjadi gangguan pada server. Tim kami sedang menanganinya.',
-        });
+        showToast('error', 'Masalah Server', 'Terjadi gangguan pada server. Tim kami sedang menanganinya.');
       }
     }
 
