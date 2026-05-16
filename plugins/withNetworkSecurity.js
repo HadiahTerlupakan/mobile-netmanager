@@ -12,6 +12,14 @@ const NETWORK_SECURITY_XML = `<?xml version="1.0" encoding="utf-8"?>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+    <!-- Izinkan cleartext untuk Metro dev server di emulator (10.0.2.2) dan
+         koneksi lokal saat development. Production traffic ke staging.radpro.id
+         atau radpro.id tetap di-enforce HTTPS oleh base-config. -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
 </network-security-config>
 `;
 
