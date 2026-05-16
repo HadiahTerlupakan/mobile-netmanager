@@ -82,7 +82,10 @@ class FirebaseMessagingService {
             logger.info(`[FCM] Sending token to backend: ${maskToken(token)}, action: ${action}`);
             logger.debug('[FCM] Payload:', { action, tokenLength: token.length });
 
-            await api.post('/api/mobile/fcm-token', payload);
+            await api.post('/api/mobile/fcm-token', payload, {
+                headers: { 'Idempotency-Key': `fcm-${action}-${token}` },
+                skipErrorToast: true,
+            });
 
             this.lastSyncedToken = token;
             this.lastSyncedAction = action;
@@ -127,7 +130,10 @@ class FirebaseMessagingService {
                 };
 
                 logger.debug('[FCM] Sending refreshed token to backend');
-                await api.post('/api/mobile/fcm-token', payload);
+                await api.post('/api/mobile/fcm-token', payload, {
+                    headers: { 'Idempotency-Key': `fcm-add-${newToken}` },
+                    skipErrorToast: true,
+                });
                 logger.info('[FCM] Refreshed token synced successfully');
             } catch (error) {
                 logger.error('[FCM] Error syncing refreshed token:', error);
