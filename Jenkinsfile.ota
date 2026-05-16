@@ -7,7 +7,7 @@ kind: Pod
 spec:
   containers:
   - name: node
-    image: node:22-alpine
+    image: node:22-bookworm-slim
     command:
     - cat
     tty: true
@@ -64,7 +64,6 @@ spec:
                 container('node') {
                     sh """
                         set -e
-                        apk add --no-cache git >/dev/null 2>&1 || true
                         BASE_REF="\${GIT_PREVIOUS_SUCCESSFUL_COMMIT:-HEAD~1}"
                         echo "Diffing vs \${BASE_REF}..."
 
