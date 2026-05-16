@@ -2,7 +2,7 @@
   "expo": {
     "name": "RADPRO",
     "slug": "netmanager",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "netmanager",
@@ -137,7 +137,7 @@
         "projectId": "0e8762f0-6c54-4bc5-82f2-18aa3f8e765a"
       },
       "router": {},
-      "versionCode": 5
+      "versionCode": 6
     },
     "owner": "rohadimrajas-organization"
   }
