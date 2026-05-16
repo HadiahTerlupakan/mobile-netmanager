@@ -5,16 +5,16 @@ const {
 const fs = require('fs');
 const path = require('path');
 
-const NETWORK_SECURITY_XML = `<?xml version="1.0" encoding="utf-8"?>
+const MAIN_NETWORK_SECURITY_XML = `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-    <!-- Izinkan cleartext untuk Metro dev server di emulator (10.0.2.2) dan
-         koneksi lokal saat development. Production traffic ke staging.radpro.id
-         atau radpro.id tetap di-enforce HTTPS oleh base-config. -->
+    <!-- Izinkan cleartext untuk loopback/emulator saat ada build release yang
+         debug-mode. Production traffic ke staging.radpro.id atau radpro.id tetap
+         HTTPS karena base-config strict. -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">localhost</domain>
         <domain includeSubdomains="false">10.0.2.2</domain>
@@ -23,8 +23,29 @@ const NETWORK_SECURITY_XML = `<?xml version="1.0" encoding="utf-8"?>
 </network-security-config>
 `;
 
+const DEBUG_NETWORK_SECURITY_XML = `<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only override. Resource merger menimpa versi main saat build debug
+  variant, sehingga Metro dev server di IP LAN (192.168.x.x, 10.x.x.x) bisa
+  diakses tanpa HTTPS. Release tetap memakai versi strict di src/main.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+`;
+
+const DEBUG_VARIANTS = ['debug', 'debugOptimized'];
+
+function writeXml(dir, contents) {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'network_security_config.xml'), contents);
+}
+
 module.exports = function withNetworkSecurity(config) {
-  // 1. Tambahkan attribute android:networkSecurityConfig di AndroidManifest
   config = withAndroidManifest(config, (config) => {
     const mainApplication = config.modResults.manifest.application?.[0];
     if (mainApplication) {
@@ -34,24 +55,23 @@ module.exports = function withNetworkSecurity(config) {
     return config;
   });
 
-  // 2. Generate file res/xml/network_security_config.xml karena prebuild
-  //    --clean wipe folder android/, tanpa step ini gradle gagal AAPT.
   config = withDangerousMod(config, [
     'android',
     async (config) => {
-      const resDir = path.join(
-        config.modRequest.platformProjectRoot,
-        'app',
-        'src',
-        'main',
-        'res',
-        'xml',
+      const appDir = path.join(config.modRequest.platformProjectRoot, 'app');
+
+      writeXml(
+        path.join(appDir, 'src', 'main', 'res', 'xml'),
+        MAIN_NETWORK_SECURITY_XML,
       );
-      fs.mkdirSync(resDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(resDir, 'network_security_config.xml'),
-        NETWORK_SECURITY_XML,
-      );
+
+      for (const variant of DEBUG_VARIANTS) {
+        writeXml(
+          path.join(appDir, 'src', variant, 'res', 'xml'),
+          DEBUG_NETWORK_SECURITY_XML,
+        );
+      }
+
       return config;
     },
   ]);

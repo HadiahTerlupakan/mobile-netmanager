@@ -29,19 +29,35 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const variant = resolveVariant();
   const { apiBase, channel } = VARIANT_CONFIG[variant];
 
+  const baseUpdates = (config.updates ?? {}) as Record<string, unknown>;
+  // Code signing hanya untuk build production. Saat dev/staging Expo CLI
+  // butuh private key untuk sign manifest yang di-serve Metro — kita tidak
+  // menyimpan private key di repo, jadi field-nya di-drop di non-prod.
+  const updates =
+    variant === "production"
+      ? baseUpdates
+      : Object.fromEntries(
+          Object.entries(baseUpdates).filter(
+            ([key]) =>
+              key !== "codeSigningCertificate" && key !== "codeSigningMetadata",
+          ),
+        );
+
+  const requestHeaders = {
+    ...((updates as { requestHeaders?: Record<string, string> })
+      ?.requestHeaders ?? {}),
+    "expo-channel-name": channel,
+  };
+
   return {
     ...config,
     name: config.name ?? "RADPRO",
     slug: config.slug ?? "netmanager",
     updates: {
-      ...(config.updates ?? {}),
+      ...updates,
       enabled: variant !== "development",
       url: `${apiBase}/api/mobile/app-update/manifest`,
-      requestHeaders: {
-        ...((config.updates as { requestHeaders?: Record<string, string> })
-          ?.requestHeaders ?? {}),
-        "expo-channel-name": channel,
-      },
+      requestHeaders,
     },
   };
 };
