@@ -283,6 +283,7 @@ export function KaryawanProfileScreen() {
             {/* Update Modal */}
             {showUpdateModal && latestVersion && (
                 <UpdateAvailableModal
+                    mode="ota"
                     visible={showUpdateModal}
                     latestVersion={latestVersion}
                     downloadStatus={downloadStatus}

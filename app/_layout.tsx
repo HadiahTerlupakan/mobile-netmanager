@@ -54,10 +54,23 @@ function RootLayoutNav() {
     );
   }
 
-  // Show force update screen if required
+  // Priority 1: APK force update — lock screen
+  if (versionState.isApkForceUpdate && versionState.latestApkRelease) {
+    return (
+      <UpdateRequiredScreen
+        mode="apk"
+        release={versionState.latestApkRelease}
+        contactAdmin={versionState.contactAdmin}
+        onRecheck={versionState.onRecheckApk}
+      />
+    );
+  }
+
+  // Priority 2: OTA force update (dev preview override atau real)
   if (devPreview?.isForceUpdate) {
     return (
       <UpdateRequiredScreen
+        mode="ota"
         latestVersion={devPreview.latestVersion}
         downloadStatus={devPreview.downloadStatus}
         downloadProgress={devPreview.downloadProgress}
@@ -67,15 +80,16 @@ function RootLayoutNav() {
       />
     );
   }
-  if (versionState.updateAvailable && versionState.isForceUpdate && versionState.latestVersion) {
+  if (versionState.isOtaForceUpdate && versionState.latestOtaVersion) {
     return (
       <UpdateRequiredScreen
-        latestVersion={versionState.latestVersion}
-        downloadStatus={versionState.downloadStatus}
-        downloadProgress={versionState.downloadProgress}
-        error={versionState.error}
-        onStartUpdate={versionState.startUpdate}
-        onDismissError={versionState.dismissError}
+        mode="ota"
+        latestVersion={versionState.latestOtaVersion}
+        downloadStatus={versionState.otaDownloadStatus}
+        downloadProgress={null}
+        error={versionState.otaError}
+        onStartUpdate={versionState.onStartOtaUpdate}
+        onDismissError={versionState.onDismissOtaError}
       />
     );
   }
@@ -89,9 +103,10 @@ function RootLayoutNav() {
 
       <EnvironmentIndicator />
 
-      {/* Optional Update Modal */}
+      {/* Dev preview: OTA soft modal */}
       {devPreview?.showOptionalUpdate && (
         <UpdateAvailableModal
+          mode="ota"
           visible={true}
           latestVersion={devPreview.latestVersion}
           downloadStatus={devPreview.downloadStatus}
@@ -102,19 +117,36 @@ function RootLayoutNav() {
           onDismissError={() => {}}
         />
       )}
-      {!devPreview && versionState.showOptionalUpdate && versionState.latestVersion && (
+
+      {/* APK soft modal */}
+      {!devPreview && versionState.showApkOptional && versionState.latestApkRelease && (
         <UpdateAvailableModal
-          visible={versionState.showOptionalUpdate}
-          latestVersion={versionState.latestVersion}
-          downloadStatus={versionState.downloadStatus}
-          downloadProgress={versionState.downloadProgress}
-          error={versionState.error}
-          onStartUpdate={versionState.startUpdate}
+          mode="apk"
+          visible
+          release={versionState.latestApkRelease}
+          contactAdmin={versionState.contactAdmin}
           onLater={() => {
-            versionState.ignoreUpdate();
-            versionState.setShowOptionalUpdate(false);
+            versionState.setShowApkOptional(false);
+            versionState.onIgnoreApk();
           }}
-          onDismissError={versionState.dismissError}
+        />
+      )}
+
+      {/* OTA soft modal */}
+      {!devPreview && versionState.showOtaOptional && versionState.latestOtaVersion && (
+        <UpdateAvailableModal
+          mode="ota"
+          visible
+          latestVersion={versionState.latestOtaVersion}
+          downloadStatus={versionState.otaDownloadStatus}
+          downloadProgress={null}
+          error={versionState.otaError}
+          onStartUpdate={versionState.onStartOtaUpdate}
+          onLater={() => {
+            versionState.setShowOtaOptional(false);
+            versionState.onIgnoreOta();
+          }}
+          onDismissError={versionState.onDismissOtaError}
         />
       )}
     </>

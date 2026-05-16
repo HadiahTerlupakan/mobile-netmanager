@@ -227,6 +227,7 @@ export function MitraTeknisiProfileScreen() {
             {/* Update Modal */}
             {showUpdateModal && latestVersion && (
                 <UpdateAvailableModal
+                    mode="ota"
                     visible={showUpdateModal}
                     latestVersion={latestVersion}
                     downloadStatus={downloadStatus}
