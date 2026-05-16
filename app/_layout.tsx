@@ -7,6 +7,7 @@ import { RealtimeProvider } from "@/context/RealtimeProvider";
 import { TenantProvider } from "@/context/TenantContext";
 import { useAppInitialization } from "@/hooks/useAppInitialization";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
+import { useOtaDevPreview } from "@/hooks/useOtaDevPreview";
 import { useNotificationSetup } from "@/hooks/useNotificationSetup";
 import { useAuthRedirect } from "@/hooks/useAuthRedirect";
 import { asyncStoragePersister, queryClient } from "@/lib/queryClient";
@@ -34,6 +35,10 @@ function RootLayoutNav() {
   // Handle version checking and updates
   const versionState = useVersionCheck(user, token);
 
+  // Dev-only OTA preview — bypass expo-updates check, force render modal
+  // dengan dummy data untuk verifikasi UI tanpa harus build release.
+  const devPreview = useOtaDevPreview();
+
   // Setup push notifications
   useNotificationSetup();
 
@@ -50,6 +55,18 @@ function RootLayoutNav() {
   }
 
   // Show force update screen if required
+  if (devPreview?.isForceUpdate) {
+    return (
+      <UpdateRequiredScreen
+        latestVersion={devPreview.latestVersion}
+        downloadStatus={devPreview.downloadStatus}
+        downloadProgress={devPreview.downloadProgress}
+        error={null}
+        onStartUpdate={() => {}}
+        onDismissError={() => {}}
+      />
+    );
+  }
   if (versionState.updateAvailable && versionState.isForceUpdate && versionState.latestVersion) {
     return (
       <UpdateRequiredScreen
@@ -73,7 +90,19 @@ function RootLayoutNav() {
       <EnvironmentIndicator />
 
       {/* Optional Update Modal */}
-      {versionState.showOptionalUpdate && versionState.latestVersion && (
+      {devPreview?.showOptionalUpdate && (
+        <UpdateAvailableModal
+          visible={true}
+          latestVersion={devPreview.latestVersion}
+          downloadStatus={devPreview.downloadStatus}
+          downloadProgress={devPreview.downloadProgress}
+          error={null}
+          onStartUpdate={() => {}}
+          onLater={() => {}}
+          onDismissError={() => {}}
+        />
+      )}
+      {!devPreview && versionState.showOptionalUpdate && versionState.latestVersion && (
         <UpdateAvailableModal
           visible={versionState.showOptionalUpdate}
           latestVersion={versionState.latestVersion}
