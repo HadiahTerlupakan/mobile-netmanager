@@ -20,6 +20,12 @@ spec:
         buildDiscarder(logRotator(numToKeepStr: '20'))
     }
 
+    triggers {
+        githubPush()
+        // Fallback: scan branch tiap 5 menit kalau webhook gagal trigger.
+        pollSCM('H/5 * * * *')
+    }
+
     parameters {
         booleanParam(
             name: 'ALLOW_NATIVE',
