@@ -112,6 +112,9 @@
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "buildToolsVersion": "35.0.0",
+            "extraMavenRepos": [
+              "https://www.jitpack.io"
+            ],
             "gradleProperties": [
               {
                 "key": "org.gradle.jvmargs",
@@ -127,7 +130,8 @@
       ],
       "@react-native-firebase/app/app.plugin.js",
       "@react-native-firebase/messaging/app.plugin.js",
-      "./plugins/withNetworkSecurity"
+      "./plugins/withNetworkSecurity",
+      "./plugins/withNotifeeRepo"
     ],
     "experiments": {
       "typedRoutes": true
