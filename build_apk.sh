@@ -165,6 +165,13 @@ echo -e "   Using Android SDK at: $ANDROID_HOME"
 echo -e "   EXPO_PUBLIC_APP_VARIANT: $EXPO_PUBLIC_APP_VARIANT"
 echo ""
 
+# Re-prebuild Android native config dari app.config.ts agar updates URL,
+# channel, dan signing cert sesuai variant aktif. Tanpa ini, gradle akan
+# pakai snapshot AndroidManifest lama (mis. ENABLED=false).
+echo -e "${YELLOW}🛠  Regenerating Android native config (expo prebuild)...${NC}"
+npx expo prebuild --platform android --clean --no-install
+echo ""
+
 # Ensure gradlew is executable
 chmod +x android/gradlew
 
