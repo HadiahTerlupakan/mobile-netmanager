@@ -20,6 +20,19 @@ spec:
         buildDiscarder(logRotator(numToKeepStr: '20'))
     }
 
+    parameters {
+        booleanParam(
+            name: 'ALLOW_NATIVE',
+            defaultValue: false,
+            description: 'Override stage "Detect Native Change". Centang HANYA setelah build APK baru sudah didistribusikan ke Play Store / sideload — kalau tidak, OTA akan crash di app lama yang belum punya native module baru.'
+        )
+        string(
+            name: 'RELEASE_NOTES',
+            defaultValue: '',
+            description: 'Catatan rilis untuk update. Kosongkan untuk pakai default "OTA from CI build #N".'
+        )
+    }
+
     environment {
         BRANCH = "${env.GIT_BRANCH ?: env.BRANCH_NAME ?: 'unknown'}"
     }
@@ -49,31 +62,31 @@ spec:
         stage('Detect Native Change') {
             steps {
                 container('node') {
-                    sh '''
+                    sh """
                         set -e
                         apk add --no-cache git >/dev/null 2>&1 || true
-                        BASE_REF="${GIT_PREVIOUS_SUCCESSFUL_COMMIT:-HEAD~1}"
-                        echo "Diffing vs ${BASE_REF}..."
+                        BASE_REF="\${GIT_PREVIOUS_SUCCESSFUL_COMMIT:-HEAD~1}"
+                        echo "Diffing vs \${BASE_REF}..."
 
                         NATIVE_CHANGED=0
-                        if git diff --name-only "${BASE_REF}" HEAD 2>/dev/null | grep -E '^(android/|ios/|app\\.config\\.ts|package\\.json)' >/tmp/native-diff.txt; then
+                        if git diff --name-only "\${BASE_REF}" HEAD 2>/dev/null | grep -E '^(android/|ios/|app\\\\.config\\\\.ts|package\\\\.json)' >/tmp/native-diff.txt; then
                             cat /tmp/native-diff.txt
                             NATIVE_CHANGED=1
                         fi
 
-                        if [ "$NATIVE_CHANGED" = "1" ] && [ "${ALLOW_NATIVE:-0}" != "1" ]; then
+                        if [ "\$NATIVE_CHANGED" = "1" ] && [ "${params.ALLOW_NATIVE}" != "true" ]; then
                             echo ""
                             echo "❌ Detected native-level change. OTA tidak boleh untuk perubahan native."
-                            echo "   Rilis APK baru via build_apk.sh, atau set ALLOW_NATIVE=1 untuk override."
+                            echo "   Rilis APK baru via build_apk.sh, atau centang ALLOW_NATIVE saat build."
                             exit 1
                         fi
 
-                        if [ "$NATIVE_CHANGED" = "1" ]; then
-                            echo "⚠️  Native change detected, ALLOW_NATIVE=1 → continuing."
+                        if [ "\$NATIVE_CHANGED" = "1" ]; then
+                            echo "⚠️  Native change detected, ALLOW_NATIVE=true → continuing."
                         else
                             echo "✓ No native change detected."
                         fi
-                    '''
+                    """
                 }
             }
         }
@@ -92,11 +105,14 @@ spec:
                     withCredentials([
                         string(credentialsId: 'app-update-publish-token', variable: 'APP_UPDATE_PUBLISH_TOKEN')
                     ]) {
-                        sh '''
-                            set -e
-                            chmod +x ./scripts/publish-update.sh
-                            ./scripts/publish-update.sh "${CHANNEL}" "${RELEASE_NOTES:-OTA from CI build #${BUILD_NUMBER}}"
-                        '''
+                        script {
+                            def notes = params.RELEASE_NOTES?.trim() ?: "OTA from CI build #${env.BUILD_NUMBER}"
+                            sh """
+                                set -e
+                                chmod +x ./scripts/publish-update.sh
+                                ./scripts/publish-update.sh "\${CHANNEL}" ${groovy.json.JsonOutput.toJson(notes)}
+                            """
+                        }
                     }
                 }
             }
