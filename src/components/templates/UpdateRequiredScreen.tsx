@@ -102,6 +102,18 @@ export function UpdateRequiredScreen({
                     </View>
                 )}
 
+                {/* Warning saat download/install — cegah user close app */}
+                {isBusy && (
+                    <View style={styles.warningContainer}>
+                        <Text style={styles.warningIcon}>⚠️</Text>
+                        <Text style={styles.warningText}>
+                            {isInstalling
+                                ? 'Memasang update, aplikasi akan restart otomatis. Mohon jangan tutup aplikasi.'
+                                : 'Sedang mengunduh update. Mohon jangan tutup aplikasi sampai proses selesai.'}
+                        </Text>
+                    </View>
+                )}
+
                 {/* Main Update Button */}
                 <TouchableOpacity
                     style={[
@@ -262,6 +274,27 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#64748b',
         textAlign: 'center'
+    },
+    warningContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        backgroundColor: '#fef3c7',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 16,
+        gap: 8,
+        width: '100%'
+    },
+    warningIcon: {
+        fontSize: 16,
+        lineHeight: 18
+    },
+    warningText: {
+        flex: 1,
+        color: '#92400e',
+        fontSize: 13,
+        lineHeight: 18,
+        fontWeight: '500'
     },
     updateButton: {
         width: '100%',

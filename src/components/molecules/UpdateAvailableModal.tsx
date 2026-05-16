@@ -74,15 +74,27 @@ export function UpdateAvailableModal({
                     {isDownloading && downloadProgress && (
                         <View style={styles.progressContainer}>
                             <View style={styles.progressBar}>
-                                <View 
+                                <View
                                     style={[
-                                        styles.progressFill, 
+                                        styles.progressFill,
                                         { width: `${downloadProgress.percentage}%` }
-                                    ]} 
+                                    ]}
                                 />
                             </View>
                             <Text style={styles.progressText}>
                                 Mengunduh... {downloadProgress.percentage.toFixed(0)}%
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Warning saat download/install — cegah user close app */}
+                    {isBusy && (
+                        <View style={styles.warningContainer}>
+                            <Text style={styles.warningIcon}>⚠️</Text>
+                            <Text style={styles.warningText}>
+                                {isInstalling
+                                    ? 'Memasang update, aplikasi akan restart otomatis. Mohon jangan tutup aplikasi.'
+                                    : 'Sedang mengunduh update. Mohon jangan tutup aplikasi sampai proses selesai.'}
                             </Text>
                         </View>
                     )}
@@ -216,6 +228,26 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#64748b',
         textAlign: 'center'
+    },
+    warningContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        backgroundColor: '#fef3c7',
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 12,
+        gap: 8
+    },
+    warningIcon: {
+        fontSize: 16,
+        lineHeight: 18
+    },
+    warningText: {
+        flex: 1,
+        color: '#92400e',
+        fontSize: 12,
+        lineHeight: 18,
+        fontWeight: '500'
     },
     buttonContainer: {
         flexDirection: 'row',

@@ -152,7 +152,7 @@ export function useAppVersion(): UseAppVersionState {
     const [state, dispatch] = useReducer(versionReducer, initialState)
 
     const checkForUpdate = useCallback(async (): Promise<CheckUpdateResult> => {
-        if (!Updates.isEnabled) {
+        if (__DEV__ || !Updates.isEnabled) {
             dispatch({ type: 'CHECK_NO_UPDATE' })
             return {
                 success: true,
@@ -208,7 +208,7 @@ export function useAppVersion(): UseAppVersionState {
     }, [])
 
     const startUpdate = useCallback(async () => {
-        if (!Updates.isEnabled) {
+        if (__DEV__ || !Updates.isEnabled) {
             dispatch({ type: 'UPDATE_ERROR', error: 'Update tidak diaktifkan untuk build ini' })
             return
         }
