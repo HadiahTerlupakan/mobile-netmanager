@@ -7,6 +7,19 @@
     "icon": "./assets/images/icon.png",
     "scheme": "netmanager",
     "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 5000,
+      "codeSigningCertificate": "./assets/expo-updates/code-signing-certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "v1",
+        "alg": "rsa-v1_5-sha256"
+      }
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.netmanager.mobile",

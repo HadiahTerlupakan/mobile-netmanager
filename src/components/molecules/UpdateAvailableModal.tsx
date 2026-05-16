@@ -1,5 +1,4 @@
-import { DownloadStatus } from '@/hooks/useAppVersion'
-import { AppVersionInfo, DownloadProgress } from '@/services/AppVersionService'
+import { AppVersionInfo, DownloadProgress, DownloadStatus } from '@/hooks/useAppVersion'
 import React from 'react'
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 

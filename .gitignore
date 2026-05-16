@@ -30,6 +30,8 @@ yarn-error.*
 # macOS
 .DS_Store
 *.pem
+# Allow Expo Updates code-signing public certificate (must be bundled with app).
+!assets/expo-updates/code-signing-certificate.pem
 
 # local env files
 .env*.local

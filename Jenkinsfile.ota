@@ -1,0 +1,139 @@
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: node
+    image: node:22-alpine
+    command:
+    - cat
+    tty: true
+'''
+        }
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+
+    environment {
+        BRANCH = "${env.GIT_BRANCH ?: env.BRANCH_NAME ?: 'unknown'}"
+    }
+
+    stages {
+        stage('Detect Channel') {
+            steps {
+                script {
+                    def branch = env.BRANCH.replaceAll(/^origin\//, '')
+                    if (branch == 'main') {
+                        env.CHANNEL = 'production'
+                        env.BASE_URL = 'https://radpro.id'
+                        env.EXPO_VARIANT = 'production'
+                    } else if (branch == 'staging') {
+                        env.CHANNEL = 'staging'
+                        env.BASE_URL = 'https://staging.radpro.id'
+                        env.EXPO_VARIANT = 'staging'
+                    } else {
+                        error "Branch '${branch}' tidak di-allowlist publish OTA. Hanya 'staging' dan 'main'."
+                    }
+                    echo "→ Channel: ${env.CHANNEL}"
+                    echo "→ Base URL: ${env.BASE_URL}"
+                }
+            }
+        }
+
+        stage('Detect Native Change') {
+            steps {
+                container('node') {
+                    sh '''
+                        set -e
+                        apk add --no-cache git >/dev/null 2>&1 || true
+                        BASE_REF="${GIT_PREVIOUS_SUCCESSFUL_COMMIT:-HEAD~1}"
+                        echo "Diffing vs ${BASE_REF}..."
+
+                        NATIVE_CHANGED=0
+                        if git diff --name-only "${BASE_REF}" HEAD 2>/dev/null | grep -E '^(android/|ios/|app\\.config\\.ts|package\\.json)' >/tmp/native-diff.txt; then
+                            cat /tmp/native-diff.txt
+                            NATIVE_CHANGED=1
+                        fi
+
+                        if [ "$NATIVE_CHANGED" = "1" ] && [ "${ALLOW_NATIVE:-0}" != "1" ]; then
+                            echo ""
+                            echo "❌ Detected native-level change. OTA tidak boleh untuk perubahan native."
+                            echo "   Rilis APK baru via build_apk.sh, atau set ALLOW_NATIVE=1 untuk override."
+                            exit 1
+                        fi
+
+                        if [ "$NATIVE_CHANGED" = "1" ]; then
+                            echo "⚠️  Native change detected, ALLOW_NATIVE=1 → continuing."
+                        else
+                            echo "✓ No native change detected."
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                container('node') {
+                    sh 'npm ci --no-audit --no-fund'
+                }
+            }
+        }
+
+        stage('Build & Publish') {
+            steps {
+                container('node') {
+                    withCredentials([
+                        string(credentialsId: 'app-update-publish-token', variable: 'APP_UPDATE_PUBLISH_TOKEN')
+                    ]) {
+                        sh '''
+                            set -e
+                            chmod +x ./scripts/publish-update.sh
+                            ./scripts/publish-update.sh "${CHANNEL}" "${RELEASE_NOTES:-OTA from CI build #${BUILD_NUMBER}}"
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Verify Manifest') {
+            steps {
+                container('node') {
+                    sh '''
+                        set -e
+                        RUNTIME=$(node -p "require('./app.json').expo.version")
+                        echo "Verifying ${BASE_URL}/api/mobile/app-update/manifest (runtime=${RUNTIME}, channel=${CHANNEL})..."
+                        STATUS=$(curl -sS -o /tmp/manifest.json -w "%{http_code}" \
+                            -H "expo-runtime-version: ${RUNTIME}" \
+                            -H "expo-platform: android" \
+                            -H "expo-channel-name: ${CHANNEL}" \
+                            -H "expo-protocol-version: 1" \
+                            "${BASE_URL}/api/mobile/app-update/manifest")
+                        if [ "$STATUS" != "200" ]; then
+                            echo "❌ Manifest endpoint return ${STATUS}"
+                            cat /tmp/manifest.json || true
+                            exit 1
+                        fi
+                        echo "✓ Manifest OK"
+                        head -c 500 /tmp/manifest.json && echo "..."
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ OTA published to ${env.CHANNEL} (${env.BASE_URL})"
+        }
+        failure {
+            echo "❌ OTA publish failed for branch ${env.BRANCH}"
+        }
+    }
+}
