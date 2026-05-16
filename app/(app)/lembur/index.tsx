@@ -346,7 +346,7 @@ export default function LemburScreen() {
     }
   }, [photo, location, todayRequest, activeAction, capturedTime, captureWatermarkedPhoto, overtimeMutation, fetchData]);
 
-  const canStartOvertime = hasCheckedOut || (holidayInfo && holidayInfo.isNational);
+  const canStartOvertime = hasCheckedOut || Boolean(holidayInfo);
 
   const ListHeader = useMemo(() => (
     <View>
