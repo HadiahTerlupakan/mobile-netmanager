@@ -69,19 +69,21 @@ require_gh_cli() {
 
 read_ci_status_for_sha() {
   local sha="$1"
-  # gh run list --json status,conclusion,headSha --limit 50
-  # Filter run yang headSha cocok, ambil status terbaru.
-  gh run list --branch staging --limit 50 \
-    --json status,conclusion,headSha,name,databaseId,createdAt 2>/dev/null \
-    | python3 - "$sha" <<'PY'
-import json, sys
-sha = sys.argv[1]
-runs = json.load(sys.stdin)
+  local runs_json
+  runs_json="$(gh run list --branch staging --limit 50 \
+    --json status,conclusion,headSha,name,databaseId,createdAt 2>/dev/null)"
+  if [ -z "$runs_json" ]; then
+    echo "PENDING"
+    return
+  fi
+  RUNS_JSON="$runs_json" SHA="$sha" python3 <<'PY'
+import json, os, sys
+sha = os.environ["SHA"]
+runs = json.loads(os.environ["RUNS_JSON"])
 matching = [r for r in runs if r.get("headSha") == sha]
 if not matching:
     print("PENDING")
     sys.exit()
-# Ambil yang paling baru
 latest = sorted(matching, key=lambda r: r["createdAt"], reverse=True)[0]
 status = latest.get("status", "")
 conclusion = latest.get("conclusion") or ""
