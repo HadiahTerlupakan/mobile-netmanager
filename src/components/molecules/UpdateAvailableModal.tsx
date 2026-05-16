@@ -1,8 +1,21 @@
 import { AppVersionInfo, DownloadProgress, DownloadStatus } from '@/hooks/useAppVersion'
+import { ApkContactAdmin, ApkLatestVersion } from '@/types/appVersion'
 import React from 'react'
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import {
+    ActivityIndicator,
+    Linking,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native'
 
-interface UpdateAvailableModalProps {
+// --- Discriminated union props ---
+
+type UpdateAvailableModalOtaProps = {
+    mode: 'ota'
     visible: boolean
     latestVersion: AppVersionInfo
     downloadStatus: DownloadStatus
@@ -13,16 +26,86 @@ interface UpdateAvailableModalProps {
     onDismissError?: () => void
 }
 
-export function UpdateAvailableModal({
-    visible,
-    latestVersion,
-    downloadStatus,
-    downloadProgress,
-    error,
-    onStartUpdate,
-    onLater,
-    onDismissError
-}: UpdateAvailableModalProps) {
+type UpdateAvailableModalApkProps = {
+    mode: 'apk'
+    visible: boolean
+    release: ApkLatestVersion
+    contactAdmin: ApkContactAdmin | null
+    onLater: () => void
+}
+
+type UpdateAvailableModalProps = UpdateAvailableModalOtaProps | UpdateAvailableModalApkProps
+
+export function UpdateAvailableModal(props: UpdateAvailableModalProps) {
+    // --- APK branch ---
+    if (props.mode === 'apk') {
+        return (
+            <Modal
+                visible={props.visible}
+                transparent
+                animationType="fade"
+                onRequestClose={props.onLater}
+            >
+                <View style={styles.overlay}>
+                    <View style={styles.modal}>
+                        {/* Header */}
+                        <View style={styles.header}>
+                            <Text style={styles.headerIcon}>📱</Text>
+                            <Text style={styles.title}>Update Aplikasi Tersedia</Text>
+                        </View>
+
+                        {/* Version */}
+                        <Text style={styles.versionText}>
+                            Versi {props.release.version} sudah tersedia.
+                        </Text>
+
+                        {/* Release Notes */}
+                        {props.release.releaseNotes && (
+                            <ScrollView style={styles.releaseNotesContainer}>
+                                <Text style={styles.releaseNotesTitle}>Apa yang baru:</Text>
+                                <Text style={styles.releaseNotes}>{props.release.releaseNotes}</Text>
+                            </ScrollView>
+                        )}
+
+                        {/* APK Size */}
+                        {props.release.apkSizeBytes && (
+                            <Text style={styles.sizeText}>
+                                Ukuran: {(props.release.apkSizeBytes / (1024 * 1024)).toFixed(1)} MB
+                            </Text>
+                        )}
+
+                        {/* Download APK button */}
+                        <TouchableOpacity
+                            style={styles.updateButton}
+                            onPress={() => Linking.openURL(props.release.downloadUrl)}
+                        >
+                            <Text style={styles.updateButtonText}>Download APK Sekarang</Text>
+                        </TouchableOpacity>
+
+                        {/* Hubungi Admin button — conditional */}
+                        {props.contactAdmin && (
+                            <TouchableOpacity
+                                style={styles.adminButton}
+                                onPress={() => Linking.openURL(props.contactAdmin!.url)}
+                            >
+                                <Text style={styles.adminButtonText}>
+                                    {props.contactAdmin.label ?? 'Hubungi Admin'}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {/* Nanti button */}
+                        <TouchableOpacity style={styles.laterButtonFull} onPress={props.onLater}>
+                            <Text style={styles.laterButtonFullText}>Nanti</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+        )
+    }
+
+    // --- OTA branch (existing logic, unchanged) ---
+    const { visible, latestVersion, downloadStatus, downloadProgress, error, onStartUpdate, onLater, onDismissError } = props
     const isDownloading = downloadStatus === 'downloading'
     const isInstalling = downloadStatus === 'installing'
     const isBusy = isDownloading || isInstalling
@@ -101,14 +184,14 @@ export function UpdateAvailableModal({
 
                     {/* Buttons */}
                     <View style={styles.buttonContainer}>
-                        <TouchableOpacity 
-                            style={[styles.laterButton, isBusy && { opacity: 0.5 }]} 
+                        <TouchableOpacity
+                            style={[styles.laterButton, isBusy && { opacity: 0.5 }]}
                             onPress={onLater}
                             disabled={isBusy}
                         >
                             <Text style={styles.laterButtonText}>Nanti Saja</Text>
                         </TouchableOpacity>
-                        
+
                         <TouchableOpacity
                             style={[styles.updateButton, isBusy && styles.updateButtonDisabled]}
                             onPress={onStartUpdate}
@@ -267,6 +350,16 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500'
     },
+    laterButtonFull: {
+        width: '100%',
+        paddingVertical: 12,
+        alignItems: 'center'
+    },
+    laterButtonFullText: {
+        color: '#94a3b8',
+        fontSize: 14,
+        fontWeight: '500'
+    },
     updateButton: {
         flex: 1,
         backgroundColor: '#10b981',
@@ -287,6 +380,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4
+    },
+    adminButton: {
+        width: '100%',
+        backgroundColor: '#16a34a',
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginBottom: 8
+    },
+    adminButtonText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '600'
     },
     browserButton: {
         paddingVertical: 8,

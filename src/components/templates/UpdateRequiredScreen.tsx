@@ -1,8 +1,20 @@
 import { AppVersionInfo, DownloadProgress, DownloadStatus } from '@/hooks/useAppVersion'
+import { ApkContactAdmin, ApkLatestVersion } from '@/types/appVersion'
 import React from 'react'
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import {
+    ActivityIndicator,
+    Linking,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native'
 
-interface UpdateRequiredScreenProps {
+// --- Discriminated union props ---
+
+type UpdateRequiredScreenOtaProps = {
+    mode: 'ota'
     latestVersion: AppVersionInfo
     downloadStatus: DownloadStatus
     downloadProgress: DownloadProgress | null
@@ -11,14 +23,98 @@ interface UpdateRequiredScreenProps {
     onDismissError?: () => void
 }
 
-export function UpdateRequiredScreen({
-    latestVersion,
-    downloadStatus,
-    downloadProgress,
-    error,
-    onStartUpdate,
-    onDismissError
-}: UpdateRequiredScreenProps) {
+type UpdateRequiredScreenApkProps = {
+    mode: 'apk'
+    release: ApkLatestVersion
+    contactAdmin: ApkContactAdmin | null
+    onRecheck: () => void
+}
+
+type UpdateRequiredScreenProps = UpdateRequiredScreenOtaProps | UpdateRequiredScreenApkProps
+
+export function UpdateRequiredScreen(props: UpdateRequiredScreenProps) {
+    // --- APK branch ---
+    if (props.mode === 'apk') {
+        return (
+            <View style={styles.container}>
+                <View style={styles.content}>
+                    {/* Icon */}
+                    <View style={styles.iconContainer}>
+                        <Text style={styles.icon}>🔒</Text>
+                    </View>
+
+                    {/* Title */}
+                    <Text style={styles.title}>Update Wajib</Text>
+                    <Text style={styles.subtitle}>
+                        Versi aplikasi Anda sudah tidak didukung. Silakan update ke versi{' '}
+                        {props.release.version}.
+                    </Text>
+
+                    {/* Release Notes */}
+                    {props.release.releaseNotes && (
+                        <View style={styles.releaseNotesContainer}>
+                            <Text style={styles.releaseNotesTitle}>Apa yang baru:</Text>
+                            <ScrollView style={styles.releaseNotesScroll}>
+                                <Text style={styles.releaseNotes}>{props.release.releaseNotes}</Text>
+                            </ScrollView>
+                        </View>
+                    )}
+
+                    {/* APK Size */}
+                    {props.release.apkSizeBytes && (
+                        <View style={styles.versionCard}>
+                            <View style={styles.versionRow}>
+                                <Text style={styles.versionLabel}>Versi Baru:</Text>
+                                <Text style={styles.versionValue}>v{props.release.version}</Text>
+                            </View>
+                            <View style={styles.versionRow}>
+                                <Text style={styles.versionLabel}>Ukuran:</Text>
+                                <Text style={styles.versionValue}>
+                                    {(props.release.apkSizeBytes / (1024 * 1024)).toFixed(1)} MB
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Download APK button */}
+                    <TouchableOpacity
+                        style={styles.updateButton}
+                        onPress={() => Linking.openURL(props.release.downloadUrl)}
+                    >
+                        <Text style={styles.updateButtonText}>Download APK Sekarang</Text>
+                    </TouchableOpacity>
+
+                    {/* Hubungi Admin button — conditional */}
+                    {props.contactAdmin && (
+                        <TouchableOpacity
+                            style={styles.adminButton}
+                            onPress={() => Linking.openURL(props.contactAdmin!.url)}
+                        >
+                            <Text style={styles.adminButtonText}>
+                                {props.contactAdmin.label ?? 'Hubungi Admin'}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {/* Cek Ulang button */}
+                    <TouchableOpacity
+                        style={styles.recheckButton}
+                        onPress={() => props.onRecheck()}
+                    >
+                        <Text style={styles.recheckButtonText}>Sudah Update? Cek Ulang</Text>
+                    </TouchableOpacity>
+
+                    {/* Footer */}
+                    <Text style={styles.footerText}>
+                        Anda harus memperbarui aplikasi untuk melanjutkan
+                    </Text>
+                </View>
+            </View>
+        )
+    }
+
+    // --- OTA branch (existing logic, unchanged) ---
+    const { latestVersion, downloadStatus, downloadProgress, error, onStartUpdate, onDismissError } = props
     const isDownloading = downloadStatus === 'downloading'
     const isInstalling = downloadStatus === 'installing'
     const isBusy = isDownloading || isInstalling
@@ -79,11 +175,11 @@ export function UpdateRequiredScreen({
                 {isDownloading && downloadProgress && (
                     <View style={styles.progressContainer}>
                         <View style={styles.progressBar}>
-                            <View 
+                            <View
                                 style={[
-                                    styles.progressFill, 
+                                    styles.progressFill,
                                     { width: `${downloadProgress.percentage}%` }
-                                ]} 
+                                ]}
                             />
                         </View>
                         <Text style={styles.progressText}>
@@ -116,10 +212,7 @@ export function UpdateRequiredScreen({
 
                 {/* Main Update Button */}
                 <TouchableOpacity
-                    style={[
-                        styles.updateButton,
-                        isBusy && styles.updateButtonDisabled
-                    ]}
+                    style={[styles.updateButton, isBusy && styles.updateButtonDisabled]}
                     onPress={onStartUpdate}
                     disabled={isBusy}
                 >
@@ -316,6 +409,30 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8
+    },
+    adminButton: {
+        width: '100%',
+        backgroundColor: '#16a34a',
+        paddingVertical: 14,
+        borderRadius: 12,
+        alignItems: 'center',
+        marginBottom: 12
+    },
+    adminButtonText: {
+        color: '#fff',
+        fontSize: 15,
+        fontWeight: '600'
+    },
+    recheckButton: {
+        width: '100%',
+        paddingVertical: 12,
+        alignItems: 'center',
+        marginBottom: 8
+    },
+    recheckButtonText: {
+        color: '#4f46e5',
+        fontSize: 14,
+        fontWeight: '500'
     },
     browserButton: {
         width: '100%',
