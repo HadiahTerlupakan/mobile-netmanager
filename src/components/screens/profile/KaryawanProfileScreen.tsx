@@ -272,7 +272,7 @@ export function KaryawanProfileScreen() {
                             <ActivityIndicator size="small" color="#9ca3af" />
                         ) : (
                             <Text style={tw`text-center text-gray-400 text-xs`}>
-                                RADPRO v{CURRENT_VERSION_NAME} (Build {CURRENT_VERSION_CODE_LABEL})
+                                RADPRO v{CURRENT_VERSION_NAME} (Build {CURRENT_VERSION_CODE_LABEL}) — OTA aktif ✨
                                 {'\n'}Ketuk untuk cek update
                             </Text>
                         )}
