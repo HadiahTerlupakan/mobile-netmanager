@@ -5,11 +5,10 @@ import {
 } from '@/services/PushNotificationService';
 import { presentForegroundNotification } from '@/services/ForegroundNotificationService';
 import { errorReportingService } from '@/services/ErrorReportingService';
-import { eventManager } from '@/utils/EventManager';
 import { presentInfoMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
-import { Href, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { Href, useRouter, useSegments } from 'expo-router';
+import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
 /**
@@ -21,10 +20,28 @@ import { Platform } from 'react-native';
  */
 export function useNotificationSetup() {
   const router = useRouter();
+  const segments = useSegments();
+  const pendingDeepLinkRef = useRef<{ url?: string } | null>(null);
+  const handleNavRef = useRef<((data: { url?: string }) => void) | null>(null);
+  // Cleanup function dari notification listener disimpan per-instance
+  // di ref agar tidak share namespace global dengan hook lain. Sebelumnya
+  // pakai `eventManager.addListener('root_notifications', ...)` yang
+  // namespace string global — kalau hook re-mount, removeAllListeners
+  // akan hapus juga listener module lain yang kebetulan pakai key sama.
+  const notificationCleanupRef = useRef<(() => void) | null>(null);
+
+  // Router-ready gate: jika ada pending deeplink dari killed-state, fire
+  // saat segments sudah populated (bukan setTimeout 500ms — di Android Go
+  // / device lambat, navigator bisa belum mount setelah 500ms → router.push
+  // no-op dan user mendarat di dashboard alih-alih deep link target).
+  useEffect(() => {
+    if (segments.length > 0 && pendingDeepLinkRef.current && handleNavRef.current) {
+      handleNavRef.current(pendingDeepLinkRef.current);
+      pendingDeepLinkRef.current = null;
+    }
+  }, [segments]);
 
   useEffect(() => {
-    let notificationNavigationTimer: ReturnType<typeof setTimeout> | undefined;
-
     const validRoutes = [
       '/dashboard',
       '/work-order',
@@ -74,6 +91,7 @@ export function useNotificationSetup() {
         router.replace('/(app)/dashboard');
       }
     };
+    handleNavRef.current = handleNotificationNavigation;
 
     const setupNotifications = async () => {
       if (Platform.OS === 'web') return;
@@ -85,10 +103,8 @@ export function useNotificationSetup() {
             'App opened from notification (killed state):',
             initialNotificationData
           );
-          notificationNavigationTimer = setTimeout(
-            () => handleNotificationNavigation(initialNotificationData),
-            500
-          );
+          // Simpan ke ref; useEffect[segments] akan fire saat router siap.
+          pendingDeepLinkRef.current = initialNotificationData;
         }
 
         const cleanup = addNotificationListeners(
@@ -128,7 +144,7 @@ export function useNotificationSetup() {
           }
         );
 
-        eventManager.addListener('root_notifications', null, cleanup);
+        notificationCleanupRef.current = cleanup;
       } catch (error) {
         logger.error('Failed to setup notifications:', error);
         errorReportingService.captureException(
@@ -145,12 +161,14 @@ export function useNotificationSetup() {
     void setupNotifications();
 
     return () => {
-      if (notificationNavigationTimer) {
-        clearTimeout(notificationNavigationTimer);
+      // Cleanup listener per-instance via ref — tidak shared global
+      // namespace yang berisiko menabrak listener module lain.
+      try {
+        notificationCleanupRef.current?.();
+      } catch (cleanupError) {
+        logger.warn('[useNotificationSetup] cleanup failed (non-fatal)', cleanupError);
       }
-
-      // Cleanup using EventManager
-      eventManager.removeAllListeners('root_notifications');
+      notificationCleanupRef.current = null;
     };
   }, [router]);
 }

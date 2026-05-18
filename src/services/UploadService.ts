@@ -2,6 +2,7 @@ import { getUserFriendlyError } from '@/utils/errorHandling';
 import { logger } from '@/utils/logger';
 import { TokenService } from '@/services/TokenService';
 import { TenantService } from '@/services/TenantService';
+import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 
@@ -19,6 +20,60 @@ export interface UploadProgress {
   total: number;
   uploaded: number;
   percentage: number;
+}
+
+const UPLOAD_HARD_TIMEOUT_MS = HTTP_TIMEOUTS.long;
+const UPLOAD_NO_PROGRESS_TIMEOUT_MS = 30_000;
+
+class UploadTimeoutError extends Error {
+  constructor(reason: 'hard' | 'no-progress') {
+    super(
+      reason === 'hard'
+        ? 'Upload melebihi batas waktu 60 detik. Periksa koneksi dan coba lagi.'
+        : 'Upload terhenti — tidak ada progres selama 30 detik. Periksa koneksi.',
+    );
+    this.name = 'UploadTimeoutError';
+  }
+}
+
+interface WatchdogHandle {
+  reportProgress(): void;
+  finish(): void;
+  wasCancelled(): { cancelled: boolean; reason: 'hard' | 'no-progress' };
+}
+
+/**
+ * Bungkus upload task dengan watchdog: hard timeout (total) + no-progress timeout.
+ * Mencegah upload menggantung tanpa batas saat koneksi 4G drop di tengah jalan.
+ */
+function startUploadWatchdog(task: FileSystem.UploadTask): WatchdogHandle {
+  let lastProgressAt = Date.now();
+  let cancelReason: 'hard' | 'no-progress' | null = null;
+
+  const cancelOnce = (reason: 'hard' | 'no-progress') => {
+    if (cancelReason) return;
+    cancelReason = reason;
+    try { void task.cancelAsync(); } catch { /* ignore */ }
+  };
+
+  const hardTimer = setTimeout(() => cancelOnce('hard'), UPLOAD_HARD_TIMEOUT_MS);
+  const watchdog = setInterval(() => {
+    if (Date.now() - lastProgressAt > UPLOAD_NO_PROGRESS_TIMEOUT_MS) {
+      cancelOnce('no-progress');
+    }
+  }, 5_000);
+
+  return {
+    reportProgress: () => { lastProgressAt = Date.now(); },
+    finish: () => {
+      clearTimeout(hardTimer);
+      clearInterval(watchdog);
+    },
+    wasCancelled: () => ({
+      cancelled: cancelReason !== null,
+      reason: cancelReason ?? 'hard',
+    }),
+  };
 }
 
 class UploadService {
@@ -76,32 +131,39 @@ class UploadService {
           },
         };
 
+        // Selalu pakai createUploadTask agar bisa di-cancel via watchdog.
+        // Tanpa cancel, koneksi 4G drop = upload gantung 5 menit.
+        let watchdog: WatchdogHandle | null = null;
+        const uploadTask = FileSystem.createUploadTask(
+          uploadUrl,
+          uri,
+          uploadOptions,
+          (data) => {
+            watchdog?.reportProgress();
+            if (onProgress && data.totalBytesExpectedToSend > 0) {
+              const percentage = (data.totalBytesSent / data.totalBytesExpectedToSend) * 100;
+              onProgress({
+                total: data.totalBytesExpectedToSend,
+                uploaded: data.totalBytesSent,
+                percentage: Math.min(percentage, 100),
+              });
+            }
+          },
+        );
+        watchdog = startUploadWatchdog(uploadTask);
+
         let responseBody: string | undefined;
         let responseStatus: number | undefined;
-
-        if (onProgress) {
-          const uploadTask = FileSystem.createUploadTask(
-            uploadUrl,
-            uri,
-            uploadOptions,
-            (data) => {
-              if (data.totalBytesExpectedToSend > 0) {
-                const percentage = (data.totalBytesSent / data.totalBytesExpectedToSend) * 100;
-                onProgress({
-                  total: data.totalBytesExpectedToSend,
-                  uploaded: data.totalBytesSent,
-                  percentage: Math.min(percentage, 100) // Ensure it doesn't exceed 100
-                });
-              }
-            }
-          );
+        try {
           const result = await uploadTask.uploadAsync();
+          const cancellation = watchdog.wasCancelled();
+          if (cancellation.cancelled) {
+            throw new UploadTimeoutError(cancellation.reason);
+          }
           responseBody = result?.body;
           responseStatus = result?.status;
-        } else {
-          const result = await FileSystem.uploadAsync(uploadUrl, uri, uploadOptions);
-          responseBody = result.body;
-          responseStatus = result.status;
+        } finally {
+          watchdog.finish();
         }
 
         if (responseStatus && responseStatus >= 200 && responseStatus < 300) {
@@ -246,32 +308,38 @@ class UploadService {
           parameters: params,
         };
 
+        // Selalu pakai createUploadTask agar bisa di-cancel via watchdog.
+        let watchdog: WatchdogHandle | null = null;
+        const uploadTask = FileSystem.createUploadTask(
+          uploadUrl,
+          uri,
+          uploadOptions,
+          (data) => {
+            watchdog?.reportProgress();
+            if (onProgress && data.totalBytesExpectedToSend > 0) {
+              const percentage = (data.totalBytesSent / data.totalBytesExpectedToSend) * 100;
+              onProgress({
+                total: data.totalBytesExpectedToSend,
+                uploaded: data.totalBytesSent,
+                percentage: Math.min(percentage, 100),
+              });
+            }
+          },
+        );
+        watchdog = startUploadWatchdog(uploadTask);
+
         let responseBody: string | undefined;
         let responseStatus: number | undefined;
-
-        if (onProgress) {
-          const uploadTask = FileSystem.createUploadTask(
-            uploadUrl,
-            uri,
-            uploadOptions,
-            (data) => {
-              if (data.totalBytesExpectedToSend > 0) {
-                const percentage = (data.totalBytesSent / data.totalBytesExpectedToSend) * 100;
-                onProgress({
-                  total: data.totalBytesExpectedToSend,
-                  uploaded: data.totalBytesSent,
-                  percentage: Math.min(percentage, 100)
-                });
-              }
-            }
-          );
+        try {
           const result = await uploadTask.uploadAsync();
+          const cancellation = watchdog.wasCancelled();
+          if (cancellation.cancelled) {
+            throw new UploadTimeoutError(cancellation.reason);
+          }
           responseBody = result?.body;
           responseStatus = result?.status;
-        } else {
-           const result = await FileSystem.uploadAsync(uploadUrl, uri, uploadOptions);
-           responseBody = result.body;
-           responseStatus = result.status;
+        } finally {
+          watchdog.finish();
         }
 
         if (responseStatus && responseStatus >= 200 && responseStatus < 300) {

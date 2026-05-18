@@ -95,11 +95,18 @@ export default function LoginScreen() {
             logger.error('[LoginScreen] Login error:', status, isAxiosErr ? error.response?.data : error);
 
             if (status === 401) {
-                presentErrorMessage('Email atau password salah.', 'Login Gagal');
-                if (saveCreds) {
-                    await credentialStorageService.clearCredentials();
-                    setHasStoredCredentials(false);
-                }
+                // Selalu clear stored credentials saat 401 — termasuk path
+                // biometric (saveCreds=false). Tanpa ini, user terjebak loop:
+                // biometric → 401 (password backend berubah) → modal error
+                // → biometric → 401, tanpa cara membersihkan brankas.
+                await credentialStorageService.clearCredentials();
+                setHasStoredCredentials(false);
+                presentErrorMessage(
+                    saveCreds
+                        ? 'Email atau password salah.'
+                        : 'Kredensial tersimpan sudah tidak valid. Silakan login manual.',
+                    'Login Gagal',
+                );
             } else if (status === 426) {
                 DeviceEventEmitter.emit(Events.APP_VERSION_UNSUPPORTED, isAxiosErr ? error.response?.data : undefined);
             } else {

@@ -1,4 +1,4 @@
-import { AuthorizationStatus, getMessaging, getToken, isDeviceRegisteredForRemoteMessages, onTokenRefresh, registerDeviceForRemoteMessages, requestPermission } from '@react-native-firebase/messaging';
+import { AuthorizationStatus, deleteToken, getMessaging, getToken, isDeviceRegisteredForRemoteMessages, onTokenRefresh, registerDeviceForRemoteMessages, requestPermission } from '@react-native-firebase/messaging';
 
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
@@ -40,14 +40,60 @@ class FirebaseMessagingService {
     }
 
     /**
-     * Mendapatkan FCM Token perangkat dan mengirimnya ke backend
+     * Cek apakah user sudah grant permission notifikasi tanpa memunculkan
+     * dialog. Dipakai oleh `syncFCMTokenToBackend` agar tidak prompt
+     * dialog sistem di tempat yang tidak kontekstual (mis. saat sync
+     * background). Onboarding screen yang explicit panggil
+     * `requestUserPermission` saat tepat (misal tombol "Aktifkan
+     * notifikasi").
      */
-    async syncFCMTokenToBackend(action: 'add' | 'remove' = 'add'): Promise<string | null> {
+    async hasUserPermission(): Promise<boolean> {
+        if (Platform.OS === 'android') {
+            if (typeof Platform.Version === 'number' && Platform.Version >= 33) {
+                const status = await PermissionsAndroid.check(
+                    PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+                );
+                return status;
+            }
+            return true;
+        }
+
+        const messaging = getMessaging();
+        const authStatus = await messaging.hasPermission?.();
+        if (authStatus === undefined) {
+            // SDK lama tidak punya hasPermission — fallback request, tapi
+            // ini path Old iOS yang sangat jarang.
+            return this.requestUserPermission();
+        }
+        return (
+            authStatus === AuthorizationStatus.AUTHORIZED ||
+            authStatus === AuthorizationStatus.PROVISIONAL
+        );
+    }
+
+    /**
+     * Mendapatkan FCM Token perangkat dan mengirimnya ke backend.
+     *
+     * `requestPermissionIfNeeded` default `false` — function ini TIDAK
+     * akan memunculkan dialog permission Android/iOS bila belum granted.
+     * Dialog harus di-trigger dari onboarding screen yang explicit
+     * (`fcmService.requestUserPermission()`) agar user paham kenapa
+     * notifikasi diminta. Tanpa ini, dialog tiba-tiba muncul saat first
+     * sign-in tanpa konteks.
+     */
+    async syncFCMTokenToBackend(
+        action: 'add' | 'remove' = 'add',
+        options: { requestPermissionIfNeeded?: boolean } = {},
+    ): Promise<string | null> {
         try {
             if (action === 'add') {
-                const hasPermission = await this.requestUserPermission();
-                if (!hasPermission) {
-                    logger.warn('[FCM] Push notification permission denied');
+                const granted = options.requestPermissionIfNeeded
+                    ? await this.requestUserPermission()
+                    : await this.hasUserPermission();
+                if (!granted) {
+                    logger.warn(
+                        '[FCM] Push notification permission belum granted; sync skip. Pre-prompt user via onboarding.',
+                    );
                     return null;
                 }
             }
@@ -148,6 +194,37 @@ class FirebaseMessagingService {
                 }
             }
         });
+    }
+
+    /**
+     * Hapus FCM token dari device dan reset cache. Dipanggil saat logout
+     * untuk mencegah token user A dipakai untuk push notification ketika
+     * device dipakai user B (shared device cross-account leak).
+     *
+     * Tanpa ini, token sama tetap teregistrasi setelah logout — saat user A
+     * login lagi di hari berikutnya, push targeted ke user B bisa nyasar
+     * ke device A karena token belum rotated.
+     */
+    async deleteDeviceToken(): Promise<void> {
+        try {
+            const messaging = getMessaging();
+            await deleteToken(messaging);
+            this.lastSyncedToken = null;
+            this.lastSyncedAction = null;
+            logger.info('[FCM] Device token deleted and cache reset');
+        } catch (error) {
+            logger.warn('[FCM] Failed to delete device token (non-fatal):', error);
+        }
+    }
+
+    /**
+     * Reset cache `lastSyncedToken` tanpa hapus token native. Dipakai saat
+     * clearLocalSession agar listener ulang bisa register token ke user
+     * baru tanpa di-skip oleh dedupe check di line ~72.
+     */
+    resetSyncCache(): void {
+        this.lastSyncedToken = null;
+        this.lastSyncedAction = null;
     }
 }
 

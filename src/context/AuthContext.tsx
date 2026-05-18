@@ -1,4 +1,5 @@
 import { Events } from '@/constants/Events';
+import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { fcmService } from '@/services/FirebaseMessagingService';
 import { DatabaseService } from '@/services/DatabaseService';
 import { RefreshTokenService } from '@/services/RefreshTokenService';
@@ -137,7 +138,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
             if (token && !options?.skipApi) {
                 stopFcmTokenRefreshListener();
-                syncFcmToken('remove');
+                // Tunggu FCM token unregister dengan timeout 3s — sebelumnya
+                // fire-and-forget, server-side tetap kirim notif ke device
+                // user lama selama beberapa detik setelah logout. Tidak block
+                // logout bila FCM lambat: race vs 3s timeout.
+                try {
+                    await Promise.race([
+                        fcmService.syncFCMTokenToBackend('remove'),
+                        new Promise<null>((resolve) =>
+                            setTimeout(() => resolve(null), 3000),
+                        ),
+                    ]);
+                } catch (fcmError) {
+                    logger.warn('[Auth] FCM remove failed (non-fatal):', fcmError);
+                }
+
+                // Best-effort server-side revocation (increment tokenVersion).
+                // Tanpa ini, refresh token tetap valid 30 hari setelah logout.
+                // Failure non-fatal — local cleanup tetap dijalankan di finally.
+                try {
+                    await api.post('/api/mobile/auth/logout', {}, {
+                        skipErrorToast: true,
+                        skipRetry: true,
+                        timeout: HTTP_TIMEOUTS.short,
+                    });
+                } catch (revokeError) {
+                    logger.warn('[Auth] Logout API failed (non-fatal):', revokeError);
+                }
+
+                // Hapus FCM token dari device. Tanpa ini, token sama tetap
+                // teregistrasi setelah logout — saat user lain login di
+                // device sama, push notification user sebelumnya bisa
+                // sampai (cross-account leak di shared device).
+                try {
+                    await fcmService.deleteDeviceToken();
+                } catch (deleteError) {
+                    logger.warn('[Auth] FCM deleteToken failed (non-fatal):', deleteError);
+                }
             }
         } catch (error) {
             logger.error('Sign out error', error);
@@ -146,8 +183,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
         } finally {
             await clearLocalSession();
+            // Reset FCM sync cache agar register ulang setelah login user
+            // berikutnya tidak di-skip oleh dedupe check.
+            fcmService.resetSyncCache();
         }
-    }, [clearLocalSession, stopFcmTokenRefreshListener, syncFcmToken, token]);
+    }, [clearLocalSession, stopFcmTokenRefreshListener, token]);
 
     const fetchProfile = useCallback(async () => {
         try {

@@ -1,11 +1,14 @@
 import { Events } from '@/constants/Events';
 import { CURRENT_VERSION_CODE_LABEL, CURRENT_VERSION_NAME } from '@/constants/appVersion';
+import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { performanceMonitor } from '@/services/PerformanceMonitor'; // Import PerformanceMonitor
 import { RefreshTokenService } from '@/services/RefreshTokenService';
+import { TelemetryService } from '@/services/TelemetryService';
 import { TenantService } from '@/services/TenantService';
 import { TokenService } from '@/services/TokenService';
 import { logger } from '@/utils/logger';
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
+import * as Crypto from 'expo-crypto';
 import { DeviceEventEmitter } from 'react-native';
 import { networkStateService } from '@/services/NetworkStateService';
 import { showToast } from '@/utils/errorPresenter';
@@ -25,6 +28,24 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
 const IDEMPOTENT_METHODS = new Set(['get', 'head', 'options']);
+
+/**
+ * Throttle untuk Events.AUTH_UNAUTHORIZED. Tanpa throttle, 5 paralel request
+ * yang gagal refresh token akan emit event 5x → AuthContext.signOut dijalankan
+ * 5x cepat berturut-turut → race antara setIsLoading, queryClient.clear,
+ * router navigation → blank screen / flicker. Throttle 1 detik cukup untuk
+ * coalesce burst yang berasal dari 1 sebab (token expired).
+ */
+const AUTH_UNAUTHORIZED_THROTTLE_MS = 1000;
+let lastAuthUnauthorizedEmittedAt = 0;
+const emitAuthUnauthorizedThrottled = () => {
+  const now = Date.now();
+  if (now - lastAuthUnauthorizedEmittedAt < AUTH_UNAUTHORIZED_THROTTLE_MS) {
+    return;
+  }
+  lastAuthUnauthorizedEmittedAt = now;
+  DeviceEventEmitter.emit(Events.AUTH_UNAUTHORIZED);
+};
 
 const getHeaderValue = (headers: AxiosRequestConfig['headers'], headerName: string): string | undefined => {
   if (!headers) {
@@ -65,7 +86,9 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 60000, // Increased to 60s to match backend long-running tasks
+  // Default timeout untuk axios global. Hook (useApiMutation/useApiQuery)
+  // bisa override per-call lewat HTTP_TIMEOUTS.long untuk endpoint berat.
+  timeout: HTTP_TIMEOUTS.long,
 });
 
 // Request interceptor to add token and handle dynamic base URL
@@ -91,6 +114,13 @@ api.interceptors.request.use(
     }
     config.headers['X-App-Version-Code'] = CURRENT_VERSION_CODE_LABEL;
     config.headers['X-App-Version-Name'] = CURRENT_VERSION_NAME;
+
+    // Correlation ID untuk korelasi log mobile ↔ backend. Saat user lapor
+    // bug, request ID di Sentry/log mobile bisa di-search di backend log.
+    if (!config.headers['X-Request-Id']) {
+      config.headers['X-Request-Id'] = Crypto.randomUUID();
+    }
+
     return config;
   },
   (error) => {
@@ -136,6 +166,20 @@ api.interceptors.response.use(
     if (config && config.url) {
       const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
       performanceMonitor.stop(metricName, { status: response.status });
+
+      // Telemetry — track sukses untuk observability lintas modul (bukan
+      // hanya attendance). Tanpa ini, ketika user lapor "kenapa lambat",
+      // tidak ada data pengukuran p95 latency per endpoint.
+      const startTime = config.metadata?.startTime;
+      if (startTime !== undefined) {
+        TelemetryService.track('app', 'api.succeeded', {
+          endpoint: config.url,
+          latencyMs: Math.round(performance.now() - startTime),
+          requestId: typeof config.headers?.['Idempotency-Key'] === 'string'
+            ? config.headers['Idempotency-Key']
+            : undefined,
+        });
+      }
     }
     return response;
   },
@@ -150,15 +194,13 @@ api.interceptors.response.use(
     if (config.url) {
       const metricName = `API ${config.method?.toUpperCase()} ${config.url}`;
       performanceMonitor.stop(metricName, { status: error.response?.status || 'network_error' });
-    }
 
-    // Critical Error Feedback (UX Improvement)
-    if (!config.skipErrorToast) {
-      if (!error.response) {
-        showToast('error', 'Masalah Koneksi', 'Mohon periksa koneksi internet Anda.');
-      } else if (error.response.status >= 500) {
-        showToast('error', 'Masalah Server', 'Terjadi gangguan pada server. Tim kami sedang menanganinya.');
-      }
+      const startTime = config.metadata?.startTime;
+      TelemetryService.track('app', 'api.failed', {
+        endpoint: config.url,
+        latencyMs: startTime !== undefined ? Math.round(performance.now() - startTime) : undefined,
+        reason: error.code ?? `status_${error.response?.status ?? 'network'}`,
+      });
     }
 
     // Initialize retry count
@@ -179,6 +221,18 @@ api.interceptors.response.use(
       return api(config);
     }
 
+    // Toast feedback diemit SETELAH retry decision selesai. Bila request
+    // 5xx eventually sukses via retry, user tidak akan lihat toast error
+    // yang menyesatkan. Toast hanya tampil saat retry budget habis dan
+    // request truly gagal.
+    if (!config.skipErrorToast) {
+      if (!error.response) {
+        showToast('error', 'Masalah Koneksi', 'Mohon periksa koneksi internet Anda.');
+      } else if (error.response.status >= 500) {
+        showToast('error', 'Masalah Server', 'Terjadi gangguan pada server. Tim kami sedang menanganinya.');
+      }
+    }
+
     // Allow requests to skip global 401 handling - LOG THIS
     if (config.skipGlobalAuthHandler) {
       logger.warn(`[API] 401 from ${config.url} ignored due to skipGlobalAuthHandler`);
@@ -195,7 +249,7 @@ api.interceptors.response.use(
       // Don't retry refresh if this is already a retry after refresh
       if (config._isRetryAfterRefresh) {
         logger.warn(`[API] 401 after token refresh from ${config.url}. Emitting AUTH_UNAUTHORIZED.`);
-        DeviceEventEmitter.emit(Events.AUTH_UNAUTHORIZED);
+        emitAuthUnauthorizedThrottled();
         return Promise.reject(error);
       }
 
@@ -217,7 +271,7 @@ api.interceptors.response.use(
       }
 
       logger.warn(`[API] Token refresh failed or no refresh token. Emitting AUTH_UNAUTHORIZED.`);
-      DeviceEventEmitter.emit(Events.AUTH_UNAUTHORIZED);
+      emitAuthUnauthorizedThrottled();
       return Promise.reject(error);
     }
     return Promise.reject(error);

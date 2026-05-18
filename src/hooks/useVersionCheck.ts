@@ -39,6 +39,10 @@ export function useVersionCheck(_user: User | null, _token: string | null) {
     return () => {
       cancelled = true
     }
+    // Sengaja depend pada `ota.checkForUpdate` (function ref stable
+    // dari useCallback di hook), bukan object `ota` yang re-create
+    // tiap render → infinite re-run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apk.isForceUpdate, ota.checkForUpdate])
 
   // Tampilkan modal APK soft kalau available

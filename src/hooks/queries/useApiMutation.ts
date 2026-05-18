@@ -10,6 +10,7 @@
  */
 
 import api from "@/services/api";
+import { HTTP_TIMEOUTS } from "@/constants/httpTimeouts";
 import { AttendanceTelemetryService } from "@/services/AttendanceTelemetryService";
 import { DatabaseService } from "@/services/DatabaseService";
 import { SyncService } from "@/services/SyncService";
@@ -122,7 +123,7 @@ interface ApiMutationOptions<TData, TVariables>
  * Get current location dengan timeout
  */
 async function getCurrentLocation(
-  timeoutMs = 5000,
+  timeoutMs = 15_000,
 ): Promise<{ latitude: number | null; longitude: number | null }> {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -250,13 +251,17 @@ export function useApiMutation<
           throw new Error("Offline");
         }
 
-        // Make API request with updated payload
+        // Make API request with updated payload.
+        // skipErrorToast=true → axios interceptor tidak emit toast; biarkan
+        // onError di hook (presentAppError) yang pegang keputusan UI agar
+        // tidak terjadi double/triple toast (interceptor + onError + caller).
         const response = await api.request<TData>({
           url: resolvedEndpoint,
           method,
           data: payload,
-          timeout: 15000, // Timeout for mobile networks
+          timeout: HTTP_TIMEOUTS.standard,
           headers: buildAttendanceIdempotencyHeaders(requestId),
+          skipErrorToast: true,
         });
 
         if (attendanceMutation) {

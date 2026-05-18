@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { logger } from '@/utils/logger';
+import { credentialStorageService } from '@/services/CredentialStorageService';
 
 const BIOMETRIC_ENABLED_KEY = 'biometric_auth_enabled';
 
@@ -282,6 +283,10 @@ class BiometricService {
   async disableBiometric(): Promise<boolean> {
     try {
       await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
+      // Hapus password yang tersimpan agar tidak menetap di SecureStore
+      // setelah biometric di-disable. Tanpa cleanup ini, password plaintext
+      // tetap ada di brankas walau user bermaksud meninggalkan biometric.
+      await credentialStorageService.clearCredentials();
       logger.info('[BiometricService] Biometrik berhasil dinonaktifkan');
       return true;
     } catch (error) {

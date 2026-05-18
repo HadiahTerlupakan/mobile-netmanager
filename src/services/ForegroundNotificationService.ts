@@ -23,15 +23,34 @@ export async function ensureForegroundNotificationChannel(): Promise<string | nu
   });
 }
 
-/** Menampilkan heads-up notification Android saat FCM diterima di foreground. */
+/** Menampilkan heads-up notification (Android) atau alert iOS saat FCM diterima di foreground. */
 export async function presentForegroundNotification(
   payload: ForegroundNotificationPayload,
 ): Promise<void> {
-  if (Platform.OS !== 'android') {
+  if (!payload.title && !payload.body) {
     return;
   }
 
-  if (!payload.title && !payload.body) {
+  if (Platform.OS === 'ios') {
+    // iOS by default suppress notifikasi foreground. Tampilkan eksplisit
+    // via notifee dengan foregroundPresentationOptions agar high-priority
+    // alert (work-order assigned, payment due) tidak terlewat user.
+    await notifee.displayNotification({
+      title: payload.title ?? 'Notifikasi Baru',
+      body: payload.body ?? 'Anda menerima notifikasi baru.',
+      data: payload.data,
+      ios: {
+        foregroundPresentationOptions: {
+          alert: true,
+          badge: true,
+          sound: true,
+        },
+      },
+    });
+    return;
+  }
+
+  if (Platform.OS !== 'android') {
     return;
   }
 

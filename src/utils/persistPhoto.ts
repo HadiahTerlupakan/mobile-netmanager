@@ -52,3 +52,43 @@ export async function cleanupOfflinePhoto(uri: string): Promise<void> {
     }
   }
 }
+
+/**
+ * Cleanup banyak photo URI sekaligus. Aman dipanggil dengan campuran
+ * URI persistent dan remote — yang bukan persistent akan diabaikan.
+ */
+export async function cleanupOfflinePhotos(uris: readonly string[]): Promise<void> {
+  await Promise.all(uris.map((uri) => cleanupOfflinePhoto(uri)));
+}
+
+/**
+ * Sweep direktori offline-photos: hapus file yang tidak lagi direferensikan
+ * oleh queue. Dipanggil saat startup untuk reclaim disk dari sisa-sisa
+ * crash atau cleanup yang tidak sempat berjalan.
+ */
+export async function sweepOrphanOfflinePhotos(
+  referencedUris: ReadonlySet<string>,
+): Promise<number> {
+  try {
+    const info = await FileSystem.getInfoAsync(OFFLINE_PHOTOS_DIR);
+    if (!info.exists) return 0;
+
+    const entries = await FileSystem.readDirectoryAsync(OFFLINE_PHOTOS_DIR);
+    let deleted = 0;
+    for (const entry of entries) {
+      const full = `${OFFLINE_PHOTOS_DIR}${entry}`;
+      if (!referencedUris.has(full)) {
+        try {
+          await FileSystem.deleteAsync(full, { idempotent: true });
+          deleted++;
+        } catch (error) {
+          logger.warn('[persistPhoto] sweep failed for', full, error);
+        }
+      }
+    }
+    return deleted;
+  } catch (error) {
+    logger.error('[persistPhoto] sweep error:', error);
+    return 0;
+  }
+}

@@ -1,4 +1,5 @@
 import React, { ReactNode, useEffect } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 
 import { useAuth } from '@/context/AuthContext';
 import { getSocketConnectionState } from '@/context/socketConnection';
@@ -57,10 +58,35 @@ export function RealtimeProvider({ children }: RealtimeProviderProps) {
 
     void startRealtime();
 
+    // Re-connect saat app kembali ke foreground setelah lama background.
+    // Tanpa ini, listener Firestore yang mati selama background tidak
+    // ke-restore secara otomatis — user lihat data frozen sampai kill app.
+    let prevState: AppStateStatus = AppState.currentState;
+    const onAppStateChange = (next: AppStateStatus) => {
+      if (
+        (prevState === 'background' || prevState === 'inactive') &&
+        next === 'active' &&
+        !isCancelled
+      ) {
+        logger.info('[Realtime] App active — re-validating realtime connection');
+        void realtimeService.connect({
+          token,
+          userId,
+          userRole,
+          tenantUrl,
+        }).catch((error) => {
+          logger.warn('[Realtime] Re-connect on AppState active failed:', error);
+        });
+      }
+      prevState = next;
+    };
+    const sub = AppState.addEventListener('change', onAppStateChange);
+
     return () => {
       isCancelled = true;
+      sub.remove();
       stopPresence?.();
-      realtimeService.disconnect();
+      void realtimeService.disconnect();
     };
   }, [connectionState.canConnect, tenantUrl, token, userId, userRole]);
 

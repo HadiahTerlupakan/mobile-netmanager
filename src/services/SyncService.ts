@@ -1,6 +1,7 @@
 import NetInfo from '@react-native-community/netinfo';
 import { isAxiosError } from 'axios';
 import pLimit from 'p-limit';
+import { DeviceEventEmitter } from 'react-native';
 import { DatabaseService, SyncQueueItem } from './DatabaseService';
 import * as SecureStore from 'expo-secure-store'; // Ensure SyncQueueItem is exported
 import { presentErrorMessage } from '@/utils/errorPresenter';
@@ -11,11 +12,47 @@ import { AttendanceTelemetryService } from './AttendanceTelemetryService';
 import { buildAttendanceIdempotencyHeaders } from '@/utils/attendanceIdempotency';
 import api from './api';
 import { extractApiErrorMessage } from '@/utils/errorHandling';
+import { cleanupOfflinePhotos } from '@/utils/persistPhoto';
+import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
+import { TelemetryService } from './TelemetryService';
+import { RefreshTokenService } from './RefreshTokenService';
 
-const SYNC_REQUEST_TIMEOUT_MS = 15000;
+const SYNC_REQUEST_TIMEOUT_MS = HTTP_TIMEOUTS.sync;
 const PERMANENT_SYNC_FAILURE_STATUSES = new Set([400, 404, 409, 422]);
 const MAX_ATTENDANCE_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_GENERAL_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/**
+ * Global retry budget — total attempt termasuk attempt sukses sebelumnya.
+ * Tanpa cap, item permanent-fail akan loop forever (in-attempt retry 3x
+ * di processQueueItem habis → markAsRetry → next batch retry 3x lagi → ...).
+ */
+const MAX_GLOBAL_RETRY_COUNT = 10;
+
+/**
+ * Kumpulkan semua URI photo yang sudah dipersist offline pada queue item,
+ * sehingga bisa di-cleanup setelah sync (sukses / permanent failure / TTL).
+ * Tanpa cleanup, file menumpuk selamanya di documentDirectory/offline-photos/.
+ */
+function collectPersistedPhotoUris(item: SyncQueueItem): string[] {
+  const meta = (item.body && typeof item.body === 'object' ? (item.body as Record<string, unknown>).meta : undefined) as
+    | { photos?: unknown; photoMap?: unknown }
+    | undefined;
+  if (!meta) return [];
+
+  const uris: string[] = [];
+  if (Array.isArray(meta.photos)) {
+    for (const p of meta.photos) {
+      if (typeof p === 'string') uris.push(p);
+    }
+  }
+  if (meta.photoMap && typeof meta.photoMap === 'object') {
+    for (const v of Object.values(meta.photoMap as Record<string, unknown>)) {
+      if (typeof v === 'string') uris.push(v);
+    }
+  }
+  return uris;
+}
 
 /** Returns true if the URL belongs to an attendance endpoint. */
 const isAttendanceEndpoint = (url: string): boolean =>
@@ -167,10 +204,18 @@ export const SyncService = {
         logger.sync(`[SyncService] Processing with concurrency: ${concurrency}`);
 
         // Helper to get token (can't use hook here outside component)
-        const token = await SecureStore.getItemAsync('session_token');
+        let token = await SecureStore.getItemAsync('session_token');
         if (!token) {
-          logger.warn('[SyncService] Skipping queue processing because there is no active session token.');
-          return;
+          // Coba refresh token sebelum skip — kalau access token expired
+          // tapi refresh token masih valid, sync bisa lanjut tanpa user
+          // perlu re-login. Tanpa branch ini, queue item stuck sampai user
+          // buka app dan login ulang.
+          logger.sync('[SyncService] No session token, attempting refresh...');
+          token = await RefreshTokenService.refreshAccessToken().catch(() => null);
+          if (!token) {
+            logger.warn('[SyncService] Skipping queue processing — no session token and refresh failed.');
+            return;
+          }
         }
 
         const limit = pLimit(concurrency);
@@ -252,7 +297,44 @@ export const SyncService = {
       const maxAge = isAttendanceEndpoint(item.url) ? MAX_ATTENDANCE_AGE_MS : MAX_GENERAL_AGE_MS;
       if (itemAge > maxAge) {
           logger.warn(`[SyncService] Item ${item.id} expired (age: ${Math.round(itemAge / 60000)}min, max: ${Math.round(maxAge / 60000)}min). Removing.`);
+          await cleanupOfflinePhotos(collectPersistedPhotoUris(item));
           await DatabaseService.removeFromQueue(item.id);
+          TelemetryService.trackSyncResult({
+            endpoint: item.url,
+            outcome: 'expired_ttl',
+            payload: { ageMinutes: Math.round(itemAge / 60000) },
+          });
+          // Notify user — silent discard data offline membuat field worker
+          // tidak tahu attendance/work-order mereka hilang setelah lama
+          // offline.
+          const ageHours = Math.round(itemAge / (60 * 60 * 1000));
+          presentErrorMessage(
+              `Data offline (${ageHours} jam) sudah kedaluwarsa dan dihapus. Silakan submit ulang.`,
+              'Data Antrean Kedaluwarsa',
+          );
+          return;
+      }
+
+      // Global retry budget — drop item bila sudah lewat budget agar
+      // tidak loop forever (tiap batch retry 3x → markAsRetry → batch
+      // berikutnya retry 3x lagi → ...). Tanpa cap, item dengan 5xx
+      // berkepanjangan akan terus consume bandwidth + photo re-upload.
+      const globalRetry = item.retryCount ?? 0;
+      if (globalRetry >= MAX_GLOBAL_RETRY_COUNT) {
+          logger.warn(
+            `[SyncService] Item ${item.id} exceeded global retry budget (${globalRetry}/${MAX_GLOBAL_RETRY_COUNT}). Marking as failed.`,
+          );
+          await DatabaseService.markAsFailed(item.id, 'Retry budget exceeded');
+          await cleanupOfflinePhotos(collectPersistedPhotoUris(item));
+          TelemetryService.trackSyncResult({
+            endpoint: item.url,
+            outcome: 'permanent_failed',
+            payload: { reason: 'retry_budget_exceeded', retryCount: globalRetry },
+          });
+          presentErrorMessage(
+            'Data offline gagal disinkron setelah beberapa percobaan. Silakan submit ulang.',
+            'Sinkronisasi Gagal',
+          );
           return;
       }
 
@@ -308,6 +390,15 @@ export const SyncService = {
                          body[meta.targetField] = validUploadedUrls;
                      }
                 }
+
+                // Cache hasil upload ke baseMeta agar retry attempt berikutnya
+                // tidak meng-upload ulang foto yang sudah berhasil. Tanpa
+                // cache ini, network hiccup di POST request mid-stream akan
+                // menyebabkan ulang upload N foto setiap retry → orphan
+                // file di S3 + bandwidth wasted.
+                if (Array.isArray(baseMeta.photos)) {
+                    baseMeta.photos = validUploadedUrls;
+                }
             }
 
             // New: Support photoMap for specific fields mapping (Parallelized)
@@ -331,6 +422,11 @@ export const SyncService = {
                 results.forEach(result => {
                     if (result) {
                         body[result.field] = result.url;
+                        // Cache server URL ke baseMeta.photoMap agar retry
+                        // berikutnya skip upload ulang.
+                        if (baseMeta.photoMap && typeof baseMeta.photoMap === 'object') {
+                            (baseMeta.photoMap as Record<string, unknown>)[result.field] = result.url;
+                        }
                     }
                 });
             }
@@ -360,6 +456,7 @@ export const SyncService = {
 
             if (response.status >= 200 && response.status < 300) {
               logger.sync(`Item ${item.id} synced successfully.`);
+              await cleanupOfflinePhotos(collectPersistedPhotoUris(item));
               await DatabaseService.removeFromQueue(item.id);
               if (attendanceReplay) {
                 AttendanceTelemetryService.track('attendance_replay_succeeded', {
@@ -368,6 +465,23 @@ export const SyncService = {
                   networkState: 'online',
                 });
               }
+              // Generic telemetry untuk semua endpoint (work-order, inventory,
+              // leave, dll). Tanpa ini, observability hanya attendance —
+              // modul lain blind spot saat replay.
+              TelemetryService.trackSyncResult({
+                endpoint: item.url,
+                outcome: 'succeeded',
+                payload: { requestId, retryCount: attempt },
+              });
+              // Reconciliation event — beri tahu hooks yang listen agar
+              // refetch data yang relevan. Tanpa event ini, UI tetap stale
+              // sampai user pull-to-refresh / app focus, walau data sudah
+              // sukses sync di background.
+              DeviceEventEmitter.emit('sync:succeeded', {
+                endpoint: item.url,
+                method: item.method,
+                requestId,
+              });
               return; // Success, exit function
             } else {
                 logger.warn(`[SyncService] Item ${item.id} failed with status ${response.status}`);
@@ -394,6 +508,32 @@ export const SyncService = {
             // Smart Error Handling
             if (isAxiosError(error) && error.response) {
                 const status = error.response.status;
+
+                // 401 mid-batch — token expired antara fetch token di awal
+                // processQueue dan request item ini. Tanpa explicit refresh,
+                // item akan retry dengan token mati → loop sampai user
+                // re-login. Refresh sekali; token closure di-update agar
+                // next attempt pakai value baru.
+                if (status === 401) {
+                    logger.warn(`[SyncService] Item ${item.id} got 401, attempting token refresh...`);
+                    const refreshed = await RefreshTokenService.refreshAccessToken().catch(() => null);
+                    if (refreshed) {
+                        token = refreshed; // override token closure
+                        logger.sync(`[SyncService] Token refreshed, will retry item ${item.id}`);
+                        attempt++;
+                        if (attempt < MAX_RETRIES) {
+                            const delay = Math.pow(2, attempt) * 1000;
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue;
+                        }
+                    }
+                    // Refresh gagal → mark retry agar batch berikutnya
+                    // coba lagi (atau hit retry budget cap di awal
+                    // processQueueItem).
+                    logger.warn(`[SyncService] Token refresh failed for item ${item.id}, marking retry`);
+                    await DatabaseService.markAsRetry(item.id);
+                    return;
+                }
 
                 if (isPermanentSyncFailure(status)) {
                      const shouldReconcileAttendanceReplay =
@@ -443,6 +583,7 @@ export const SyncService = {
                         }
                      }
 
+                     await cleanupOfflinePhotos(collectPersistedPhotoUris(item));
                      await DatabaseService.removeFromQueue(item.id);
 
                      // Notify User

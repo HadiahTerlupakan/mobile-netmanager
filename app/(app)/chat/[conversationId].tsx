@@ -19,7 +19,9 @@ import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { queryKeys } from '@/lib/queryClient';
 import api from '@/services/api';
 import { ChatMessage } from '@/services/ChatService';
-import { realtimeService } from '@/services/RealtimeService';
+// realtimeService import dihapus — chat realtime sudah di-drop (lihat
+// TODO H5 di file ini). Re-add saat backend implement publish chat.message
+// + Firestore rules untuk /chats/{}/events/.
 
 interface RealtimeChatMessage extends ChatMessage {
     conversationId: string;
@@ -151,8 +153,6 @@ export default function ConversationScreen() {
         }
     });
 
-    const chatRoomName = conversationId ? `chat:${conversationId}` : '';
-
     const handleIncomingMessage = useCallback((message: RealtimeChatMessage) => {
         if (!conversationId) return;
         if (message.conversationId !== conversationId) return;
@@ -227,13 +227,24 @@ export default function ConversationScreen() {
             return;
         }
 
-        return realtimeService.subscribeToScope({ kind: 'chat', id: conversationId }, handleRealtimeEvent);
+        // TODO(chat-realtime): backend belum publish event ke
+        // `chats/{id}/events` dan Firestore rules tidak izinkan akses
+        // collection itu — listener akan permission-denied dan loop retry.
+        // Re-enable setelah backend tambahkan publish chat.message dan
+        // typing indicator via firebaseRealtimeService + Firestore rules
+        // discoped per participant. Untuk sementara chat fully REST-bound:
+        // pesan baru muncul saat user pull-to-refresh atau setelah send.
+        return undefined;
+        // return realtimeService.subscribeToScope({ kind: 'chat', id: conversationId }, handleRealtimeEvent);
     }, [conversationId, handleRealtimeEvent]);
 
     useEffect(() => {
+        // Capture ref ke local agar cleanup tidak baca .current setelah
+        // unmount (react-hooks/exhaustive-deps requirement).
+        const ref = typingTimeoutRef;
         return () => {
-            if (typingTimeoutRef.current) {
-                clearTimeout(typingTimeoutRef.current);
+            if (ref.current) {
+                clearTimeout(ref.current);
             }
         };
     }, []);
@@ -245,17 +256,17 @@ export default function ConversationScreen() {
     const handleTextChange = (text: string) => {
         setNewMessage(text);
 
-        if (chatRoomName) {
-            void realtimeService.emitToRoom(chatRoomName, 'chat:typing', { room: chatRoomName, senderName: user?.name });
-
-            if (typingTimeoutRef.current) {
-                clearTimeout(typingTimeoutRef.current);
-            }
-
-            typingTimeoutRef.current = setTimeout(() => {
-                void realtimeService.emitToRoom(chatRoomName, 'chat:stop_typing', { room: chatRoomName });
-            }, 2000);
-        }
+        // Typing indicator dimatikan sementara — emitToRoom kirim ke
+        // `chats/{id}/events` yang Firestore rules-nya tidak ada, jadi
+        // setiap call permission-denied. Re-enable bersama H5 (chat
+        // realtime backend implementation).
+        // if (chatRoomName) {
+        //     void realtimeService.emitToRoom(chatRoomName, 'chat:typing', { room: chatRoomName, senderName: user?.name });
+        //     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        //     typingTimeoutRef.current = setTimeout(() => {
+        //         void realtimeService.emitToRoom(chatRoomName, 'chat:stop_typing', { room: chatRoomName });
+        //     }, 2000);
+        // }
     };
 
     const pickImage = async () => {

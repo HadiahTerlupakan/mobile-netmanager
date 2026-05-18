@@ -1,7 +1,9 @@
 import { CURRENT_VERSION_CODE, CURRENT_VERSION_NAME } from '@/constants/appVersion';
 import { Config } from '@/constants/Config';
+import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { TenantService } from '@/services/TenantService';
 import { TokenService } from '@/services/TokenService';
+import { Sentry } from '@/services/SentryService';
 import { logger } from '@/utils/logger';
 import { registerErrorReporter } from '@/utils/errorPresenter';
 import { Platform } from 'react-native';
@@ -52,7 +54,7 @@ interface BackendErrorReportPayload {
   context: Record<string, unknown>;
 }
 
-const REPORT_TIMEOUT_MS = 5000;
+const REPORT_TIMEOUT_MS = HTTP_TIMEOUTS.short;
 
 class ErrorReportingService {
   private isInitialized: boolean = false;
@@ -180,6 +182,18 @@ class ErrorReportingService {
       void this.sendToBackend(
         this.buildPayload(error.message, 'exception', 'error', context, error.stack)
       );
+      // Pipe juga ke Sentry agar native crash + breadcrumb context tersedia
+      // di dashboard. captureException no-op kalau Sentry tidak ter-init.
+      try {
+        Sentry.captureException(error, {
+          extra: {
+            ...this.getSnapshot(),
+            ...(context ? { context } : {}),
+          },
+        });
+      } catch {
+        // Sentry not initialized — silently ignore.
+      }
     } catch (err) {
       logger.error('[ErrorReporting] Failed to capture exception:', err);
     }

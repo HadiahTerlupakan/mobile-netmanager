@@ -14,13 +14,14 @@ interface LocationResult {
  */
 export function useLocationWithTimeout() {
   /**
-   * Fetches current GPS position (with 5s timeout) and reverse geocodes it.
-   * Falls back to the provided cached location if the fresh fetch times out.
+   * Fetches current GPS position (with 15s timeout — GPS first fix di luar
+   * ruangan bisa 10s+) dan reverse geocodes hasil. Falls back ke cached
+   * location bila fresh fetch timeout.
    */
   const getLocationWithTimeout = useCallback(
     async (
       cachedLocation: Location.LocationObject | null,
-      timeoutMs = 5000,
+      timeoutMs = 15_000,
     ): Promise<LocationResult> => {
       let finalLocation = cachedLocation;
       let locationName = "";

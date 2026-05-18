@@ -9,7 +9,7 @@ import { LocationTrackingService } from "@/services/LocationTrackingService";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import { ensureAttendanceRequestId } from "@/utils/attendanceIdempotency";
-import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
+import { presentAppError, presentInfoMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import { Alert } from "react-native";
 import * as Location from "expo-location";
@@ -69,6 +69,10 @@ export function useAttendanceSubmission({
     method: "POST",
     invalidateKeys: [attendanceStatusQueryKey],
     showErrorAlert: false,
+    // Aktifkan toast offline default dari hook (showErrorAlert hanya
+    // mengontrol error toast). Tanpa successMessage, hook akan emit
+    // info "data disimpan offline" sendiri — caller cukup tidak duplikat.
+    successMessage: "Check-in Berhasil!",
   });
 
   const checkOutMutation = useApiMutation({
@@ -76,6 +80,7 @@ export function useAttendanceSubmission({
     method: "POST",
     invalidateKeys: [attendanceStatusQueryKey],
     showErrorAlert: false,
+    successMessage: "Check-out Berhasil!",
   });
 
   const submitAttendance = useCallback(async () => {
@@ -124,7 +129,9 @@ export function useAttendanceSubmission({
       setLoadingMessage("Menyimpan data offline...");
 
       try {
-        const data = await mutation.mutateAsync({
+        // Mutation akan resolve dengan offline-queued result; toast offline
+        // di-emit oleh useApiMutation.onSuccess (successMessage path).
+        await mutation.mutateAsync({
           ...payload,
           photoUrl: processedUri,
           meta: offlineQueueMeta,
@@ -133,13 +140,6 @@ export function useAttendanceSubmission({
         setIsProcessing(false);
         setLoading(false);
         setPhoto(null);
-
-        if (isOfflineMutationQueuedResult(data)) {
-          presentInfoMessage(
-            "Absensi disimpan untuk dikirim otomatis saat internet kembali.",
-            "Offline"
-          );
-        }
       } catch (error) {
         setIsProcessing(false);
         setLoading(false);
@@ -200,10 +200,7 @@ export function useAttendanceSubmission({
       setPhoto(null);
 
       if (isOfflineMutationQueuedResult(data)) {
-        presentInfoMessage(
-          "Koneksi terputus setelah foto berhasil diupload. Absensi disimpan dan akan dikirim otomatis saat internet kembali.",
-          "Offline"
-        );
+        // Toast offline sudah di-emit oleh useApiMutation.onSuccess.
         return;
       }
 
@@ -230,7 +227,7 @@ export function useAttendanceSubmission({
         return;
       }
 
-      presentSuccessMessage(status === "idle" ? "Check-in Berhasil!" : "Check-out Berhasil!");
+      // Success toast di-emit oleh useApiMutation.onSuccess (successMessage).
       refetchStatus();
     } catch (error) {
       AttendanceTelemetryService.track("attendance_photo_upload_failed", {

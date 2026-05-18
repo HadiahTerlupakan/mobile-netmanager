@@ -23,20 +23,43 @@ service cloud.firestore {
       );
     }
 
+    function isInTenant(tenantId) {
+      return isSignedIn() && request.auth.token.tenantId == tenantId;
+    }
+
+    // Event collections — client read-only, write hanya via Admin SDK
+    // (Admin SDK bypass rules; explicit `allow write: if false` mencegah
+    // client menulis langsung kalau ID ditebak).
+
     match /users/{userId}/events/{eventId} {
       allow read: if isSuperAdmin() || request.auth.uid == userId;
+      allow write: if false;
     }
 
     match /admins/{scope}/events/{eventId} {
       allow read: if canAccessAdminPanel();
+      allow write: if false;
     }
 
     match /workorders/{woId}/events/{eventId} {
       allow read: if canAccessAdminPanel();
+      allow write: if false;
     }
 
     match /tickets/{ticketId}/events/{eventId} {
       allow read: if canAccessAdminPanel();
+      allow write: if false;
+    }
+
+    // Department events — mobile subscribe via subscribeToScope({kind:'department'}).
+    // Tanpa rule ini, listener mobile dapat permission-denied dan event silent loss.
+    match /departments/{departmentId}/events/{eventId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        request.auth.token.departmentId == departmentId ||
+        canAccessAdminPanel()
+      );
+      allow write: if false;
     }
 
     // Presence system untuk realtime online status
@@ -47,5 +70,8 @@ service cloud.firestore {
       // Semua authenticated user bisa read presence orang lain
       allow read: if isSignedIn();
     }
+
+    // Default deny semua collection lain (chat dll harus dideclarasi
+    // eksplisit kalau diperlukan — saat ini chat masih REST-bound).
   }
 }
