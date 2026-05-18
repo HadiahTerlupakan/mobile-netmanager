@@ -34,7 +34,9 @@ yarn-error.*
 !assets/expo-updates/code-signing-certificate.pem
 
 # local env files
-.env*.local
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -78,9 +80,8 @@ credentials.json
 android/keystores/
 
 # Google Services (e.g. APIs or Firebase)
-# Google Services (e.g. APIs or Firebase)
-# google-services.json
-!google-services.json
+google-services.json
+GoogleService-Info.plist
 !eas.json
 
 # Android Profiling
