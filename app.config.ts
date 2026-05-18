@@ -49,6 +49,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     "expo-channel-name": channel,
   };
 
+  // EAS Build inject GOOGLE_SERVICES_JSON sebagai path file (file env var
+  // dengan visibility secret). Local dev fallback ke ./google-services.json
+  // di working directory.
+  const googleServicesFile =
+    process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json";
+  const googleServicesPlist =
+    process.env.GOOGLE_SERVICES_INFO_PLIST ?? "./GoogleService-Info.plist";
+
   return {
     ...config,
     name: config.name ?? "RADPRO",
@@ -58,6 +66,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       enabled: variant !== "development",
       url: `${apiBase}/api/mobile/app-update/manifest`,
       requestHeaders,
+    },
+    android: {
+      ...(config.android ?? {}),
+      googleServicesFile,
+    },
+    ios: {
+      ...(config.ios ?? {}),
+      googleServicesFile: googleServicesPlist,
     },
   };
 };

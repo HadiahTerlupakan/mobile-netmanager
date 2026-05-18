@@ -23,7 +23,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.netmanager.mobile",
-      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
@@ -61,7 +60,6 @@
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
-      "googleServicesFile": "./google-services.json",
       "config": {}
     },
     "web": {
