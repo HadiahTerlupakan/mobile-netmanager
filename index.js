@@ -9,6 +9,12 @@ import 'react-native-reanimated';
 import { initializeSentry } from '@/services/SentryService';
 initializeSentry();
 
+// Initialize App Check setelah Sentry (perlu Firebase app instance).
+// Async tapi fire-and-forget — bila gagal, Firebase tetap bisa diakses
+// (hanya akan ditolak kalau service di-Enforce di Firebase Console).
+import { initializeAppCheckService } from '@/services/AppCheckService';
+initializeAppCheckService();
+
 // Custom entry point for expo-router
 // This ensures LocationTrackingService is loaded at app cold start
 // so that TaskManager.defineTask() is registered before any navigation
