@@ -4,13 +4,8 @@ import "expo-router/entry";
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-// Initialize Sentry sebelum apa pun yang mungkin throw — agar native
-// crash di startup tetap ter-capture. Init no-op kalau DSN tidak diset.
-import { initializeSentry } from '@/services/SentryService';
-initializeSentry();
-
-// Initialize App Check setelah Sentry (perlu Firebase app instance).
-// Async tapi fire-and-forget — bila gagal, Firebase tetap bisa diakses
+// Initialize App Check sebelum apa pun yang akses Firebase services.
+// Async fire-and-forget — bila gagal, Firebase tetap bisa diakses
 // (hanya akan ditolak kalau service di-Enforce di Firebase Console).
 import { initializeAppCheckService } from '@/services/AppCheckService';
 initializeAppCheckService();

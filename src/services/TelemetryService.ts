@@ -1,5 +1,4 @@
 import { logger } from "@/utils/logger";
-import { Sentry } from "@/services/SentryService";
 
 /**
  * Generic telemetry service untuk semua modul mobile.
@@ -9,8 +8,8 @@ import { Sentry } from "@/services/SentryService";
  * sekali. Service ini menyediakan API uniform sehingga modul lain bisa
  * track tanpa harus duplikasi pattern.
  *
- * Pipe ke Sentry breadcrumb (untuk crash context) + logger.info (lokal).
- * Bila DSN tidak diset, breadcrumb no-op (Sentry tidak init).
+ * Pipe ke logger lokal saja. Untuk crash + error reporting backend,
+ * `ErrorReportingService` mengirim ke `/api/mobile/error-report`.
  */
 
 export type TelemetryNamespace =
@@ -38,7 +37,7 @@ export interface TelemetryPayload {
   [key: string]: unknown;
 }
 
-/** Track event ke logger lokal + Sentry breadcrumb. */
+/** Track event ke logger lokal. */
 export function trackEvent(
   namespace: TelemetryNamespace,
   event: string,
@@ -50,20 +49,9 @@ export function trackEvent(
     timestamp: new Date().toISOString(),
     ...payload,
   });
-
-  try {
-    Sentry.addBreadcrumb({
-      category: namespace,
-      message: event,
-      data: payload as Record<string, unknown>,
-      level: "info",
-    });
-  } catch {
-    // Sentry not initialized — silently ignore.
-  }
 }
 
-/** Track error event dengan severity tinggi + capture exception ke Sentry. */
+/** Track error event dengan severity tinggi. */
 export function trackError(
   namespace: TelemetryNamespace,
   event: string,
@@ -78,23 +66,6 @@ export function trackError(
     error: errorMessage,
     ...payload,
   });
-
-  try {
-    if (error instanceof Error) {
-      Sentry.captureException(error, {
-        tags: { telemetry_event: fullEvent, namespace },
-        extra: payload as Record<string, unknown>,
-      });
-    } else {
-      Sentry.captureMessage(`${fullEvent}: ${errorMessage}`, {
-        level: "error",
-        tags: { telemetry_event: fullEvent, namespace },
-        extra: payload as Record<string, unknown>,
-      });
-    }
-  } catch {
-    // Sentry not initialized — silently ignore.
-  }
 }
 
 /**

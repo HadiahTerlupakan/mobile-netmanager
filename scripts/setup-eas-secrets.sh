@@ -23,7 +23,7 @@ fi
 echo "🔐 Sync Firebase secrets ke EAS Secrets dari $ENV_FILE"
 echo ""
 
-# Hanya sync key Firebase + Sentry — sisanya per-variant di-set di app.config.ts
+# Hanya sync key Firebase — sisanya per-variant di-set di app.config.ts
 KEYS=(
     "EXPO_PUBLIC_FIREBASE_API_KEY"
     "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN"
@@ -32,8 +32,6 @@ KEYS=(
     "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET"
     "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"
     "EXPO_PUBLIC_FIREBASE_APP_ID"
-    "EXPO_PUBLIC_SENTRY_DSN"
-    "EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE"
 )
 
 for key in "${KEYS[@]}"; do

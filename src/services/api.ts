@@ -116,7 +116,7 @@ api.interceptors.request.use(
     config.headers['X-App-Version-Name'] = CURRENT_VERSION_NAME;
 
     // Correlation ID untuk korelasi log mobile ↔ backend. Saat user lapor
-    // bug, request ID di Sentry/log mobile bisa di-search di backend log.
+    // bug, request ID di log mobile bisa di-search di backend log.
     if (!config.headers['X-Request-Id']) {
       config.headers['X-Request-Id'] = Crypto.randomUUID();
     }
