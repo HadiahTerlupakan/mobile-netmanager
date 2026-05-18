@@ -130,7 +130,8 @@
       "@react-native-firebase/app/app.plugin.js",
       "@react-native-firebase/messaging/app.plugin.js",
       "./plugins/withNetworkSecurity",
-      "./plugins/withNotifeeRepo"
+      "./plugins/withNotifeeRepo",
+      "./plugins/withReleaseSigningConfig"
     ],
     "experiments": {
       "typedRoutes": true
