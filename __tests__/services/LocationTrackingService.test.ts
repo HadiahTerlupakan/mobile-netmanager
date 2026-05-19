@@ -18,6 +18,15 @@ describe('LocationTrackingService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(global, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
+    // Default: disclosure already accepted, background permission not yet granted
+    (Storage.getItem as jest.Mock).mockImplementation((key: string) => {
+      if (key === '@location_disclosure_accepted_v1') return Promise.resolve('true');
+      return Promise.resolve(null);
+    });
+    // Ensure the mock function exists even if jest auto-mock missed it
+    (Location as any).getBackgroundPermissionsAsync =
+      (Location as any).getBackgroundPermissionsAsync ?? jest.fn();
+    ((Location as any).getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
   });
 
   afterEach(() => {
@@ -70,6 +79,58 @@ describe('LocationTrackingService', () => {
       const result = await LocationTrackingService.startTracking();
 
       expect(result).toBe(false);
+      expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
+    });
+
+    it('should show prominent disclosure when not previously accepted', async () => {
+      const alertSpy = jest.spyOn(require('react-native').Alert, 'alert')
+        .mockImplementation((_title, _msg, buttons: any) => {
+          // Simulate user tapping "Lanjutkan"
+          const continueBtn = buttons.find((b: any) => b.text === 'Lanjutkan');
+          continueBtn?.onPress?.();
+        });
+
+      // Disclosure not yet accepted, background not granted
+      (Storage.getItem as jest.Mock).mockImplementation((key: string) => {
+        if (key === '@location_disclosure_accepted_v1') return Promise.resolve(null);
+        return Promise.resolve(null);
+      });
+      (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
+      (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+      (Location.requestBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+      (Battery.getBatteryLevelAsync as jest.Mock).mockResolvedValue(0.8);
+      (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(false);
+
+      await LocationTrackingService.startTracking();
+
+      expect(alertSpy).toHaveBeenCalledWith(
+        'Izin Akses Lokasi Latar Belakang',
+        expect.stringContaining('RADPRO mengumpulkan data lokasi'),
+        expect.any(Array),
+        expect.any(Object),
+      );
+      expect(Storage.setItem).toHaveBeenCalledWith('@location_disclosure_accepted_v1', 'true');
+      expect(Location.requestBackgroundPermissionsAsync).toHaveBeenCalled();
+    });
+
+    it('should abort tracking when user rejects prominent disclosure', async () => {
+      jest.spyOn(require('react-native').Alert, 'alert')
+        .mockImplementation((_title, _msg, buttons: any) => {
+          const cancelBtn = buttons.find((b: any) => b.text === 'Tolak');
+          cancelBtn?.onPress?.();
+        });
+
+      (Storage.getItem as jest.Mock).mockImplementation((key: string) => {
+        if (key === '@location_disclosure_accepted_v1') return Promise.resolve(null);
+        return Promise.resolve(null);
+      });
+      (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
+      (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+
+      const result = await LocationTrackingService.startTracking();
+
+      expect(result).toBe(false);
+      expect(Location.requestBackgroundPermissionsAsync).not.toHaveBeenCalled();
       expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
     });
   });

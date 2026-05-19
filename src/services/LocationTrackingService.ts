@@ -23,6 +23,7 @@ const STORAGE_KEY_TRACKING = '@location_tracking_enabled';
 const STORAGE_KEY_TOKEN = 'session_token'; // Must match AuthContext key
 const STORAGE_KEY_PENDING = '@pending_locations';
 const STORAGE_KEY_LAST_SENT = '@last_sent_location'; // New key for movement check
+const STORAGE_KEY_DISCLOSURE = '@location_disclosure_accepted_v1'; // Play Store prominent disclosure consent
 
 interface LocationData {
     latitude: number;
@@ -108,6 +109,49 @@ export class LocationTrackingService {
     }
 
     /**
+     * Show Prominent Disclosure dialog (Google Play Location Policy requirement)
+     * Must be shown BEFORE requesting background location permission.
+     * Returns true if user accepts, false if rejects.
+     * Consent is persisted so dialog only appears once per install.
+     */
+    static async ensureProminentDisclosure(): Promise<boolean> {
+        try {
+            const accepted = await Storage.getItem(STORAGE_KEY_DISCLOSURE);
+            if (accepted === 'true') return true;
+
+            return await new Promise<boolean>((resolve) => {
+                Alert.alert(
+                    'Izin Akses Lokasi Latar Belakang',
+                    'RADPRO mengumpulkan data lokasi untuk melacak posisi Anda selama jam kerja, bahkan saat aplikasi ditutup atau tidak digunakan.\n\n' +
+                    'Tujuan penggunaan:\n' +
+                    '• Verifikasi kehadiran di lokasi kerja\n' +
+                    '• Penugasan work order ke teknisi terdekat\n' +
+                    '• Laporan riwayat perjalanan ke supervisor\n\n' +
+                    'Data lokasi hanya dikirim ke server RADPRO dan diakses oleh tim manajemen perusahaan Anda. Pelacakan otomatis berhenti saat Anda check-out.',
+                    [
+                        {
+                            text: 'Tolak',
+                            style: 'cancel',
+                            onPress: () => resolve(false),
+                        },
+                        {
+                            text: 'Lanjutkan',
+                            onPress: async () => {
+                                await Storage.setItem(STORAGE_KEY_DISCLOSURE, 'true');
+                                resolve(true);
+                            },
+                        },
+                    ],
+                    { cancelable: false }
+                );
+            });
+        } catch (error) {
+            logger.error('[LocationTracking] Disclosure check failed:', error);
+            return false;
+        }
+    }
+
+    /**
      * Start background location tracking
      * Called after successful check-in
      */
@@ -118,6 +162,16 @@ export class LocationTrackingService {
             if (foregroundStatus !== 'granted') {
                 logger.warn('[LocationTracking] Foreground permission denied');
                 return false;
+            }
+
+            // Play Store policy: show prominent disclosure before requesting background location
+            const { status: existingBackgroundStatus } = await Location.getBackgroundPermissionsAsync();
+            if (existingBackgroundStatus !== 'granted') {
+                const disclosureAccepted = await this.ensureProminentDisclosure();
+                if (!disclosureAccepted) {
+                    logger.warn('[LocationTracking] User rejected prominent disclosure');
+                    return false;
+                }
             }
 
             const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
@@ -173,9 +227,9 @@ export class LocationTrackingService {
                         distanceInterval: config.distanceInterval,
                         deferredUpdatesInterval: __DEV__ ? 30000 : 15 * 60 * 1000,
                         foregroundService: {
-                            notificationTitle: 'Mode Absensi Aktif',
-                            notificationBody: 'Jam kerja Anda sedang berjalan',
-                            notificationColor: '#ffffff'
+                            notificationTitle: 'RADPRO sedang melacak lokasi Anda',
+                            notificationBody: 'Pelacakan aktif selama jam kerja. Berhenti otomatis saat check-out.',
+                            notificationColor: '#0a46aa'
                         },
                         pausesUpdatesAutomatically: true,
                         showsBackgroundLocationIndicator: false,
@@ -208,9 +262,9 @@ export class LocationTrackingService {
                     distanceInterval: config.distanceInterval,
                     deferredUpdatesInterval: __DEV__ ? 30000 : 15 * 60 * 1000,
                     foregroundService: {
-                        notificationTitle: 'Mode Absensi Aktif',
-                        notificationBody: 'Jam kerja Anda sedang berjalan',
-                        notificationColor: '#ffffff'
+                        notificationTitle: 'RADPRO sedang melacak lokasi Anda',
+                        notificationBody: 'Pelacakan aktif selama jam kerja. Berhenti otomatis saat check-out.',
+                        notificationColor: '#0a46aa'
                     },
                     pausesUpdatesAutomatically: false, // Don't let OS pause tracking
                     showsBackgroundLocationIndicator: true, // iOS: Show blue bar to indicate active tracking
