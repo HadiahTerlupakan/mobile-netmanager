@@ -113,6 +113,9 @@
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "buildToolsVersion": "35.0.0",
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "# === RADPRO custom keep rules (R8) ===\n# React Native Firebase bridge (reflection-based module registration)\n-keep class io.invertase.firebase.** { *; }\n-dontwarn io.invertase.firebase.**\n# Firebase SDK\n-keep class com.google.firebase.** { *; }\n-dontwarn com.google.firebase.**\n# ML Kit face detection (vision-camera-face-detector)\n-keep class com.google.mlkit.** { *; }\n-dontwarn com.google.mlkit.**\n# MapLibre\n-keep class org.maplibre.** { *; }\n-dontwarn org.maplibre.**\n# react-native-vision-camera\n-keep class com.mrousavy.camera.** { *; }\n# @react-native-picker/picker\n-keep class com.reactnativecommunity.picker.** { *; }",
             "extraMavenRepos": [
               "https://www.jitpack.io"
             ],
