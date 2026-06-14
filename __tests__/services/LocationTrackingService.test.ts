@@ -82,14 +82,7 @@ describe('LocationTrackingService', () => {
       expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
     });
 
-    it('should show prominent disclosure when not previously accepted', async () => {
-      const alertSpy = jest.spyOn(require('react-native').Alert, 'alert')
-        .mockImplementation((_title, _msg, buttons: any) => {
-          // Simulate user tapping "Lanjutkan"
-          const continueBtn = buttons.find((b: any) => b.text === 'Lanjutkan');
-          continueBtn?.onPress?.();
-        });
-
+    it('should call disclosure callback when not previously accepted', async () => {
       // Disclosure not yet accepted, background not granted
       (Storage.getItem as jest.Mock).mockImplementation((key: string) => {
         if (key === '@location_disclosure_accepted_v1') return Promise.resolve(null);
@@ -101,25 +94,20 @@ describe('LocationTrackingService', () => {
       (Battery.getBatteryLevelAsync as jest.Mock).mockResolvedValue(0.8);
       (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(false);
 
+      // Register disclosure callback (simulates React component registering it)
+      const disclosureCallback = jest.fn().mockResolvedValue(true);
+      LocationTrackingService.setDisclosureCallback(disclosureCallback);
+
       await LocationTrackingService.startTracking();
 
-      expect(alertSpy).toHaveBeenCalledWith(
-        'Izin Akses Lokasi Latar Belakang',
-        expect.stringContaining('RADPRO mengumpulkan data lokasi'),
-        expect.any(Array),
-        expect.any(Object),
-      );
+      expect(disclosureCallback).toHaveBeenCalled();
       expect(Storage.setItem).toHaveBeenCalledWith('@location_disclosure_accepted_v1', 'true');
       expect(Location.requestBackgroundPermissionsAsync).toHaveBeenCalled();
+
+      LocationTrackingService.setDisclosureCallback(null);
     });
 
     it('should abort tracking when user rejects prominent disclosure', async () => {
-      jest.spyOn(require('react-native').Alert, 'alert')
-        .mockImplementation((_title, _msg, buttons: any) => {
-          const cancelBtn = buttons.find((b: any) => b.text === 'Tolak');
-          cancelBtn?.onPress?.();
-        });
-
       (Storage.getItem as jest.Mock).mockImplementation((key: string) => {
         if (key === '@location_disclosure_accepted_v1') return Promise.resolve(null);
         return Promise.resolve(null);
@@ -127,11 +115,35 @@ describe('LocationTrackingService', () => {
       (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
       (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
 
+      // Register disclosure callback that simulates user rejecting
+      const disclosureCallback = jest.fn().mockResolvedValue(false);
+      LocationTrackingService.setDisclosureCallback(disclosureCallback);
+
+      const result = await LocationTrackingService.startTracking();
+
+      expect(result).toBe(false);
+      expect(disclosureCallback).toHaveBeenCalled();
+      expect(Location.requestBackgroundPermissionsAsync).not.toHaveBeenCalled();
+      expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
+
+      LocationTrackingService.setDisclosureCallback(null);
+    });
+
+    it('should return false when no disclosure callback is registered', async () => {
+      (Storage.getItem as jest.Mock).mockImplementation((key: string) => {
+        if (key === '@location_disclosure_accepted_v1') return Promise.resolve(null);
+        return Promise.resolve(null);
+      });
+      (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
+      (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+
+      // No callback registered
+      LocationTrackingService.setDisclosureCallback(null);
+
       const result = await LocationTrackingService.startTracking();
 
       expect(result).toBe(false);
       expect(Location.requestBackgroundPermissionsAsync).not.toHaveBeenCalled();
-      expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
     });
   });
 

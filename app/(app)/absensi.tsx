@@ -1,7 +1,9 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { AttendanceSkeleton } from "@/components/molecules/AttendanceSkeleton";
 import LoadingModal from "@/components/molecules/LoadingModal";
+import { LocationDisclosureModal } from "@/components/organisms/attendance/LocationDisclosureModal";
 import { useAuth } from "@/context/AuthContext";
+import { Storage } from "@/utils/storage";
 import {
   useApiQuery,
 } from "@/hooks/queries";
@@ -307,6 +309,9 @@ export default function AbsensiScreen() {
   const [isTukarLiburLeaveDay, setIsTukarLiburLeaveDay] = useState(false);
   const [showCheckoutWarning, setShowCheckoutWarning] = useState(false);
   const [pendingCheckoutWarning, setPendingCheckoutWarning] = useState<string | null>(null);
+  const [showDisclosureModal, setShowDisclosureModal] = useState(false);
+  const [locationDisclosureAccepted, setLocationDisclosureAccepted] = useState(false);
+  const disclosureResolveRef = useRef<((accepted: boolean) => void) | null>(null);
   const captureState = getAttendanceCaptureState({
     status,
     isHoliday: todayHoliday.isHoliday,
@@ -649,9 +654,13 @@ export default function AbsensiScreen() {
     }
   }, [statusData]);
 
+  // Hanya minta lokasi SETELAH user menerima prominent disclosure
+  // Google Play melarang request location sebelum disclosure diterima
   useEffect(() => {
-    getLocation();
-  }, [getLocation]);
+    if (locationDisclosureAccepted) {
+      getLocation();
+    }
+  }, [locationDisclosureAccepted, getLocation]);
 
   useEffect(() => {
     if (location && geofenceZones.length > 0) {
@@ -674,6 +683,54 @@ export default function AbsensiScreen() {
       mounted = false;
       unsubscribe();
     };
+  }, []);
+
+  // Cek status disclosure saat mount, tampilkan modal jika belum diterima
+  // Disclosure harus muncul SEBELUM semua permission request lokasi (Google Play policy)
+  useEffect(() => {
+    const checkDisclosure = async () => {
+      const accepted = await Storage.getItem('@location_disclosure_accepted_v1');
+      if (accepted === 'true') {
+        setLocationDisclosureAccepted(true);
+      } else {
+        setShowDisclosureModal(true);
+      }
+    };
+    checkDisclosure();
+  }, []);
+
+  // Register callback untuk LocationTrackingService
+  // Agar service juga pakai modal ini (bukan Alert.alert) saat startTracking()
+  useEffect(() => {
+    LocationTrackingService.setDisclosureCallback(async () => {
+      // Jika sudah diterima, langsung return true
+      const accepted = await Storage.getItem('@location_disclosure_accepted_v1');
+      if (accepted === 'true') return true;
+
+      // Tampilkan modal dan tunggu respon user
+      return new Promise<boolean>((resolve) => {
+        disclosureResolveRef.current = resolve;
+        setShowDisclosureModal(true);
+      });
+    });
+
+    return () => {
+      LocationTrackingService.setDisclosureCallback(null);
+    };
+  }, []);
+
+  const handleDisclosureAccept = useCallback(() => {
+    setShowDisclosureModal(false);
+    setLocationDisclosureAccepted(true);
+    Storage.setItem('@location_disclosure_accepted_v1', 'true');
+    disclosureResolveRef.current?.(true);
+    disclosureResolveRef.current = null;
+  }, []);
+
+  const handleDisclosureReject = useCallback(() => {
+    setShowDisclosureModal(false);
+    disclosureResolveRef.current?.(false);
+    disclosureResolveRef.current = null;
   }, []);
 
   const handleCaptureURI = useCallback(async () => {
@@ -917,6 +974,11 @@ export default function AbsensiScreen() {
         visible={showCheckoutWarning}
         onClose={handleCancelCheckoutWarning}
         warningMessage={pendingCheckoutWarning}
+      />
+      <LocationDisclosureModal
+        visible={showDisclosureModal}
+        onAccept={handleDisclosureAccept}
+        onReject={handleDisclosureReject}
       />
       <LoadingModal visible={isProcessing} message={loadingMessage} progress={uploadProgress > 0 ? uploadProgress : undefined} />
     </SafeAreaView>
