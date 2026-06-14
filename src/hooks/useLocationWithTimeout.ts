@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import * as Location from "expo-location";
 import { logger } from "@/utils/logger";
+import { requestForegroundLocationWithDisclosure } from "@/utils/locationDisclosure";
 
 interface LocationResult {
   latitude: string;
@@ -27,6 +28,17 @@ export function useLocationWithTimeout() {
       let locationName = "";
 
       try {
+        // Gerbang disclosure: pastikan izin (didahului disclosure) sebelum akses GPS
+        const { status } = await requestForegroundLocationWithDisclosure();
+        if (status !== "granted") {
+          logger.info("Location permission not granted, using cached/last known");
+          return {
+            latitude: finalLocation?.coords.latitude.toString() ?? "",
+            longitude: finalLocation?.coords.longitude.toString() ?? "",
+            locationName,
+          };
+        }
+
         const locPromise = Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
         });

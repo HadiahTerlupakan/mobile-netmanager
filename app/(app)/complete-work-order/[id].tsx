@@ -7,6 +7,7 @@ import api from "@/services/api"; // Use centralized API
 import { formatDate } from "@/utils/date";
 import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
+import { requestForegroundLocationWithDisclosure } from "@/utils/locationDisclosure";
 import {
   normalizeWorkOrderRouteParam,
   resolveCanonicalWorkOrderId,
@@ -67,6 +68,11 @@ export default function CompleteWorkOrderScreen() {
   useEffect(() => {
     (async () => {
       try {
+        const { status } = await requestForegroundLocationWithDisclosure();
+        if (status !== "granted") {
+          logger.warn("Location permission not granted");
+          return;
+        }
         let currentLocation = await Location.getLastKnownPositionAsync({});
         if (!currentLocation) {
           currentLocation = await Location.getCurrentPositionAsync({
@@ -189,7 +195,10 @@ export default function CompleteWorkOrderScreen() {
       let locationName = "";
 
       try {
-        finalLocation = await Location.getCurrentPositionAsync({});
+        const { status } = await requestForegroundLocationWithDisclosure();
+        if (status === "granted") {
+          finalLocation = await Location.getCurrentPositionAsync({});
+        }
         if (finalLocation) {
           const reverseGeocode = await Location.reverseGeocodeAsync({
             latitude: finalLocation.coords.latitude,

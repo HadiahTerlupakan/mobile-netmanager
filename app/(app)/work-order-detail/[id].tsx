@@ -22,6 +22,7 @@ import {
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { useLocationWithTimeout } from '@/hooks/useLocationWithTimeout';
 import { useWorkOrderTasks } from '@/hooks/useWorkOrderTasks';
+import { requestForegroundLocationWithDisclosure } from '@/utils/locationDisclosure';
 import { uploadService } from "@/services/UploadService";
 import { WorkOrder, WorkOrderAssignment, WorkOrderUpdate } from "@/types/work-order";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
@@ -194,7 +195,7 @@ export default function WorkOrderDetailScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        const { status } = await requestForegroundLocationWithDisclosure();
         if (status !== "granted") {
           Alert.alert(
             "Izin Lokasi Ditolak",

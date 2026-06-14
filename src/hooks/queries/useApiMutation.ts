@@ -24,6 +24,7 @@ import { extractApiErrorMessage } from "@/utils/errorHandling";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import { persistPhotoForOffline } from "@/utils/persistPhoto";
+import { requestForegroundLocationWithDisclosure } from "@/utils/locationDisclosure";
 import {
   useMutation,
   UseMutationOptions,
@@ -126,7 +127,7 @@ async function getCurrentLocation(
   timeoutMs = 15_000,
 ): Promise<{ latitude: number | null; longitude: number | null }> {
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    const { status } = await requestForegroundLocationWithDisclosure();
     if (status !== "granted") {
       return { latitude: null, longitude: null };
     }

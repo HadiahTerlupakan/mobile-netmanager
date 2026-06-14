@@ -13,6 +13,7 @@ import { Alert } from "react-native";
 import tw from "twrnc";
 
 import { FaceVerificationModal } from '@/components/organisms/FaceVerificationModal';
+import { LocationDisclosureProvider } from '@/components/providers/LocationDisclosureProvider';
 import { MitraSalesTabBar } from '@/components/organisms/navigation/MitraSalesTabBar';
 import { MitraTeknisiTabBar } from '@/components/organisms/navigation/MitraTeknisiTabBar';
 import { AppFeature } from "@/constants/features";
@@ -119,11 +120,12 @@ export default function AppLayout() {
   };
 
   return (
-    <Fragment>
-      <FaceVerificationModal
-        visible={showFaceVerification}
-        onVerificationComplete={() => setShowFaceVerification(false)}
-      />
+    <LocationDisclosureProvider>
+      <Fragment>
+        <FaceVerificationModal
+          visible={showFaceVerification}
+          onVerificationComplete={() => setShowFaceVerification(false)}
+        />
 
       <Tabs
         tabBar={
@@ -404,6 +406,7 @@ export default function AppLayout() {
 
       {/* Announcement Popup - shows after login */}
       {/* <AnnouncementPopup /> */}
-    </Fragment>
+      </Fragment>
+    </LocationDisclosureProvider>
   );
 }

@@ -13,6 +13,7 @@ import { uploadService } from "@/services/UploadService";
 import { formatDate, formatDateRaw } from "@/utils/date";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { OvertimeRequestSchema, sanitizeInput, validateData } from "@/utils/validation";
+import { requestForegroundLocationWithDisclosure } from "@/utils/locationDisclosure";
 import { FlashList } from "@shopify/flash-list";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
@@ -175,7 +176,7 @@ export default function LemburScreen() {
 
   const getLocation = useCallback(async () => {
     try {
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      let { status } = await requestForegroundLocationWithDisclosure();
       if (status !== "granted") return;
 
       let loc = await Location.getLastKnownPositionAsync({});

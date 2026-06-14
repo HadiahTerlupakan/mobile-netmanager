@@ -1,5 +1,6 @@
 import { getMapLibre, isMapLibreAvailable, isWeb } from '@/utils/maplibre';
 import { logger } from '@/utils/logger';
+import { requestForegroundLocationWithDisclosure } from '@/utils/locationDisclosure';
 import * as Location from 'expo-location';
 import { Crosshair, MapPin, Search, AlertTriangle } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
@@ -99,7 +100,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
         try {
             if (!isInitialId) setLoadingLocation(true);
 
-            const { status } = await Location.requestForegroundPermissionsAsync();
+            const { status } = await requestForegroundLocationWithDisclosure();
             if (status !== 'granted') {
                 Alert.alert('Izin Lokasi', 'Aktifkan izin lokasi untuk menggunakan fitur ini.');
                 // Fallback to Jakarta if permission denied
