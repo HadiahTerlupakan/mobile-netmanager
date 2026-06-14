@@ -89,3 +89,11 @@ export async function ensureDisclosureBeforeBackground(): Promise<boolean> {
   }
   return accepted;
 }
+
+/**
+ * Reset state internal — HANYA untuk keperluan test agar tidak bocor antar test.
+ */
+export function __resetDisclosureStateForTest() {
+  presenter = null;
+  inFlightDisclosure = null;
+}
