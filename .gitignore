@@ -82,6 +82,10 @@ android/keystores/
 # Google Services (e.g. APIs or Firebase)
 google-services.json
 GoogleService-Info.plist
+# Google Play service account key (untuk eas submit) — JANGAN commit
+google-service-account.json
+refined-analogy-*.json
+*-service-account*.json
 !eas.json
 
 # Android Profiling

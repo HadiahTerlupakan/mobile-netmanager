@@ -30,6 +30,12 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "./refined-analogy-499422-f8-220fae576969.json",
+        "track": "production",
+        "releaseStatus": "draft"
+      }
+    }
   }
 }
