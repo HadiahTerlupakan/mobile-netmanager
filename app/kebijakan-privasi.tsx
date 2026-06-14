@@ -48,7 +48,7 @@ export default function PrivacyPolicyScreen() {
                         <Text style={tw`text-base text-gray-700 leading-relaxed`}>• Nama lengkap dan nama pengguna (username)</Text>
                         <Text style={tw`text-base text-gray-700 leading-relaxed`}>• Alamat email dan nomor telepon</Text>
                         <Text style={tw`text-base text-gray-700 leading-relaxed`}>• Data biometrik (sidik jari/pengenalan wajah, jika diaktifkan untuk login instan)</Text>
-                        <Text style={tw`text-base text-gray-700 leading-relaxed`}>• Data lokasi (GPS) yang digunakan eksklusif untuk fitur presensi (absensi) dan pelacakan work order.</Text>
+                        <Text style={tw`text-base text-gray-700 leading-relaxed`}>• Data lokasi (GPS), termasuk lokasi di latar belakang (background), yang digunakan untuk presensi (absensi), penugasan, dan pelacakan perjalanan work order selama jam kerja.</Text>
                         <Text style={tw`text-base text-gray-700 leading-relaxed`}>• Foto dan gambar (diambil dari kamera) untuk keperluan absensi, laporan work order, dan pengajuan reimbursement.</Text>
                         <Text style={tw`text-base text-gray-700 leading-relaxed`}>• Informasi teknis terkait jenis perangkat, sistem operasi, dan log aktivitas Aplikasi (untuk keperluan troubleshooting dan perbaikan bug).</Text>
                     </View>
@@ -63,7 +63,7 @@ export default function PrivacyPolicyScreen() {
                     </Text>
                     <View style={tw`pl-4`}>
                         <Text style={tw`text-base text-gray-700 leading-relaxed`}><Text style={tw`font-bold`}>• Kamera:</Text> Digunakan untuk mengambil foto wajah saat absensi, mendokumentasikan hasil pekerjaan (work order), serta mengunggah bukti pengeluaran (reimbursement).</Text>
-                        <Text style={tw`text-base text-gray-700 leading-relaxed`}><Text style={tw`font-bold`}>• Lokasi:</Text> Digunakan untuk memverifikasi lokasi saat Anda melakukan absensi masuk/pulang, serta mencatat status lokasi penyelesaian work order di lapangan.</Text>
+                        <Text style={tw`text-base text-gray-700 leading-relaxed`}><Text style={tw`font-bold`}>• Lokasi (termasuk Latar Belakang):</Text> Digunakan untuk memverifikasi lokasi saat absensi masuk/pulang dan mencatat lokasi penyelesaian work order. Untuk karyawan/teknisi yang sedang dalam status kerja (setelah check-in hingga check-out), Aplikasi juga mengumpulkan lokasi di latar belakang — bahkan ketika Aplikasi ditutup atau tidak sedang digunakan — guna mencatat riwayat perjalanan dan memungkinkan penugasan ke teknisi terdekat. Pelacakan latar belakang berhenti otomatis saat Anda check-out, dan izin dapat dicabut kapan saja melalui Pengaturan perangkat.</Text>
                         <Text style={tw`text-base text-gray-700 leading-relaxed`}><Text style={tw`font-bold`}>• Penyimpanan (Storage):</Text> Digunakan untuk menyimpan file yang diunduh (misalnya struk gaji) dan mengakses galeri bila Anda memilih mengunggah foto dari penyimpanan perangkat.</Text>
                     </View>
                 </View>
