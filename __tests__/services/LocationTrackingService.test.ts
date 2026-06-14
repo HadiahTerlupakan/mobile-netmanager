@@ -4,6 +4,10 @@ import * as Battery from 'expo-battery';
 import * as SecureStore from 'expo-secure-store';
 import { Storage } from '../../src/utils/storage';
 import api from '../../src/services/api';
+import {
+  requestForegroundLocationWithDisclosure,
+  ensureDisclosureBeforeBackground,
+} from '../../src/utils/locationDisclosure';
 
 // Mock dependencies
 jest.mock('expo-location');
@@ -13,17 +17,20 @@ jest.mock('expo-secure-store');
 jest.mock('@/utils/storage');
 jest.mock('@/utils/logger');
 jest.mock('@/services/api');
+jest.mock('../../src/utils/locationDisclosure');
+
+const mockRequestForeground = requestForegroundLocationWithDisclosure as jest.Mock;
+const mockEnsureBackground = ensureDisclosureBeforeBackground as jest.Mock;
 
 describe('LocationTrackingService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(global, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
-    // Default: disclosure already accepted, background permission not yet granted
-    (Storage.getItem as jest.Mock).mockImplementation((key: string) => {
-      if (key === '@location_disclosure_accepted_v1') return Promise.resolve('true');
-      return Promise.resolve(null);
-    });
-    // Ensure the mock function exists even if jest auto-mock missed it
+    (Storage.getItem as jest.Mock).mockResolvedValue(null);
+    // Default: gerbang disclosure mengizinkan & memberi foreground granted
+    mockRequestForeground.mockResolvedValue({ status: 'granted' });
+    mockEnsureBackground.mockResolvedValue(true);
+    // Background permission already granted by default
     (Location as any).getBackgroundPermissionsAsync =
       (Location as any).getBackgroundPermissionsAsync ?? jest.fn();
     ((Location as any).getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
@@ -35,7 +42,7 @@ describe('LocationTrackingService', () => {
 
   describe('startTracking', () => {
     it('should start tracking when permissions are granted', async () => {
-      (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+      mockRequestForeground.mockResolvedValue({ status: 'granted' });
       (Location.requestBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
       (Battery.getBatteryLevelAsync as jest.Mock).mockResolvedValue(0.8); // 80% battery
       (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(false);
@@ -58,7 +65,7 @@ describe('LocationTrackingService', () => {
     });
 
     it('should use lower frequency for low battery', async () => {
-      (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+      mockRequestForeground.mockResolvedValue({ status: 'granted' });
       (Location.requestBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
       (Battery.getBatteryLevelAsync as jest.Mock).mockResolvedValue(0.15); // 15% battery
       (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(false);
@@ -74,7 +81,7 @@ describe('LocationTrackingService', () => {
     });
 
     it('should return false if foreground permission denied', async () => {
-      (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
+      mockRequestForeground.mockResolvedValue({ status: 'denied' });
 
       const result = await LocationTrackingService.startTracking();
 
@@ -82,63 +89,36 @@ describe('LocationTrackingService', () => {
       expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
     });
 
-    it('should call disclosure callback when not previously accepted', async () => {
-      // Disclosure not yet accepted, background not granted
-      (Storage.getItem as jest.Mock).mockImplementation((key: string) => {
-        if (key === '@location_disclosure_accepted_v1') return Promise.resolve(null);
-        return Promise.resolve(null);
-      });
+    it('should request background disclosure when background not yet granted', async () => {
+      mockRequestForeground.mockResolvedValue({ status: 'granted' });
       (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
-      (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
+      mockEnsureBackground.mockResolvedValue(true);
       (Location.requestBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
       (Battery.getBatteryLevelAsync as jest.Mock).mockResolvedValue(0.8);
       (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(false);
 
-      // Register disclosure callback (simulates React component registering it)
-      const disclosureCallback = jest.fn().mockResolvedValue(true);
-      LocationTrackingService.setDisclosureCallback(disclosureCallback);
-
       await LocationTrackingService.startTracking();
 
-      expect(disclosureCallback).toHaveBeenCalled();
-      expect(Storage.setItem).toHaveBeenCalledWith('@location_disclosure_accepted_v1', 'true');
+      expect(mockEnsureBackground).toHaveBeenCalled();
       expect(Location.requestBackgroundPermissionsAsync).toHaveBeenCalled();
-
-      LocationTrackingService.setDisclosureCallback(null);
     });
 
-    it('should abort tracking when user rejects prominent disclosure', async () => {
-      (Storage.getItem as jest.Mock).mockImplementation((key: string) => {
-        if (key === '@location_disclosure_accepted_v1') return Promise.resolve(null);
-        return Promise.resolve(null);
-      });
+    it('should abort tracking when user rejects background disclosure', async () => {
+      mockRequestForeground.mockResolvedValue({ status: 'granted' });
       (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
-      (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
-
-      // Register disclosure callback that simulates user rejecting
-      const disclosureCallback = jest.fn().mockResolvedValue(false);
-      LocationTrackingService.setDisclosureCallback(disclosureCallback);
+      mockEnsureBackground.mockResolvedValue(false);
 
       const result = await LocationTrackingService.startTracking();
 
       expect(result).toBe(false);
-      expect(disclosureCallback).toHaveBeenCalled();
+      expect(mockEnsureBackground).toHaveBeenCalled();
       expect(Location.requestBackgroundPermissionsAsync).not.toHaveBeenCalled();
       expect(Location.startLocationUpdatesAsync).not.toHaveBeenCalled();
-
-      LocationTrackingService.setDisclosureCallback(null);
     });
 
-    it('should return false when no disclosure callback is registered', async () => {
-      (Storage.getItem as jest.Mock).mockImplementation((key: string) => {
-        if (key === '@location_disclosure_accepted_v1') return Promise.resolve(null);
-        return Promise.resolve(null);
-      });
-      (Location.getBackgroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'denied' });
-      (Location.requestForegroundPermissionsAsync as jest.Mock).mockResolvedValue({ status: 'granted' });
-
-      // No callback registered
-      LocationTrackingService.setDisclosureCallback(null);
+    it('should abort when foreground disclosure is rejected', async () => {
+      // Gerbang foreground mengembalikan denied saat user menolak disclosure
+      mockRequestForeground.mockResolvedValue({ status: 'denied' });
 
       const result = await LocationTrackingService.startTracking();
 

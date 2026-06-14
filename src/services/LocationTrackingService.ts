@@ -15,6 +15,10 @@ import * as SecureStore from 'expo-secure-store';
 import * as TaskManager from 'expo-task-manager';
 import { Alert, Linking } from 'react-native';
 import { extractApiErrorMessage } from '@/utils/errorHandling';
+import {
+    ensureDisclosureBeforeBackground,
+    requestForegroundLocationWithDisclosure,
+} from '@/utils/locationDisclosure';
 import { logger } from '../utils/logger';
 import api from './api';
 
@@ -23,7 +27,6 @@ const STORAGE_KEY_TRACKING = '@location_tracking_enabled';
 const STORAGE_KEY_TOKEN = 'session_token'; // Must match AuthContext key
 const STORAGE_KEY_PENDING = '@pending_locations';
 const STORAGE_KEY_LAST_SENT = '@last_sent_location'; // New key for movement check
-const STORAGE_KEY_DISCLOSURE = '@location_disclosure_accepted_v1'; // Play Store prominent disclosure consent
 
 interface LocationData {
     latitude: number;
@@ -59,33 +62,6 @@ function deg2rad(deg: number) {
 
 export class LocationTrackingService {
     private static initialPushTimer: ReturnType<typeof setTimeout> | null = null;
-
-    /**
-     * Callback bridge: component mendaftarkan callback untuk menampilkan
-     * custom in-app disclosure modal (bukan Alert.alert).
-     * Google Play membutuhkan prominent disclosure berupa custom UI.
-     */
-    private static disclosureCallback: (() => Promise<boolean>) | null = null;
-    private static disclosureResolve: ((accepted: boolean) => void) | null = null;
-
-    /**
-     * Register callback untuk menampilkan disclosure modal.
-     * Dipanggil oleh React component (misal: absensi.tsx) saat mount.
-     */
-    static setDisclosureCallback(cb: (() => Promise<boolean>) | null) {
-        LocationTrackingService.disclosureCallback = cb;
-    }
-
-    /**
-     * Resolve disclosure dari component setelah user respond.
-     * Dipanggil oleh modal's onAccept/onReject handler.
-     */
-    static resolveDisclosure(accepted: boolean) {
-        if (LocationTrackingService.disclosureResolve) {
-            LocationTrackingService.disclosureResolve(accepted);
-            LocationTrackingService.disclosureResolve = null;
-        }
-    }
 
     /**
      * Get adaptive location configuration based on battery and movement
@@ -136,60 +112,30 @@ export class LocationTrackingService {
     }
 
     /**
-     * Show Prominent Disclosure (Google Play Location Policy requirement)
-     * Must be shown BEFORE requesting background location permission.
-     * Uses custom in-app modal via callback bridge (bukan Alert.alert).
-     * Consent is persisted so dialog only appears once per install.
-     */
-    static async ensureProminentDisclosure(): Promise<boolean> {
-        try {
-            const accepted = await Storage.getItem(STORAGE_KEY_DISCLOSURE);
-            if (accepted === 'true') return true;
-
-            // Jika callback belum didaftarkan, gunakan fallback (reject)
-            if (!LocationTrackingService.disclosureCallback) {
-                logger.warn('[LocationTracking] No disclosure callback registered');
-                return false;
-            }
-
-            // Tampilkan custom modal via callback dan tunggu user respond
-            const userAccepted = await LocationTrackingService.disclosureCallback();
-
-            if (userAccepted) {
-                await Storage.setItem(STORAGE_KEY_DISCLOSURE, 'true');
-            }
-
-            return userAccepted;
-        } catch (error) {
-            logger.error('[LocationTracking] Disclosure check failed:', error);
-            return false;
-        }
-    }
-
-    /**
      * Start background location tracking
      * Called after successful check-in
      * Prominent disclosure MUST appear before any location permission request (Google Play policy).
      */
     static async startTracking(): Promise<boolean> {
         try {
-            // Play Store policy: prominent disclosure must appear before ANY location permission request
-            const disclosureAccepted = await this.ensureProminentDisclosure();
-            if (!disclosureAccepted) {
-                logger.warn('[LocationTracking] User rejected prominent disclosure');
-                return false;
-            }
-
-            // Request foreground permission
-            const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
+            // Foreground: gerbang terpusat menjamin disclosure tampil tepat sebelum
+            // izin OS diminta (jika belum granted). Konsisten dengan seluruh app.
+            const { status: foregroundStatus } = await requestForegroundLocationWithDisclosure();
             if (foregroundStatus !== 'granted') {
-                logger.warn('[LocationTracking] Foreground permission denied');
+                logger.warn('[LocationTracking] Foreground permission denied / disclosure ditolak');
                 return false;
             }
 
-            // Request background permission if not yet granted
+            // Background: hanya minta jika belum granted, dan disclosure WAJIB
+            // tampil tepat sebelum dialog OS background (Google Play policy).
             const { status: existingBackgroundStatus } = await Location.getBackgroundPermissionsAsync();
             if (existingBackgroundStatus !== 'granted') {
+                const disclosureAccepted = await ensureDisclosureBeforeBackground();
+                if (!disclosureAccepted) {
+                    logger.warn('[LocationTracking] User menolak disclosure background');
+                    return false;
+                }
+
                 const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
                 if (backgroundStatus !== 'granted') {
                     logger.warn('[LocationTracking] Background permission denied');

@@ -1,28 +1,25 @@
 /**
  * LocationDisclosureProvider
  * Merender LocationDisclosureModal sekali secara global dan mendaftarkan
- * presenter ke gerbang terpusat (utils/locationDisclosure) + LocationTrackingService.
+ * presenter ke gerbang terpusat (utils/locationDisclosure).
  *
- * Dengan ini, di mana pun aplikasi memanggil `ensureLocationDisclosure()`
- * atau `requestForegroundLocationWithDisclosure()`, modal disclosure yang
- * sama akan tampil sebelum izin sistem diminta (syarat Google Play).
+ * Dengan ini, di mana pun aplikasi memanggil
+ * `requestForegroundLocationWithDisclosure()` / `ensureDisclosureBeforeBackground()`,
+ * modal disclosure yang sama tampil tepat sebelum izin OS diminta (syarat Google Play).
  */
 
 import { LocationDisclosureModal } from '@/components/organisms/attendance/LocationDisclosureModal';
-import { LocationTrackingService } from '@/services/LocationTrackingService';
-import {
-  hasAcceptedLocationDisclosure,
-  setDisclosurePresenter,
-} from '@/utils/locationDisclosure';
+import { setDisclosurePresenter } from '@/utils/locationDisclosure';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 export function LocationDisclosureProvider({ children }: { children: React.ReactNode }) {
   const [visible, setVisible] = useState(false);
   const resolveRef = useRef<((accepted: boolean) => void) | null>(null);
 
+  // Selalu tampilkan modal. Keputusan apakah izin OS perlu diminta (dan karena
+  // itu disclosure perlu tampil) ditangani di gerbang utils/locationDisclosure
+  // berdasar status izin OS aktual — bukan flag storage.
   const present = useCallback(async (): Promise<boolean> => {
-    if (await hasAcceptedLocationDisclosure()) return true;
-
     return new Promise<boolean>((resolve) => {
       resolveRef.current = resolve;
       setVisible(true);
@@ -31,10 +28,8 @@ export function LocationDisclosureProvider({ children }: { children: React.React
 
   useEffect(() => {
     setDisclosurePresenter(present);
-    LocationTrackingService.setDisclosureCallback(present);
     return () => {
       setDisclosurePresenter(null);
-      LocationTrackingService.setDisclosureCallback(null);
     };
   }, [present]);
 
