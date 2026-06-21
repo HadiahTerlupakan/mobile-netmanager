@@ -211,7 +211,7 @@ export default function MixRadiusIsolirScreen() {
 
   const loading = isFetching && !refreshing;
   const isolirCustomers = useMemo(
-    () => customerData?.data ?? [],
+    () => (customerData?.data ?? []).filter((c) => c.auth_status !== "Disabled-Users"),
     [customerData]
   );
 
