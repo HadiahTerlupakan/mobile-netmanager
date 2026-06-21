@@ -76,11 +76,6 @@ jest.mock('@/lib/queryClient', () => ({
   },
 }));
 
-jest.mock('@/services/AppVersionService', () => ({
-  appVersionService: {
-    reportVersion: jest.fn(() => Promise.resolve()),
-  },
-}));
 
 jest.mock('@/services/DatabaseService', () => ({
   DatabaseService: {
@@ -183,7 +178,7 @@ jest.mock('react-native-toast-message', () => ({
 describe('RootLayout privacy route guard', () => {
   it('uses the FCM notification bridge instead of the legacy Expo notification APIs', () => {
     const rootLayoutSource = readFileSync(
-      join(__dirname, '../../app/_layout.tsx'),
+      join(__dirname, '../../src/hooks/useNotificationSetup.ts'),
       'utf8'
     );
 
@@ -378,7 +373,7 @@ describe('RootLayout privacy route guard', () => {
 
   it('routes Android foreground notifications through the dedicated native foreground notification service', () => {
     const rootLayoutSource = readFileSync(
-      join(__dirname, '../../app/_layout.tsx'),
+      join(__dirname, '../../src/hooks/useNotificationSetup.ts'),
       'utf8'
     );
 

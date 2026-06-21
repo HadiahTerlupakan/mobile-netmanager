@@ -36,9 +36,21 @@ describe('UploadService', () => {
   const mockUrl = 'https://api.example.com/uploads/photo.jpg';
   const mockType = 'work-order-updates';
 
+  let mockUploadTask: any;
+
   beforeEach(() => {
     jest.clearAllMocks();
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(mockToken);
+
+    mockUploadTask = {
+      uploadAsync: jest.fn().mockResolvedValue({
+        status: 200,
+        body: JSON.stringify({ url: mockUrl }),
+      }),
+      cancelAsync: jest.fn().mockResolvedValue(undefined),
+    };
+
+    (FileSystem.createUploadTask as jest.Mock).mockReturnValue(mockUploadTask);
   });
 
   describe('uploadFile', () => {
@@ -51,16 +63,10 @@ describe('UploadService', () => {
     });
 
     it('should upload file successfully without progress callback', async () => {
-      const mockResponse = {
-        status: 200,
-        body: JSON.stringify({ url: mockUrl }),
-      };
-      (FileSystem.uploadAsync as jest.Mock).mockResolvedValue(mockResponse);
-
       const result = await uploadService.uploadFile(mockUri, mockType);
 
       expect(SecureStore.getItemAsync).toHaveBeenCalledWith('session_token');
-      expect(FileSystem.uploadAsync).toHaveBeenCalledWith(
+      expect(FileSystem.createUploadTask).toHaveBeenCalledWith(
         expect.stringContaining('/api/mobile/upload'),
         mockUri,
         expect.objectContaining({
@@ -72,19 +78,14 @@ describe('UploadService', () => {
           parameters: expect.objectContaining({
             type: mockType,
           }),
-        })
+        }),
+        expect.any(Function)
       );
+      expect(mockUploadTask.uploadAsync).toHaveBeenCalled();
       expect(result).toBe(mockUrl);
     });
 
     it('should upload file successfully with progress callback', async () => {
-      const mockUploadTask = {
-        uploadAsync: jest.fn().mockResolvedValue({
-          status: 200,
-          body: JSON.stringify({ url: mockUrl }),
-        }),
-      };
-
       // Mock createUploadTask to call the progress callback
       (FileSystem.createUploadTask as jest.Mock).mockImplementation(
         (_url, _uri, _options, onProgress) => {
@@ -118,30 +119,28 @@ describe('UploadService', () => {
     });
 
     it('should retry on failure', async () => {
-      const successResponse = { status: 200, body: JSON.stringify({ url: mockUrl }) };
-
-      (FileSystem.uploadAsync as jest.Mock)
+      mockUploadTask.uploadAsync
         .mockRejectedValueOnce(new Error('Network Error'))
-        .mockResolvedValueOnce(successResponse);
+        .mockResolvedValueOnce({ status: 200, body: JSON.stringify({ url: mockUrl }) });
 
       const result = await uploadService.uploadFile(mockUri, mockType, { maxRetries: 1 });
 
-      expect(FileSystem.uploadAsync).toHaveBeenCalledTimes(2);
+      expect(mockUploadTask.uploadAsync).toHaveBeenCalledTimes(2);
       expect(result).toBe(mockUrl);
     });
 
     it('should throw error after max retries', async () => {
-      (FileSystem.uploadAsync as jest.Mock).mockRejectedValue(new Error('Network Error'));
+      mockUploadTask.uploadAsync.mockRejectedValue(new Error('Network Error'));
 
       await expect(
         uploadService.uploadFile(mockUri, mockType, { maxRetries: 1 })
       ).rejects.toThrow('Network Error');
 
-      expect(FileSystem.uploadAsync).toHaveBeenCalledTimes(2); // Initial + 1 retry
+      expect(mockUploadTask.uploadAsync).toHaveBeenCalledTimes(2); // Initial + 1 retry
     });
 
     it('should handle non-200 response status', async () => {
-      (FileSystem.uploadAsync as jest.Mock).mockResolvedValue({
+      mockUploadTask.uploadAsync.mockResolvedValue({
         status: 400,
         body: 'Bad Request',
       });

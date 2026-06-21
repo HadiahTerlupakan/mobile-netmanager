@@ -210,12 +210,4 @@ export const MixRadiusService = {
     }
   },
 
-  requestDismantle: async (customerId: string, reason: string, notes?: string) => {
-    const response = await api.post("/api/integrations/mixradius/dismantle", {
-      customerId,
-      reason,
-      notes,
-    });
-    return response.data;
-  },
 };

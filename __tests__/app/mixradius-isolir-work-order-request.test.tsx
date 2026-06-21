@@ -95,10 +95,21 @@ jest.mock('@shopify/flash-list', () => {
   };
 });
 
-jest.mock('@/components/molecules/SelectionModal', () => ({
-  __esModule: true,
-  default: () => null,
-}));
+jest.mock('@/components/molecules/SelectionModal', () => {
+  const MockReact = require('react');
+  return {
+    __esModule: true,
+    default: ({ visible, onSelect, items, title }: any) => {
+      MockReact.useEffect(() => {
+        if (visible && onSelect && items && items.length > 0 && title === 'Pilih Alasan Dismantle') {
+          // Wrap in a tiny timeout or execute directly (should be in act in test)
+          onSelect(items[0]);
+        }
+      }, [visible]);
+      return null;
+    },
+  };
+});
 
 jest.mock('@/components/molecules/IsolirSkeleton', () => ({
   IsolirSkeleton: () => null,
@@ -177,8 +188,11 @@ describe('mixradius isolir work order request boundary', () => {
   it('mengirim payload request dismantle yang valid ke route work order mobile', () => {
     const MixRadiusIsolirScreen = require('../../app/(app)/mixradius/isolir').default;
 
+    const { act } = require('@testing-library/react-native');
     render(<MixRadiusIsolirScreen />);
-    mockRenderedCustomerItems[0].handleDismantle(mockRenderedCustomerItems[0].customer);
+    act(() => {
+      mockRenderedCustomerItems[0].handleDismantle(mockRenderedCustomerItems[0].customer);
+    });
 
     expect(mockAlert).toHaveBeenCalledWith(
       'Konfirmasi Bongkar',

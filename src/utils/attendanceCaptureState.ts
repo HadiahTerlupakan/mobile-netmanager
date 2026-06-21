@@ -7,9 +7,10 @@ interface AttendanceCaptureStateInput {
   isTukarLiburWorkDay?: boolean;
 }
 
-export function getAttendanceCaptureState({ status, isHoliday, isOffDay }: AttendanceCaptureStateInput) {
+export function getAttendanceCaptureState({ status, isHoliday, isOffDay, isTukarLiburWorkDay = false }: AttendanceCaptureStateInput) {
   const hasActiveSession = status === 'checked-in';
-  const isBlockedDay = isHoliday || isOffDay;
+  // Hari yang seharusnya libur tetap bisa diabsen jika user dijadwalkan masuk ganti libur (tukar libur).
+  const isBlockedDay = (isHoliday || isOffDay) && !isTukarLiburWorkDay;
   const disabled = status === 'checked-out' || (!hasActiveSession && isBlockedDay);
 
   return {

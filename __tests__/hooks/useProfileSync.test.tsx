@@ -30,6 +30,17 @@ jest.mock('@/utils/logger', () => ({
   },
 }));
 
+jest.mock('@/lib/queryClient', () => ({
+  queryClient: {
+    invalidateQueries: jest.fn(),
+  },
+  queryKeys: {
+    profile: {
+      detail: jest.fn(() => ['profile', 'detail']),
+    },
+  },
+}));
+
 describe('useProfileSync', () => {
   const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
   const mockUseOfflineQuery = useOfflineQuery as jest.MockedFunction<typeof useOfflineQuery>;
@@ -123,6 +134,7 @@ describe('useProfileSync', () => {
   });
 
   it('refetches when the user stream receives profile.refresh', () => {
+    const { queryClient } = require('@/lib/queryClient');
     renderHook(() => useProfileSync({ enableBackgroundSync: true }));
 
     const streamHandler = mockSubscribeToUserStream.mock.calls[0]?.[1];
@@ -134,7 +146,9 @@ describe('useProfileSync', () => {
       scope: { kind: 'user', id: 'user-1' },
     });
 
-    expect(refetch).toHaveBeenCalledTimes(1);
+    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['profile', 'detail'],
+    });
   });
 
   it('does not register background listeners for multiple passive readers', () => {

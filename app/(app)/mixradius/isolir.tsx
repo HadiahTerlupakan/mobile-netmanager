@@ -1,6 +1,9 @@
 import { IsolirSkeleton } from "@/components/molecules/IsolirSkeleton";
 import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
+import { AppFeature } from "@/constants/features";
+import { useFeatureGuard } from "@/hooks/useFeatureGuard";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useApiQuery, useCreateWorkOrderRequest } from "@/hooks/queries";
 import type { MixRadiusResponse } from "@/services/MixRadiusService";
 import {
@@ -11,6 +14,7 @@ import {
 import { formatDate } from "@/utils/date";
 import { getUserFriendlyError } from "@/utils/errorHandling";
 import { presentAppError } from "@/utils/errorPresenter";
+import { isValidPhone, openMaps, openWhatsApp } from "@/utils/phone";
 import { FlashList } from "@shopify/flash-list";
 import { Stack } from "expo-router";
 import {
@@ -29,33 +33,37 @@ import React, { memo, useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Linking,
-  Platform,
   RefreshControl,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { useFeatureGuard } from '@/hooks/useFeatureGuard';
-import { AppFeature } from '@/constants/features';
 
-// Helper to safely parse dates
+const PAGE_SIZE = 30;
+const SEARCH_DEBOUNCE_MS = 400;
+const STALE_TIME_MS = 5 * 60 * 1000;
+
 const safeDate = (dateString?: string): Date | null => {
   if (!dateString) return null;
-  const isoString = dateString.replace(' ', 'T');
+  const isoString = dateString.replace(" ", "T");
   const date = new Date(isoString);
   return isNaN(date.getTime()) ? null : date;
 };
 
+const isExpiredCustomer = (customer: MixRadiusCustomer): boolean => {
+  const expiredDate = safeDate(customer.expired_on) || safeDate(customer.expiration);
+  return !!expiredDate && expiredDate < new Date();
+};
+
 const DISMANTLE_REASONS = [
-  { id: 'isolir-tunggakan', label: 'Isolir / Tunggakan', value: 'Isolir/Tunggakan' },
-  { id: 'pindah-alamat', label: 'Pindah Alamat', value: 'Pindah Alamat' },
-  { id: 'tidak-puas', label: 'Tidak Puas Layanan', value: 'Tidak Puas Layanan' },
-  { id: 'biaya-mahal', label: 'Biaya Terlalu Mahal', value: 'Biaya Terlalu Mahal' },
-  { id: 'lainnya', label: 'Lainnya', value: 'Lainnya' },
+  { id: "isolir-tunggakan", label: "Isolir / Tunggakan", value: "Isolir/Tunggakan" },
+  { id: "pindah-alamat", label: "Pindah Alamat", value: "Pindah Alamat" },
+  { id: "tidak-puas", label: "Tidak Puas Layanan", value: "Tidak Puas Layanan" },
+  { id: "biaya-mahal", label: "Biaya Terlalu Mahal", value: "Biaya Terlalu Mahal" },
+  { id: "lainnya", label: "Lainnya", value: "Lainnya" },
 ] as const;
 
 type DismantleReason = (typeof DISMANTLE_REASONS)[number];
@@ -76,8 +84,6 @@ function buildDismantleConfirmationMessage(customer: MixRadiusCustomer, reason: 
   return `Apakah Anda yakin ingin membuat Work Order (SPK) untuk membongkar perangkat pelanggan ${customer.username}?\n\nAlasan: ${reason}`;
 }
 
-
-// Customer Item Component
 const CustomerItem = memo(({
   item,
   onDismantle,
@@ -101,105 +107,58 @@ const CustomerItem = memo(({
   const phone = item?.phonenumber || "-";
   const group = item?.group_name || item?.owner_name || "-";
   const plan = item?.plan_name || "-";
+  const hasValidAddress = address !== "Tidak ada alamat" && address !== "-";
+  const hasValidPhone = isValidPhone(item?.phonenumber);
 
   const handlePhone = () => {
-    if (phone && phone !== '-' && phone.length > 3) {
-      let formattedPhone = phone.replace(/\D/g, '');
-      if (formattedPhone.startsWith('0')) {
-        formattedPhone = '62' + formattedPhone.substring(1);
-      } else if (formattedPhone.startsWith('8')) {
-        formattedPhone = '62' + formattedPhone;
-      }
-
-      const whatsappUrl = `whatsapp://send?phone=${formattedPhone}`;
-      Linking.openURL(whatsappUrl).catch(() => {
-        Linking.openURL(`tel:${phone}`);
-      });
-    }
+    if (hasValidPhone) openWhatsApp(item.phonenumber);
   };
 
   const handleAddress = () => {
-    if (address && address !== 'Tidak ada alamat' && address !== '-') {
-      const url = Platform.select({
-        ios: `maps:0,0?q=${encodeURIComponent(address)}`,
-        android: `geo:0,0?q=${encodeURIComponent(address)}`
-      });
-      Linking.openURL(url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
-    }
+    if (hasValidAddress) openMaps(address);
   };
 
   return (
-    <View
-      style={{
-        backgroundColor: 'white',
-        padding: 16,
-        marginBottom: 12,
-        marginHorizontal: 16,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#e5e7eb',
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
-      }}
-    >
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <View style={{ flex: 1, marginRight: 8 }}>
-          <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#111827' }}>{username}</Text>
-          <Text style={{ fontSize: 12, color: '#4b5563', marginTop: 2 }}>{name}</Text>
-          <Text style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>{plan}</Text>
+    <View style={tw`bg-white p-4 mb-3 mx-4 rounded-xl border border-gray-200 shadow-sm`}>
+      <View style={tw`flex-row justify-between items-start mb-2`}>
+        <View style={tw`flex-1 mr-2`}>
+          <Text style={tw`text-base font-bold text-gray-900`}>{username}</Text>
+          <Text style={tw`text-xs text-gray-600 mt-0.5`}>{name}</Text>
+          <Text style={tw`text-[11px] text-gray-500 mt-0.5`}>{plan}</Text>
         </View>
-        <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
-          <Text style={{ color: '#b91c1c', fontSize: 10, fontWeight: 'bold' }}>ISOLIR</Text>
+        <View style={tw`bg-red-100 px-2 py-1 rounded`}>
+          <Text style={tw`text-red-700 text-[10px] font-bold`}>ISOLIR</Text>
         </View>
       </View>
 
-      <View style={{ gap: 6, marginBottom: 12 }}>
-        <TouchableOpacity onPress={handleAddress} style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-          <MapPin size={14} color="#2563eb" style={{ marginTop: 2 }} />
-          <Text style={{ fontSize: 12, color: '#374151', marginLeft: 6, flex: 1, lineHeight: 18, textDecorationLine: 'underline' }}>
+      <View style={tw`gap-1.5 mb-3`}>
+        <TouchableOpacity onPress={handleAddress} disabled={!hasValidAddress} style={tw`flex-row items-start`}>
+          <MapPin size={14} color="#2563eb" style={tw`mt-0.5`} />
+          <Text style={tw`text-xs text-gray-700 ml-1.5 flex-1 leading-[18px] ${hasValidAddress ? "underline" : ""}`}>
             {address}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={handlePhone}
-          disabled={!phone || phone === '-' || phone.length < 4}
-          style={{ flexDirection: 'row', alignItems: 'center' }}
-        >
+        <TouchableOpacity onPress={handlePhone} disabled={!hasValidPhone} style={tw`flex-row items-center`}>
           <Phone size={14} color="#16a34a" />
-          <Text style={{
-            fontSize: 12,
-            color: (phone && phone !== '-' && phone.length > 3) ? '#16a34a' : '#6b7280',
-            marginLeft: 6,
-            fontWeight: (phone && phone !== '-' && phone.length > 3) ? '600' : '400'
-          }}>
+          <Text style={tw`text-xs ml-1.5 ${hasValidPhone ? "text-green-600 font-semibold" : "text-gray-500"}`}>
             {phone} (WhatsApp)
           </Text>
         </TouchableOpacity>
       </View>
 
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f3f4f6' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+      <View style={tw`flex-row justify-between items-center pt-2.5 border-t border-gray-100`}>
+        <View style={tw`flex-row items-center flex-1`}>
           <Calendar size={14} color="#dc2626" />
-          <Text style={{ fontSize: 12, color: '#dc2626', marginLeft: 6, fontWeight: '500' }}>Exp: {displayDate}</Text>
+          <Text style={tw`text-xs text-red-600 ml-1.5 font-medium`}>Exp: {displayDate}</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={tw`flex-row items-center`}>
           <Building size={14} color="#9ca3af" />
-          <Text style={{ fontSize: 12, fontWeight: '600', color: '#4b5563', marginLeft: 4, marginRight: 12 }}>{group}</Text>
+          <Text style={tw`text-xs font-semibold text-gray-600 ml-1 mr-3`}>{group}</Text>
 
           <TouchableOpacity
             onPress={() => onDismantle(item)}
-            style={{
-              backgroundColor: '#fee2e2',
-              padding: 8,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: '#fecaca',
-              marginLeft: 8,
-            }}
+            style={tw`bg-red-100 p-2 rounded-lg border border-red-200 ml-2`}
           >
             <Trash2 size={16} color="#dc2626" />
           </TouchableOpacity>
@@ -208,28 +167,27 @@ const CustomerItem = memo(({
     </View>
   );
 });
-CustomerItem.displayName = 'CustomerItem';
+CustomerItem.displayName = "CustomerItem";
 
 export default function MixRadiusIsolirScreen() {
   useFeatureGuard(AppFeature.MIXRADIUS);
 
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
   const [hasSelected, setHasSelected] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<OwnerGroup | null>(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showReasonModal, setShowReasonModal] = useState(false);
   const [pendingDismantleCustomer, setPendingDismantleCustomer] = useState<MixRadiusCustomer | null>(null);
 
-  // Load Groups
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
+
   const { data: groups = [] } = useApiQuery<OwnerGroup[]>({
     queryKey: ["mixradius", "groups"],
-    queryFn: async () => {
-      return await MixRadiusService.getOwnerGroups();
-    },
+    queryFn: () => MixRadiusService.getOwnerGroups(),
   });
 
-  // Load Customers
   const {
     data: customerData,
     isFetching,
@@ -238,38 +196,43 @@ export default function MixRadiusIsolirScreen() {
     isError,
     error,
   } = useApiQuery<MixRadiusResponse>({
-    queryKey: ["mixradius", "isolir", selectedGroup?.id, search],
+    queryKey: ["mixradius", "isolir", selectedGroup?.id, debouncedSearch, page],
     queryFn: () =>
       MixRadiusService.getIsolirCustomers(
-        search,
-        0,
-        100, // Fetch more at once since we are using useApiQuery with caching
+        debouncedSearch,
+        page,
+        PAGE_SIZE,
         undefined,
         selectedGroup?.id
       ),
     enabled: hasSelected,
-    retry: false, // Don't retry on 403 permission errors
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: (failureCount, err) => {
+      const status = (err as { status?: number })?.status;
+      if (status === 403 || status === 401) return false;
+      return failureCount < 2;
+    },
+    staleTime: STALE_TIME_MS,
   });
 
-  // Use isFetching for actual loading state (isPending stays true when query is disabled)
   const loading = isFetching && !refreshing;
+  const isolirCustomers = useMemo(
+    () => (customerData?.data ?? []).filter(isExpiredCustomer),
+    [customerData]
+  );
 
-  const data = useMemo(() => customerData?.data ?? [], [customerData]);
-
-  // Helper to get user-friendly error message
-  const getErrorMessage = useMemo(() => {
+  const errorMessage = useMemo(() => {
     if (!error) return "Terjadi kesalahan saat mengambil data";
     const { message } = getUserFriendlyError(error);
     return message;
   }, [error]);
 
-  const totalCount = useMemo(() => {
-    if (!customerData) return 0;
-    return customerData.recordsFiltered ?? customerData.recordsTotal ?? data.length;
-  }, [customerData, data.length]);
+  const totalCount = isolirCustomers.length;
 
-  // Dismantle Mutation
+  const serverTotal = customerData?.recordsFiltered ?? customerData?.recordsTotal ?? 0;
+  const hasMore = useMemo(() => {
+    return (page + 1) * PAGE_SIZE < serverTotal;
+  }, [page, serverTotal]);
+
   const dismantleMutation = useCreateWorkOrderRequest({
     successMessage: "Request WO Dismantle berhasil dikirim. Menunggu persetujuan Admin.",
   });
@@ -278,6 +241,7 @@ export default function MixRadiusIsolirScreen() {
     setSelectedGroup(group);
     setHasSelected(true);
     setShowGroupModal(false);
+    setPage(0);
   }, []);
 
   const handleDismantle = useCallback((customer: MixRadiusCustomer) => {
@@ -318,69 +282,76 @@ export default function MixRadiusIsolirScreen() {
                 notes: "Request otomatis dari Aplikasi Mobile (Menu Isolir)",
               },
               {
-                onSuccess: () => {
-                  setPendingDismantleCustomer(null);
-                },
+                onSuccess: () => setPendingDismantleCustomer(null),
                 onError: (err: unknown) => {
                   setPendingDismantleCustomer(null);
                   presentAppError(err, {
-                    screen: 'MixRadiusIsolirScreen',
-                    route: '/(app)/mixradius/isolir',
+                    screen: "MixRadiusIsolirScreen",
+                    route: "/(app)/mixradius/isolir",
                     report: false,
                   });
-                }
+                },
               }
             );
-          }
-        }
+          },
+        },
       ]
     );
   }, [pendingDismantleCustomer, dismantleMutation]);
 
+  const handleLoadMore = useCallback(() => {
+    if (hasMore && !isFetching) {
+      setPage((prev) => prev + 1);
+    }
+  }, [hasMore, isFetching]);
+
   const onRefresh = useCallback(() => {
+    setPage(0);
     refetch();
   }, [refetch]);
 
-  const ListHeader = useMemo(() => (
-    <View style={tw`p-4 pb-2`}>
-      <View style={tw`flex-row items-center bg-white rounded-xl px-4 py-1 border border-gray-200 shadow-sm mb-3`}>
-        <Search size={18} color="#9ca3af" />
-        <TextInput
-          style={tw`flex-1 h-10 ml-2 text-gray-900`}
-          placeholder="Cari username atau nama..."
-          value={search}
-          onChangeText={setSearch}
-          onSubmitEditing={() => refetch()}
-          returnKeyType="search"
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => {
-            setSearch("");
-          }}>
-            <X size={18} color="#9ca3af" />
+  const ListHeader = useMemo(
+    () => (
+      <View style={tw`p-4 pb-2`}>
+        <View style={tw`flex-row items-center bg-white rounded-xl px-4 py-1 border border-gray-200 shadow-sm mb-3`}>
+          <Search size={18} color="#9ca3af" />
+          <TextInput
+            style={tw`flex-1 h-10 ml-2 text-gray-900`}
+            placeholder="Cari username atau nama..."
+            value={search}
+            onChangeText={(text) => {
+              setSearch(text);
+              setPage(0);
+            }}
+            returnKeyType="search"
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => { setSearch(""); setPage(0); }}>
+              <X size={18} color="#9ca3af" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={tw`flex-row justify-between items-center mb-4`}>
+          <TouchableOpacity
+            onPress={() => setShowGroupModal(true)}
+            style={tw`flex-row items-center bg-blue-50 px-3 py-2 rounded-lg border border-blue-100`}
+          >
+            <Filter size={14} color="#2563eb" />
+            <Text style={tw`text-blue-700 text-xs font-bold ml-2`}>
+              {selectedGroup ? selectedGroup.name : hasSelected ? "Semua Site" : "Pilih Site"}
+            </Text>
           </TouchableOpacity>
-        )}
-      </View>
-
-      <View style={tw`flex-row justify-between items-center mb-4`}>
-        <TouchableOpacity
-          onPress={() => setShowGroupModal(true)}
-          style={tw`flex-row items-center bg-blue-50 px-3 py-2 rounded-lg border border-blue-100`}
-        >
-          <Filter size={14} color="#2563eb" />
-          <Text style={tw`text-blue-700 text-xs font-bold ml-2`}>
-            {selectedGroup ? selectedGroup.name : (hasSelected ? "Semua Site" : "Pilih Site")}
+          <Text style={tw`text-gray-500 text-xs font-medium`}>
+            Total: <Text style={tw`text-gray-900 font-bold`}>{totalCount}</Text>
           </Text>
-        </TouchableOpacity>
-        <Text style={tw`text-gray-500 text-xs font-medium`}>
-          Total: <Text style={tw`text-gray-900 font-bold`}>{totalCount} ({data.length})</Text>
-        </Text>
+        </View>
       </View>
-    </View>
-  ), [search, selectedGroup, totalCount, data.length, hasSelected, refetch]);
+    ),
+    [search, selectedGroup, totalCount, hasSelected]
+  );
 
-  // Only show skeleton when query is enabled, actually loading, no data yet, and no error
-  if (hasSelected && loading && data.length === 0 && !isError) {
+  if (hasSelected && loading && isolirCustomers.length === 0 && !isError) {
     return (
       <View style={[tw`flex-1 bg-gray-50`, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
@@ -394,15 +365,13 @@ export default function MixRadiusIsolirScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <FlashList
-        data={data}
+        data={isolirCustomers}
         renderItem={({ item }: { item: MixRadiusCustomer }) => (
-          <CustomerItem
-            item={item}
-            onDismantle={handleDismantle}
-          />
+          <CustomerItem item={item} onDismantle={handleDismantle} />
         )}
-        keyExtractor={(item: MixRadiusCustomer, index: number) => `${item.username}-${index}`}
+        keyExtractor={(item: MixRadiusCustomer) => item.id || item.member_id || item.username}
         ListHeaderComponent={ListHeader}
+        onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563eb" />}
         contentContainerStyle={tw`pb-20`}
@@ -416,7 +385,7 @@ export default function MixRadiusIsolirScreen() {
                   <AlertTriangle size={48} color="#dc2626" />
                   <Text style={tw`text-red-600 mt-4 font-medium`}>Gagal memuat data</Text>
                   <Text style={tw`text-gray-400 mt-1 text-xs text-center px-8`}>
-                    {getErrorMessage}
+                    {errorMessage}
                   </Text>
                   <TouchableOpacity
                     onPress={() => refetch()}
@@ -446,7 +415,9 @@ export default function MixRadiusIsolirScreen() {
         }
         ListFooterComponent={
           loading && !refreshing ? (
-            <View style={tw`py-4`}><ActivityIndicator color="#2563eb" /></View>
+            <View style={tw`py-4`}>
+              <ActivityIndicator color="#2563eb" />
+            </View>
           ) : null
         }
       />
@@ -455,10 +426,10 @@ export default function MixRadiusIsolirScreen() {
         visible={showGroupModal}
         onClose={() => setShowGroupModal(false)}
         title="Pilih Site / Group"
-        items={groups.map(g => ({
+        items={groups.map((g) => ({
           id: g.id,
           label: g.name,
-          value: g
+          value: g,
         }))}
         onSelect={(item) => handleSelectGroup(item.value as OwnerGroup)}
         selectedValue={selectedGroup}
@@ -471,10 +442,10 @@ export default function MixRadiusIsolirScreen() {
           setPendingDismantleCustomer(null);
         }}
         title="Pilih Alasan Dismantle"
-        items={DISMANTLE_REASONS.map(r => ({
+        items={DISMANTLE_REASONS.map((r) => ({
           id: r.id,
           label: r.label,
-          value: r
+          value: r,
         }))}
         onSelect={(item) => handleReasonSelected(item.value as DismantleReason)}
       />

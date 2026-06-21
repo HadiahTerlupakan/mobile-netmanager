@@ -65,7 +65,7 @@ describe('ForegroundNotificationService', () => {
         pressAction: {
           id: 'default',
         },
-        smallIcon: 'notification_icon',
+        smallIcon: 'ic_notification',
       }),
     }));
   });

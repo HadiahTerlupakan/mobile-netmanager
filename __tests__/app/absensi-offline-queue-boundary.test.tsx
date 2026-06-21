@@ -156,6 +156,8 @@ jest.mock('expo-haptics', () => ({
 }));
 
 jest.mock('expo-location', () => ({
+  PermissionStatus: { GRANTED: 'granted', DENIED: 'denied', UNDETERMINED: 'undetermined' },
+  getForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted', canAskAgain: true })),
   requestForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
   hasServicesEnabledAsync: jest.fn(async () => true),
   getLastKnownPositionAsync: jest.fn(async () => ({
@@ -212,13 +214,6 @@ describe('absensi offline queue boundary', () => {
     statusQueryResult = {
       data: {
         success: true,
-        today: {
-          isHoliday: false,
-          holidayName: null,
-          isOffDay: false,
-          isTukarLiburWorkDay: false,
-          isTukarLiburLeaveDay: false,
-        },
         data: {
           status: 'idle',
           checkInTime: null,
@@ -228,6 +223,13 @@ describe('absensi offline queue boundary', () => {
           checkInAt: null,
           checkOutAt: null,
           attendanceStatus: null,
+          today: {
+            isHoliday: false,
+            holidayName: null,
+            isOffDay: false,
+            isTukarLiburWorkDay: false,
+            isTukarLiburLeaveDay: false,
+          },
         },
       },
       refetch: mockRefetchStatus,
@@ -277,8 +279,8 @@ describe('absensi offline queue boundary', () => {
     }) as typeof React.useState);
   });
 
-  it('tetap menandai replacement day sambil memblokir check-in saat payload holiday masih true', async () => {
-    statusQueryResult.data.today = {
+  it('mengizinkan check-in pada replacement day meski payload holiday masih true', async () => {
+    statusQueryResult.data.data.today = {
       isHoliday: true,
       holidayName: 'Hari Raya',
       isOffDay: false,
@@ -294,8 +296,8 @@ describe('absensi offline queue boundary', () => {
       expect(getByText('MASUK GANTI LIBUR')).toBeTruthy();
     });
 
-    expect(getByText('Libur Nasional')).toBeTruthy();
-    expect(queryByText('Ambil Foto Masuk')).toBeNull();
+    expect(getByText('Ambil Foto Masuk')).toBeTruthy();
+    expect(queryByText('Libur Nasional')).toBeNull();
   });
 
   it('tetap mengantre absensi saat offline sejak awal tanpa sukses final', async () => {

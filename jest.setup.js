@@ -81,3 +81,21 @@ jest.mock('react-native-toast-message', () => ({
     hide: jest.fn(),
   },
 }));
+
+// Mock expo-file-system/legacy globally
+jest.mock('expo-file-system/legacy', () => ({
+  documentDirectory: 'file:///mock-document-directory/',
+  uploadAsync: jest.fn(),
+  createUploadTask: jest.fn(() => ({
+    uploadAsync: jest.fn().mockResolvedValue({ status: 200, body: '{}' }),
+    cancelAsync: jest.fn(),
+  })),
+  FileSystemUploadType: {
+    MULTIPART: 'multipart',
+  },
+  getInfoAsync: jest.fn(() => Promise.resolve({ exists: true, isDirectory: true })),
+  copyAsync: jest.fn(() => Promise.resolve()),
+  deleteAsync: jest.fn(() => Promise.resolve()),
+  makeDirectoryAsync: jest.fn(() => Promise.resolve()),
+  readDirectoryAsync: jest.fn(() => Promise.resolve([])),
+}));

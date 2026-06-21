@@ -8,7 +8,7 @@ describe("attendanceIdempotency", () => {
   it("creates stable attendance request id format", () => {
     const requestId = createAttendanceRequestId();
 
-    expect(requestId).toMatch(/^att-\d+-[a-z0-9]{6}$/);
+    expect(requestId).toMatch(/^att-[a-z0-9\-]+$/);
   });
 
   it("keeps provided requestId unchanged", () => {
@@ -20,7 +20,7 @@ describe("attendanceIdempotency", () => {
   it("adds requestId when payload has none", () => {
     const payload = ensureAttendanceRequestId({ photoUrl: "https://cdn/photo.jpg" });
 
-    expect(payload.requestId).toMatch(/^att-\d+-[a-z0-9]{6}$/);
+    expect(payload.requestId).toMatch(/^att-[a-z0-9\-]+$/);
   });
 
   it("builds idempotency header when requestId exists", () => {

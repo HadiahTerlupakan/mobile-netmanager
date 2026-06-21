@@ -890,13 +890,13 @@ export default function AbsensiScreen() {
                 onPress={() => setShowCamera(true)}
                 disabled={captureState.disabled}
                 style={tw`${status === "checked-out" ? "bg-gray-100 border-gray-300" :
-                  !captureState.hasActiveSession && todayHoliday.isHoliday ? "bg-red-50 border-red-200" :
+                  !captureState.hasActiveSession && todayHoliday.isHoliday && !isTukarLiburWorkDay ? "bg-red-50 border-red-200" :
                     isTukarLiburLeaveDay ? "bg-purple-50 border-purple-200" :
-                      !captureState.hasActiveSession && isOffDay ? "bg-amber-50 border-amber-200" :
+                      !captureState.hasActiveSession && isOffDay && !isTukarLiburWorkDay ? "bg-amber-50 border-amber-200" :
                         "bg-blue-50 border-blue-200"
                   } border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
               >
-                {!captureState.hasActiveSession && todayHoliday.isHoliday ? (
+                {!captureState.hasActiveSession && todayHoliday.isHoliday && !isTukarLiburWorkDay ? (
                   <View style={tw`items-center`}><CalendarOff size={32} color="#dc2626" /><Text style={tw`text-red-600 font-bold mt-2`}>Libur Nasional</Text></View>
                 ) : status === "checked-out" ? (
                   <View style={tw`items-center`}><Text style={tw`text-gray-500 font-bold text-lg`}>🎉 Absensi Selesai</Text><Text style={tw`text-gray-400 text-sm mt-1`}>Terima kasih untuk hari ini</Text></View>

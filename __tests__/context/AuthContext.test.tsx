@@ -39,6 +39,7 @@ const mockPushNotificationService = {
 const mockFcmService = {
   syncFCMTokenToBackend: jest.fn(),
   onTokenRefresh: jest.fn(),
+  resetSyncCache: jest.fn(),
 };
 const mockDatabaseService = { clearSessionData: jest.fn() };
 const mockRefreshTokenService = {
@@ -82,6 +83,7 @@ beforeEach(() => {
   mockPushNotificationService.registerForPushNotificationsAsync.mockResolvedValue(undefined);
   mockFcmService.syncFCMTokenToBackend.mockResolvedValue(null);
   mockFcmService.onTokenRefresh.mockReturnValue(jest.fn());
+  mockFcmService.resetSyncCache.mockClear();
   mockQueryClient.clear.mockClear();
   mockErrorReportingService.captureException.mockClear();
   mockTokenService.setToken.mockClear();

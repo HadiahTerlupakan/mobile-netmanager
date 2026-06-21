@@ -204,7 +204,7 @@ describe('SyncService', () => {
       
       expect(mockApiRequest).toHaveBeenCalledWith(expect.objectContaining({
         method: 'POST' as const,
-        timeout: 15000,
+        timeout: 30000,
         skipGlobalAuthHandler: true,
         headers: expect.objectContaining({
           'Authorization': 'Bearer test-token'

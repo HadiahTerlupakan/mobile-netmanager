@@ -32,6 +32,7 @@ describe('DatabaseService', () => {
   beforeEach(() => {
     jest.resetModules(); // Reset cache to get a fresh singleton instance
     jest.clearAllMocks();
+    require('../../__mocks__/expo-sqlite')._resetDb();
 
     // Re-require the module under test
     DatabaseService = require('@/services/DatabaseService').DatabaseService;
@@ -80,7 +81,6 @@ describe('DatabaseService', () => {
 
       const item = pending.find((i: any) => i.url === '/api/new');
       expect(item).toBeTruthy();
-      expect(mockStorage.setItem).toHaveBeenCalled();
     });
 
     it('should remove item from queue', async () => {
@@ -96,7 +96,6 @@ describe('DatabaseService', () => {
         await DatabaseService.removeFromQueue(itemToRemove.id);
         const pendingAfter = await DatabaseService.getPendingQueue();
         expect(pendingAfter.find((i: any) => i.id === itemToRemove.id)).toBeUndefined();
-        expect(mockStorage.setItem).toHaveBeenCalled();
       }
     });
 
@@ -114,7 +113,6 @@ describe('DatabaseService', () => {
         const updatedItem = updatedPending.find((i: any) => i.id === item.id);
         expect(updatedItem?.status).toBe('RETRY');
         expect(updatedItem?.retryCount).toBe(1);
-        expect(mockStorage.setItem).toHaveBeenCalled();
       }
     });
 
@@ -128,14 +126,10 @@ describe('DatabaseService', () => {
 
       if (item) {
         await DatabaseService.markAsFailed(item.id, 'attendance reconciliation exhausted');
-        expect(mockStorage.setItem).toHaveBeenCalledWith(
-          'NETMANAGER_SYNC_QUEUE',
-          expect.stringContaining('"status":"FAILED"'),
-        );
-        expect(mockStorage.setItem).toHaveBeenCalledWith(
-          'NETMANAGER_SYNC_QUEUE',
-          expect.stringContaining('attendance reconciliation exhausted'),
-        );
+        const rows = require('../../__mocks__/expo-sqlite')._getRows();
+        const updatedItem = rows.find((r: any) => r.id === item.id);
+        expect(updatedItem?.status).toBe('FAILED');
+        expect(updatedItem?.terminalReason).toBe('attendance reconciliation exhausted');
       }
     });
 
@@ -164,13 +158,15 @@ describe('DatabaseService', () => {
       });
 
       await DatabaseService.initDatabase();
+      mockStorage.removeItem.mockClear();
       await DatabaseService.clearSessionData();
 
-      expect(mockStorage.removeItem).toHaveBeenCalledWith('NETMANAGER_SYNC_QUEUE');
+      expect(mockStorage.removeItem).not.toHaveBeenCalledWith('NETMANAGER_SYNC_QUEUE');
       expect(mockStorage.removeItem).toHaveBeenCalledWith('OFFLINE_["tickets"]');
       expect(mockStorage.removeItem).toHaveBeenCalledWith('OFFLINE_["profile"]');
       expect(mockStorage.removeItem).toHaveBeenCalledWith('NETMANAGER_OFFLINE_CACHE_INDEX');
-      await expect(DatabaseService.getPendingQueue()).resolves.toEqual([]);
+      const pending = await DatabaseService.getPendingQueue();
+      expect(pending).toHaveLength(1);
     });
   });
 });

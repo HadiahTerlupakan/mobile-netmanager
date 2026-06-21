@@ -124,10 +124,14 @@ describe('FirebaseMessagingService', () => {
     await expect(fcmService.syncFCMTokenToBackend('add')).resolves.toBe('fcm-token-123');
     expect(mockRegisterDeviceForRemoteMessages).toHaveBeenCalledWith('mock-messaging');
     expect(mockGetToken).toHaveBeenCalledWith('mock-messaging');
-    expect(mockPost).toHaveBeenCalledWith('/api/mobile/fcm-token', {
-      fcmToken: 'fcm-token-123',
-      action: 'add',
-    });
+    expect(mockPost).toHaveBeenCalledWith(
+      '/api/mobile/fcm-token',
+      {
+        fcmToken: 'fcm-token-123',
+        action: 'add',
+      },
+      expect.any(Object)
+    );
   });
 
   it('does not write the raw token to logs while syncing to the backend', async () => {
@@ -172,18 +176,33 @@ describe('FirebaseMessagingService', () => {
     await fcmService.syncFCMTokenToBackend('add');
 
     expect(mockPost).toHaveBeenCalledTimes(3);
-    expect(mockPost).toHaveBeenNthCalledWith(1, '/api/mobile/fcm-token', {
-      fcmToken: 'fcm-token-123',
-      action: 'add',
-    });
-    expect(mockPost).toHaveBeenNthCalledWith(2, '/api/mobile/fcm-token', {
-      fcmToken: 'fcm-token-123',
-      action: 'remove',
-    });
-    expect(mockPost).toHaveBeenNthCalledWith(3, '/api/mobile/fcm-token', {
-      fcmToken: 'fcm-token-123',
-      action: 'add',
-    });
+    expect(mockPost).toHaveBeenNthCalledWith(
+      1,
+      '/api/mobile/fcm-token',
+      {
+        fcmToken: 'fcm-token-123',
+        action: 'add',
+      },
+      expect.any(Object)
+    );
+    expect(mockPost).toHaveBeenNthCalledWith(
+      2,
+      '/api/mobile/fcm-token',
+      {
+        fcmToken: 'fcm-token-123',
+        action: 'remove',
+      },
+      expect.any(Object)
+    );
+    expect(mockPost).toHaveBeenNthCalledWith(
+      3,
+      '/api/mobile/fcm-token',
+      {
+        fcmToken: 'fcm-token-123',
+        action: 'add',
+      },
+      expect.any(Object)
+    );
   });
 
   it('removes the current token without requesting notification permission again', async () => {
@@ -195,10 +214,14 @@ describe('FirebaseMessagingService', () => {
 
     await expect(fcmService.syncFCMTokenToBackend('remove')).resolves.toBe('fcm-token-123');
     expect(mockRequestPermission).not.toHaveBeenCalled();
-    expect(mockPost).toHaveBeenCalledWith('/api/mobile/fcm-token', {
-      fcmToken: 'fcm-token-123',
-      action: 'remove',
-    });
+    expect(mockPost).toHaveBeenCalledWith(
+      '/api/mobile/fcm-token',
+      {
+        fcmToken: 'fcm-token-123',
+        action: 'remove',
+      },
+      expect.any(Object)
+    );
   });
 
   it('subscribes to token refresh and re-syncs refreshed tokens', async () => {
@@ -218,10 +241,14 @@ describe('FirebaseMessagingService', () => {
 
     await refreshListener?.('fcm-token-refreshed');
 
-    expect(mockPost).toHaveBeenCalledWith('/api/mobile/fcm-token', {
-      fcmToken: 'fcm-token-refreshed',
-      action: 'add',
-    });
+    expect(mockPost).toHaveBeenCalledWith(
+      '/api/mobile/fcm-token',
+      {
+        fcmToken: 'fcm-token-refreshed',
+        action: 'add',
+      },
+      expect.any(Object)
+    );
     expect(cleanup).toBe(unsubscribe);
   });
 

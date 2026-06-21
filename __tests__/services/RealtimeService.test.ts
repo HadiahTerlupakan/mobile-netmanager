@@ -195,7 +195,8 @@ describe('RealtimeService', () => {
     const cleanup = realtimeService.subscribeToUserStream('user-1', handler)
 
     expect(handler).not.toHaveBeenCalled()
-    expect(cleanup).toBe(unsubscribe)
+    cleanup()
+    expect(unsubscribe).toHaveBeenCalled()
   })
 
   it('emits only newly added documents after hydration', () => {
@@ -284,7 +285,8 @@ describe('RealtimeService', () => {
     const realtimeService = loadRealtimeService()
     const cleanup = realtimeService.subscribeToUserStream('user-1', jest.fn())
 
-    expect(cleanup).toBe(unsubscribe)
+    cleanup()
+    expect(unsubscribe).toHaveBeenCalled()
     expect(mockWarn).toHaveBeenCalledWith('[Realtime] Firestore subscription failed', {
       scope: { kind: 'user', id: 'user-1' },
       message: 'Missing or insufficient permissions.',
