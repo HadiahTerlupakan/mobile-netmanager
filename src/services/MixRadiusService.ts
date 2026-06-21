@@ -135,7 +135,7 @@ export const MixRadiusService = {
     pageSize: number = 20,
     owner?: string,
     groupId?: string,
-    authStatus: string = "Disabled-Users",
+    authStatus: string = "Isolir",
   ) => {
     const params: Record<string, string | number> = {
       authStatus,

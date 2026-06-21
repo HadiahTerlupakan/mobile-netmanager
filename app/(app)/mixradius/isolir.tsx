@@ -53,11 +53,6 @@ const safeDate = (dateString?: string): Date | null => {
   return isNaN(date.getTime()) ? null : date;
 };
 
-const isExpiredCustomer = (customer: MixRadiusCustomer): boolean => {
-  const expiredDate = safeDate(customer.expired_on) || safeDate(customer.expiration);
-  return !!expiredDate && expiredDate < new Date();
-};
-
 const DISMANTLE_REASONS = [
   { id: "isolir-tunggakan", label: "Isolir / Tunggakan", value: "Isolir/Tunggakan" },
   { id: "pindah-alamat", label: "Pindah Alamat", value: "Pindah Alamat" },
@@ -216,7 +211,7 @@ export default function MixRadiusIsolirScreen() {
 
   const loading = isFetching && !refreshing;
   const isolirCustomers = useMemo(
-    () => (customerData?.data ?? []).filter(isExpiredCustomer),
+    () => customerData?.data ?? [],
     [customerData]
   );
 

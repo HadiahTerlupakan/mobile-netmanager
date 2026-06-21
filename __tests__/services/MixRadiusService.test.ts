@@ -38,7 +38,7 @@ describe('MixRadiusService.getIsolirCustomers', () => {
 
     expect(apiGetMock).toHaveBeenCalledWith('/api/mobile/mixradius/customers', {
       params: {
-        authStatus: 'Disabled-Users',
+        authStatus: 'Isolir',
         search: 'andi',
         searchType: 'all',
         start: 0,
