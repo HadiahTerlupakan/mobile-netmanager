@@ -215,7 +215,7 @@ function DashboardScreen() {
     // Check if user is on leave
     if (user?.isOnLeave) {
         return (
-            <SafeAreaView style={tw`flex-1 bg-gray-50`}>
+            <SafeAreaView edges={['top', 'left', 'right']} style={tw`flex-1 bg-gray-50`}>
                 <DashboardHeader
                     userName={profileData?.name || user?.name || 'Karyawan'}
                     userImage={getImageUrl(profileData?.image)}
@@ -249,14 +249,14 @@ function DashboardScreen() {
     const currentItem = carouselData[activeIndex];
 
     return (
-        <SafeAreaView style={tw`flex-1 bg-gray-50`}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={tw`flex-1 bg-gray-50`}>
             <DashboardHeader
                 userName={headerProps.userName}
                 userImage={headerProps.userImage}
             />
 
             <ScrollView
-                contentContainerStyle={tw`pb-10 pt-4`}
+                contentContainerStyle={tw`pb-4 pt-4`}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }

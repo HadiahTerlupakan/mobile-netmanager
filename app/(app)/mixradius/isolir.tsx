@@ -46,6 +46,13 @@ const PAGE_SIZE = 30;
 const SEARCH_DEBOUNCE_MS = 400;
 const STALE_TIME_MS = 5 * 60 * 1000;
 
+type TabKey = "isolir" | "disabled";
+
+const TABS: { key: TabKey; label: string; authStatus: string }[] = [
+  { key: "isolir", label: "Isolir", authStatus: "Isolir" },
+  { key: "disabled", label: "Disabled", authStatus: "Disabled-Users" },
+];
+
 const safeDate = (dateString?: string): Date | null => {
   if (!dateString) return null;
   const isoString = dateString.replace(" ", "T");
@@ -168,6 +175,7 @@ export default function MixRadiusIsolirScreen() {
   useFeatureGuard(AppFeature.MIXRADIUS);
 
   const insets = useSafeAreaInsets();
+  const [activeTab, setActiveTab] = useState<TabKey>("isolir");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [hasSelected, setHasSelected] = useState(false);
@@ -177,6 +185,16 @@ export default function MixRadiusIsolirScreen() {
   const [pendingDismantleCustomer, setPendingDismantleCustomer] = useState<MixRadiusCustomer | null>(null);
 
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
+
+  const currentAuthStatus = useMemo(
+    () => TABS.find((t) => t.key === activeTab)?.authStatus ?? "Isolir",
+    [activeTab]
+  );
+
+  const handleTabChange = useCallback((key: TabKey) => {
+    setActiveTab(key);
+    setPage(0);
+  }, []);
 
   const { data: groups = [] } = useApiQuery<OwnerGroup[]>({
     queryKey: ["mixradius", "groups"],
@@ -191,14 +209,15 @@ export default function MixRadiusIsolirScreen() {
     isError,
     error,
   } = useApiQuery<MixRadiusResponse>({
-    queryKey: ["mixradius", "isolir", selectedGroup?.id, debouncedSearch, page],
+    queryKey: ["mixradius", "isolir", activeTab, selectedGroup?.id, debouncedSearch, page],
     queryFn: () =>
       MixRadiusService.getIsolirCustomers(
         debouncedSearch,
         page,
         PAGE_SIZE,
         undefined,
-        selectedGroup?.id
+        selectedGroup?.id,
+        currentAuthStatus
       ),
     enabled: hasSelected,
     retry: (failureCount, err) => {
@@ -210,12 +229,14 @@ export default function MixRadiusIsolirScreen() {
   });
 
   const loading = isFetching && !refreshing;
-  // Isolir = Expired only. Buang Disabled-Users defensive: backend punya legacy filter
-  // yang masih mencampur Disabled ke Isolir; client wajib filter ulang sampai backend bersih.
-  const isolirCustomers = useMemo(
-    () => (customerData?.data ?? []).filter((c) => c.auth_status !== "Disabled-Users"),
-    [customerData]
-  );
+  // Defensive client filter — backend legacy kadang mencampur status; pastikan hanya sesuai tab aktif.
+  const isolirCustomers = useMemo(() => {
+    const rows = customerData?.data ?? [];
+    if (activeTab === "disabled") {
+      return rows.filter((c) => c.auth_status === "Disabled-Users");
+    }
+    return rows.filter((c) => c.auth_status !== "Disabled-Users");
+  }, [customerData, activeTab]);
 
   const errorMessage = useMemo(() => {
     if (!error) return "Terjadi kesalahan saat mengambil data";
@@ -310,6 +331,29 @@ export default function MixRadiusIsolirScreen() {
   const ListHeader = useMemo(
     () => (
       <View style={tw`p-4 pb-2`}>
+        <View style={tw`flex-row bg-gray-100 rounded-xl p-1 mb-3`}>
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => handleTabChange(tab.key)}
+                style={tw`flex-1 py-2 rounded-lg ${isActive ? "bg-white shadow-sm" : ""}`}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isActive }}
+              >
+                <Text
+                  style={tw`text-center text-sm font-bold ${
+                    isActive ? "text-blue-600" : "text-gray-500"
+                  }`}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <View style={tw`flex-row items-center bg-white rounded-xl px-4 py-1 border border-gray-200 shadow-sm mb-3`}>
           <Search size={18} color="#9ca3af" />
           <TextInput
@@ -345,7 +389,7 @@ export default function MixRadiusIsolirScreen() {
         </View>
       </View>
     ),
-    [search, selectedGroup, totalCount, hasSelected]
+    [activeTab, handleTabChange, search, selectedGroup, totalCount, hasSelected]
   );
 
   if (hasSelected && loading && isolirCustomers.length === 0 && !isError) {
