@@ -210,6 +210,8 @@ export default function MixRadiusIsolirScreen() {
   });
 
   const loading = isFetching && !refreshing;
+  // Isolir = Expired only. Buang Disabled-Users defensive: backend punya legacy filter
+  // yang masih mencampur Disabled ke Isolir; client wajib filter ulang sampai backend bersih.
   const isolirCustomers = useMemo(
     () => (customerData?.data ?? []).filter((c) => c.auth_status !== "Disabled-Users"),
     [customerData]
