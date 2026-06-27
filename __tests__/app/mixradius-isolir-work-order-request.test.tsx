@@ -245,4 +245,29 @@ describe('mixradius isolir work order request boundary', () => {
     );
     expect(queryByTestId(`dismantle-button-${mixRadiusCustomer.id}`)).toBeNull();
   });
+
+  it('tidak menampilkan customer dengan auth_status Disabled-Users di tab Isolir (Isolir = Expired only)', () => {
+    const disabledCustomer = { ...mixRadiusCustomer, id: 'cust-disabled', auth_status: 'Disabled-Users' };
+    const expiredCustomer = { ...mixRadiusCustomer, id: 'cust-expired', auth_status: 'Expired' };
+    mockUseApiQuery.mockImplementation(({ queryKey }: any) => {
+      if (queryKey?.[1] === 'groups') {
+        return { data: [] };
+      }
+      return {
+        data: { data: [disabledCustomer, expiredCustomer], recordsFiltered: 2, recordsTotal: 2 },
+        isFetching: false,
+        refetch: jest.fn(),
+        isRefetching: false,
+        isError: false,
+        error: null,
+      };
+    });
+
+    const MixRadiusIsolirScreen = require('../../app/(app)/mixradius/isolir').default;
+    render(<MixRadiusIsolirScreen />);
+
+    // Hanya yang Expired yang lolos; Disabled-Users dibuang.
+    expect(mockRenderedCustomerItems).toHaveLength(1);
+    expect(mockRenderedCustomerItems[0].customer.id).toBe('cust-expired');
+  });
 });

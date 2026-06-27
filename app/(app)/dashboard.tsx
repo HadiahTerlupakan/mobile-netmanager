@@ -68,6 +68,7 @@ function DashboardScreen() {
     const { data: statsData, isPending: loadingStats, refetch: refetchStats } = useOfflineQuery<DashboardStats>({
         queryKey: queryKeys.dashboard.stats(),
         endpoint: '/api/mobile/dashboard',
+        select: (data: any) => data?.data || data,
         enabled: !!token
     });
 
@@ -75,6 +76,7 @@ function DashboardScreen() {
     const { data: canvasingSummary, isPending: loadingCanvasing, refetch: refetchCanvasing } = useOfflineQuery<CanvasingSummary>({
         queryKey: queryKeys.canvasing.summary(),
         endpoint: '/api/marketing/canvasing/summary',
+        select: (data: any) => data?.data || data,
         enabled: !!token
     });
 

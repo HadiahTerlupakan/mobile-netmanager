@@ -1,10 +1,12 @@
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
+import { PerformanceStats } from '@/components/organisms/dashboard/PerformanceStats';
+import { WorkOrderCard } from '@/components/organisms/dashboard/WorkOrderCard';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'expo-router';
 import { useOfflineQuery } from '@/hooks/queries';
 import { queryKeys } from '@/lib/queryClient';
-import { Activity, CheckCircle2, ClipboardList, MessageCircle, Timer } from 'lucide-react-native';
+import { Activity, ClipboardList, MessageCircle } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
@@ -20,11 +22,14 @@ import tw from 'twrnc';
 
 
 interface MitraDashboardStats {
-    totalTickets: number;
-    pendingCommission: number;
     ratePsb: number;
     rateMaintenance: number;
     minWithdrawal: number;
+    workOrdersAssigned: number;
+    pendingTickets: number;
+    woCompletedToday: number;
+    woCompletedWeek: number;
+    woCompletedMonth: number;
 }
 
 export function MitraTeknisiDashboardScreen() {
@@ -37,6 +42,7 @@ export function MitraTeknisiDashboardScreen() {
     const { data: statsData, isPending: loadingStats, refetch } = useOfflineQuery<MitraDashboardStats>({
         queryKey: queryKeys.dashboard.stats(),
         endpoint: '/api/mobile/mitra/dashboard',
+        select: (data: any) => data?.data || data,
         enabled: !!token
     });
 
@@ -63,73 +69,71 @@ export function MitraTeknisiDashboardScreen() {
             );
         }
 
-        const totalTickets = statsData?.totalTickets || 0;
+        const workOrdersAssigned = statsData?.workOrdersAssigned || 0;
+        const pendingTickets = statsData?.pendingTickets || 0;
         const ratePsb = statsData?.ratePsb || 0;
         const rateMaintenance = statsData?.rateMaintenance || 0;
-        const minWithdrawal = statsData?.minWithdrawal || 100000; // Still show them their pay
+        const minWithdrawal = statsData?.minWithdrawal || 100000;
 
         return (
-            <View style={[tw`mt-6 px-4 py-6 rounded-3xl bg-[#0f172a] shadow-lg`, styles.techCard]}>
-                <View style={tw`flex-row justify-between items-start mb-6`}>
-                    <View>
-                        <Text style={tw`text-slate-400 text-sm font-medium mb-1`}>Status Lapangan</Text>
-                        <View style={tw`flex-row items-center gap-2`}>
-                            <View style={tw`w-3 h-3 rounded-full bg-emerald-500`} />
-                            <Text style={tw`text-white text-2xl font-bold tracking-tight`}>Active Duty</Text>
-                        </View>
-                    </View>
-                    <View style={tw`w-12 h-12 rounded-full bg-blue-500/15 items-center justify-center border border-blue-500/30`}>
-                        <Activity size={24} color="#60a5fa" />
-                    </View>
-                </View>
+            <View style={tw`mt-6`}>
+                <WorkOrderCard
+                    assigned={workOrdersAssigned}
+                    pending={pendingTickets}
+                    onPress={() => router.push('/work-order')}
+                    disabled={false}
+                />
 
-                {/* Tech specific KPI split */}
-                <View style={tw`flex-row bg-[#1e293b] rounded-2xl p-1 mb-6 border border-white/5`}>
-                    <View style={tw`flex-1 items-center justify-center py-3 border-r border-white/10`}>
-                        <Text style={tw`text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1`}>Tiket Selesai</Text>
-                        <View style={tw`flex-row items-center gap-1.5`}>
-                            <CheckCircle2 size={16} color="#4ade80" />
-                            <Text style={tw`text-white font-bold text-lg`}>{totalTickets}</Text>
-                        </View>
-                    </View>
-                    <View style={tw`flex-1 items-center justify-center py-3`}>
-                        <Text style={tw`text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1`}>Menunggu</Text>
-                        <View style={tw`flex-row items-center gap-1.5`}>
-                            <Timer size={16} color="#fbbf24" />
-                            <Text style={tw`text-white font-bold text-lg`}>0</Text>
-                        </View>
-                    </View>
-                </View>
+                <PerformanceStats
+                    title="Tiket Selesai"
+                    today={statsData?.woCompletedToday || 0}
+                    week={statsData?.woCompletedWeek || 0}
+                    month={statsData?.woCompletedMonth || 0}
+                />
 
-                
-                <View style={tw`flex-row justify-between mb-4`}>
-                    <View style={tw`bg-[#1e293b] p-3 rounded-xl flex-1 mr-2 border border-white/5`}>
-                        <Text style={tw`text-slate-400 text-xs mb-1`}>Rate PSB</Text>
-                        <Text style={tw`text-emerald-400 font-bold`}>{formatRupiah(ratePsb)}</Text>
-                    </View>
-                    <View style={tw`bg-[#1e293b] p-3 rounded-xl flex-1 ml-2 border border-white/5`}>
-                        <Text style={tw`text-slate-400 text-xs mb-1`}>Rate MTc</Text>
-                        <Text style={tw`text-blue-400 font-bold`}>{formatRupiah(rateMaintenance)}</Text>
-                    </View>
-                </View>
-
-                <TouchableOpacity
-                    onPress={() => router.push('/mitra-wallet')}
-                    style={tw`w-full bg-[#1e293b] border border-[#334155] rounded-xl py-4 flex-row justify-between items-center px-5 shadow-lg`}
-                    activeOpacity={0.8}
-                >
-                    <View style={tw`flex-row items-center gap-3`}>
-                        <View style={tw`bg-emerald-500/20 p-2 rounded-lg`}>
-                            <Text style={tw`text-emerald-400 font-bold`}>Rp</Text>
-                        </View>
+                <View style={[tw`mx-4 mt-2 px-4 py-6 rounded-3xl bg-[#0f172a] shadow-lg`, styles.techCard]}>
+                    <View style={tw`flex-row justify-between items-start mb-6`}>
                         <View>
-                            <Text style={tw`text-slate-300 font-medium text-sm`}>Wallet Teknisi</Text>
-                            <Text style={tw`text-slate-500 text-xs`}>Min WD: {formatRupiah(minWithdrawal)}</Text>
+                            <Text style={tw`text-slate-400 text-sm font-medium mb-1`}>Status Lapangan</Text>
+                            <View style={tw`flex-row items-center gap-2`}>
+                                <View style={tw`w-3 h-3 rounded-full bg-emerald-500`} />
+                                <Text style={tw`text-white text-2xl font-bold tracking-tight`}>Active Duty</Text>
+                            </View>
+                        </View>
+                        <View style={tw`w-12 h-12 rounded-full bg-blue-500/15 items-center justify-center border border-blue-500/30`}>
+                            <Activity size={24} color="#60a5fa" />
                         </View>
                     </View>
-                    <Text style={tw`text-white font-bold text-base`}>Cek Saldo ➔</Text>
-                </TouchableOpacity>
 
+                    <View style={tw`flex-row justify-between mb-4`}>
+                        <View style={tw`bg-[#1e293b] p-3 rounded-xl flex-1 mr-2 border border-white/5`}>
+                            <Text style={tw`text-slate-400 text-xs mb-1`}>Rate PSB</Text>
+                            <Text style={tw`text-emerald-400 font-bold`}>{formatRupiah(ratePsb)}</Text>
+                        </View>
+                        <View style={tw`bg-[#1e293b] p-3 rounded-xl flex-1 ml-2 border border-white/5`}>
+                            <Text style={tw`text-slate-400 text-xs mb-1`}>Rate MTc</Text>
+                            <Text style={tw`text-blue-400 font-bold`}>{formatRupiah(rateMaintenance)}</Text>
+                        </View>
+                    </View>
+
+                    <TouchableOpacity
+                        onPress={() => router.push('/mitra-wallet')}
+                        style={tw`w-full bg-[#1e293b] border border-[#334155] rounded-xl py-4 flex-row justify-between items-center px-5 shadow-lg`}
+                        activeOpacity={0.8}
+                    >
+                        <View style={tw`flex-row items-center gap-3`}>
+                            <View style={tw`bg-emerald-500/20 p-2 rounded-lg`}>
+                                <Text style={tw`text-emerald-400 font-bold`}>Rp</Text>
+                            </View>
+                            <View>
+                                <Text style={tw`text-slate-300 font-medium text-sm`}>Wallet Teknisi</Text>
+                                <Text style={tw`text-slate-500 text-xs`}>Min WD: {formatRupiah(minWithdrawal)}</Text>
+                            </View>
+                        </View>
+                        <Text style={tw`text-white font-bold text-base`}>Cek Saldo ➔</Text>
+                    </TouchableOpacity>
+
+                </View>
             </View>
         );
     };
