@@ -229,6 +229,8 @@ export default function LemburScreen() {
       return;
     }
 
+    if (overtimeMutation.isPending) return;
+
     setShowLoading(true);
     setLoadingMessage("Mengirim pengajuan...");
 
@@ -282,6 +284,7 @@ export default function LemburScreen() {
 
   const submitAction = useCallback(async () => {
     if (!photo || !location || !todayRequest || !activeAction) return;
+    if (overtimeMutation.isPending) return;
     setShowLoading(true);
     setUploadProgress(0);
     try {
@@ -410,7 +413,7 @@ export default function LemburScreen() {
                 <TouchableOpacity onPress={() => { setPhoto(null); setCapturedTime(null); }} style={tw`flex-1 bg-gray-100 py-3 rounded-xl items-center`}>
                   <Text style={tw`font-bold text-gray-600`}>Ulang Foto</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={submitAction} disabled={showLoading} style={tw`flex-1 bg-indigo-600 py-3 rounded-xl items-center`}>
+                <TouchableOpacity onPress={submitAction} disabled={showLoading || overtimeMutation.isPending} style={tw`flex-1 bg-indigo-600 py-3 rounded-xl items-center`}>
                   <Text style={tw`font-bold text-white`}>{showLoading ? "Memproses..." : "Konfirmasi"}</Text>
                 </TouchableOpacity>
               </View>
@@ -441,7 +444,7 @@ export default function LemburScreen() {
                     <CheckCircle size={20} color="#16a34a" />
                     <View style={tw`ml-3`}><Text style={tw`font-bold text-sm text-green-700`}>Disetujui</Text><Text style={tw`text-xs text-green-600`}>Silakan mulai saat jam lembur tiba.</Text></View>
                   </View>
-                  <TouchableOpacity onPress={() => canStartOvertime && (setActiveAction("start"), setShowCamera(true))} disabled={!canStartOvertime} style={[tw`rounded-2xl h-32 items-center justify-center`, canStartOvertime ? tw`bg-indigo-50 border-2 border-dashed border-indigo-200` : tw`bg-gray-100 border-2 border-dashed border-gray-200`]}>
+                  <TouchableOpacity onPress={() => canStartOvertime && !overtimeMutation.isPending && (setActiveAction("start"), setShowCamera(true))} disabled={!canStartOvertime || overtimeMutation.isPending} style={[tw`rounded-2xl h-32 items-center justify-center`, canStartOvertime ? tw`bg-indigo-50 border-2 border-dashed border-indigo-200` : tw`bg-gray-100 border-2 border-dashed border-gray-200`]}>
                     <Camera size={32} color={canStartOvertime ? "#4f46e5" : "#9ca3af"} />
                     <Text style={canStartOvertime ? tw`text-indigo-600 font-bold mt-2` : tw`text-gray-400 font-bold mt-2`}>Mulai Lembur</Text>
                   </TouchableOpacity>
@@ -450,7 +453,7 @@ export default function LemburScreen() {
               )}
 
               {todayRequest?.status === "IN_PROGRESS" && (
-                <TouchableOpacity onPress={() => (setActiveAction("stop"), setShowCamera(true))} style={tw`bg-red-50 border-2 border-dashed border-red-200 rounded-2xl h-32 items-center justify-center mb-4`}>
+                <TouchableOpacity onPress={() => !overtimeMutation.isPending && (setActiveAction("stop"), setShowCamera(true))} disabled={overtimeMutation.isPending} style={tw`bg-red-50 border-2 border-dashed border-red-200 rounded-2xl h-32 items-center justify-center mb-4`}>
                   <Camera size={32} color="#dc2626" />
                   <Text style={tw`text-red-600 font-bold mt-2`}>Selesai Lembur</Text>
                 </TouchableOpacity>
@@ -469,7 +472,7 @@ export default function LemburScreen() {
         <Text style={tw`text-lg font-bold text-gray-900 mb-3 mt-4`}>Riwayat Terbaru</Text>
       </View>
     </View>
-  ), [router, locationName, todayRequest, photo, activeAction, capturedTime, user?.name, showLoading, canStartOvertime, submitAction]);
+  ), [router, locationName, todayRequest, photo, activeAction, capturedTime, user?.name, showLoading, canStartOvertime, submitAction, overtimeMutation.isPending]);
 
   useEffect(() => {
     if (overtimeData) {
@@ -566,7 +569,7 @@ export default function LemburScreen() {
               <TouchableOpacity style={tw`flex-1 py-3 bg-gray-100 rounded-xl`} onPress={() => setShowRequestModal(false)}>
                 <Text style={tw`text-center text-gray-500 font-bold`}>Batal</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[tw`flex-1 py-3 rounded-xl`, reason.trim() ? tw`bg-indigo-600` : tw`bg-gray-300`]} onPress={handleSubmitRequest} disabled={!reason.trim() || showLoading}>
+              <TouchableOpacity style={[tw`flex-1 py-3 rounded-xl`, reason.trim() ? tw`bg-indigo-600` : tw`bg-gray-300`]} onPress={handleSubmitRequest} disabled={!reason.trim() || showLoading || overtimeMutation.isPending}>
                 {showLoading ? <ActivityIndicator color="white" /> : <Text style={tw`text-center text-white font-bold`}>Kirim</Text>}
               </TouchableOpacity>
             </View>

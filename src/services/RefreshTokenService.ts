@@ -17,10 +17,12 @@ import { DeviceEventEmitter } from 'react-native';
 
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const SESSION_TOKEN_KEY = 'session_token';
+const PROACTIVE_REFRESH_MARGIN_MS = 60_000;
 
 // Flag to prevent multiple simultaneous refresh attempts
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
+let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 class RefreshTokenServiceClass {
   /**
@@ -189,6 +191,40 @@ class RefreshTokenServiceClass {
   async hasRefreshToken(): Promise<boolean> {
     const token = await this.getRefreshToken();
     return !!token;
+  }
+
+  stopProactiveRefresh(): void {
+    if (proactiveRefreshTimer !== null) {
+      clearTimeout(proactiveRefreshTimer);
+      proactiveRefreshTimer = null;
+    }
+  }
+
+  startProactiveRefresh(token: string): void {
+    this.stopProactiveRefresh();
+    TokenService.setToken(token);
+    const expiryMs = TokenService.getExpiry();
+    if (!expiryMs) return;
+
+    const refreshAt = expiryMs - PROACTIVE_REFRESH_MARGIN_MS;
+    const delayMs = refreshAt - Date.now();
+    if (delayMs <= 0) {
+      logger.auth('[RefreshToken] Token already near/past expiry, refreshing now...');
+      this.refreshAccessToken().catch((err: unknown) => {
+        logger.warn('[RefreshToken] Proactive refresh failed:', err);
+      });
+      return;
+    }
+
+    logger.auth(`[RefreshToken] Proactive refresh scheduled in ${Math.round(delayMs / 1000)}s`);
+    proactiveRefreshTimer = setTimeout(async () => {
+      proactiveRefreshTimer = null;
+      logger.auth('[RefreshToken] Proactive refresh triggered');
+      const newToken = await this.refreshAccessToken();
+      if (newToken) {
+        this.startProactiveRefresh(newToken);
+      }
+    }, delayMs);
   }
 }
 
