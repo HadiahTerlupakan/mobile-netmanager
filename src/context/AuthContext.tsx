@@ -64,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const clearLocalSession = useCallback(async () => {
         stopFcmTokenRefreshListener();
+        RefreshTokenService.stopProactiveRefresh();
         TokenService.setToken(null);
         setToken(null);
         setUser(null);
@@ -108,6 +109,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setToken(newToken);
             setUser(userData);
             logger.setTenantId(userData.tenantId);
+
+            RefreshTokenService.startProactiveRefresh(newToken);
 
             logger.auth('Syncing FCM token (background)...');
             // FCM sync is non-critical - don't block login if it fails
@@ -240,6 +243,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         setUser(parsedUser);
                         logger.setTenantId(parsedUser.tenantId);
 
+                        RefreshTokenService.startProactiveRefresh(storedToken);
                         syncFcmToken('add');
                         startFcmTokenRefreshListener();
                     } catch (parseError) {

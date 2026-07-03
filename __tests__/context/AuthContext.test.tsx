@@ -45,8 +45,10 @@ const mockDatabaseService = { clearSessionData: jest.fn() };
 const mockRefreshTokenService = {
   saveRefreshToken: jest.fn(),
   clearRefreshToken: jest.fn(),
+  startProactiveRefresh: jest.fn(),
+  stopProactiveRefresh: jest.fn(),
 };
-const mockTokenService = { setToken: jest.fn() };
+const mockTokenService = { setToken: jest.fn(), getToken: jest.fn(() => null), getExpiry: jest.fn(() => null) };
 
 jest.mock('@/utils/logger', () => ({ __esModule: true, default: mockLogger, logger: mockLogger }));
 jest.mock('@/utils/storage', () => ({ SecureStorage: mockSecureStorage, Storage: mockStorage, secureStorage: null }));
