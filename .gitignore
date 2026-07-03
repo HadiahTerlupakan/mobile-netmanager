@@ -93,3 +93,6 @@ refined-analogy-*.json
 
 # Git worktrees
 .worktrees/
+
+# Agent workspace
+.omo/
