@@ -11,7 +11,8 @@ import { uploadService } from "@/services/UploadService";
 import { ensureAttendanceRequestId } from "@/utils/attendanceIdempotency";
 import { presentAppError, presentInfoMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
-import { Alert } from "react-native";
+import { Alert, Linking } from "react-native";
+import { isAxiosError } from "axios";
 import * as Location from "expo-location";
 
 type AttendanceUiStatus = "idle" | "checked-in" | "checked-out" | "loading";
@@ -239,6 +240,43 @@ export function useAttendanceSubmission({
       });
       setIsProcessing(false);
       setLoading(false);
+
+      const responseData = isAxiosError(error)
+        ? (error.response?.data as Record<string, unknown> | undefined)
+        : undefined;
+      const errorCode = responseData?.code as string | undefined;
+      const errorMessage = (responseData?.error as string) ?? (responseData?.message as string) ?? "Terjadi kesalahan. Silakan coba lagi.";
+
+      if (errorCode === "ATT_CHECKIN_TIME_WINDOW") {
+        Alert.alert("Di Luar Jam Check-in", errorMessage, [{ text: "OK" }]);
+        refetchStatus();
+        return;
+      }
+
+      if (errorCode === "ATT_CHECKIN_ELIGIBILITY") {
+        Alert.alert("Tidak Dapat Check-in", errorMessage, [{ text: "OK" }]);
+        return;
+      }
+
+      if (errorCode === "ATT_ALREADY_CHECKED_IN" || errorCode === "ALREADY_CHECKED_IN") {
+        Alert.alert("Sudah Check-in", errorMessage, [{ text: "OK" }]);
+        refetchStatus();
+        return;
+      }
+
+      if (errorCode === "ATT_OUTSIDE_GEOFENCE" || errorCode === "OUTSIDE_GEOFENCE") {
+        Alert.alert("Di Luar Area", errorMessage, [{ text: "OK" }]);
+        return;
+      }
+
+      if (errorCode === "ATT_COORDINATES_REQUIRED" || errorCode === "COORDINATES_REQUIRED") {
+        Alert.alert("GPS Diperlukan", errorMessage, [
+          { text: "Buka Pengaturan", onPress: () => Linking.openSettings() },
+          { text: "OK" },
+        ]);
+        return;
+      }
+
       presentAppError(error, {
         screen: 'AttendanceScreen',
         route: '/(app)/absensi',

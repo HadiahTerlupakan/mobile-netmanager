@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   Camera,
   useCameraDevice,
@@ -67,6 +68,13 @@ interface GeofenceZone {
 }
 
 type AttendanceUiStatus = "idle" | "checked-in" | "checked-out" | "loading";
+
+interface CheckInWindow {
+  canCheckIn: boolean;
+  windowStart: string;
+  windowEnd: string;
+  message: string;
+}
 
 // --- Memoized Sub-components ---
 
@@ -308,12 +316,18 @@ export default function AbsensiScreen() {
   const [isTukarLiburLeaveDay, setIsTukarLiburLeaveDay] = useState(false);
   const [showCheckoutWarning, setShowCheckoutWarning] = useState(false);
   const [pendingCheckoutWarning, setPendingCheckoutWarning] = useState<string | null>(null);
+  const [checkInWindow, setCheckInWindow] = useState<CheckInWindow | null>(null);
+  const [checkedIn, setCheckedIn] = useState(false);
   const captureState = getAttendanceCaptureState({
     status,
     isHoliday: todayHoliday.isHoliday,
     isOffDay,
     isTukarLiburWorkDay,
   });
+
+  const isCheckInWindowBlocked = !checkedIn && status === "idle" && checkInWindow?.canCheckIn === false;
+  const checkInWindowMessage = isCheckInWindowBlocked ? checkInWindow?.message ?? null : null;
+  const isCaptureDisabled = captureState.disabled || isCheckInWindowBlocked || checkedIn;
 
   // --- Camera & Face Detection State ---
   const cameraRef = useRef<any>(null);
@@ -582,6 +596,7 @@ export default function AbsensiScreen() {
   const { data: statusData, refetch: refetchStatus } = useApiQuery<{
     success: boolean;
     data: {
+      checkedIn?: boolean;
       status: AttendanceUiStatus;
       checkInTime: string | null;
       checkOutTime: string | null;
@@ -598,6 +613,7 @@ export default function AbsensiScreen() {
         isOffDay?: boolean;
         isTukarLiburWorkDay?: boolean;
         isTukarLiburLeaveDay?: boolean;
+        checkInWindow?: CheckInWindow;
       };
     };
   }>({
@@ -626,6 +642,8 @@ export default function AbsensiScreen() {
       setIsOffDay(!!todayData?.isOffDay);
       setIsTukarLiburWorkDay(!!todayData?.isTukarLiburWorkDay);
       setIsTukarLiburLeaveDay(!!todayData?.isTukarLiburLeaveDay);
+      setCheckInWindow(todayData?.checkInWindow ?? null);
+      setCheckedIn(!!statusData.data?.checkedIn);
 
       const currentStatus = statusData.data;
       if (!currentStatus || typeof currentStatus !== 'object' || !('status' in currentStatus)) {
@@ -655,6 +673,12 @@ export default function AbsensiScreen() {
   useEffect(() => {
     getLocation();
   }, [getLocation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refetchStatus();
+    }, [refetchStatus])
+  );
 
   useEffect(() => {
     if (location && geofenceZones.length > 0) {
@@ -888,15 +912,21 @@ export default function AbsensiScreen() {
             ) : (
               <TouchableOpacity
                 onPress={() => setShowCamera(true)}
-                disabled={captureState.disabled}
-                style={tw`${status === "checked-out" ? "bg-gray-100 border-gray-300" :
+                disabled={isCaptureDisabled}
+                style={tw`${checkedIn ? "bg-green-50 border-green-200" :
+                  status === "checked-out" ? "bg-gray-100 border-gray-300" :
+                  isCheckInWindowBlocked ? "bg-amber-50 border-amber-200" :
                   !captureState.hasActiveSession && todayHoliday.isHoliday && !isTukarLiburWorkDay ? "bg-red-50 border-red-200" :
                     isTukarLiburLeaveDay ? "bg-purple-50 border-purple-200" :
                       !captureState.hasActiveSession && isOffDay && !isTukarLiburWorkDay ? "bg-amber-50 border-amber-200" :
                         "bg-blue-50 border-blue-200"
                   } border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
               >
-                {!captureState.hasActiveSession && todayHoliday.isHoliday && !isTukarLiburWorkDay ? (
+                {checkedIn ? (
+                  <View style={tw`items-center`}><Text style={tw`text-green-600 font-bold text-lg`}>✅ Sudah Check-in</Text></View>
+                ) : isCheckInWindowBlocked ? (
+                  <View style={tw`items-center px-4`}><ClockIcon size={32} color="#d97706" /><Text style={tw`text-amber-700 font-bold text-sm mt-2 text-center`}>{checkInWindowMessage}</Text></View>
+                ) : !captureState.hasActiveSession && todayHoliday.isHoliday && !isTukarLiburWorkDay ? (
                   <View style={tw`items-center`}><CalendarOff size={32} color="#dc2626" /><Text style={tw`text-red-600 font-bold mt-2`}>Libur Nasional</Text></View>
                 ) : status === "checked-out" ? (
                   <View style={tw`items-center`}><Text style={tw`text-gray-500 font-bold text-lg`}>🎉 Absensi Selesai</Text><Text style={tw`text-gray-400 text-sm mt-1`}>Terima kasih untuk hari ini</Text></View>
@@ -904,6 +934,14 @@ export default function AbsensiScreen() {
                   <View style={tw`items-center`}><LucideCamera size={32} color="#2563eb" /><Text style={tw`text-blue-600 font-bold mt-2`}>{status === "idle" ? "Ambil Foto Masuk" : "Ambil Foto Keluar"}</Text></View>
                 )}
               </TouchableOpacity>
+            )}
+            {!checkedIn && checkInWindow && checkInWindow.windowStart && checkInWindow.windowEnd && (
+              <View style={tw`flex-row items-center justify-center gap-1 mb-2`}>
+                <ClockIcon size={12} color="#9ca3af" />
+                <Text style={tw`text-gray-400 text-xs`}>
+                  Jam check-in: {checkInWindow.windowStart} - {checkInWindow.windowEnd}
+                </Text>
+              </View>
             )}
           </View>
         </View>
