@@ -3,9 +3,10 @@
 # Publish OTA Update ke server netmanager
 # ================================================
 # Workflow:
-#   1. Run `expo export --platform android` → bundle + assets di dist/
-#   2. Generate manifest JSON dari dist/metadata.json
-#   3. Multipart POST ke /api/admin/app-update/publish dengan Bearer token
+#   1. Compute runtimeVersion via @expo/fingerprint (match APK Play Store)
+#   2. Run `expo export --platform android` → bundle + assets di dist/
+#   3. Generate manifest JSON dari dist/metadata.json
+#   4. Multipart POST ke /api/admin/app-update/publish dengan Bearer token
 # ================================================
 #
 # Usage:
@@ -14,6 +15,9 @@
 #
 # Env required:
 #   APP_UPDATE_PUBLISH_TOKEN  (Bearer token, sama dengan ENV server)
+#
+# Env optional:
+#   RUNTIME_VERSION_OVERRIDE  (skip fingerprint, pakai value ini — testing only)
 #
 # Exit codes:
 #   0  success
@@ -58,9 +62,30 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 DIST_DIR="${DIST_DIR:-./dist}"
 
+# Step 0: Compute runtimeVersion via fingerprint policy
+# app.json pakai runtimeVersion.policy = "fingerprint". APK di Play Store
+# kirim hash fingerprint (bukan semver) ke manifest endpoint. Publish
+# harus pakai hash yang sama, kalau tidak OTA return 204 (no update).
+echo ""
+echo "🔐 Step 0/4: Computing runtimeVersion (fingerprint)..."
+if [[ -n "${RUNTIME_VERSION_OVERRIDE:-}" ]]; then
+    RUNTIME_VERSION="${RUNTIME_VERSION_OVERRIDE}"
+    echo "   (override) runtimeVersion: ${RUNTIME_VERSION}"
+else
+    RUNTIME_VERSION=$(node ./scripts/compute-fingerprint.js . "${PLATFORM}") \
+        || { echo "❌ Gagal compute fingerprint. Pastikan @expo/fingerprint terinstall (npm ci)."; exit 1; }
+    if [[ -z "${RUNTIME_VERSION}" || "${#RUNTIME_VERSION}" -lt 16 ]]; then
+        echo "❌ Fingerprint hash invalid: '${RUNTIME_VERSION}'"
+        exit 1
+    fi
+    echo "   runtimeVersion (fingerprint): ${RUNTIME_VERSION}"
+fi
+# Export agar stage Verify Manifest di Jenkinsfile bisa pakai
+export RUNTIME_VERSION
+
 # Step 1: Clean & export bundle
 echo ""
-echo "📦 Step 1/3: Building bundle (expo export)..."
+echo "📦 Step 1/4: Building bundle (expo export)..."
 rm -rf "${DIST_DIR}"
 EXPO_PUBLIC_APP_VARIANT="${EXPO_VARIANT}" \
     npx expo export --platform "${PLATFORM}" --output-dir "${DIST_DIR}" \
@@ -73,8 +98,7 @@ fi
 
 # Step 2: Build manifest
 echo ""
-echo "📝 Step 2/3: Building manifest JSON..."
-RUNTIME_VERSION=$(node -p "require('./app.json').expo.version")
+echo "📝 Step 2/4: Building manifest JSON..."
 echo "   runtimeVersion: ${RUNTIME_VERSION}"
 
 MANIFEST_FILE=$(mktemp -t ota-manifest.XXXXXX.json)
@@ -131,9 +155,9 @@ if [[ "${ASSET_COUNT}" -gt 0 ]]; then
     echo "   assets: ${ASSET_COUNT} file(s)"
 fi
 
-# Step 3: Publish
+# Step 3/4: Publish
 echo ""
-echo "🚀 Step 3/3: Uploading to ${BASE_URL}/api/admin/app-update/publish..."
+echo "🚀 Step 3/4: Uploading to ${BASE_URL}/api/admin/app-update/publish..."
 RESPONSE_FILE=$(mktemp -t ota-response.XXXXXX.json)
 HTTP_STATUS=$(curl -sS \
     -X POST \
@@ -153,9 +177,11 @@ fi
 UPDATE_ID=$(node -p "JSON.parse(require('fs').readFileSync('${RESPONSE_FILE}','utf8')).data?.id || 'unknown'")
 rm -f "${RESPONSE_FILE}"
 
+# Step 4/4: Print fingerprint untuk dipakai Jenkinsfile Verify Manifest
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  ✅ OTA published successfully"
 echo "  channel=${CHANNEL} runtimeVersion=${RUNTIME_VERSION}"
 echo "  update_id=${UPDATE_ID}"
+echo "  FINGERPRINT_RUNTIME_VERSION=${RUNTIME_VERSION}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

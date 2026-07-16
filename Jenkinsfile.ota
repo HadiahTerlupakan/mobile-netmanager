@@ -134,7 +134,8 @@ spec:
                 container('node') {
                     sh '''
                         set -e
-                        RUNTIME=$(node -p "require('./app.json').expo.version")
+                        # runtimeVersion = fingerprint yang dikirim APK (bukan semver app.json)
+                        RUNTIME=$(node ./scripts/compute-fingerprint.js . android)
                         echo "Verifying ${BASE_URL}/api/mobile/app-update/manifest (runtime=${RUNTIME}, channel=${CHANNEL})..."
                         STATUS=$(curl -sS -o /tmp/manifest.json -w "%{http_code}" \
                             -H "expo-runtime-version: ${RUNTIME}" \
@@ -142,12 +143,16 @@ spec:
                             -H "expo-channel-name: ${CHANNEL}" \
                             -H "expo-protocol-version: 1" \
                             "${BASE_URL}/api/mobile/app-update/manifest")
+                        if [ "$STATUS" = "204" ]; then
+                            echo "❌ Manifest 204 (no update) — fingerprint ${RUNTIME} tidak ditemukan di server. Publish mungkin pakai runtimeVersion salah."
+                            exit 1
+                        fi
                         if [ "$STATUS" != "200" ]; then
                             echo "❌ Manifest endpoint return ${STATUS}"
                             cat /tmp/manifest.json || true
                             exit 1
                         fi
-                        echo "✓ Manifest OK"
+                        echo "✓ Manifest OK (fingerprint match APK di Play Store)"
                         head -c 500 /tmp/manifest.json && echo "..."
                     '''
                 }
