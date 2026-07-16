@@ -12,7 +12,7 @@ const canCheckAppUpdates = () => {
   }
 
   const variant = process.env.EXPO_PUBLIC_APP_VARIANT;
-  if (variant === 'development' || variant === 'production') {
+  if (variant === 'development') {
     return false;
   }
 

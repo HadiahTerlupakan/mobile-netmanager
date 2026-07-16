@@ -1,18 +1,16 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { ProfileSkeleton } from '@/components/molecules/ProfileSkeleton';
-import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModal";
-import { CURRENT_VERSION_CODE, CURRENT_VERSION_CODE_LABEL, CURRENT_VERSION_NAME } from '@/constants/appVersion';
-import { Config } from '@/constants/Config';
+import { CURRENT_VERSION_CODE_LABEL, CURRENT_VERSION_NAME } from '@/constants/appVersion';
 import { useAuth } from '@/context/AuthContext';
-import { useAppVersion } from "@/hooks/useAppVersion";
+import { renderUpdateModal, useCheckUpdateButton } from '@/hooks/useCheckUpdateButton';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { TenantService } from '@/services/TenantService';
 import { logger } from '@/utils/logger';
 import { Href, router } from 'expo-router';
 import { BadgeCheck, LogOut, Mail, MapPin, ShieldCheck } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Platform, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -21,42 +19,7 @@ export function MitraSalesProfileScreen() {
     const { profileData, isPending, refetch } = useProfileSync();
     const [refreshing, setRefreshing] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [showUpdateModal, setShowUpdateModal] = useState(false);
-
-    const {
-        isChecking: isCheckingVersion,
-        downloadStatus,
-        downloadProgress,
-        latestVersion,
-        error: versionError,
-        checkForUpdate,
-        startUpdate,
-        dismissError,
-    } = useAppVersion();
-
-    const handleCheckUpdate = async () => {
-        if (!Config.CAN_MANUALLY_CHECK_APP_UPDATES) {
-            Alert.alert('Info', 'Cek update APK hanya tersedia pada build Android staging internal.');
-            return;
-        }
-
-        if (Platform.OS === 'ios') {
-            Alert.alert('Info', 'Cek update hanya tersedia untuk Android APK.');
-            return;
-        }
-
-        try {
-            const result = await checkForUpdate(CURRENT_VERSION_CODE);
-
-            if (result.success && result.updateAvailable) {
-                setShowUpdateModal(true);
-            } else if (result.success && !result.updateAvailable) {
-                Alert.alert('Info', 'Aplikasi Anda sudah versi terbaru.');
-            }
-        } catch (error) {
-            logger.error('Manual update check failed:', error);
-        }
-    };
+    const updateCheck = useCheckUpdateButton();
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -208,11 +171,11 @@ export function MitraSalesProfileScreen() {
 
                     {/* App Version - Manual Check */}
                     <TouchableOpacity
-                        onPress={handleCheckUpdate}
-                        disabled={isCheckingVersion}
+                        onPress={updateCheck.handleCheckUpdate}
+                        disabled={updateCheck.isChecking}
                         style={tw`mt-8 items-center`}
                     >
-                        {isCheckingVersion ? (
+                        {updateCheck.isChecking ? (
                             <ActivityIndicator size="small" color="#94a3b8" />
                         ) : (
                             <Text style={tw`text-center text-slate-400 text-[10px] font-bold tracking-widest uppercase`}>
@@ -224,20 +187,7 @@ export function MitraSalesProfileScreen() {
                 </View>
             </ScrollView>
 
-            {/* Update Modal */}
-            {showUpdateModal && latestVersion && (
-                <UpdateAvailableModal
-                    mode="ota"
-                    visible={showUpdateModal}
-                    latestVersion={latestVersion}
-                    downloadStatus={downloadStatus}
-                    downloadProgress={downloadProgress}
-                    error={versionError}
-                    onStartUpdate={startUpdate}
-                    onLater={() => setShowUpdateModal(false)}
-                    onDismissError={dismissError}
-                />
-            )}
+            {renderUpdateModal(updateCheck)}
         </SafeAreaView>
     );
 }
