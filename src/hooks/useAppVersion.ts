@@ -194,7 +194,12 @@ export function useAppVersion(): UseAppVersionState {
             }
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : 'Gagal cek update'
-            logger.error('[Update] Check failed:', err)
+            logger.error('[Update] Check failed:', err, {
+                isEnabled: Updates.isEnabled,
+                runtimeVersion: Updates.runtimeVersion,
+                channel: Updates.channel,
+                updateId: Updates.updateId,
+            })
             dispatch({ type: 'CHECK_ERROR', error: errorMsg })
             return {
                 success: false,
