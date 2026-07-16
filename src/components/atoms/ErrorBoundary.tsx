@@ -1,6 +1,7 @@
+import * as Updates from 'expo-updates';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Text, TouchableOpacity, View, ScrollView } from 'react-native';
-import { AlertTriangle, RefreshCcw } from 'lucide-react-native';
+import { ActivityIndicator, Text, TouchableOpacity, View, ScrollView } from 'react-native';
+import { AlertTriangle, RefreshCcw, Download } from 'lucide-react-native';
 import { logger } from '@/utils/logger';
 import { errorReportingService } from '@/services/ErrorReportingService';
 import tw from 'twrnc';
@@ -14,6 +15,8 @@ interface State {
   hasError: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
+  isUpdating: boolean;
+  updateMessage: string;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -23,10 +26,12 @@ export class ErrorBoundary extends Component<Props, State> {
       hasError: false,
       error: null,
       errorInfo: null,
+      isUpdating: false,
+      updateMessage: '',
     };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return {
       hasError: true,
       error,
@@ -36,16 +41,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     logger.error('ErrorBoundary caught an error:', error, errorInfo);
-
-    // Report error
     errorReportingService.captureException(error, {
       componentStack: errorInfo.componentStack,
     });
-
-    this.setState({
-      error,
-      errorInfo,
-    });
+    this.setState({ error, errorInfo });
   }
 
   resetError = () => {
@@ -53,7 +52,33 @@ export class ErrorBoundary extends Component<Props, State> {
       hasError: false,
       error: null,
       errorInfo: null,
+      isUpdating: false,
+      updateMessage: '',
     });
+  };
+
+  checkAndApplyUpdate = async () => {
+    if (__DEV__ || !Updates.isEnabled) {
+      this.resetError();
+      return;
+    }
+    this.setState({ isUpdating: true, updateMessage: 'Memeriksa update...' });
+    try {
+      const result = await Updates.checkForUpdateAsync();
+      if (result.isAvailable) {
+        this.setState({ updateMessage: 'Mengunduh update...' });
+        await Updates.fetchUpdateAsync();
+        this.setState({ updateMessage: 'Menerapkan update...' });
+        await Updates.reloadAsync();
+      } else {
+        this.setState({ isUpdating: false, updateMessage: '' });
+        this.resetError();
+      }
+    } catch (err) {
+      logger.warn('[ErrorBoundary] Update check/apply failed', err);
+      this.setState({ isUpdating: false, updateMessage: '' });
+      this.resetError();
+    }
   };
 
   render() {
@@ -61,6 +86,8 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback;
       }
+
+      const { isUpdating, updateMessage } = this.state;
 
       return (
         <View style={tw`flex-1 items-center justify-center bg-white p-6`}>
@@ -86,11 +113,27 @@ export class ErrorBoundary extends Component<Props, State> {
             )}
 
             <TouchableOpacity
-              onPress={this.resetError}
-              style={tw`flex-row items-center justify-center bg-blue-600 w-full py-4 rounded-2xl shadow-sm`}
+              onPress={this.checkAndApplyUpdate}
+              disabled={isUpdating}
+              style={tw`flex-row items-center justify-center bg-indigo-600 w-full py-4 rounded-2xl shadow-sm mb-3`}
             >
-              <RefreshCcw size={20} color="white" style={tw`mr-2`} />
-              <Text style={tw`text-white text-lg font-bold`}>Coba Lagi</Text>
+              {isUpdating ? (
+                <ActivityIndicator color="white" style={tw`mr-2`} />
+              ) : (
+                <Download size={20} color="white" style={tw`mr-2`} />
+              )}
+              <Text style={tw`text-white text-lg font-bold`}>
+                {isUpdating ? updateMessage || 'Memperbarui...' : 'Cek & Update Aplikasi'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={this.resetError}
+              disabled={isUpdating}
+              style={tw`flex-row items-center justify-center bg-gray-100 w-full py-4 rounded-2xl`}
+            >
+              <RefreshCcw size={20} color="#374151" style={tw`mr-2`} />
+              <Text style={tw`text-gray-700 text-lg font-bold`}>Coba Lagi</Text>
             </TouchableOpacity>
           </View>
         </View>

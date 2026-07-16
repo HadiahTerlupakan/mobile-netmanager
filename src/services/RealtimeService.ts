@@ -125,7 +125,11 @@ function buildScopeChannel(scope: RealtimeScope): string {
 
 class RealtimeService {
   connect(_options: ConnectOptions): Promise<void> {
-    getMobileFirebaseApp()
+    try {
+      getMobileFirebaseApp()
+    } catch (err) {
+      logger.warn('[Realtime] Firebase unavailable, realtime disabled', err)
+    }
     return ensureRealtimeAuthenticated()
   }
 
@@ -164,7 +168,13 @@ class RealtimeService {
     scope: RealtimeScope,
     onEvent: (event: RealtimeStreamEvent) => void
   ): () => void {
-    const firestore = getFirestore(getMobileFirebaseApp())
+    let firestore: ReturnType<typeof getFirestore>
+    try {
+      firestore = getFirestore(getMobileFirebaseApp())
+    } catch (err) {
+      logger.warn('[Realtime] Firebase unavailable, scope subscription skipped', err)
+      return () => { /* noop */ }
+    }
     let unsubscribe: (() => void) | null = null
     let retryCount = 0
     let retryTimeout: ReturnType<typeof setTimeout> | null = null

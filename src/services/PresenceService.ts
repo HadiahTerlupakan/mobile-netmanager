@@ -1,6 +1,7 @@
 import { getDatabase, onDisconnect, ref, serverTimestamp, set } from 'firebase/database'
 
 import { getMobileFirebaseApp } from '@/services/firebaseApp'
+import { logger } from '@/utils/logger'
 
 interface PresencePayload {
   role: string
@@ -13,7 +14,13 @@ function buildPresencePath(userId: string): string {
 
 class PresenceService {
   startPresence(userId: string, payload: PresencePayload): () => void {
-    const database = getDatabase(getMobileFirebaseApp())
+    let database: ReturnType<typeof getDatabase>
+    try {
+      database = getDatabase(getMobileFirebaseApp())
+    } catch (err) {
+      logger.warn('[Presence] Firebase unavailable, presence disabled', err)
+      return () => { /* noop */ }
+    }
     const presenceRef = ref(database, buildPresencePath(userId))
 
     void set(presenceRef, {
