@@ -60,6 +60,7 @@
     },
     "android": {
       "package": "com.netmanager.mobile",
+      "versionCode": 34,
       "adaptiveIcon": {
         "backgroundColor": "#0a46aa",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
@@ -172,7 +173,7 @@
         "projectId": "0e8762f0-6c54-4bc5-82f2-18aa3f8e765a"
       },
       "router": {},
-      "versionCode": 2
+      "versionCode": 34
     },
     "owner": "rohadimrajas-organization"
   }

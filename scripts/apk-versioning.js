@@ -24,10 +24,10 @@ function bumpVersionName(versionName) {
 function readCurrentVersion(appJsonContent) {
   const appJson = JSON.parse(appJsonContent);
   const currentVersionName = appJson?.expo?.version;
-  const currentVersionCode = appJson?.expo?.extra?.versionCode;
+  const currentVersionCode = appJson?.expo?.android?.versionCode ?? appJson?.expo?.extra?.versionCode;
 
   if (!currentVersionName || !Number.isFinite(currentVersionCode)) {
-    throw new Error("app.json harus memiliki expo.version dan expo.extra.versionCode");
+    throw new Error("app.json harus memiliki expo.version dan expo.android.versionCode atau expo.extra.versionCode");
   }
 
   return { appJson, currentVersionName, currentVersionCode };
@@ -49,6 +49,9 @@ function prepareNextVersion({ appJsonContent, buildGradleContent }) {
   const nextVersionCode = currentVersionCode + 1;
 
   appJson.expo.version = nextVersionName;
+  if (appJson.expo.android) {
+    appJson.expo.android.versionCode = nextVersionCode;
+  }
   appJson.expo.extra = {
     ...(appJson.expo.extra || {}),
     versionCode: nextVersionCode,
