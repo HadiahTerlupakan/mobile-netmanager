@@ -6,6 +6,7 @@ import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import { getMapLibre, isMapLibreAvailable, isWeb } from "@/utils/maplibre";
 import toGeoJSON from "@/utils/togeojson-wrapper";
+import * as Location from "expo-location";
 import { FlashList } from "@shopify/flash-list";
 import { DOMParser } from "@xmldom/xmldom";
 import { useRouter } from "expo-router";
@@ -423,6 +424,10 @@ export default function TopologyMapScreen() {
   const [kmzFeatures, setKmzFeatures] = useState<GeoJSONFeature[]>([]);
   const kmzCache = useRef<Map<string, GeoJSONFeature[]>>(new Map()); // Cache for processed KMZ files
   const cameraRef = useRef<any>(null);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(
+    null,
+  );
+  const hasCenteredOnUserRef = useRef(false);
 
   const [selectedDevice, setSelectedDevice] = useState<{
     data: DeviceData;
@@ -603,6 +608,39 @@ export default function TopologyMapScreen() {
   useEffect(() => {
     logger.info("[TopologyMap] Component MOUNTED");
     return () => logger.info("[TopologyMap] Component UNMOUNTED");
+  }, []);
+
+  useEffect(() => {
+    let sub: { remove: () => void } | null = null;
+    (async () => {
+      try {
+        const { status } =
+          await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          logger.info("[TopologyMap] Location permission not granted");
+          return;
+        }
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const coord: [number, number] = [
+          pos.coords.longitude,
+          pos.coords.latitude,
+        ];
+        setUserLocation(coord);
+        logger.info("[TopologyMap] Got user location:", coord);
+        sub = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, timeInterval: 30000 },
+          (p) =>
+            setUserLocation([p.coords.longitude, p.coords.latitude]),
+        );
+      } catch (e) {
+        logger.warn("[TopologyMap] Failed to get user location:", e);
+      }
+    })();
+    return () => {
+      if (sub) sub.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -1090,32 +1128,44 @@ export default function TopologyMapScreen() {
     }
   }, [data, handleMarkerPress]);
 
-  // Counts for filter panel
   const counts = useMemo(() => {
-    if (!data)
-      return {
-        otb: 0,
-        odc: 0,
-        odp: 0,
-        joinbox: 0,
-        pole: 0,
-        pelanggan: 0,
-        kmz: 0,
-        lines: 0,
-      };
+    const empty = {
+      otb: 0,
+      odc: 0,
+      odp: 0,
+      joinbox: 0,
+      pole: 0,
+      pelanggan: 0,
+      kmz: 0,
+      lines: 0,
+    };
+    if (!data) return empty;
+
+    const nodeCounts = { ...empty };
+    for (const node of data.nodes ?? []) {
+      const t = (node.type || "").toLowerCase();
+      if (t === "server" || t === "olt" || t === "otb") nodeCounts.otb += 1;
+      else if (t === "odc") nodeCounts.odc += 1;
+      else if (t === "odp") nodeCounts.odp += 1;
+      else if (t === "joinbox") nodeCounts.joinbox += 1;
+      else if (t === "pole") nodeCounts.pole += 1;
+      else if (t === "ont" || t === "pelanggan" || t === "customer")
+        nodeCounts.pelanggan += 1;
+    }
+
     return {
-      otb: data.otbs.length,
-      otbs: data.otbs.length, // Alias
-      odc: data.odcs.length,
-      odcs: data.odcs.length, // Alias
-      odp: data.odps.length,
-      odps: data.odps.length, // Alias
-      joinbox: data.joinboxes.length,
-      joinboxes: data.joinboxes.length, // Alias
-      pole: data.poles.length,
-      poles: data.poles.length, // Alias
-      pelanggan: data.pelanggans.length,
-      pelanggans: data.pelanggans.length, // Alias
+      otb: data.otbs.length + nodeCounts.otb,
+      otbs: data.otbs.length + nodeCounts.otb,
+      odc: data.odcs.length + nodeCounts.odc,
+      odcs: data.odcs.length + nodeCounts.odc,
+      odp: data.odps.length + nodeCounts.odp,
+      odps: data.odps.length + nodeCounts.odp,
+      joinbox: data.joinboxes.length + nodeCounts.joinbox,
+      joinboxes: data.joinboxes.length + nodeCounts.joinbox,
+      pole: data.poles.length + nodeCounts.pole,
+      poles: data.poles.length + nodeCounts.pole,
+      pelanggan: data.pelanggans.length + nodeCounts.pelanggan,
+      pelanggans: data.pelanggans.length + nodeCounts.pelanggan,
       kmz: data.kmzFiles?.length || 0,
       lines: data.edges?.length || 0,
     };
@@ -1164,7 +1214,6 @@ export default function TopologyMapScreen() {
   const mapBounds = useMemo(() => {
     if (!data) return null;
 
-    // Collect all coordinates from all device types (not just OTBs)
     const allCoords = [
       ...data.otbs.map((d) => [d.longitude, d.latitude]),
       ...data.odcs.map((d) => [d.longitude, d.latitude]),
@@ -1173,7 +1222,15 @@ export default function TopologyMapScreen() {
       ...data.poles.map((d) => [d.longitude, d.latitude]),
       ...data.pelanggans.map((d) => [d.longitude, d.latitude]),
       ...(data.nodes || []).map((d) => [d.longitude, d.latitude]),
-    ];
+    ].filter(
+      ([lon, lat]) =>
+        typeof lon === "number" &&
+        typeof lat === "number" &&
+        lon >= 95 &&
+        lon <= 141 &&
+        lat >= -11 &&
+        lat <= 6,
+    );
 
     if (allCoords.length === 0) return null;
 
@@ -1192,20 +1249,28 @@ export default function TopologyMapScreen() {
     };
   }, [data]);
 
-  // Auto-center camera to data bounds when data is loaded
   useEffect(() => {
-    if (mapReady && mapBounds && cameraRef.current) {
-      logger.info(
-        "[TopologyMap] Auto-centering to data bounds:",
-        mapBounds.center,
-      );
+    if (!mapReady || !cameraRef.current || hasCenteredOnUserRef.current) return;
+
+    if (userLocation) {
+      hasCenteredOnUserRef.current = true;
+      cameraRef.current.setCamera({
+        centerCoordinate: userLocation,
+        zoomLevel: 15,
+        animationDuration: 800,
+      });
+      return;
+    }
+
+    if (mapBounds) {
+      hasCenteredOnUserRef.current = true;
       cameraRef.current.setCamera({
         centerCoordinate: mapBounds.center,
-        zoomLevel: 14, // Zoom closer to see markers
+        zoomLevel: 14,
         animationDuration: 1000,
       });
     }
-  }, [mapReady, mapBounds]);
+  }, [mapReady, mapBounds, userLocation]);
 
   const renderPoints = () => {
     return devicesGeoJson.features.map((feature) => {
@@ -1509,6 +1574,13 @@ export default function TopologyMapScreen() {
                 zoomLevel: 10, // Reasonable zoom to see the area
               }}
             />
+
+            {isMapLibreAvailable && userLocation && (
+              <MapLibreGL.UserLocation
+                visible
+                animated
+              />
+            )}
 
             {/* Connection Lines (GeoJSON) - Animated */}
             <AnimatedConnectionLines
