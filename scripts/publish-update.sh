@@ -62,23 +62,25 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 DIST_DIR="${DIST_DIR:-./dist}"
 
-# Step 0: Compute runtimeVersion via fingerprint policy
+# Step 0: Ambil runtimeVersion dari EAS build terbaru yang FINISHED
 # app.json pakai runtimeVersion.policy = "fingerprint". APK di Play Store
-# kirim hash fingerprint (bukan semver) ke manifest endpoint. Publish
-# harus pakai hash yang sama, kalau tidak OTA return 204 (no update).
+# kirim hash fingerprint EAS (bukan semver) ke manifest endpoint. Hash
+# lokal dari @expo/fingerprint bisa beda dari hash EAS (file secret,
+# google-services.json, env) — jadi pakai fingerprint dari EAS build
+# supaya OTA match APK yang ter-install di device.
 echo ""
-echo "🔐 Step 0/4: Computing runtimeVersion (fingerprint)..."
+echo "🔐 Step 0/4: Resolve runtimeVersion (EAS fingerprint)..."
 if [[ -n "${RUNTIME_VERSION_OVERRIDE:-}" ]]; then
     RUNTIME_VERSION="${RUNTIME_VERSION_OVERRIDE}"
     echo "   (override) runtimeVersion: ${RUNTIME_VERSION}"
 else
-    RUNTIME_VERSION=$(node ./scripts/compute-fingerprint.js . "${PLATFORM}") \
-        || { echo "❌ Gagal compute fingerprint. Pastikan @expo/fingerprint terinstall (npm ci)."; exit 1; }
+    RUNTIME_VERSION=$(node ./scripts/get-eas-fingerprint.js "${PLATFORM}") \
+        || { echo "❌ Gagal ambil fingerprint dari EAS. Pastikan eas CLI terinstall dan login."; exit 1; }
     if [[ -z "${RUNTIME_VERSION}" || "${#RUNTIME_VERSION}" -lt 16 ]]; then
         echo "❌ Fingerprint hash invalid: '${RUNTIME_VERSION}'"
         exit 1
     fi
-    echo "   runtimeVersion (fingerprint): ${RUNTIME_VERSION}"
+    echo "   runtimeVersion (EAS fingerprint): ${RUNTIME_VERSION}"
 fi
 # Export agar stage Verify Manifest di Jenkinsfile bisa pakai
 export RUNTIME_VERSION

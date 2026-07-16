@@ -134,8 +134,8 @@ spec:
                 container('node') {
                     sh '''
                         set -e
-                        # runtimeVersion = fingerprint yang dikirim APK (bukan semver app.json)
-                        RUNTIME=$(node ./scripts/compute-fingerprint.js . android)
+                        # runtimeVersion = fingerprint EAS build FINISHED (match APK Play Store)
+                        RUNTIME=$(node ./scripts/get-eas-fingerprint.js android)
                         echo "Verifying ${BASE_URL}/api/mobile/app-update/manifest (runtime=${RUNTIME}, channel=${CHANNEL})..."
                         STATUS=$(curl -sS -o /tmp/manifest.json -w "%{http_code}" \
                             -H "expo-runtime-version: ${RUNTIME}" \
