@@ -11,13 +11,13 @@ const { getReactNativePersistence } = firebaseAuthModule as unknown as {
 }
 
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'AIzaSyBqMwLWuAurtJnVQ93CFlb5hLYSzQ57UZQ',
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'netmanager-96742.firebaseapp.com',
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'netmanager-96742',
+  databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL || 'https://netmanager-96742-default-rtdb.asia-southeast1.firebasedatabase.app',
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'netmanager-96742.firebasestorage.app',
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '43187781340',
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '1:43187781340:android:903ae303566575e8e67e19',
 }
 
 function hasFirebaseConfig(): boolean {
