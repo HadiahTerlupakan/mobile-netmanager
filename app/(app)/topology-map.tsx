@@ -19,7 +19,6 @@ import {
   Flag,
   Home,
   Layers,
-  LocateFixed,
   MapPin,
   RefreshCw,
   Search,
@@ -429,7 +428,7 @@ export default function TopologyMapScreen() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(
     null,
   );
-  const hasCenteredOnUserRef = useRef(false);
+  const hasInitialCenteredRef = useRef(false);
 
   const [selectedDevice, setSelectedDevice] = useState<{
     data: DeviceData;
@@ -1252,10 +1251,10 @@ export default function TopologyMapScreen() {
   }, [data]);
 
   useEffect(() => {
-    if (!mapReady || !cameraRef.current || hasCenteredOnUserRef.current) return;
+    if (!mapReady || !cameraRef.current || hasInitialCenteredRef.current) return;
 
     if (mapBounds) {
-      hasCenteredOnUserRef.current = true;
+      hasInitialCenteredRef.current = true;
       cameraRef.current.setCamera({
         centerCoordinate: mapBounds.center,
         zoomLevel: 14,
@@ -1265,7 +1264,7 @@ export default function TopologyMapScreen() {
     }
 
     if (userLocation) {
-      hasCenteredOnUserRef.current = true;
+      hasInitialCenteredRef.current = true;
       cameraRef.current.setCamera({
         centerCoordinate: userLocation,
         zoomLevel: 15,
@@ -1282,15 +1281,6 @@ export default function TopologyMapScreen() {
       animationDuration: 800,
     });
   }, [mapBounds]);
-
-  const centerOnUser = useCallback(() => {
-    if (!cameraRef.current || !userLocation) return;
-    cameraRef.current.setCamera({
-      centerCoordinate: userLocation,
-      zoomLevel: 16,
-      animationDuration: 800,
-    });
-  }, [userLocation]);
 
   const renderPoints = () => {
     return devicesGeoJson.features.map((feature) => {
@@ -1666,15 +1656,6 @@ export default function TopologyMapScreen() {
             >
               <Crosshair size={22} color={mapBounds ? "#1f2937" : "#9ca3af"} />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.mapFab, !userLocation && styles.mapFabDisabled]}
-              onPress={centerOnUser}
-              disabled={!userLocation}
-              accessibilityRole="button"
-              accessibilityLabel="Ke lokasi saya"
-            >
-              <LocateFixed size={22} color={userLocation ? "#2563eb" : "#9ca3af"} />
-            </TouchableOpacity>
           </View>
 
           {/* Filter Panel */}
@@ -1738,21 +1719,20 @@ const styles = StyleSheet.create({
   mapFabColumn: {
     position: "absolute",
     right: 12,
-    bottom: 24,
-    gap: 10,
+    bottom: 88,
     zIndex: 15,
   },
   mapFab: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOpacity: 0.18,
+    shadowRadius: 3,
     elevation: 4,
   },
   mapFabDisabled: {
