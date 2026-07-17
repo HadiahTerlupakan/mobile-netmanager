@@ -14,11 +14,11 @@ import {
   AlertTriangle,
   ArrowLeft,
   Box,
-  Crosshair,
   Disc,
   Flag,
   Home,
   Layers,
+  LocateFixed,
   MapPin,
   RefreshCw,
   Search,
@@ -1252,35 +1252,24 @@ export default function TopologyMapScreen() {
 
   useEffect(() => {
     if (!mapReady || !cameraRef.current || hasInitialCenteredRef.current) return;
+    if (!mapBounds) return;
 
-    if (mapBounds) {
-      hasInitialCenteredRef.current = true;
-      cameraRef.current.setCamera({
-        centerCoordinate: mapBounds.center,
-        zoomLevel: 14,
-        animationDuration: 1000,
-      });
-      return;
-    }
-
-    if (userLocation) {
-      hasInitialCenteredRef.current = true;
-      cameraRef.current.setCamera({
-        centerCoordinate: userLocation,
-        zoomLevel: 15,
-        animationDuration: 800,
-      });
-    }
-  }, [mapReady, mapBounds, userLocation]);
-
-  const centerOnDevices = useCallback(() => {
-    if (!cameraRef.current || !mapBounds) return;
+    hasInitialCenteredRef.current = true;
     cameraRef.current.setCamera({
       centerCoordinate: mapBounds.center,
       zoomLevel: 14,
+      animationDuration: 1000,
+    });
+  }, [mapReady, mapBounds]);
+
+  const centerOnUser = useCallback(() => {
+    if (!cameraRef.current || !userLocation) return;
+    cameraRef.current.setCamera({
+      centerCoordinate: userLocation,
+      zoomLevel: 16,
       animationDuration: 800,
     });
-  }, [mapBounds]);
+  }, [userLocation]);
 
   const renderPoints = () => {
     return devicesGeoJson.features.map((feature) => {
@@ -1646,17 +1635,15 @@ export default function TopologyMapScreen() {
           {/* RENDER SEARCH RESULTS INSIDE CONTAINER TO POSITION CORRECTLY */}
           {renderSearchResults()}
 
-          <View style={styles.mapFabColumn}>
-            <TouchableOpacity
-              style={[styles.mapFab, !mapBounds && styles.mapFabDisabled]}
-              onPress={centerOnDevices}
-              disabled={!mapBounds}
-              accessibilityRole="button"
-              accessibilityLabel="Kembali ke pusat perangkat"
-            >
-              <Crosshair size={22} color={mapBounds ? "#1f2937" : "#9ca3af"} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.mapFab, !userLocation && styles.mapFabDisabled]}
+            onPress={centerOnUser}
+            disabled={!userLocation}
+            accessibilityRole="button"
+            accessibilityLabel="Ke lokasi saya"
+          >
+            <LocateFixed size={22} color={userLocation ? "#2563eb" : "#9ca3af"} />
+          </TouchableOpacity>
 
           {/* Filter Panel */}
           {showFilters && (
@@ -1716,19 +1703,17 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  mapFabColumn: {
+  mapFab: {
     position: "absolute",
     right: 12,
-    bottom: 88,
-    zIndex: 15,
-  },
-  mapFab: {
+    bottom: 100,
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 15,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
