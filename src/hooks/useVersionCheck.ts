@@ -54,20 +54,9 @@ export function useVersionCheck(_user: User | null, _token: string | null) {
     }
   }, [apk.apkUpdateAvailable, apk.isForceUpdate])
 
-  // Tampilkan modal OTA soft kalau available DAN tidak ada APK update aktif
   useEffect(() => {
-    const otaSoft =
-      ota.updateAvailable &&
-      !ota.isForceUpdate &&
-      !apk.apkUpdateAvailable &&
-      !apk.isForceUpdate
-    setShowOtaOptional(otaSoft)
-  }, [
-    ota.updateAvailable,
-    ota.isForceUpdate,
-    apk.apkUpdateAvailable,
-    apk.isForceUpdate,
-  ])
+    setShowOtaOptional(false)
+  }, [])
 
   return {
     versionChecked,

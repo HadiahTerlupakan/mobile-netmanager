@@ -132,23 +132,6 @@ function RootLayoutNav() {
         />
       )}
 
-      {/* OTA soft modal */}
-      {!devPreview && versionState.showOtaOptional && versionState.latestOtaVersion && (
-        <UpdateAvailableModal
-          mode="ota"
-          visible
-          latestVersion={versionState.latestOtaVersion}
-          downloadStatus={versionState.otaDownloadStatus}
-          downloadProgress={null}
-          error={versionState.otaError}
-          onStartUpdate={versionState.onStartOtaUpdate}
-          onLater={() => {
-            versionState.setShowOtaOptional(false);
-            versionState.onIgnoreOta();
-          }}
-          onDismissError={versionState.onDismissOtaError}
-        />
-      )}
     </>
   );
 }
