@@ -4,7 +4,7 @@ import SelectionModal from "@/components/molecules/SelectionModal";
 import { AppFeature } from "@/constants/features";
 import { useFeatureGuard } from "@/hooks/useFeatureGuard";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useApiQuery, useCreateWorkOrderRequest } from "@/hooks/queries";
+import { useApiQuery, useCreateWorkOrderRequest, useInfiniteQuery } from "@/hooks/queries";
 import type { MixRadiusResponse } from "@/services/MixRadiusService";
 import {
   MixRadiusCustomer,
@@ -89,9 +89,11 @@ function buildDismantleConfirmationMessage(customer: MixRadiusCustomer, reason: 
 const CustomerItem = memo(({
   item,
   onDismantle,
+  activeTab,
 }: {
   item: MixRadiusCustomer;
   onDismantle: (c: MixRadiusCustomer) => void;
+  activeTab: TabKey;
 }) => {
   const displayDate = useMemo(() => {
     try {
@@ -120,6 +122,11 @@ const CustomerItem = memo(({
     if (hasValidAddress) openMaps(address);
   };
 
+  const badge =
+    activeTab === "disabled"
+      ? { bg: "bg-gray-100", text: "text-gray-700", label: "DISABLED" }
+      : { bg: "bg-red-100", text: "text-red-700", label: "ISOLIR" };
+
   return (
     <View style={tw`bg-white p-4 mb-3 mx-4 rounded-xl border border-gray-200 shadow-sm`}>
       <View style={tw`flex-row justify-between items-start mb-2`}>
@@ -128,8 +135,8 @@ const CustomerItem = memo(({
           <Text style={tw`text-xs text-gray-600 mt-0.5`}>{name}</Text>
           <Text style={tw`text-[11px] text-gray-500 mt-0.5`}>{plan}</Text>
         </View>
-        <View style={tw`bg-red-100 px-2 py-1 rounded`}>
-          <Text style={tw`text-red-700 text-[10px] font-bold`}>ISOLIR</Text>
+        <View style={tw`${badge.bg} px-2 py-1 rounded`}>
+          <Text style={tw`${badge.text} text-[10px] font-bold`}>{badge.label}</Text>
         </View>
       </View>
 
@@ -177,7 +184,6 @@ export default function MixRadiusIsolirScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabKey>("isolir");
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
   const [hasSelected, setHasSelected] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<OwnerGroup | null>(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -193,32 +199,45 @@ export default function MixRadiusIsolirScreen() {
 
   const handleTabChange = useCallback((key: TabKey) => {
     setActiveTab(key);
-    setPage(0);
   }, []);
 
-  const { data: groups = [] } = useApiQuery<OwnerGroup[]>({
+  const {
+    data: groups = [],
+    isError: isGroupsError,
+    isFetching: isGroupsLoading,
+    refetch: refetchGroups,
+  } = useApiQuery<OwnerGroup[]>({
     queryKey: ["mixradius", "groups"],
     queryFn: () => MixRadiusService.getOwnerGroups(),
   });
 
   const {
-    data: customerData,
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     isFetching,
     refetch,
     isRefetching: refreshing,
     isError,
     error,
-  } = useApiQuery<MixRadiusResponse>({
-    queryKey: ["mixradius", "isolir", activeTab, selectedGroup?.id, debouncedSearch, page],
-    queryFn: () =>
+  } = useInfiniteQuery<MixRadiusResponse>({
+    queryKey: ["mixradius", "isolir", activeTab, selectedGroup?.id, debouncedSearch],
+    queryFn: ({ pageParam }) =>
       MixRadiusService.getIsolirCustomers(
         debouncedSearch,
-        page,
+        pageParam as number,
         PAGE_SIZE,
         undefined,
         selectedGroup?.id,
         currentAuthStatus
       ),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const fetched = allPages.length * PAGE_SIZE;
+      const total = lastPage.recordsFiltered ?? lastPage.recordsTotal ?? 0;
+      return fetched < total ? allPages.length : undefined;
+    },
     enabled: hasSelected,
     retry: (failureCount, err) => {
       const status = (err as { status?: number })?.status;
@@ -228,15 +247,26 @@ export default function MixRadiusIsolirScreen() {
     staleTime: STALE_TIME_MS,
   });
 
-  const loading = isFetching && !refreshing;
-  // Defensive client filter — backend legacy kadang mencampur status; pastikan hanya sesuai tab aktif.
+  const loading = isFetching && !refreshing && !isFetchingNextPage;
+
   const isolirCustomers = useMemo(() => {
-    const rows = customerData?.data ?? [];
+    const rows = data?.pages.flatMap((p) => p.data) ?? [];
+    const now = new Date();
+
     if (activeTab === "disabled") {
-      return rows.filter((c) => c.auth_status === "Disabled-Users");
+      return rows.filter(
+        (c) => c.auth_status === "Disabled-Users" || c.auth_status === "disabled"
+      );
     }
-    return rows.filter((c) => c.auth_status !== "Disabled-Users");
-  }, [customerData, activeTab]);
+
+    return rows.filter((c) => {
+      if (c.auth_status === "Disabled-Users" || c.auth_status === "disabled") {
+        return false;
+      }
+      const expDate = safeDate(c.expired_on) || safeDate(c.expiration);
+      return expDate !== null && expDate < now;
+    });
+  }, [data, activeTab]);
 
   const errorMessage = useMemo(() => {
     if (!error) return "Terjadi kesalahan saat mengambil data";
@@ -244,12 +274,8 @@ export default function MixRadiusIsolirScreen() {
     return message;
   }, [error]);
 
-  const totalCount = isolirCustomers.length;
-
-  const serverTotal = customerData?.recordsFiltered ?? customerData?.recordsTotal ?? 0;
-  const hasMore = useMemo(() => {
-    return (page + 1) * PAGE_SIZE < serverTotal;
-  }, [page, serverTotal]);
+  const serverTotal =
+    data?.pages[0]?.recordsFiltered ?? data?.pages[0]?.recordsTotal ?? 0;
 
   const dismantleMutation = useCreateWorkOrderRequest({
     successMessage: "Request WO Dismantle berhasil dikirim. Menunggu persetujuan Admin.",
@@ -259,7 +285,6 @@ export default function MixRadiusIsolirScreen() {
     setSelectedGroup(group);
     setHasSelected(true);
     setShowGroupModal(false);
-    setPage(0);
   }, []);
 
   const handleDismantle = useCallback((customer: MixRadiusCustomer) => {
@@ -318,15 +343,31 @@ export default function MixRadiusIsolirScreen() {
   }, [pendingDismantleCustomer, dismantleMutation]);
 
   const handleLoadMore = useCallback(() => {
-    if (hasMore && !isFetching) {
-      setPage((prev) => prev + 1);
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
     }
-  }, [hasMore, isFetching]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const onRefresh = useCallback(() => {
-    setPage(0);
     refetch();
   }, [refetch]);
+
+  const groupModalItems = useMemo(
+    () => [
+      { id: "__all__", label: "Semua Site", value: null as OwnerGroup | null },
+      ...groups.map((g) => ({ id: g.id, label: g.name, value: g as OwnerGroup | null })),
+    ],
+    [groups]
+  );
+
+  const compareGroup = useCallback(
+    (selected: OwnerGroup | null | undefined, itemValue: OwnerGroup | null) => {
+      if (selected === itemValue) return true;
+      if (selected == null || itemValue == null) return selected == null && itemValue == null;
+      return selected.id === itemValue.id;
+    },
+    []
+  );
 
   const ListHeader = useMemo(
     () => (
@@ -360,14 +401,11 @@ export default function MixRadiusIsolirScreen() {
             style={tw`flex-1 h-10 ml-2 text-gray-900`}
             placeholder="Cari username atau nama..."
             value={search}
-            onChangeText={(text) => {
-              setSearch(text);
-              setPage(0);
-            }}
+            onChangeText={setSearch}
             returnKeyType="search"
           />
           {search.length > 0 && (
-            <TouchableOpacity onPress={() => { setSearch(""); setPage(0); }}>
+            <TouchableOpacity onPress={() => setSearch("")}>
               <X size={18} color="#9ca3af" />
             </TouchableOpacity>
           )}
@@ -384,12 +422,14 @@ export default function MixRadiusIsolirScreen() {
             </Text>
           </TouchableOpacity>
           <Text style={tw`text-gray-500 text-xs font-medium`}>
-            Total: <Text style={tw`text-gray-900 font-bold`}>{totalCount}</Text>
+            {serverTotal > 0
+              ? `Menampilkan ${isolirCustomers.length} dari ${serverTotal}`
+              : `Total: ${isolirCustomers.length}`}
           </Text>
         </View>
       </View>
     ),
-    [activeTab, handleTabChange, search, selectedGroup, totalCount, hasSelected]
+    [activeTab, handleTabChange, search, selectedGroup, serverTotal, isolirCustomers.length, hasSelected]
   );
 
   if (hasSelected && loading && isolirCustomers.length === 0 && !isError) {
@@ -407,10 +447,12 @@ export default function MixRadiusIsolirScreen() {
 
       <FlashList
         data={isolirCustomers}
-        renderItem={({ item }: { item: MixRadiusCustomer }) => (
-          <CustomerItem item={item} onDismantle={handleDismantle} />
+        renderItem={({ item, index }: { item: MixRadiusCustomer; index: number }) => (
+          <CustomerItem item={item} onDismantle={handleDismantle} activeTab={activeTab} />
         )}
-        keyExtractor={(item: MixRadiusCustomer) => item.id || item.member_id || item.username}
+        keyExtractor={(item: MixRadiusCustomer, index: number) =>
+          item.id || item.member_id || `${item.username}-${index}`
+        }
         ListHeaderComponent={ListHeader}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
@@ -467,13 +509,16 @@ export default function MixRadiusIsolirScreen() {
         visible={showGroupModal}
         onClose={() => setShowGroupModal(false)}
         title="Pilih Site / Group"
-        items={groups.map((g) => ({
-          id: g.id,
-          label: g.name,
-          value: g,
-        }))}
-        onSelect={(item) => handleSelectGroup(item.value as OwnerGroup)}
+        items={groupModalItems}
+        onSelect={(item) => handleSelectGroup(item.value as OwnerGroup | null)}
         selectedValue={selectedGroup}
+        loading={isGroupsLoading && groups.length === 0}
+        emptyText={
+          isGroupsError
+            ? "Gagal memuat site. Tutup lalu buka lagi untuk coba ulang."
+            : "Tidak ada site tersedia"
+        }
+        compareBy={compareGroup}
       />
 
       <SelectionModal

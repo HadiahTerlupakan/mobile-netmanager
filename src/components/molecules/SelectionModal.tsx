@@ -21,6 +21,8 @@ interface SelectionModalProps<T = unknown> {
     loading?: boolean;
     searchPlaceholder?: string;
     emptyText?: string;
+    /** Custom equality check — needed when selectedValue is an object (reference !==) */
+    compareBy?: (selected: T | undefined, itemValue: T) => boolean;
 }
 
 const SelectionItemRow = memo(({
@@ -70,7 +72,8 @@ export default function SelectionModal<T = unknown>({
     selectedValue,
     loading = false,
     searchPlaceholder = 'Cari...',
-    emptyText = 'Data tidak ditemukan'
+    emptyText = 'Data tidak ditemukan',
+    compareBy,
 }: SelectionModalProps<T>) {
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -83,15 +86,23 @@ export default function SelectionModal<T = unknown>({
         );
     }, [items, searchQuery]);
 
+    const isItemSelected = useCallback(
+        (itemValue: T) =>
+            compareBy
+                ? compareBy(selectedValue, itemValue)
+                : selectedValue === itemValue,
+        [compareBy, selectedValue],
+    );
+
     const renderItem = useCallback(({ item }: { item: SelectionItem<T> }) => (
         <SelectionItemRow
             item={item as any}
-            isSelected={selectedValue === item.value}
+            isSelected={isItemSelected(item.value)}
             onSelect={onSelect as any}
             onClose={onClose}
             setSearchQuery={setSearchQuery}
         />
-    ), [selectedValue, onSelect, onClose]);
+    ), [isItemSelected, onSelect, onClose]);
 
     return (
         <Modal
