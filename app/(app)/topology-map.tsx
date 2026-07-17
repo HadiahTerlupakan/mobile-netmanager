@@ -533,6 +533,13 @@ export default function TopologyMapScreen() {
   // Camera position refs for stable MapLibre Camera props
   const cameraCenterRef = useRef<[number, number]>([106.816666, -6.2]);
   const cameraZoomRef = useRef(12);
+  const cameraDefaultSettings = useMemo(
+    () => ({
+      centerCoordinate: [106.816666, -6.2] as [number, number],
+      zoomLevel: 10,
+    }),
+    [],
+  );
 
   // RENDER HELPERS
   const renderSearchResults = () => {
@@ -1566,12 +1573,9 @@ export default function TopologyMapScreen() {
             <MapLibreGL.Camera
               ref={cameraRef}
               followUserLocation={false}
-              minZoomLevel={5} // Limit zoom out to avoid seeing world map
-              maxZoomLevel={20} // Limit zoom in
-              defaultSettings={{
-                centerCoordinate: [106.816666, -6.2], // Jakarta, Indonesia
-                zoomLevel: 10, // Reasonable zoom to see the area
-              }}
+              minZoomLevel={5}
+              maxZoomLevel={20}
+              defaultSettings={cameraDefaultSettings}
             />
 
             {isMapLibreAvailable && userLocation && (
