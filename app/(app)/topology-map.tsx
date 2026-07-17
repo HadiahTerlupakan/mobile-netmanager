@@ -1582,14 +1582,14 @@ export default function TopologyMapScreen() {
               id="devicesSource"
               shape={devicesGeoJson as any}
               onPress={onDeviceShapePress}
-              hitbox={{ width: 48, height: 48 }}
+              hitbox={{ width: 36, height: 36 }}
             >
               <MapLibreGL.CircleLayer
                 id="devicesCircleLayer"
                 style={{
-                  circleRadius: 12,
+                  circleRadius: 8,
                   circleColor: ["get", "color"],
-                  circleStrokeWidth: 2.5,
+                  circleStrokeWidth: 2,
                   circleStrokeColor: "#ffffff",
                   circleOpacity: 0.95,
                   circlePitchAlignment: "map",
@@ -1597,15 +1597,15 @@ export default function TopologyMapScreen() {
               />
               <MapLibreGL.SymbolLayer
                 id="devicesLabelLayer"
-                minZoomLevel={13}
+                minZoomLevel={14}
                 style={{
                   textField: ["get", "name"],
-                  textSize: 11,
-                  textOffset: [0, 1.5],
+                  textSize: 10,
+                  textOffset: [0, 1.4],
                   textAnchor: "top",
                   textColor: "#1f2937",
                   textHaloColor: "#ffffff",
-                  textHaloWidth: 1.2,
+                  textHaloWidth: 1,
                   textAllowOverlap: false,
                   textOptional: true,
                 }}
