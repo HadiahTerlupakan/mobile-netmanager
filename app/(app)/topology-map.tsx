@@ -14,10 +14,12 @@ import {
   AlertTriangle,
   ArrowLeft,
   Box,
+  Crosshair,
   Disc,
   Flag,
   Home,
   Layers,
+  LocateFixed,
   MapPin,
   RefreshCw,
   Search,
@@ -1252,16 +1254,6 @@ export default function TopologyMapScreen() {
   useEffect(() => {
     if (!mapReady || !cameraRef.current || hasCenteredOnUserRef.current) return;
 
-    if (userLocation) {
-      hasCenteredOnUserRef.current = true;
-      cameraRef.current.setCamera({
-        centerCoordinate: userLocation,
-        zoomLevel: 15,
-        animationDuration: 800,
-      });
-      return;
-    }
-
     if (mapBounds) {
       hasCenteredOnUserRef.current = true;
       cameraRef.current.setCamera({
@@ -1269,8 +1261,36 @@ export default function TopologyMapScreen() {
         zoomLevel: 14,
         animationDuration: 1000,
       });
+      return;
+    }
+
+    if (userLocation) {
+      hasCenteredOnUserRef.current = true;
+      cameraRef.current.setCamera({
+        centerCoordinate: userLocation,
+        zoomLevel: 15,
+        animationDuration: 800,
+      });
     }
   }, [mapReady, mapBounds, userLocation]);
+
+  const centerOnDevices = useCallback(() => {
+    if (!cameraRef.current || !mapBounds) return;
+    cameraRef.current.setCamera({
+      centerCoordinate: mapBounds.center,
+      zoomLevel: 14,
+      animationDuration: 800,
+    });
+  }, [mapBounds]);
+
+  const centerOnUser = useCallback(() => {
+    if (!cameraRef.current || !userLocation) return;
+    cameraRef.current.setCamera({
+      centerCoordinate: userLocation,
+      zoomLevel: 16,
+      animationDuration: 800,
+    });
+  }, [userLocation]);
 
   const renderPoints = () => {
     return devicesGeoJson.features.map((feature) => {
@@ -1636,6 +1656,27 @@ export default function TopologyMapScreen() {
           {/* RENDER SEARCH RESULTS INSIDE CONTAINER TO POSITION CORRECTLY */}
           {renderSearchResults()}
 
+          <View style={styles.mapFabColumn}>
+            <TouchableOpacity
+              style={[styles.mapFab, !mapBounds && styles.mapFabDisabled]}
+              onPress={centerOnDevices}
+              disabled={!mapBounds}
+              accessibilityRole="button"
+              accessibilityLabel="Kembali ke pusat perangkat"
+            >
+              <Crosshair size={22} color={mapBounds ? "#1f2937" : "#9ca3af"} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.mapFab, !userLocation && styles.mapFabDisabled]}
+              onPress={centerOnUser}
+              disabled={!userLocation}
+              accessibilityRole="button"
+              accessibilityLabel="Ke lokasi saya"
+            >
+              <LocateFixed size={22} color={userLocation ? "#2563eb" : "#9ca3af"} />
+            </TouchableOpacity>
+          </View>
+
           {/* Filter Panel */}
           {showFilters && (
             <FilterPanel
@@ -1693,6 +1734,29 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  mapFabColumn: {
+    position: "absolute",
+    right: 12,
+    bottom: 24,
+    gap: 10,
+    zIndex: 15,
+  },
+  mapFab: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  mapFabDisabled: {
+    opacity: 0.55,
   },
   loadingContainer: {
     flex: 1,
