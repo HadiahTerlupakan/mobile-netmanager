@@ -17,7 +17,7 @@ import {
   Disc,
   Flag,
   Home,
-  Layers,
+  List,
   LocateFixed,
   MapPin,
   RefreshCw,
@@ -36,7 +36,9 @@ import React, {
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Keyboard,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -50,7 +52,6 @@ import {
   DeviceDetailModal,
   DeviceType,
 } from "@/components/organisms/topology/DeviceDetailModal";
-import { FilterPanel } from "@/components/organisms/topology/FilterPanel";
 import { TopologyErrorBoundary } from "@/components/organisms/topology/TopologyErrorBoundary";
 import { WebMapView } from "@/components/organisms/topology/WebMapView";
 import tw from "twrnc";
@@ -428,14 +429,14 @@ export default function TopologyMapScreen() {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(
     null,
   );
-  const hasInitialCenteredRef = useRef(false);
 
   const [selectedDevice, setSelectedDevice] = useState<{
     data: DeviceData;
     type: DeviceType;
   } | null>(null);
 
-  const [showFilters, setShowFilters] = useState(false);
+  const [showDeviceList, setShowDeviceList] = useState(false);
+  const [listQuery, setListQuery] = useState("");
 
   // Search State
   const [searchQuery, setSearchQuery] = useState("");
@@ -530,16 +531,12 @@ export default function TopologyMapScreen() {
     handleMarkerPress(item, item.type as DeviceType);
   };
 
-  // Camera position refs for stable MapLibre Camera props
   const cameraCenterRef = useRef<[number, number]>([106.816666, -6.2]);
   const cameraZoomRef = useRef(12);
-  const cameraDefaultSettings = useMemo(
-    () => ({
-      centerCoordinate: [106.816666, -6.2] as [number, number],
-      zoomLevel: 10,
-    }),
-    [],
-  );
+  const frozenCameraSettingsRef = useRef<{
+    centerCoordinate: [number, number];
+    zoomLevel: number;
+  } | null>(null);
 
   // RENDER HELPERS
   const renderSearchResults = () => {
@@ -1211,14 +1208,6 @@ export default function TopologyMapScreen() {
   }, []);
 
   // Memoize style loading callback to prevent recreating on every render
-  const handleStyleLoaded = useCallback(() => {
-    logger.info("[TopologyMap] Style finished loading");
-    setMapReady(true);
-  }, []);
-
-  const [mapReady, setMapReady] = useState(false); // Track map readiness
-
-  // Calculate proper map bounds and center coordinate from all devices
   const mapBounds = useMemo(() => {
     if (!data) return null;
 
@@ -1257,28 +1246,52 @@ export default function TopologyMapScreen() {
     };
   }, [data]);
 
-  useEffect(() => {
-    if (!mapReady || !cameraRef.current || hasInitialCenteredRef.current) return;
-    if (!mapBounds) return;
+  if (mapBounds && !frozenCameraSettingsRef.current) {
+    frozenCameraSettingsRef.current = {
+      centerCoordinate: mapBounds.center,
+      zoomLevel: 14,
+    };
+  }
 
-    hasInitialCenteredRef.current = true;
-    cameraRef.current.fitBounds(
-      mapBounds.bounds.ne,
-      mapBounds.bounds.sw,
-      60,
-      1000,
-    );
-  }, [mapReady, mapBounds]);
-
-  const centerOnUser = useCallback(() => {
-    if (!cameraRef.current || !userLocation) return;
-    if (!hasInitialCenteredRef.current) return;
+  const flyToCoordinate = useCallback((longitude: number, latitude: number, zoom = 17) => {
+    if (!cameraRef.current) return;
     cameraRef.current.setCamera({
-      centerCoordinate: userLocation,
-      zoomLevel: 16,
+      centerCoordinate: [Number(longitude), Number(latitude)],
+      zoomLevel: zoom,
       animationDuration: 800,
     });
-  }, [userLocation]);
+  }, []);
+
+  const centerOnUser = useCallback(() => {
+    if (!userLocation) return;
+    flyToCoordinate(userLocation[0], userLocation[1], 16);
+  }, [userLocation, flyToCoordinate]);
+
+  const deviceListItems = useMemo(() => {
+    const q = listQuery.trim().toLowerCase();
+    return allDevices
+      .filter((d) => {
+        if (!d.latitude || !d.longitude) return false;
+        if (!q) return true;
+        const name = String(d.name || d.nama || d.idPelanggan || "").toLowerCase();
+        const type = String(d.type || "").toLowerCase();
+        return name.includes(q) || type.includes(q);
+      })
+      .slice(0, 200);
+  }, [allDevices, listQuery]);
+
+  const handleDeviceListPress = useCallback(
+    (item: any) => {
+      setShowDeviceList(false);
+      setListQuery("");
+      Keyboard.dismiss();
+      if (item.latitude && item.longitude) {
+        flyToCoordinate(Number(item.longitude), Number(item.latitude), 18);
+      }
+      handleMarkerPress(item, item.type as DeviceType);
+    },
+    [flyToCoordinate, handleMarkerPress],
+  );
 
   const renderPoints = () => {
     return devicesGeoJson.features.map((feature) => {
@@ -1445,9 +1458,11 @@ export default function TopologyMapScreen() {
             <Text style={styles.headerTitle}>Topology Map</Text>
             <TouchableOpacity
               style={styles.filterToggle}
-              onPress={() => setShowFilters(!showFilters)}
+              onPress={() => setShowDeviceList(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Daftar perangkat"
             >
-              <Layers size={24} color={showFilters ? "#3b82f6" : "#6b7280"} />
+              <List size={24} color={showDeviceList ? "#3b82f6" : "#6b7280"} />
             </TouchableOpacity>
           </View>
 
@@ -1461,15 +1476,6 @@ export default function TopologyMapScreen() {
               onRefresh={() => fetchData()}
               loading={loading}
             />
-
-            {/* Filter Panel */}
-            {showFilters && (
-              <FilterPanel
-                visibility={visibility}
-                onToggle={handleToggleVisibility}
-                counts={counts}
-              />
-            )}
           </View>
 
           {/* Device Detail Modal */}
@@ -1554,30 +1560,30 @@ export default function TopologyMapScreen() {
           <Text style={styles.headerTitle}>Topology Map</Text>
           <TouchableOpacity
             style={styles.filterToggle}
-            onPress={() => setShowFilters(!showFilters)}
+            onPress={() => setShowDeviceList(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Daftar perangkat"
           >
-            <Layers size={24} color={showFilters ? "#3b82f6" : "#6b7280"} />
+            <List size={24} color={showDeviceList ? "#3b82f6" : "#6b7280"} />
           </TouchableOpacity>
         </View>
 
         {/* Map Container with Relative Positioning for Overlays */}
         <View style={styles.mapContainer}>
-          {/* Map Content - Using mapStyle prop (v10+) */}
+          {frozenCameraSettingsRef.current ? (
           <MapLibreGL.MapView
-            key="topology-map-view"
             style={styles.map}
             mapStyle={mapStyle}
             logoEnabled={false}
             attributionEnabled={false}
             onRegionDidChange={handleCameraChange}
-            onDidFinishLoadingStyle={handleStyleLoaded}
           >
             <MapLibreGL.Camera
               ref={cameraRef}
               followUserLocation={false}
               minZoomLevel={5}
               maxZoomLevel={20}
-              defaultSettings={cameraDefaultSettings}
+              defaultSettings={frozenCameraSettingsRef.current}
             />
 
             {isMapLibreAvailable && userLocation ? (
@@ -1605,6 +1611,7 @@ export default function TopologyMapScreen() {
             {/* DEVICE MARKERS (MarkerView) */}
             {renderPoints()}
           </MapLibreGL.MapView>
+          ) : null}
 
           {/* Search Bar (Moved inside Map Container) */}
           <View style={styles.searchContainer}>
@@ -1647,15 +1654,6 @@ export default function TopologyMapScreen() {
           >
             <LocateFixed size={22} color={userLocation ? "#2563eb" : "#9ca3af"} />
           </TouchableOpacity>
-
-          {/* Filter Panel */}
-          {showFilters && (
-            <FilterPanel
-              visibility={visibility}
-              onToggle={handleToggleVisibility}
-              counts={counts}
-            />
-          )}
         </View>
 
         {/* Device Detail Modal */}
@@ -1665,6 +1663,87 @@ export default function TopologyMapScreen() {
           device={selectedDevice?.data || null}
           deviceType={selectedDevice?.type || null}
         />
+
+        <Modal
+          visible={showDeviceList}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowDeviceList(false)}
+        >
+          <SafeAreaView style={styles.listModal} edges={["top"]}>
+            <View style={styles.listHeader}>
+              <Text style={styles.listTitle}>Daftar Perangkat</Text>
+              <TouchableOpacity
+                onPress={() => setShowDeviceList(false)}
+                style={styles.listCloseButton}
+                accessibilityRole="button"
+                accessibilityLabel="Tutup"
+              >
+                <X size={24} color="#1f2937" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.listSearchRow}>
+              <Search size={18} color="#6b7280" />
+              <TextInput
+                style={styles.listSearchInput}
+                placeholder="Cari nama / tipe perangkat..."
+                value={listQuery}
+                onChangeText={setListQuery}
+                placeholderTextColor="#9ca3af"
+              />
+              {listQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setListQuery("")}>
+                  <X size={18} color="#6b7280" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <FlatList
+              data={deviceListItems}
+              keyExtractor={(item: any, index) =>
+                `${item.type}-${item.id || index}`
+              }
+              renderItem={({ item }: { item: any }) => {
+                const name = String(
+                  item.name || item.nama || item.idPelanggan || "Tanpa Nama",
+                );
+                const color =
+                  MARKER_COLORS[item.type as DeviceType] || "#9ca3af";
+                return (
+                  <TouchableOpacity
+                    style={styles.listItem}
+                    onPress={() => handleDeviceListPress(item)}
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      style={[styles.listItemIcon, { backgroundColor: color }]}
+                    >
+                      {getDeviceIcon(item.type, 16, "white")}
+                    </View>
+                    <View style={styles.listItemBody}>
+                      <Text style={styles.listItemName} numberOfLines={1}>
+                        {name}
+                      </Text>
+                      <Text style={styles.listItemMeta} numberOfLines={1}>
+                        {String(item.type || "").toUpperCase()} ·{" "}
+                        {Number(item.latitude).toFixed(5)},{" "}
+                        {Number(item.longitude).toFixed(5)}
+                      </Text>
+                    </View>
+                    <MapPin size={18} color="#9ca3af" />
+                  </TouchableOpacity>
+                );
+              }}
+              ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+              ListEmptyComponent={
+                <View style={styles.listEmpty}>
+                  <Text style={styles.listEmptyText}>
+                    Tidak ada perangkat ditemukan.
+                  </Text>
+                </View>
+              }
+            />
+          </SafeAreaView>
+        </Modal>
 
       </SafeAreaView>
     </TopologyErrorBoundary>
@@ -1865,5 +1944,82 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 12,
     color: "#6b7280",
+  },
+  listModal: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  listHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  listTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1f2937",
+  },
+  listCloseButton: {
+    padding: 4,
+  },
+  listSearchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    margin: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#f3f4f6",
+    gap: 8,
+  },
+  listSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#1f2937",
+    paddingVertical: 6,
+  },
+  listItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  listItemIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  listItemBody: {
+    flex: 1,
+  },
+  listItemName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  listItemMeta: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 2,
+  },
+  listSeparator: {
+    height: 1,
+    backgroundColor: "#f3f4f6",
+    marginLeft: 60,
+  },
+  listEmpty: {
+    padding: 32,
+    alignItems: "center",
+  },
+  listEmptyText: {
+    color: "#9ca3af",
+    fontSize: 14,
   },
 });
