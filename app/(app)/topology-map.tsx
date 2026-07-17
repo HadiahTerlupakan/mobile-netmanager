@@ -1027,110 +1027,92 @@ export default function TopologyMapScreen() {
   }, []);
 
   const onAnnotationSelected = useCallback((feature: GeoJSONFeature) => {
-    const {
-      id,
-      type,
-      source,
-      description,
-      name,
-      originalId,
-      // Destructure new fields
-      notes,
-      capacity,
-      splitter,
-      serialNumber,
-      pppoe,
-      attenuationIn,
-      attenuationOut,
-      usedSlots,
-      inputCoreColor,
-      photo,
-      parent // Destructure parent
-    } = feature.properties as any;
-    logger.info("Device annotation selected:", type, id, source, "Original ID:", originalId);
+    const props = (feature.properties || {}) as any;
+    const type = (props.type || "pole") as DeviceType;
+    const coords = (feature.geometry as any)?.coordinates || [0, 0];
+    const targetId =
+      props.originalId !== undefined && props.originalId !== null
+        ? String(props.originalId)
+        : String(props.id ?? "");
 
-    if (source === "mapping-node") {
-      // Handle MappingNode selection
-      const deviceData: DeviceData = {
-        id: id,
-        name: name,
-        latitude: (feature.geometry as any).coordinates[1],
-        longitude: (feature.geometry as any).coordinates[0],
-        notes: notes || description, // prioritize notes
-        capacity,
-        splitter,
-        serialNumber,
-        pppoe,
-        attenuationInput: attenuationIn,
-        attenuationOutput: attenuationOut,
-        usedSlots,
-        inputCoreColor,
-        images: photo ? [photo] : undefined, // Map photo string to images array
-        parent, // Pass parent object
-      };
-
-      handleMarkerPress(deviceData, type);
-      return;
-    }
-
-    // Find original data object
     let deviceData: DeviceData | null = null;
-    if (data) {
-      // Use helper to match ID safely (handles string vs number)
-      // Prioritize originalId if available, otherwise fallback to id from properties
-      const targetId = originalId !== undefined ? String(originalId) : String(id);
+    if (data && targetId) {
+      const matchesId = (d: any) =>
+        String(d.id) === targetId || String(d.nodeId) === targetId;
 
-      const matchesId = (d: any) => String(d.id) === targetId;
+      if (type === "otb") deviceData = (data.otbs.find(matchesId) as any) ?? null;
+      else if (type === "odc") deviceData = (data.odcs.find(matchesId) as any) ?? null;
+      else if (type === "odp") deviceData = (data.odps.find(matchesId) as any) ?? null;
+      else if (type === "joinbox")
+        deviceData = (data.joinboxes.find(matchesId) as any) ?? null;
+      else if (type === "pole") deviceData = (data.poles.find(matchesId) as any) ?? null;
+      else if (type === "pelanggan")
+        deviceData = (data.pelanggans.find(matchesId) as any) ?? null;
 
-      switch (type) {
-        case "otb":
-          const otb = data.otbs.find(matchesId);
-          if (otb) deviceData = otb as unknown as DeviceData;
-          break;
-        case "odc":
-          const odc = data.odcs.find(matchesId);
-          if (odc) deviceData = odc as unknown as DeviceData;
-          break;
-        case "odp":
-          const odp = data.odps.find(matchesId);
-          if (odp) deviceData = odp as unknown as DeviceData;
-          break;
-        case "joinbox":
-          const joinbox = data.joinboxes.find(matchesId);
-          if (joinbox) deviceData = joinbox as unknown as DeviceData;
-          break;
-        case "pole":
-          const pole = data.poles.find(matchesId);
-          if (pole) deviceData = pole as unknown as DeviceData;
-          break;
-        case "pelanggan":
-          const pelanggan = data.pelanggans.find(matchesId);
-          if (pelanggan) deviceData = pelanggan as unknown as DeviceData;
-          break;
+      if (!deviceData && data.nodes) {
+        const node = data.nodes.find(
+          (n) => String(n.nodeId) === targetId || String(n.nodeId) === String(props.id),
+        );
+        if (node) {
+          deviceData = {
+            id: String(node.nodeId),
+            name: node.name,
+            latitude: node.latitude,
+            longitude: node.longitude,
+            notes: node.notes || node.description,
+            capacity: node.capacity,
+            splitter: node.splitter,
+            serialNumber: node.serialNumber,
+            pppoe: node.pppoe,
+            attenuationInput: node.attenuationIn,
+            attenuationOutput: node.attenuationOut,
+            usedSlots: node.usedSlots,
+            inputCoreColor: node.inputCoreColor,
+            images: node.photo ? [node.photo] : undefined,
+            parent: node.parent,
+          };
+        }
       }
     }
 
-    if (deviceData) {
-      // Merge extra properties from feature if they exist in feature properties
-      // This ensures that even if 'data' array item is missing something, 
-      // but 'feature.properties' has it (via addFeature), we preserve it.
-      deviceData = {
-        ...deviceData,
-        capacity: deviceData.capacity ?? capacity,
-        splitter: deviceData.splitter ?? splitter,
-        serialNumber: deviceData.serialNumber ?? serialNumber,
-        pppoe: deviceData.pppoe ?? pppoe,
-        attenuationInput: deviceData.attenuationInput ?? attenuationIn,
-        attenuationOutput: deviceData.attenuationOutput ?? attenuationOut,
-        usedSlots: deviceData.usedSlots ?? usedSlots,
-        inputCoreColor: deviceData.inputCoreColor ?? inputCoreColor,
-        parent: deviceData.parent ?? parent,
-        notes: deviceData.notes ?? notes,
-        photo: deviceData.photo ?? photo,
-      };
+    const fallback: DeviceData = {
+      id: targetId || String(props.id || "unknown"),
+      name: props.name || props.nama || props.idPelanggan || "Perangkat",
+      latitude: Number(coords[1]) || 0,
+      longitude: Number(coords[0]) || 0,
+      notes: props.notes || props.description,
+      capacity: props.capacity,
+      splitter: props.splitter,
+      serialNumber: props.serialNumber,
+      pppoe: props.pppoe,
+      attenuationInput: props.attenuationIn,
+      attenuationOutput: props.attenuationOut,
+      usedSlots: props.usedSlots,
+      inputCoreColor: props.inputCoreColor,
+      images: props.photo ? [props.photo] : undefined,
+      parent: props.parent,
+    };
 
-      handleMarkerPress(deviceData, type);
-    }
+    handleMarkerPress(
+      deviceData
+        ? {
+            ...deviceData,
+            capacity: deviceData.capacity ?? props.capacity,
+            splitter: deviceData.splitter ?? props.splitter,
+            serialNumber: deviceData.serialNumber ?? props.serialNumber,
+            pppoe: deviceData.pppoe ?? props.pppoe,
+            attenuationInput: deviceData.attenuationInput ?? props.attenuationIn,
+            attenuationOutput:
+              deviceData.attenuationOutput ?? props.attenuationOut,
+            usedSlots: deviceData.usedSlots ?? props.usedSlots,
+            inputCoreColor: deviceData.inputCoreColor ?? props.inputCoreColor,
+            parent: deviceData.parent ?? props.parent,
+            notes: deviceData.notes ?? props.notes,
+            photo: deviceData.photo ?? props.photo,
+          }
+        : fallback,
+      type,
+    );
   }, [data, handleMarkerPress]);
 
   const counts = useMemo(() => {
@@ -1305,15 +1287,18 @@ export default function TopologyMapScreen() {
       return (
         <MapLibreGL.MarkerView
           key={elementKey}
+          id={elementKey}
           coordinate={coords}
+          allowOverlap={true}
         >
           <TouchableOpacity
             onPress={() => onAnnotationSelected(feature)}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 16,
+              width: 36,
+              height: 36,
+              borderRadius: 18,
               backgroundColor: props.color,
               justifyContent: "center",
               alignItems: "center",
@@ -1323,8 +1308,8 @@ export default function TopologyMapScreen() {
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.25,
               shadowRadius: 3.84,
-              elevation: 5,
-              zIndex: 10,
+              elevation: 8,
+              zIndex: 100,
             }}
           >
             {getDeviceIcon(props.type, 16, "white")}
