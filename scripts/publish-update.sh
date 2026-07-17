@@ -89,7 +89,7 @@ export RUNTIME_VERSION
 echo ""
 echo "📦 Step 1/4: Building bundle (expo export)..."
 rm -rf "${DIST_DIR}"
-EXPO_PUBLIC_APP_VARIANT="${EXPO_VARIANT}" \
+NODE_ENV=production EXPO_PUBLIC_APP_VARIANT="${EXPO_VARIANT}" \
     npx expo export --platform "${PLATFORM}" --output-dir "${DIST_DIR}" \
     || { echo "❌ expo export gagal"; exit 2; }
 
