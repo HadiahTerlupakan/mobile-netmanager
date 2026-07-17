@@ -9,6 +9,7 @@ import { useAppInitialization } from "@/hooks/useAppInitialization";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { useOtaDevPreview } from "@/hooks/useOtaDevPreview";
 import { useNotificationSetup } from "@/hooks/useNotificationSetup";
+import { useDeepLink } from "@/hooks/useDeepLink";
 import { useAuthRedirect } from "@/hooks/useAuthRedirect";
 import { asyncStoragePersister, queryClient } from "@/lib/queryClient";
 import { errorReportingService } from "@/services/ErrorReportingService";
@@ -41,6 +42,9 @@ function RootLayoutNav() {
 
   // Setup push notifications
   useNotificationSetup();
+
+  // Deep link dari WA (netmanager://work-order-detail/<id>)
+  useDeepLink();
 
   // Handle auth-based redirects
   useAuthRedirect(user, segments, isLoading);
