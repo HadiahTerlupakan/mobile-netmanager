@@ -1302,53 +1302,6 @@ export default function TopologyMapScreen() {
     [onAnnotationSelected, flyToCoordinate],
   );
 
-  const renderPoints = () => {
-    return devicesGeoJson.features.map((feature) => {
-      const props = feature.properties as any;
-      const coords = (feature.geometry as any).coordinates;
-      const safeId = props.id || `render-${props.type}-${coords?.[0]}-${coords?.[1]}`;
-      const elementKey = `${props.source || "inventory"}-${props.type}-${safeId}`;
-
-      return (
-        <MapLibreGL.MarkerView
-          key={elementKey}
-          id={elementKey}
-          coordinate={coords}
-          allowOverlap={true}
-        >
-          <TouchableOpacity
-            onPress={() => {
-              if (Array.isArray(coords) && coords.length >= 2) {
-                flyToCoordinate(Number(coords[0]), Number(coords[1]), 18);
-              }
-              onAnnotationSelected(feature);
-            }}
-            activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 16,
-              backgroundColor: props.color,
-              justifyContent: "center",
-              alignItems: "center",
-              borderWidth: 2,
-              borderColor: "white",
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.25,
-              shadowRadius: 3.84,
-              elevation: 8,
-              zIndex: 100,
-            }}
-          >
-            {getDeviceIcon(props.type, 16, "white")}
-          </TouchableOpacity>
-        </MapLibreGL.MarkerView>
-      );
-    });
-  };
-
   // Prepare data for WebMapView
   const webDevices = useMemo(() => {
     if (!data) return [];
@@ -1626,22 +1579,38 @@ export default function TopologyMapScreen() {
             </MapLibreGL.ShapeSource>
 
             <MapLibreGL.ShapeSource
-              id="devicesHitSource"
+              id="devicesSource"
               shape={devicesGeoJson as any}
               onPress={onDeviceShapePress}
               hitbox={{ width: 48, height: 48 }}
             >
               <MapLibreGL.CircleLayer
-                id="devicesHitLayer"
+                id="devicesCircleLayer"
                 style={{
-                  circleRadius: 14,
-                  circleColor: "#000000",
-                  circleOpacity: 0.01,
+                  circleRadius: 12,
+                  circleColor: ["get", "color"],
+                  circleStrokeWidth: 2.5,
+                  circleStrokeColor: "#ffffff",
+                  circleOpacity: 0.95,
+                  circlePitchAlignment: "map",
+                }}
+              />
+              <MapLibreGL.SymbolLayer
+                id="devicesLabelLayer"
+                minZoomLevel={13}
+                style={{
+                  textField: ["get", "name"],
+                  textSize: 11,
+                  textOffset: [0, 1.5],
+                  textAnchor: "top",
+                  textColor: "#1f2937",
+                  textHaloColor: "#ffffff",
+                  textHaloWidth: 1.2,
+                  textAllowOverlap: false,
+                  textOptional: true,
                 }}
               />
             </MapLibreGL.ShapeSource>
-
-            {renderPoints()}
           </MapLibreGL.MapView>
           ) : (
             <View style={styles.mapLoading}>
