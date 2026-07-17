@@ -533,7 +533,7 @@ export default function TopologyMapScreen() {
 
   const cameraCenterRef = useRef<[number, number]>([106.816666, -6.2]);
   const cameraZoomRef = useRef(12);
-  const frozenCameraSettingsRef = useRef<{
+  const [initialCamera, setInitialCamera] = useState<{
     centerCoordinate: [number, number];
     zoomLevel: number;
   } | null>(null);
@@ -1228,12 +1228,13 @@ export default function TopologyMapScreen() {
     };
   }, [data]);
 
-  if (mapBounds && !frozenCameraSettingsRef.current) {
-    frozenCameraSettingsRef.current = {
+  useEffect(() => {
+    if (!mapBounds || initialCamera) return;
+    setInitialCamera({
       centerCoordinate: mapBounds.center,
       zoomLevel: 14,
-    };
-  }
+    });
+  }, [mapBounds, initialCamera]);
 
   const flyToCoordinate = useCallback((longitude: number, latitude: number, zoom = 17) => {
     if (!cameraRef.current) return;
@@ -1245,9 +1246,13 @@ export default function TopologyMapScreen() {
   }, []);
 
   const centerOnUser = useCallback(() => {
-    if (!userLocation) return;
-    flyToCoordinate(userLocation[0], userLocation[1], 16);
-  }, [userLocation, flyToCoordinate]);
+    if (!userLocation || !cameraRef.current) return;
+    cameraRef.current.setCamera({
+      centerCoordinate: userLocation,
+      zoomLevel: 16,
+      animationDuration: 800,
+    });
+  }, [userLocation]);
 
   const deviceListItems = useMemo(() => {
     const q = listQuery.trim().toLowerCase();
@@ -1275,49 +1280,14 @@ export default function TopologyMapScreen() {
     [flyToCoordinate, handleMarkerPress],
   );
 
-  const renderPoints = () => {
-    return devicesGeoJson.features.map((feature) => {
-      const props = feature.properties as any;
-      const coords = (feature.geometry as any).coordinates;
-
-      // PERMISIF: Pastikan selalu render meski ID asli kosong
-      const safeId = props.id || `render-${Math.random().toString(36).substr(2, 9)}`;
-      const elementKey = `${props.source || "inventory"}-${props.type}-${safeId}`;
-
-      return (
-        <MapLibreGL.MarkerView
-          key={elementKey}
-          id={elementKey}
-          coordinate={coords}
-          allowOverlap={true}
-        >
-          <TouchableOpacity
-            onPress={() => onAnnotationSelected(feature)}
-            activeOpacity={0.7}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: props.color,
-              justifyContent: "center",
-              alignItems: "center",
-              borderWidth: 2,
-              borderColor: "white",
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.25,
-              shadowRadius: 3.84,
-              elevation: 8,
-              zIndex: 100,
-            }}
-          >
-            {getDeviceIcon(props.type, 16, "white")}
-          </TouchableOpacity>
-        </MapLibreGL.MarkerView>
-      );
-    });
-  };
+  const onDeviceShapePress = useCallback(
+    (event: any) => {
+      const feature = event?.features?.[0];
+      if (!feature) return;
+      onAnnotationSelected(feature as GeoJSONFeature);
+    },
+    [onAnnotationSelected],
+  );
 
   // Prepare data for WebMapView
   const webDevices = useMemo(() => {
@@ -1555,7 +1525,7 @@ export default function TopologyMapScreen() {
 
         {/* Map Container with Relative Positioning for Overlays */}
         <View style={styles.mapContainer}>
-          {frozenCameraSettingsRef.current ? (
+          {initialCamera ? (
           <MapLibreGL.MapView
             style={styles.map}
             mapStyle={mapStyle}
@@ -1568,20 +1538,18 @@ export default function TopologyMapScreen() {
               followUserLocation={false}
               minZoomLevel={5}
               maxZoomLevel={20}
-              defaultSettings={frozenCameraSettingsRef.current}
+              defaultSettings={initialCamera}
             />
 
             {isMapLibreAvailable && userLocation ? (
               <MapLibreGL.UserLocation visible={true} animated={false} />
             ) : null}
 
-            {/* Connection Lines (GeoJSON) - Animated */}
             <AnimatedConnectionLines
               shape={connectionLines}
               onLineSelected={onLineSelected}
             />
 
-            {/* KMZ/KML Layers */}
             <MapLibreGL.ShapeSource id="kmzSource" shape={kmzGeoJson as any}>
               <MapLibreGL.LineLayer
                 id="kmzLineLayer"
@@ -1593,10 +1561,44 @@ export default function TopologyMapScreen() {
               />
             </MapLibreGL.ShapeSource>
 
-            {/* DEVICE MARKERS (MarkerView) */}
-            {renderPoints()}
+            <MapLibreGL.ShapeSource
+              id="devicesSource"
+              shape={devicesGeoJson as any}
+              onPress={onDeviceShapePress}
+              hitbox={{ width: 44, height: 44 }}
+            >
+              <MapLibreGL.CircleLayer
+                id="devicesCircleLayer"
+                style={{
+                  circleRadius: 10,
+                  circleColor: ["get", "color"],
+                  circleStrokeWidth: 2,
+                  circleStrokeColor: "#ffffff",
+                  circleOpacity: 0.95,
+                }}
+              />
+              <MapLibreGL.SymbolLayer
+                id="devicesLabelLayer"
+                minZoomLevel={14}
+                style={{
+                  textField: ["get", "name"],
+                  textSize: 11,
+                  textOffset: [0, 1.4],
+                  textAnchor: "top",
+                  textColor: "#1f2937",
+                  textHaloColor: "#ffffff",
+                  textHaloWidth: 1,
+                  textAllowOverlap: false,
+                }}
+              />
+            </MapLibreGL.ShapeSource>
           </MapLibreGL.MapView>
-          ) : null}
+          ) : (
+            <View style={styles.mapLoading}>
+              <ActivityIndicator size="large" color="#3b82f6" />
+              <Text style={styles.mapLoadingText}>Memuat peta perangkat...</Text>
+            </View>
+          )}
 
           {/* Search Bar (Moved inside Map Container) */}
           <View style={styles.searchContainer}>
@@ -2005,6 +2007,17 @@ const styles = StyleSheet.create({
   },
   listEmptyText: {
     color: "#9ca3af",
+    fontSize: 14,
+  },
+  mapLoading: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    gap: 12,
+  },
+  mapLoadingText: {
+    color: "#6b7280",
     fontSize: 14,
   },
 });
