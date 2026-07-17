@@ -231,7 +231,7 @@ export default function LoginScreen() {
                 </View>
 
                 <Text style={tw`text-gray-400 text-xs text-center mt-6`}>
-                    v{CURRENT_VERSION_NAME} (Build {CURRENT_VERSION_CODE} · OTA)
+                    v{CURRENT_VERSION_NAME} (Build {CURRENT_VERSION_CODE})
                 </Text>
             </View>
         </View>
