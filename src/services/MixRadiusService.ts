@@ -194,20 +194,15 @@ export const MixRadiusService = {
   },
 
   getOwnerGroups: async (): Promise<OwnerGroup[]> => {
-    try {
-      const response = await api.get<ApiEnvelope<OwnerGroup[]> | OwnerGroup[]>(
-        "/api/mobile/mixradius/groups",
-      );
+    const response = await api.get<ApiEnvelope<OwnerGroup[]> | OwnerGroup[]>(
+      "/api/mobile/mixradius/groups",
+    );
 
-      if (Array.isArray(response.data)) {
-        return response.data;
-      }
-
-      return Array.isArray(response.data.data) ? response.data.data : [];
-    } catch (error) {
-      logger.error("Failed to fetch owner groups", error);
-      return [];
+    if (Array.isArray(response.data)) {
+      return response.data;
     }
+
+    return Array.isArray(response.data.data) ? response.data.data : [];
   },
 
 };

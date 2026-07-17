@@ -189,10 +189,10 @@ describe('MixRadiusService.getOwnerGroups', () => {
     await expect(MixRadiusService.getOwnerGroups()).resolves.toEqual([]);
   });
 
-  it('returns an empty array when the request fails', async () => {
+  it('propagates request failures so the UI can show an error state', async () => {
     const apiGetMock = api.get as jest.MockedFunction<typeof api.get>;
     apiGetMock.mockRejectedValueOnce(new Error('network failed'));
 
-    await expect(MixRadiusService.getOwnerGroups()).resolves.toEqual([]);
+    await expect(MixRadiusService.getOwnerGroups()).rejects.toThrow('network failed');
   });
 });
