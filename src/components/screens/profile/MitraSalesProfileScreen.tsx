@@ -1,7 +1,7 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { ProfileSkeleton } from '@/components/molecules/ProfileSkeleton';
-import { CURRENT_VERSION_CODE_LABEL, CURRENT_VERSION_NAME } from '@/constants/appVersion';
+import { getAppVersionLabel } from '@/constants/appVersion';
 import { useAuth } from '@/context/AuthContext';
 import { renderUpdateModal, useCheckUpdateButton } from '@/hooks/useCheckUpdateButton';
 import { useProfileSync } from '@/hooks/useProfileSync';
@@ -179,7 +179,7 @@ export function MitraSalesProfileScreen() {
                             <ActivityIndicator size="small" color="#94a3b8" />
                         ) : (
                             <Text style={tw`text-center text-slate-400 text-[10px] font-bold tracking-widest uppercase`}>
-                                RADPRO v{CURRENT_VERSION_NAME} (Build {CURRENT_VERSION_CODE_LABEL})
+                                {getAppVersionLabel()}
                                 {'\n'}Ketuk untuk cek update
                             </Text>
                         )}

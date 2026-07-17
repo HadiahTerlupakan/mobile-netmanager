@@ -1262,15 +1262,17 @@ export default function TopologyMapScreen() {
     if (!mapBounds) return;
 
     hasInitialCenteredRef.current = true;
-    cameraRef.current.setCamera({
-      centerCoordinate: mapBounds.center,
-      zoomLevel: 14,
-      animationDuration: 1000,
-    });
+    cameraRef.current.fitBounds(
+      mapBounds.bounds.ne,
+      mapBounds.bounds.sw,
+      60,
+      1000,
+    );
   }, [mapReady, mapBounds]);
 
   const centerOnUser = useCallback(() => {
     if (!cameraRef.current || !userLocation) return;
+    if (!hasInitialCenteredRef.current) return;
     cameraRef.current.setCamera({
       centerCoordinate: userLocation,
       zoomLevel: 16,
@@ -1578,12 +1580,9 @@ export default function TopologyMapScreen() {
               defaultSettings={cameraDefaultSettings}
             />
 
-            {isMapLibreAvailable && userLocation && (
-              <MapLibreGL.UserLocation
-                visible
-                animated
-              />
-            )}
+            {isMapLibreAvailable && userLocation ? (
+              <MapLibreGL.UserLocation visible={true} animated={false} />
+            ) : null}
 
             {/* Connection Lines (GeoJSON) - Animated */}
             <AnimatedConnectionLines

@@ -1,7 +1,7 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { ProfileSkeleton } from '@/components/molecules/ProfileSkeleton';
-import { CURRENT_VERSION_CODE_LABEL, CURRENT_VERSION_NAME } from '@/constants/appVersion';
+import { getAppVersionLabel } from '@/constants/appVersion';
 import { useAuth } from '@/context/AuthContext';
 import { renderUpdateModal, useCheckUpdateButton } from '@/hooks/useCheckUpdateButton';
 import { useProfileSync } from '@/hooks/useProfileSync';
@@ -235,7 +235,7 @@ export function KaryawanProfileScreen() {
                             <ActivityIndicator size="small" color="#9ca3af" />
                         ) : (
                             <Text style={tw`text-center text-gray-400 text-xs`}>
-                                RADPRO v{CURRENT_VERSION_NAME} (Build {CURRENT_VERSION_CODE_LABEL})
+                                {getAppVersionLabel()}
                                 {'\n'}Ketuk untuk cek update
                             </Text>
                         )}
