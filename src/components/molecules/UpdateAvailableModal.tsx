@@ -76,8 +76,10 @@ export function UpdateAvailableModal(props: UpdateAvailableModalProps) {
 
                         {/* Download APK button */}
                         <TouchableOpacity
-                            style={styles.updateButton}
+                            style={styles.updateButtonFull}
                             onPress={() => Linking.openURL(props.release.downloadUrl)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Download APK Sekarang"
                         >
                             <Text style={styles.updateButtonText}>Download APK Sekarang</Text>
                         </TouchableOpacity>
@@ -188,22 +190,36 @@ export function UpdateAvailableModal(props: UpdateAvailableModalProps) {
                             style={[styles.laterButton, isBusy && { opacity: 0.5 }]}
                             onPress={onLater}
                             disabled={isBusy}
+                            accessibilityRole="button"
+                            accessibilityLabel="Nanti Saja"
                         >
                             <Text style={styles.laterButtonText}>Nanti Saja</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={[styles.updateButton, isBusy && styles.updateButtonDisabled]}
+                            style={[styles.updateButtonRow, isBusy && styles.updateButtonDisabled]}
                             onPress={onStartUpdate}
                             disabled={isBusy}
+                            accessibilityRole="button"
+                            accessibilityLabel={
+                                isDownloading
+                                    ? 'Mengunduh update'
+                                    : isInstalling
+                                      ? 'Menginstall update'
+                                      : 'Update Sekarang'
+                            }
                         >
                             {isBusy ? (
                                 <View style={styles.buttonRow}>
                                     <ActivityIndicator color="#fff" size="small" />
-                                    <Text style={styles.updateButtonText}>...</Text>
+                                    <Text style={styles.updateButtonText} numberOfLines={1}>
+                                        {isDownloading ? 'Mengunduh...' : 'Menginstall...'}
+                                    </Text>
                                 </View>
                             ) : (
-                                <Text style={styles.updateButtonText}>Update</Text>
+                                <Text style={styles.updateButtonText} numberOfLines={1}>
+                                    Update Sekarang
+                                </Text>
                             )}
                         </TouchableOpacity>
                     </View>
@@ -339,11 +355,15 @@ const styles = StyleSheet.create({
     },
     laterButton: {
         flex: 1,
+        minHeight: 48,
         paddingVertical: 12,
+        paddingHorizontal: 8,
         borderRadius: 10,
         borderWidth: 1,
         borderColor: '#e2e8f0',
-        alignItems: 'center'
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fff'
     },
     laterButtonText: {
         color: '#64748b',
@@ -352,18 +372,35 @@ const styles = StyleSheet.create({
     },
     laterButtonFull: {
         width: '100%',
+        minHeight: 44,
         paddingVertical: 12,
-        alignItems: 'center'
+        alignItems: 'center',
+        justifyContent: 'center'
     },
     laterButtonFullText: {
         color: '#94a3b8',
         fontSize: 14,
         fontWeight: '500'
     },
-    updateButton: {
+    /** Full-width CTA for APK column layout (must NOT use flex:1 — collapses height). */
+    updateButtonFull: {
+        width: '100%',
+        minHeight: 48,
+        backgroundColor: '#10b981',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8
+    },
+    /** Row CTA for OTA side-by-side layout. */
+    updateButtonRow: {
         flex: 1,
+        minHeight: 48,
         backgroundColor: '#10b981',
         paddingVertical: 12,
+        paddingHorizontal: 8,
         borderRadius: 10,
         alignItems: 'center',
         justifyContent: 'center'
@@ -372,27 +409,34 @@ const styles = StyleSheet.create({
         opacity: 0.7
     },
     updateButtonText: {
-        color: '#fff',
+        color: '#ffffff',
         fontSize: 14,
-        fontWeight: '600'
+        fontWeight: '700',
+        textAlign: 'center',
+        includeFontPadding: false
     },
     buttonRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4
+        justifyContent: 'center',
+        gap: 8
     },
     adminButton: {
         width: '100%',
+        minHeight: 48,
         backgroundColor: '#16a34a',
         paddingVertical: 12,
+        paddingHorizontal: 16,
         borderRadius: 10,
         alignItems: 'center',
+        justifyContent: 'center',
         marginBottom: 8
     },
     adminButtonText: {
-        color: '#fff',
+        color: '#ffffff',
         fontSize: 14,
-        fontWeight: '600'
+        fontWeight: '700',
+        textAlign: 'center'
     },
     browserButton: {
         paddingVertical: 8,

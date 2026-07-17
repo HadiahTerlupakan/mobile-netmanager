@@ -96,3 +96,6 @@ refined-analogy-*.json
 
 # Agent workspace
 .omo/
+
+# Local OTA/build backups (not for repo)
+backups/
