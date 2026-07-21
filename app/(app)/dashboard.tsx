@@ -117,7 +117,7 @@ function DashboardScreen() {
                 type: 'canvasing',
                 data: {
                     assigned: canvasingSummary?.approved || 0,
-                    completed: canvasingSummary?.woStartedToday || 0
+                    completed: canvasingSummary?.completedToday || 0
                 }
             });
         }
