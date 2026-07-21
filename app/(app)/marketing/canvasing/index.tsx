@@ -228,6 +228,7 @@ export default function CanvasingListScreen() {
   const { data: pointSummary } = useApiQuery<PointSummary>({
     queryKey: ["marketing_point_summary"],
     endpoint: "/api/marketing/point-claims/summary",
+    select: (data: any) => data?.data || data,
     enabled: !!token,
   });
 
