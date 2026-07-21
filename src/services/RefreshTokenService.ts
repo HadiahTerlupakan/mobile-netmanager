@@ -6,7 +6,11 @@
  */
 
 import { Events } from '@/constants/Events';
-import { CURRENT_VERSION_CODE_LABEL, CURRENT_VERSION_NAME } from '@/constants/appVersion';
+import {
+  CURRENT_VERSION_CODE_LABEL,
+  CURRENT_VERSION_NAME,
+  getOtaUpdateId,
+} from '@/constants/appVersion';
 import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { logger } from '@/utils/logger';
 import { SecureStorage } from '@/utils/storage';
@@ -117,14 +121,21 @@ class RefreshTokenServiceClass {
   ): Promise<{ kind: 'success'; token: string } | { kind: 'final' } | { kind: 'retry' }> {
     try {
       // Create a separate axios instance to avoid interceptors
+      const otaUpdateId = getOtaUpdateId();
       const response = await axios.post(
         `${TenantService.getTenantUrl()}/api/mobile/auth/refresh`,
-        { refreshToken },
+        {
+          refreshToken,
+          versionCode: CURRENT_VERSION_CODE_LABEL,
+          versionName: CURRENT_VERSION_NAME,
+          otaUpdateId,
+        },
         {
           headers: {
             'Content-Type': 'application/json',
             'X-App-Version-Code': CURRENT_VERSION_CODE_LABEL,
             'X-App-Version-Name': CURRENT_VERSION_NAME,
+            'X-App-Ota-Update-Id': otaUpdateId,
           },
           timeout: HTTP_TIMEOUTS.refresh,
         },

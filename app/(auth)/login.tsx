@@ -1,5 +1,9 @@
 import { FormInput } from '@/components/atoms/FormInput';
-import { CURRENT_VERSION_CODE, CURRENT_VERSION_NAME } from '@/constants/appVersion';
+import {
+  CURRENT_VERSION_CODE,
+  CURRENT_VERSION_NAME,
+  getOtaUpdateId,
+} from '@/constants/appVersion';
 import { useAuth } from '@/context/AuthContext';
 import { Events } from '@/constants/Events';
 import { useFormWithValidation } from '@/hooks/useFormWithValidation';
@@ -66,7 +70,8 @@ export default function LoginScreen() {
                 email,
                 password,
                 versionCode: CURRENT_VERSION_CODE.toString(),
-                versionName: CURRENT_VERSION_NAME
+                versionName: CURRENT_VERSION_NAME,
+                otaUpdateId: getOtaUpdateId(),
             }, {
                 skipGlobalAuthHandler: true
             });

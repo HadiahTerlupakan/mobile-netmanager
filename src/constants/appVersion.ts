@@ -49,9 +49,13 @@ export const CURRENT_VERSION_CODE = currentAppVersion.versionCode
 export const CURRENT_VERSION_NAME = currentAppVersion.versionName
 export const CURRENT_VERSION_CODE_LABEL = String(CURRENT_VERSION_CODE)
 
+export function getOtaUpdateId(): string {
+  return Updates.updateId || 'embedded'
+}
+
 export function getOtaUpdateIdShort(): string {
-  const id = Updates.updateId
-  if (!id) return 'embedded'
+  const id = getOtaUpdateId()
+  if (id === 'embedded') return 'embedded'
   return id.replace(/-/g, '').slice(0, 8)
 }
 
