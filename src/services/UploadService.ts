@@ -1,6 +1,7 @@
 import { getUserFriendlyError } from '@/utils/errorHandling';
 import { logger } from '@/utils/logger';
 import { TokenService } from '@/services/TokenService';
+import { RefreshTokenService } from '@/services/RefreshTokenService';
 import { TenantService } from '@/services/TenantService';
 import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -24,6 +25,47 @@ export interface UploadProgress {
 
 const UPLOAD_HARD_TIMEOUT_MS = HTTP_TIMEOUTS.long;
 const UPLOAD_NO_PROGRESS_TIMEOUT_MS = 30_000;
+const TOKEN_REFRESH_MARGIN_MS = 60_000;
+
+async function resolveUploadToken(): Promise<string> {
+  let token = TokenService.getToken();
+  if (!token) {
+    token = await SecureStore.getItemAsync('session_token');
+    if (token) {
+      TokenService.setToken(token);
+    }
+  }
+
+  const expiryMs = TokenService.getExpiry();
+  const needsRefresh =
+    !token || (expiryMs !== null && expiryMs <= Date.now() + TOKEN_REFRESH_MARGIN_MS);
+
+  if (needsRefresh) {
+    logger.auth('[UploadService] Access token near/past expiry — refreshing before upload');
+    const refreshed = await RefreshTokenService.refreshAccessToken();
+    if (refreshed) {
+      return refreshed;
+    }
+    if (!token) {
+      throw new Error('Authentication required for upload');
+    }
+  }
+
+  if (!token) {
+    throw new Error('Authentication required for upload');
+  }
+  return token;
+}
+
+async function refreshTokenAfterUnauthorized(): Promise<string | null> {
+  logger.auth('[UploadService] Upload got 401 — refreshing access token');
+  return RefreshTokenService.refreshAccessToken();
+}
+
+function isUnauthorizedUploadError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /status 401\b/.test(error.message);
+}
 
 class UploadTimeoutError extends Error {
   constructor(reason: 'hard' | 'no-progress') {
@@ -95,22 +137,15 @@ class UploadService {
     } = {}
   ): Promise<string> {
     const { maxRetries = 2, params = {}, onProgress } = options;
-    // Optimization: Use in-memory token first
-    let token = TokenService.getToken();
-    if (!token) {
-        token = await SecureStore.getItemAsync('session_token');
-    }
-
-    if (!token) {
-      throw new Error('Authentication required for upload');
-    }
+    let token = await resolveUploadToken();
+    let didAuthRetry = false;
 
     const filename = uri.split('/').pop() || 'photo.jpg';
     const fileType = filename.endsWith('.png') ? 'image/png' : 'image/jpeg';
     const uploadUrl = `${TenantService.getTenantUrl()}/api/mobile/upload`;
 
     let attempt = 0;
-    let lastError: any;
+    let lastError: unknown;
 
     while (attempt <= maxRetries) {
       try {
@@ -131,8 +166,6 @@ class UploadService {
           },
         };
 
-        // Selalu pakai createUploadTask agar bisa di-cancel via watchdog.
-        // Tanpa cancel, koneksi 4G drop = upload gantung 5 menit.
         let watchdog: WatchdogHandle | null = null;
         const uploadTask = FileSystem.createUploadTask(
           uploadUrl,
@@ -180,18 +213,26 @@ class UploadService {
       } catch (error) {
         lastError = error;
         logger.error(`[UploadService] Attempt ${attempt + 1} failed:`, error);
-        attempt++;
 
+        if (!didAuthRetry && isUnauthorizedUploadError(error)) {
+          const refreshed = await refreshTokenAfterUnauthorized();
+          if (refreshed) {
+            token = refreshed;
+            didAuthRetry = true;
+            continue;
+          }
+        }
+
+        attempt++;
         if (attempt <= maxRetries) {
           await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         }
       }
     }
 
-    // Enhance the error object with user-friendly message before throwing
-    const friendlyError = getUserFriendlyError(lastError || new Error('Upload failed after max retries'));
-    // We can attach the friendly message to the error object or throw a new one
-    // For now, let's keep the original error but log the friendly one
+    const friendlyError = getUserFriendlyError(
+      lastError instanceof Error ? lastError : new Error('Upload failed after max retries'),
+    );
     logger.warn(`[UploadService] Final failure: ${friendlyError.message}`);
 
     throw lastError || new Error('Upload failed after max retries');
@@ -222,22 +263,29 @@ class UploadService {
   }
 
   async deleteUploadedFile(url: string): Promise<void> {
-    let token = TokenService.getToken();
-    if (!token) {
-      token = await SecureStore.getItemAsync('session_token');
-    }
-
-    if (!token) {
-      throw new Error('Authentication required for upload cleanup');
-    }
-
+    let token = await resolveUploadToken();
     const cleanupUrl = `${TenantService.getTenantUrl()}/api/mobile/upload?url=${encodeURIComponent(url)}`;
-    const response = await fetch(cleanupUrl, {
+
+    let response = await fetch(cleanupUrl, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
+
+    if (response.status === 401) {
+      const refreshed = await refreshTokenAfterUnauthorized();
+      if (!refreshed) {
+        throw new Error(`Upload cleanup failed with status ${response.status}`);
+      }
+      token = refreshed;
+      response = await fetch(cleanupUrl, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    }
 
     if (!response.ok) {
       throw new Error(`Upload cleanup failed with status ${response.status}`);
@@ -269,28 +317,20 @@ class UploadService {
       onProgress
     } = options;
 
-    // Optimization: Use in-memory token first
-    let token = TokenService.getToken();
-    if (!token) {
-        token = await SecureStore.getItemAsync('session_token');
-    }
-
-    if (!token) {
-      throw new Error('Authentication required for upload');
-    }
+    let token = await resolveUploadToken();
+    let didAuthRetry = false;
 
     const filename = uri.split('/').pop() || 'file.bin';
     const match = /\.(\w+)$/.exec(filename);
     const calculatedFileType = match ? `image/${match[1] === 'jpg' ? 'jpeg' : match[1]}` : 'application/octet-stream';
     const fileType = mimeType || calculatedFileType;
 
-    // Ensure endpoint has leading slash if not absolute url (assuming relative to API_URL)
     const uploadUrl = endpoint.startsWith('http')
       ? endpoint
       : `${TenantService.getTenantUrl()}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
 
     let attempt = 0;
-    let lastError: any;
+    let lastError: unknown;
 
     while (attempt <= maxRetries) {
       try {
@@ -308,7 +348,6 @@ class UploadService {
           parameters: params,
         };
 
-        // Selalu pakai createUploadTask agar bisa di-cancel via watchdog.
         let watchdog: WatchdogHandle | null = null;
         const uploadTask = FileSystem.createUploadTask(
           uploadUrl,
@@ -346,7 +385,6 @@ class UploadService {
           try {
             return JSON.parse(responseBody || '{}');
           } catch {
-             // Fallback for non-JSON responses if any
              return responseBody;
           }
         } else {
@@ -356,8 +394,17 @@ class UploadService {
       } catch (error) {
         lastError = error;
         logger.error(`[UploadService] Attempt ${attempt + 1} failed:`, error);
-        attempt++;
 
+        if (!didAuthRetry && isUnauthorizedUploadError(error)) {
+          const refreshed = await refreshTokenAfterUnauthorized();
+          if (refreshed) {
+            token = refreshed;
+            didAuthRetry = true;
+            continue;
+          }
+        }
+
+        attempt++;
         if (attempt <= maxRetries) {
           await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         }
