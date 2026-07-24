@@ -1,6 +1,8 @@
 import { uploadService } from '../../src/services/UploadService';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
+import { TokenService } from '../../src/services/TokenService';
+import { RefreshTokenService } from '../../src/services/RefreshTokenService';
 
 // Mock dependencies
 jest.mock('../../src/constants/Config', () => ({
@@ -30,6 +32,12 @@ jest.mock('../../src/utils/errorHandling', () => ({
   })),
 }));
 
+jest.mock('../../src/services/RefreshTokenService', () => ({
+  RefreshTokenService: {
+    refreshAccessToken: jest.fn(),
+  },
+}));
+
 describe('UploadService', () => {
   const mockToken = 'mock-token';
   const mockUri = 'file://path/to/photo.jpg';
@@ -40,7 +48,9 @@ describe('UploadService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    TokenService.setToken(null);
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(mockToken);
+    (RefreshTokenService.refreshAccessToken as jest.Mock).mockResolvedValue(null);
 
     mockUploadTask = {
       uploadAsync: jest.fn().mockResolvedValue({
@@ -149,6 +159,71 @@ describe('UploadService', () => {
         'Upload failed with status 400: Bad Request'
       );
     });
+
+    it('should refresh token and retry once on 401', async () => {
+      const newToken = 'refreshed-token';
+      (RefreshTokenService.refreshAccessToken as jest.Mock).mockResolvedValue(newToken);
+      mockUploadTask.uploadAsync
+        .mockResolvedValueOnce({
+          status: 401,
+          body: JSON.stringify({ error: 'Token tidak valid' }),
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          body: JSON.stringify({ url: mockUrl }),
+        });
+
+      const result = await uploadService.uploadFile(mockUri, mockType, { maxRetries: 0 });
+
+      expect(RefreshTokenService.refreshAccessToken).toHaveBeenCalled();
+      expect(mockUploadTask.uploadAsync).toHaveBeenCalledTimes(2);
+      expect(FileSystem.createUploadTask).toHaveBeenLastCalledWith(
+        expect.any(String),
+        mockUri,
+        expect.objectContaining({
+          headers: { Authorization: `Bearer ${newToken}` },
+        }),
+        expect.any(Function),
+      );
+      expect(result).toBe(mockUrl);
+    });
+
+    it('should throw when 401 and refresh fails', async () => {
+      (RefreshTokenService.refreshAccessToken as jest.Mock).mockResolvedValue(null);
+      mockUploadTask.uploadAsync.mockResolvedValue({
+        status: 401,
+        body: JSON.stringify({ error: 'Token tidak valid' }),
+      });
+
+      await expect(
+        uploadService.uploadFile(mockUri, mockType, { maxRetries: 0 }),
+      ).rejects.toThrow(/status 401/);
+    });
+
+    it('should refresh proactively when token near expiry', async () => {
+      const nearExpiry =
+        Math.floor(Date.now() / 1000) + 30; // 30s left
+      const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url');
+      const payload = Buffer.from(JSON.stringify({ exp: nearExpiry })).toString('base64url');
+      const expiringToken = `${header}.${payload}.sig`;
+      TokenService.setToken(expiringToken);
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(expiringToken);
+
+      const freshToken = 'fresh-after-proactive';
+      (RefreshTokenService.refreshAccessToken as jest.Mock).mockResolvedValue(freshToken);
+
+      await uploadService.uploadFile(mockUri, mockType);
+
+      expect(RefreshTokenService.refreshAccessToken).toHaveBeenCalled();
+      expect(FileSystem.createUploadTask).toHaveBeenCalledWith(
+        expect.any(String),
+        mockUri,
+        expect.objectContaining({
+          headers: { Authorization: `Bearer ${freshToken}` },
+        }),
+        expect.any(Function),
+      );
+    });
   });
 
   describe('uploadBatch', () => {
@@ -181,7 +256,7 @@ describe('UploadService', () => {
       global.fetch = jest.fn() as jest.MockedFunction<typeof fetch>;
 
       await expect(uploadService.deleteUploadedFile(mockUrl)).rejects.toThrow(
-        'Authentication required for upload cleanup'
+        'Authentication required for upload'
       );
 
       expect(global.fetch).not.toHaveBeenCalled();
