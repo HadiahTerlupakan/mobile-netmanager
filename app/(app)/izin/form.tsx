@@ -2,9 +2,9 @@ import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import CustomDatePickerModal from "@/components/molecules/CustomDatePickerModal"; // Import Custom Modal
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { useAuth } from "@/context/AuthContext";
-import { isOfflineMutationQueuedResult, useApiMutation } from "@/hooks/queries";
-import { queryKeys } from "@/lib/queryClient";
+import { isOfflineMutationQueuedResult, useApiMutation, useApiQuery } from "@/hooks/queries";
 import api from "@/services/api";
+import { queryKeys } from "@/lib/queryClient";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import {
@@ -22,7 +22,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Camera, ChevronDown, X } from "lucide-react-native";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
@@ -58,35 +58,18 @@ export default function LeaveFormScreen() {
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [showReplacementPicker, setShowReplacementPicker] = useState(false); // New Picker
 
-  // Live Data State
-  const [liveWorkDays, setLiveWorkDays] = useState<string | null>(null);
-  const [liveWorkingHourMode, setLiveWorkingHourMode] = useState<string | null>(
-    null,
-  );
-
-  // Fetch latest profile data to get up-to-date workDays
-  useEffect(() => {
-    let isMounted = true;
-    const fetchProfile = async () => {
-      try {
-        const { data } = await api.get("/api/mobile/profile");
-        if (isMounted && data.success && data.data) {
-          setLiveWorkDays(data.data.workDays);
-          setLiveWorkingHourMode(data.data.workingHourMode);
-        }
-      } catch (error) {
-        logger.error("Failed to fetch fresh profile:", error);
-      }
-    };
-    fetchProfile();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  // Fetch latest profile data to get up-to-date workDays (server state via hook)
+  const { data: freshProfile } = useApiQuery<{ workDays: string; workingHourMode: string } | null>({
+    queryKey: ["profile", "fresh"],
+    queryFn: () =>
+      api
+        .get("/api/mobile/profile")
+        .then((res) => (res.data.success && res.data.data ? res.data.data : null)),
+  });
 
   // Use live data if available, otherwise fall back to context
-  const currentWorkDays = liveWorkDays ?? user?.workDays;
-  const currentWorkingHourMode = liveWorkingHourMode ?? user?.workingHourMode;
+  const currentWorkDays = freshProfile?.workDays ?? user?.workDays;
+  const currentWorkingHourMode = freshProfile?.workingHourMode ?? user?.workingHourMode;
 
   // Offline Mutation
   const leaveMutation = useApiMutation({
@@ -475,7 +458,7 @@ export default function LeaveFormScreen() {
         {/* Debug / Schedule Info */}
         <View style={tw`bg-blue-50 p-3 rounded-xl border border-blue-100 mb-6`}>
           <Text style={tw`text-xs font-bold text-blue-600 uppercase mb-1`}>
-            Jadwal Kerja Anda {liveWorkDays ? "(Live)" : "(Cached)"}
+            Jadwal Kerja Anda {freshProfile ? "(Live)" : "(Cached)"}
           </Text>
           <Text style={tw`text-sm text-blue-800`}>
             {(() => {

@@ -5,7 +5,7 @@ import { TokenService } from '@/services/TokenService';
 import { extractApiErrorMessage } from '@/utils/errorHandling';
 import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -71,9 +71,7 @@ export default function CustomerTagihanScreen() {
 
   // Payment State
   const [couponCode, setCouponCode] = useState('');
-  const [couponLoading, setCouponLoading] = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<{ code: string, amount: number } | null>(null);
-  const [paymentLoading, setPaymentLoading] = useState(false);
   const [selectedMethodCode, setSelectedMethodCode] = useState<string>('');
 
   // Countdown State
@@ -81,9 +79,6 @@ export default function CustomerTagihanScreen() {
 
   // Payment Options UI State
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
-
-  // Upload State
-  const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   const { data: invoices, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['customer-invoices'],
@@ -223,102 +218,93 @@ export default function CustomerTagihanScreen() {
     }
   };
 
-  const handleCheckCoupon = async () => {
-    if (!couponCode.trim()) return;
-    setCouponLoading(true);
-    setAppliedDiscount(null);
-
-    try {
-      const res = await api.post('/api/coupons/verify', {
+  // Operasi finansial → plain useMutation (tanpa offline-queue).
+  const verifyCouponMutation = useMutation({
+    mutationFn: () =>
+      api.post('/api/coupons/verify', {
         code: couponCode,
         amount: totalPending,
-        pelangganId: 'CURRENT_USER'
-      });
-
+        pelangganId: 'CURRENT_USER',
+      }),
+    onSuccess: (res) => {
       if (res.data.valid) {
-        setAppliedDiscount({
-          code: res.data.code,
-          amount: res.data.discountAmount
-        });
+        setAppliedDiscount({ code: res.data.code, amount: res.data.discountAmount });
         presentSuccessMessage('Kupon berhasil digunakan!');
       } else {
         presentErrorMessage(res.data.error || 'Kupon tidak valid');
       }
-    } catch (error) {
+    },
+    onError: (error) => {
       logger.error('[CustomerTagihan] Failed to verify coupon', error);
-      presentAppError(error, {
-        screen: 'CustomerTagihanScreen',
-        route: '/(customer)/tagihan',
-      });
-    } finally {
-      setCouponLoading(false);
-    }
+      presentAppError(error, { screen: 'CustomerTagihanScreen', route: '/(customer)/tagihan' });
+    },
+  });
+  const couponLoading = verifyCouponMutation.isPending;
+
+  const handleCheckCoupon = () => {
+    if (!couponCode.trim()) return;
+    setAppliedDiscount(null);
+    verifyCouponMutation.mutate();
   };
 
-  const handleUploadReceipt = async () => {
-    if (!pendingPaymentInvoice) return;
-
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setUploadingReceipt(true);
-        const image = result.assets[0];
-        const localUri = image.uri;
-        const filename = localUri.split('/').pop() || 'receipt.jpg';
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : `image`;
-
-        const formData = new FormData();
-        formData.append('invoiceId', pendingPaymentInvoice.id);
-        formData.append('file', { uri: localUri, name: filename, type } as any);
-
-        const res = await api.post('/api/customer/payments/upload-receipt', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-
-        if (res.data?.success || res.status === 200 || res.status === 201) {
-          presentSuccessMessage('Bukti pembayaran berhasil diunggah. Menunggu verifikasi admin.');
-          refetch();
-        } else {
-          presentErrorMessage(res.data?.error || 'Gagal mengunggah bukti pembayaran.');
-        }
+  const uploadReceiptMutation = useMutation({
+    mutationFn: (formData: FormData) =>
+      api.post('/api/customer/payments/upload-receipt', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }),
+    onSuccess: (res) => {
+      if (res.data?.success || res.status === 200 || res.status === 201) {
+        presentSuccessMessage('Bukti pembayaran berhasil diunggah. Menunggu verifikasi admin.');
+        refetch();
+      } else {
+        presentErrorMessage(res.data?.error || 'Gagal mengunggah bukti pembayaran.');
       }
-    } catch (error) {
+    },
+    onError: (error) => {
       logger.error('[CustomerTagihan] Failed to upload receipt', error);
       const backendMessage = isAxiosError(error) ? extractApiErrorMessage(error.response?.data) : undefined;
       if (backendMessage) {
         presentErrorMessage(backendMessage);
       } else {
-        presentAppError(error, {
-          screen: 'CustomerTagihanScreen',
-          route: '/(customer)/tagihan',
-        });
+        presentAppError(error, { screen: 'CustomerTagihanScreen', route: '/(customer)/tagihan' });
       }
-    } finally {
-      setUploadingReceipt(false);
+    },
+  });
+  const uploadingReceipt = uploadReceiptMutation.isPending;
+
+  const handleUploadReceipt = async () => {
+    if (!pendingPaymentInvoice) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const image = result.assets[0];
+      const localUri = image.uri;
+      const filename = localUri.split('/').pop() || 'receipt.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image`;
+
+      const formData = new FormData();
+      formData.append('invoiceId', pendingPaymentInvoice.id);
+      formData.append('file', { uri: localUri, name: filename, type } as any);
+
+      uploadReceiptMutation.mutate(formData);
     }
   };
 
-  const handlePayment = async () => {
-    if (!pendingInvoices.length) return;
-    if (!selectedMethodCode) {
-      presentInfoMessage('Harap pilih metode pembayaran', 'Peringatan');
-      return;
-    }
-    setPaymentLoading(true);
-    try {
-      const res = await api.post('/api/customer/payments', {
+  const paymentMutation = useMutation({
+    mutationFn: () =>
+      api.post('/api/customer/payments', {
         invoiceIds: pendingInvoices.map(inv => inv.id),
         couponCode: appliedDiscount?.code || null,
         paymentMethod: selectedMethodCode,
-        notes: 'Payment via Mobile App'
-      });
-
+        notes: 'Payment via Mobile App',
+      }),
+    onSuccess: async (res) => {
       if (res.data.success || res.status === 200) {
         refetch(); // Automatically changes state to show pending card
 
@@ -339,15 +325,21 @@ export default function CustomerTagihanScreen() {
       } else {
         presentErrorMessage(res.data.error || 'Gagal membuat pembayaran');
       }
-    } catch (error) {
+    },
+    onError: (error) => {
       logger.error('[CustomerTagihan] Failed to create payment', error);
-      presentAppError(error, {
-        screen: 'CustomerTagihanScreen',
-        route: '/(customer)/tagihan',
-      });
-    } finally {
-      setPaymentLoading(false);
+      presentAppError(error, { screen: 'CustomerTagihanScreen', route: '/(customer)/tagihan' });
+    },
+  });
+  const paymentLoading = paymentMutation.isPending;
+
+  const handlePayment = () => {
+    if (!pendingInvoices.length) return;
+    if (!selectedMethodCode) {
+      presentInfoMessage('Harap pilih metode pembayaran', 'Peringatan');
+      return;
     }
+    paymentMutation.mutate();
   };
 
   const copyToClipboard = async (text: string, type: string) => {
