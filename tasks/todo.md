@@ -26,7 +26,10 @@
 - [ ] SyncService (631) → pisah: queue-processing vs photo-metadata/watermark vs toast. Incremental.
 - [ ] LocationTrackingService (592) → pisah: battery-config vs permission-flow vs push/buffer.
 
-## Catatan test (pre-existing, di luar scope sesi ini)
-Suite gagal SEBELUM sesi & tidak terkait perubahan: Config, RefreshTokenService,
-root-layout-privacy-route, mixradius-isolir, topology-map-readonly-boundary
-(gagal identik di baseline — masalah mock komponen di test, bukan kode produksi).
+## Fase 5 — Fix 5 test pre-existing yang gagal ✅ SELESAI
+- [x] root-layout-privacy: tambah __mocks__/expo-linking.js (8 pass)
+- [x] mixradius-isolir: mock useInfiniteQuery (list pindah dari useApiQuery) (4 pass)
+- [x] topology-readonly: tambah mock lucide List/LocateFixed + maplibre Circle/Symbol/UserLocation (2 pass)
+- [x] Config: test basi → produksi kini ENABLE update check (kode sengaja diubah a8a4eb3) (7 pass)
+- [x] RefreshTokenService: mock appVersion kurang getOtaUpdateId (ditambah 89c12dc) (5 pass)
+- **Hasil: full suite 284 pass, 0 fail (dari 14 fail). tsc 0 error.**
