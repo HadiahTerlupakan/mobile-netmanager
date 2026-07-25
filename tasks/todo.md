@@ -19,12 +19,13 @@
 - [~] Storage 3 sumber → **DITUNDA (data-safety)**: wrapper pakai prefix `netmanager_`, call-site mentah tanpa prefix → beda namespace. Migrasi butuh langkah baca-lama→tulis-baru per key + test device. JANGAN ganti buta.
 - [~] Auth-token 3 file → **DITUNDA (risiko logout massal)**: authority terdokumentasi di docs/REPO_MAP.md. Konsolidasi butuh test auth end-to-end di device.
 
-## Fase 4 — Higher risk: pecah god files ✅ MULAI
-- [x] topology-map.tsx (2042→1953) → helper murni diekstrak ke topologyHelpers.tsx
-- [ ] topology-map: lanjut ekstrak GeoJSON builder (devicesGeoJson :~680, connectionLines :~810) → jadikan fungsi murni terima param, keluarkan ke topologyHelpers. **Butuh test device** (render peta).
-- [~] absensi.tsx (927) → **SUDAH cukup rapi**: sudah pakai useAttendanceSubmission, attendanceGeofencePolicy, attendanceCaptureState, geo. Sisa = orkestrasi screen. Ekstraksi lanjut low-gain/high-risk.
-- [ ] SyncService (631) → pisah: queue-processing vs photo-metadata/watermark vs toast. Incremental.
-- [ ] LocationTrackingService (592) → pisah: battery-config vs permission-flow vs push/buffer.
+## Fase 4 — Higher risk: pecah god files ✅ BERJALAN
+- [x] topology-map.tsx (2042→1953) → helper murni (topologyHelpers.tsx)
+- [x] topology-map (1953→1548, −24% total) → GeoJSON builder jadi fungsi murni + tipe ke topologyTypes.ts. Divalidasi test topology-readonly.
+- [~] topology-map: sisa (KMZ loader + handlers) menutup state → diminishing return, tunda.
+- [~] absensi.tsx (927) → **SUDAH cukup rapi** (pakai useAttendanceSubmission, attendanceGeofencePolicy, attendanceCaptureState, geo). Ekstraksi lanjut low-gain/high-risk.
+- [ ] LocationTrackingService (592) → ekstrak getLocationConfig (pure) + helper. Punya test (11 pass).
+- [ ] SyncService (631) → pisah: queue-processing vs photo-metadata/watermark vs toast.
 
 ## Fase 5 — Fix 5 test pre-existing yang gagal ✅ SELESAI
 - [x] root-layout-privacy: tambah __mocks__/expo-linking.js (8 pass)

@@ -10,6 +10,7 @@
 import { isAxiosError } from 'axios';
 import { Storage } from '@/utils/storage';
 import { calculateDistance } from '@/utils/geo';
+import { getLocationConfig } from './locationTrackingConfig';
 import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
@@ -44,54 +45,6 @@ interface LocationData {
 
 export class LocationTrackingService {
     private static initialPushTimer: ReturnType<typeof setTimeout> | null = null;
-
-    /**
-     * Get adaptive location configuration based on battery and movement
-     */
-    static getLocationConfig(batteryLevel: number, isMoving: boolean) {
-        // Critical battery (<15%): Minimal tracking
-        if (batteryLevel < 0.15 && batteryLevel !== -1) {
-            return {
-                timeInterval: 60 * 60 * 1000, // 1 hour
-                distanceInterval: 500, // 500m
-                accuracy: Location.Accuracy.Low
-            };
-        }
-
-        // Low battery (<30%): Reduced tracking
-        if (batteryLevel < 0.30 && batteryLevel !== -1) {
-            return {
-                timeInterval: 30 * 60 * 1000, // 30 minutes
-                distanceInterval: 200, // 200m
-                accuracy: Location.Accuracy.Balanced
-            };
-        }
-
-        // Medium battery (<50%): Normal tracking
-        if (batteryLevel < 0.50 && batteryLevel !== -1) {
-            return {
-                timeInterval: 15 * 60 * 1000, // 15 minutes
-                distanceInterval: 100, // 100m
-                accuracy: Location.Accuracy.Balanced
-            };
-        }
-
-        // Good battery: Active tracking when moving
-        if (isMoving) {
-            return {
-                timeInterval: 5 * 60 * 1000, // 5 minutes
-                distanceInterval: 50, // 50m
-                accuracy: Location.Accuracy.High
-            };
-        }
-
-        // Good battery but stationary: Reduced tracking
-        return {
-            timeInterval: 10 * 60 * 1000, // 10 minutes
-            distanceInterval: 100, // 100m
-            accuracy: Location.Accuracy.Balanced
-        };
-    }
 
     /**
      * Start background location tracking
@@ -157,7 +110,7 @@ export class LocationTrackingService {
             // Get adaptive config
             const config = __DEV__
                 ? { timeInterval: 60000, distanceInterval: 20, accuracy: Location.Accuracy.Balanced } // DEV: 1 min
-                : this.getLocationConfig(batteryLevel, isMoving);
+                : getLocationConfig(batteryLevel, isMoving);
 
             logger.info(`[LocationTracking] Config: Battery ${(batteryLevel * 100).toFixed(0)}%, Moving: ${isMoving}, Interval: ${config.timeInterval / 60000}m`);
 
