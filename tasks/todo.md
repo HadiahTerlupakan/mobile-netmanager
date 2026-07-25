@@ -24,8 +24,8 @@
 - [x] topology-map (1953→1548, −24% total) → GeoJSON builder jadi fungsi murni + tipe ke topologyTypes.ts. Divalidasi test topology-readonly.
 - [~] topology-map: sisa (KMZ loader + handlers) menutup state → diminishing return, tunda.
 - [~] absensi.tsx (927) → **SUDAH cukup rapi** (pakai useAttendanceSubmission, attendanceGeofencePolicy, attendanceCaptureState, geo). Ekstraksi lanjut low-gain/high-risk.
-- [ ] LocationTrackingService (592) → ekstrak getLocationConfig (pure) + helper. Punya test (11 pass).
-- [ ] SyncService (631) → pisah: queue-processing vs photo-metadata/watermark vs toast.
+- [x] LocationTrackingService (592→527) → getLocationConfig ke locationTrackingConfig.ts + named constants. Divalidasi test (11 pass).
+- [ ] SyncService (631) → pisah queue-processing vs photo-metadata/watermark vs toast. **CATATAN: tidak ada test** → ekstraksi hanya bisa divalidasi typecheck, risiko lebih tinggi.
 
 ## Fase 5 — Fix 5 test pre-existing yang gagal ✅ SELESAI
 - [x] root-layout-privacy: tambah __mocks__/expo-linking.js (8 pass)
