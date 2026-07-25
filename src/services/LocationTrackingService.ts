@@ -9,6 +9,7 @@
 
 import { isAxiosError } from 'axios';
 import { Storage } from '@/utils/storage';
+import { calculateDistance } from '@/utils/geo';
 import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
@@ -39,25 +40,6 @@ interface LocationData {
     isMoving?: boolean;
     recordedAt: string;
 }
-
-// Helper: Haversine Distance Calculation (in Meters)
-function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const R = 6371e3; // Radius of the earth in km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const d = R * c; // Distance in meters
-    return d;
-}
-
-function deg2rad(deg: number) {
-    return deg * (Math.PI / 180);
-}
-
 
 
 export class LocationTrackingService {
@@ -536,7 +518,7 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManage
             }
 
             if (lastSent) {
-                const distance = getDistanceFromLatLonInMeters(
+                const distance = calculateDistance(
                     lastSent.latitude,
                     lastSent.longitude,
                     location.coords.latitude,
