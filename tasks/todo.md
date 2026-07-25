@@ -25,7 +25,8 @@
 - [~] topology-map: sisa (KMZ loader + handlers) menutup state → diminishing return, tunda.
 - [~] absensi.tsx (927) → **SUDAH cukup rapi** (pakai useAttendanceSubmission, attendanceGeofencePolicy, attendanceCaptureState, geo). Ekstraksi lanjut low-gain/high-risk.
 - [x] LocationTrackingService (592→527) → getLocationConfig ke locationTrackingConfig.ts + named constants. Divalidasi test (11 pass).
-- [ ] SyncService (631) → pisah queue-processing vs photo-metadata/watermark vs toast. **CATATAN: tidak ada test** → ekstraksi hanya bisa divalidasi typecheck, risiko lebih tinggi.
+- [x] SyncService (631→560) → ekstrak helper murni (prioritas, konkurensi, photo-uri, permanent-failure) ke syncQueueHelpers.ts + **10 test baru** (tutup gap no-test) + named constants.
+- [~] SyncService sisa: processQueue/processQueueItem (god method, stateful) → butuh test integrasi dulu sebelum dipecah. Tunda.
 
 ## Fase 5 — Fix 5 test pre-existing yang gagal ✅ SELESAI
 - [x] root-layout-privacy: tambah __mocks__/expo-linking.js (8 pass)
