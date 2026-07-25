@@ -55,191 +55,21 @@ import { AppFeature } from '@/constants/features';
 // Get MapLibre (will be null in Expo Go)
 const MapLibreGL = getMapLibre();
 
-// Helper murni layar topology diekstrak ke topologyHelpers (types, warna, ikon).
+// Helper & tipe murni layar topology diekstrak ke modul topology.
 import {
   GeoJSONFeature,
   GeoJSONFeatureCollection,
   MARKER_COLORS,
+  buildConnectionLines,
+  buildDevicesGeoJson,
   getDeviceIcon,
-  getLineColor,
 } from "@/components/organisms/topology/topologyHelpers";
-import { calculateDistance } from "@/utils/geo";
+import {
+  TopologyData,
+  VisibilityState,
+} from "@/components/organisms/topology/topologyTypes";
 
 // Types
-interface TopologyData {
-  otbs: {
-    id: string;
-    name: string;
-    location: string | null;
-    latitude: number;
-    longitude: number;
-    notes: string | null;
-    images: string[];
-    photo?: string;
-    inputCoreColor?: string;
-  }[];
-  odcs: {
-    id: string;
-    name: string;
-    location: string | null;
-    latitude: number;
-    longitude: number;
-    notes: string | null;
-    images: string[];
-    photo?: string;
-    attenuationInput?: string;
-    attenuationOutput?: string;
-    inputCoreColor?: string;
-    capacity?: number; // Added
-    splitter?: string; // Added
-    usedSlots?: number; // Added
-    parent?: {          // Added
-      id: string;
-      name: string;
-      type: string;
-    };
-    otbCore?: {
-      coreColor: string;
-      tubeColor: string;
-      otb: {
-        id: string;
-        name: string;
-        latitude: number;
-        longitude: number;
-      };
-    };
-  }[];
-  odps: {
-    id: string;
-    name: string;
-    location: string | null;
-    latitude: number;
-    longitude: number;
-    notes: string | null;
-    images: string[];
-    photo?: string;
-    attenuationInput?: string;
-    attenuationOutput?: string;
-    inputCoreColor?: string;
-    capacity?: number; // Added
-    splitter?: string; // Added
-    usedSlots?: number; // Added
-    parent?: {          // Added
-      id: string;
-      name: string;
-      type: string;
-    };
-    odcOutput?: {
-      coreColor: string;
-      tubeColor: string;
-      odc: {
-        id: string;
-        name: string;
-        latitude: number;
-        longitude: number;
-      };
-    };
-    site?: { name: string };
-    _count?: { odpOutput: number };
-  }[];
-  joinboxes: {
-    id: string;
-    name: string;
-    location: string | null;
-    latitude: number;
-    longitude: number;
-    notes: string | null;
-    images: string[];
-    photo?: string;
-    inputCoreColor?: string;
-    capacity?: number; // Added
-    splitter?: string; // Added
-    usedSlots?: number; // Added
-    parent?: {          // Added
-      id: string;
-      name: string;
-      type: string;
-    };
-  }[];
-  poles: {
-    id: string;
-    name: string;
-    location: string | null;
-    latitude: number;
-    longitude: number;
-    notes: string | null;
-    images: string[];
-    cableSlack: boolean;
-    photo?: string;
-    inputCoreColor?: string;
-    capacity?: number; // Added
-    splitter?: string; // Added
-    usedSlots?: number; // Added
-    parent?: {          // Added
-      id: string;
-      name: string;
-      type: string;
-    };
-  }[];
-  pelanggans: {
-    id: string;
-    idPelanggan: string;
-    nama: string;
-    latitude: number;
-    longitude: number;
-    alamat: string | null;
-    status: string;
-    odpId: string;
-    odp?: {
-      id: string;
-      name: string;
-      latitude: number;
-      longitude: number;
-    };
-  }[];
-  nodes?: {
-    nodeId: string;
-    name: string;
-    type: string;
-    latitude: number;
-    longitude: number;
-    photo?: string;
-    description: string | null; // Keep for backward compat
-    capacity?: number;
-    splitter?: string;
-    pppoe?: string;
-    serialNumber?: string;
-    notes?: string | null;
-    attenuationIn?: number;
-    attenuationOut?: number;
-    inputCoreColor?: string;
-    usedSlots?: number;
-    parent?: {
-      id: string;
-      name: string;
-      type: string;
-    };
-  }[];
-  kmzFiles?: {
-    id: string;
-    name: string;
-    kmlPath: string;
-    lineColor: string;
-    isActive: boolean;
-  }[];
-  edges?: {
-    id: string;
-    source: string;
-    target: string;
-    sourceType: string;
-    targetType: string;
-    color: string;
-    waypoints?: [number, number][];
-  }[];
-}
-
-// interface VisibilityState removed (unused)
-
 // MapLibre Config (only if available)
 if (MapLibreGL) {
   MapLibreGL.setAccessToken(null); // Not needed for open tiles
@@ -323,7 +153,7 @@ export default function TopologyMapScreen() {
     west: number;
   } | null>(null);
 
-  const [visibility, setVisibility] = useState({
+  const [visibility, setVisibility] = useState<VisibilityState>({
     otb: true,
     odc: true,
     odp: true,
@@ -669,253 +499,18 @@ export default function TopologyMapScreen() {
     }
   }, []);
 
-  // Convert data to GeoJSON for ShapeSource - MOVED UP and UPDATED
-  const devicesGeoJson = useMemo((): GeoJSONFeatureCollection => {
-    if (!data) return { type: "FeatureCollection", features: [] };
+  // Convert data to GeoJSON for ShapeSource (builder murni di topologyHelpers)
+  const devicesGeoJson = useMemo(
+    (): GeoJSONFeatureCollection => buildDevicesGeoJson(data, visibility),
+    [data, visibility],
+  );
 
-    const features: GeoJSONFeature[] = [];
-    const addFeature = (d: any, type: DeviceType, color: string) => {
-      // PERMISIF: Skip hanya jika koordinat null/0
-      if (!d.longitude || !d.latitude) return;
-
-      // PERMISIF: Fallback ID jika data.id kosong
-      const safeId = d.id ? String(d.id) : `fallback-${type}-${Math.random().toString(36).substr(2, 9)}`;
-
-      features.push({
-        type: "Feature",
-        id: type + "-" + safeId,
-        properties: {
-          id: safeId,
-          originalId: d.id, // STORE ORIGINAL ID
-          type: type,
-          color: color || "#9ca3af",
-          name: d.name || d.nama || d.idPelanggan || "Tanpa Nama",
-          source: "inventory",
-          // Map all details for the modal
-          notes: d.notes,
-          capacity: d.capacity,
-          splitter: d.splitter,
-          serialNumber: d.serialNumber,
-          pppoe: d.pppoe,
-          attenuationIn: d.attenuationInput,
-          attenuationOut: d.attenuationOutput,
-          usedSlots: d.usedSlots,
-          inputCoreColor: d.inputCoreColor,
-          photo: d.photo,
-          parent: d.parent,
-        },
-        geometry: {
-          type: "Point",
-          coordinates: [d.longitude, d.latitude],
-        },
-      });
-    };
-
-    if (visibility.otb)
-      data.otbs.forEach((d) => addFeature(d, "otb", MARKER_COLORS.otb));
-    if (visibility.odc)
-      data.odcs.forEach((d) => addFeature(d, "odc", MARKER_COLORS.odc));
-    if (visibility.odp)
-      data.odps.forEach((d) => addFeature(d, "odp", MARKER_COLORS.odp));
-    if (visibility.joinbox)
-      data.joinboxes.forEach((d) =>
-        addFeature(d, "joinbox", MARKER_COLORS.joinbox),
-      );
-    if (visibility.pole)
-      data.poles.forEach((d) => addFeature(d, "pole", MARKER_COLORS.pole));
-    if (visibility.pelanggan)
-      data.pelanggans.forEach((d) =>
-        addFeature(d, "pelanggan", MARKER_COLORS.pelanggan),
-      );
-
-    // Render nodes from MappingNode
-    if (data.nodes) {
-      data.nodes.forEach((node) => {
-        // PERMISIF: Cek koordinat
-        if (!node.longitude || !node.latitude) return;
-
-        // PERMISIF: Fallback ID
-        const safeId = node.nodeId ? String(node.nodeId) : `node-fallback-${Math.random().toString(36).substr(2, 9)}`;
-
-        let mappedType: DeviceType = "pole"; // Default fallback
-        let color = MARKER_COLORS.pole;
-
-        // Map node types to device types and colors
-        if (node.type) {
-          switch (node.type.toLowerCase()) {
-            case "server":
-              mappedType = "otb"; // Icon Server, Warna Ungu
-              color = MARKER_COLORS.otb;
-              break;
-            case "odc":
-              mappedType = "odc"; // Icon Box, Warna Biru
-              color = MARKER_COLORS.odc;
-              break;
-            case "odp":
-              mappedType = "odp"; // Icon Disc, Warna Cyan
-              color = MARKER_COLORS.odp;
-              break;
-            case "ont":
-              mappedType = "pelanggan"; // Icon Home, Warna Oranye
-              color = MARKER_COLORS.pelanggan;
-              break;
-          }
-        }
-
-        if (mappedType && visibility[mappedType]) {
-          features.push({
-            type: "Feature",
-            id: `node-${safeId}`,
-            properties: {
-              id: safeId,
-              originalId: node.nodeId, // STORE ORIGINAL ID
-              type: mappedType,
-              color: color,
-              name: node.name || "Node Tanpa Nama",
-              source: "mapping-node",
-              originalType: node.type || "unknown",
-              // Map all details for the modal
-              notes: node.notes, // Use notes from backend
-              description: node.description, // Fallback
-              capacity: node.capacity,
-              splitter: node.splitter,
-              serialNumber: node.serialNumber, // Note: node.serialNumber (camelCase)
-              pppoe: node.pppoe,
-              attenuationIn: node.attenuationIn,
-              attenuationOut: node.attenuationOut,
-              usedSlots: node.usedSlots,
-              inputCoreColor: node.inputCoreColor,
-              photo: node.photo,
-              parent: node.parent,
-            },
-            geometry: {
-              type: "Point",
-              coordinates: [node.longitude, node.latitude],
-            },
-          });
-        }
-      });
-    }
-
-    return { type: "FeatureCollection", features };
-  }, [data, visibility]);
-
-  // Connection lines GeoJSON - UPDATED LOGIC
-  const connectionLines = useMemo((): GeoJSONFeatureCollection => {
-    if (!data || !data.edges) return { type: "FeatureCollection", features: [] };
-
-    const features: GeoJSONFeature[] = [];
-
-    // Use visible features for lookup to ensure we only connect to valid/visible nodes
-    const allFeatures = devicesGeoJson.features;
-
-    if (!visibility.lines) return { type: "FeatureCollection", features: [] };
-
-    data.edges.forEach((edge, index) => {
-      if (!edge) return;
-
-      // 1. Loose ID Comparison (String vs String)
-      // Fix: Gunakan String() untuk membandingkan ID karena bisa berupa number/string dari DB
-      const sourceIdStr = String(edge.source);
-      const targetIdStr = String(edge.target);
-
-      // Find source and target features by their ORIGINAL ID
-      const sourceFeature = allFeatures.find(f => String(f.properties?.originalId) === sourceIdStr);
-      const targetFeature = allFeatures.find(f => String(f.properties?.originalId) === targetIdStr);
-
-      // 4. Safety Check: Jika node tidak ketemu (mungkin terfilter atau data corrupt), skip garis ini
-      if (!sourceFeature || !targetFeature) {
-        return;
-      }
-
-      const sourceCoords = (sourceFeature.geometry as any).coordinates;
-      const targetCoords = (targetFeature.geometry as any).coordinates;
-
-      if (sourceCoords && targetCoords) {
-        let coordinates: number[][] = [];
-
-        // Start with Source
-        coordinates.push(sourceCoords);
-
-        // 1. Handle JSON String Waypoints (Robust Parsing)
-        let waypoints = edge.waypoints;
-
-        // Cek apakah string (JSON String dari DB)
-        if (typeof waypoints === 'string') {
-          try {
-            waypoints = JSON.parse(waypoints);
-          } catch (e) {
-            logger.error(`Failed to parse waypoints for edge ${edge.id || 'unknown'}:`, e);
-            waypoints = [];
-          }
-        }
-
-        // Add Waypoints (if any)
-        if (waypoints && Array.isArray(waypoints)) {
-          const wps = waypoints.map((wp: any) => {
-            let lng, lat;
-
-            if (Array.isArray(wp)) {
-              // 3. Koordinat GeoJSON: Pastikan [Longitude, Latitude]
-              // Heuristic: Jika format [Lat, Lng], maka Lng (biasanya >90 di Indo) ada di index 1
-              const val0 = Number(wp[0]);
-              const val1 = Number(wp[1]);
-
-              // Deteksi format [Lat, Lng] -> Swap jadi [Lng, Lat]
-              // Asumsi: Longitude Indonesia ~95-141, Latitude ~-11 s/d +6
-              if (Math.abs(val1) > Math.abs(val0) && Math.abs(val1) > 90) {
-                lng = val1;
-                lat = val0;
-              } else {
-                // Format standard [Lng, Lat]
-                lng = val0;
-                lat = val1;
-              }
-            } else {
-              // Handle object case if mixed
-              lng = wp.longitude ?? wp.lng ?? 0;
-              lat = wp.latitude ?? wp.lat ?? 0;
-            }
-            return [Number(lng), Number(lat)];
-          });
-          coordinates.push(...wps);
-        }
-
-        // End with Target
-        coordinates.push(targetCoords);
-
-        // Determine line color from feature types
-        const sourceType = sourceFeature.properties?.type;
-        const targetType = targetFeature.properties?.type;
-        const color = getLineColor(sourceType, targetType, edge.color);
-
-        // Calculate distance for info (bulatkan ke meter — sama seperti implementasi lama)
-        const distance = Math.round(calculateDistance(
-          sourceCoords[1],
-          sourceCoords[0],
-          targetCoords[1],
-          targetCoords[0]
-        ));
-
-        features.push({
-          type: "Feature",
-          properties: {
-            edgeId: edge.id,
-            color: color,
-            sourceName: sourceFeature.properties?.name || "Unknown",
-            targetName: targetFeature.properties?.name || "Unknown",
-            distance: `${distance}m`
-          },
-          geometry: {
-            type: "LineString",
-            coordinates: coordinates,
-          },
-        });
-      }
-    });
-
-    return { type: "FeatureCollection", features };
-  }, [data, visibility, devicesGeoJson]);
+  // Connection lines GeoJSON (builder murni di topologyHelpers)
+  const connectionLines = useMemo(
+    (): GeoJSONFeatureCollection =>
+      buildConnectionLines(data, devicesGeoJson.features, visibility.lines),
+    [data, visibility, devicesGeoJson],
+  );
 
   // KMZ GeoJSON
   const kmzGeoJson = useMemo(() => {
