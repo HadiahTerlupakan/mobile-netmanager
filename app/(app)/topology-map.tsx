@@ -13,17 +13,11 @@ import { useRouter } from "expo-router";
 import {
   AlertTriangle,
   ArrowLeft,
-  Box,
-  Disc,
-  Flag,
-  Home,
   List,
   LocateFixed,
   MapPin,
   RefreshCw,
   Search,
-  Server,
-  Square,
   X,
 } from "lucide-react-native";
 import React, {
@@ -61,98 +55,15 @@ import { AppFeature } from '@/constants/features';
 // Get MapLibre (will be null in Expo Go)
 const MapLibreGL = getMapLibre();
 
-// GeoJSON types for TypeScript
-type GeoJSONFeature = {
-  type: "Feature";
-  id?: string | number;
-  properties: Record<string, any>;
-  geometry: {
-    type: string;
-    coordinates: number[] | number[][] | number[][][];
-  };
-};
-
-type GeoJSONFeatureCollection = {
-  type: "FeatureCollection";
-  features: GeoJSONFeature[];
-};
-
-// Helper for distance calculation
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371e3; // metres
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return Math.round(R * c); // in meters
-};
-
-const MARKER_COLORS: Record<DeviceType, string> = {
-  otb: "#9333ea", // Purple
-  odc: "#2563eb", // Blue
-  odp: "#06b6d4", // Cyan
-  joinbox: "#a855f7", // purple
-  pole: "#6b7280", // gray
-  pelanggan: "#ea580c", // Orange
-  kmz: "#6366f1", // indigo
-};
-
-const getDeviceIcon = (type: DeviceType, size: number = 16, color: string = "white") => {
-  switch (type) {
-    case "otb":
-      return <Server size={size} color={color} />;
-    case "odc":
-      return <Box size={size} color={color} />;
-    case "odp":
-      return <Disc size={size} color={color} />;
-    case "joinbox":
-      return <Square size={size} color={color} />;
-    case "pole":
-      return <Flag size={size} color={color} />;
-    case "pelanggan":
-      return <Home size={size} color={color} />;
-    default:
-      return <MapPin size={size} color={color} />;
-  }
-};
-
-// Helper to determine line color based on device types
-const getLineColor = (sourceType: string, targetType: string, defaultColor?: string): string => {
-  const s = sourceType?.toLowerCase() || "";
-  const t = targetType?.toLowerCase() || "";
-
-  // Feeder: Server/OTB -> ODC (Purple)
-  if (
-    ((s === "otb" || s === "server" || s === "olt") && t === "odc") ||
-    ((t === "otb" || t === "server" || t === "olt") && s === "odc")
-  ) {
-    return "#D946EF";
-  }
-
-  // Distribution: ODC -> ODP (Blue)
-  if (
-    (s === "odc" && t === "odp") ||
-    (t === "odc" && s === "odp")
-  ) {
-    return "#00FFFF";
-  }
-
-  // Drop: ODP -> Pelanggan (Green)
-  if (
-    (s === "odp" && (t === "pelanggan" || t === "ont")) ||
-    (t === "odp" && (s === "pelanggan" || s === "ont"))
-  ) {
-    return "#39FF14";
-  }
-
-  return defaultColor || "#FF0000";
-};
+// Helper murni layar topology diekstrak ke topologyHelpers (types, warna, ikon).
+import {
+  GeoJSONFeature,
+  GeoJSONFeatureCollection,
+  MARKER_COLORS,
+  getDeviceIcon,
+  getLineColor,
+} from "@/components/organisms/topology/topologyHelpers";
+import { calculateDistance } from "@/utils/geo";
 
 // Types
 interface TopologyData {
@@ -978,13 +889,13 @@ export default function TopologyMapScreen() {
         const targetType = targetFeature.properties?.type;
         const color = getLineColor(sourceType, targetType, edge.color);
 
-        // Calculate distance for info
-        const distance = calculateDistance(
+        // Calculate distance for info (bulatkan ke meter — sama seperti implementasi lama)
+        const distance = Math.round(calculateDistance(
           sourceCoords[1],
           sourceCoords[0],
           targetCoords[1],
           targetCoords[0]
-        );
+        ));
 
         features.push({
           type: "Feature",
