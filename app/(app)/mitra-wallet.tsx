@@ -1,8 +1,9 @@
 import { useAuth } from '@/context/AuthContext';
+import { useInfiniteQuery } from '@/hooks/queries';
 import api from '@/services/api';
 import { useRouter } from 'expo-router';
 import { ArrowDownCircle, ArrowUpCircle, ChevronRight, TrendingUp, Wallet } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import {
     ActivityIndicator,
     RefreshControl,
@@ -45,48 +46,39 @@ const formatCurrency = (amount: number) => {
 export default function MitraWalletScreen() {
     const router = useRouter();
     const { user } = useAuth();
-    const [data, setData] = useState<WalletData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [page, setPage] = useState(1);
-    const [loadingMore, setLoadingMore] = useState(false);
 
-    const fetchData = useCallback(async (pageNum = 1, isRefresh = false) => {
-        try {
-            if (isRefresh) setRefreshing(true);
-            else if (pageNum === 1) setLoading(true);
-            else setLoadingMore(true);
+    const {
+        data: pages,
+        isPending: loading,
+        isRefetching: refreshing,
+        refetch,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage: loadingMore,
+    } = useInfiniteQuery<WalletData>({
+        queryKey: ['mitra', 'wallet'],
+        queryFn: ({ pageParam }) =>
+            api.get(`/api/mobile/mitra/wallet?page=${pageParam}`).then((res) => res.data.data),
+        initialPageParam: 1,
+        getNextPageParam: (lastPage, allPages) => {
+            const loaded = allPages.reduce((n, p) => n + p.transactions.transactions.length, 0);
+            return loaded < lastPage.transactions.total ? allPages.length + 1 : undefined;
+        },
+    });
 
-            const res = await api.get(`/api/mobile/mitra/wallet?page=${pageNum}`);
-            const result = res.data.data;
-
-            if (pageNum === 1) {
-                setData(result);
-            } else {
-                setData((prevData) => {
-                    if (!prevData) return result;
-                    return {
-                        ...result,
-                        transactions: {
-                            ...result.transactions,
-                            transactions: [...prevData.transactions.transactions, ...result.transactions.transactions],
-                        },
-                    };
-                });
-            }
-            setPage(pageNum);
-        } catch (error) {
-            console.error('Error fetching wallet:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-            setLoadingMore(false);
+    // Rekonstruksi bentuk lama agar JSX di bawah tidak berubah (balance dari page
+    // pertama, transaksi digabung antar-page — sama seperti merge manual dulu).
+    const data: WalletData | null = pages
+        ? {
+            balance: pages.pages[0].balance,
+            transactions: {
+                transactions: pages.pages.flatMap((p) => p.transactions.transactions),
+                total: pages.pages[0].transactions.total,
+            },
         }
-    }, []);
+        : null;
 
-    useEffect(() => { fetchData(); }, [fetchData]);
-
-    const onRefresh = () => fetchData(1, true);
+    const onRefresh = () => refetch();
 
     const isMitraTeknisi = user?.employeeType === 'MITRA_TEKNISI';
 
@@ -200,10 +192,10 @@ export default function MitraWalletScreen() {
                                 </View>
                             ))}
 
-                            {data.transactions.total > data.transactions.transactions.length && (
+                            {hasNextPage && (
                                 <TouchableOpacity
                                     style={tw`px-4 py-3 flex-row items-center justify-center border-t border-gray-100`}
-                                    onPress={() => fetchData(page + 1)}
+                                    onPress={() => fetchNextPage()}
                                     disabled={loadingMore}
                                 >
                                     {loadingMore ? (

@@ -1,3 +1,4 @@
+import { useApiQuery, useMutation } from '@/hooks/queries';
 import api from '@/services/api';
 import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { useRouter } from 'expo-router';
@@ -11,7 +12,7 @@ import {
     Send,
     XCircle,
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -67,11 +68,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 
 export default function MitraWithdrawScreen() {
     const router = useRouter();
-    const [data, setData] = useState<WithdrawData | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [showForm, setShowForm] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
 
     // Form state
     const [amount, setAmount] = useState('');
@@ -81,29 +78,51 @@ export default function MitraWithdrawScreen() {
     const [accountName, setAccountName] = useState('');
     const [notes, setNotes] = useState('');
 
-    const fetchData = useCallback(async (isRefresh = false) => {
-        try {
-            if (isRefresh) setRefreshing(true);
-            else setLoading(true);
+    const {
+        data,
+        isPending: loading,
+        isRefetching: refreshing,
+        refetch,
+    } = useApiQuery<WithdrawData>({
+        queryKey: ['mitra', 'withdraw'],
+        queryFn: () => api.get('/api/mobile/mitra/withdraw').then((res) => res.data.data),
+    });
 
-            const res = await api.get('/api/mobile/mitra/withdraw');
-            setData(res.data.data);
-
-            // Pre-fill bank info
-            if (res.data.data.bankInfo) {
-                setBankName(res.data.data.bankInfo.bankName || '');
-                setAccountNumber(res.data.data.bankInfo.accountNo || '');
-                setAccountName(res.data.data.bankInfo.accountName || '');
-            }
-        } catch (error) {
-            console.error('Error fetching withdrawals:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
+    // Pre-fill bank info dari data server (sama seperti pre-fill saat fetch dulu).
+    useEffect(() => {
+        if (data?.bankInfo) {
+            setBankName(data.bankInfo.bankName || '');
+            setAccountNumber(data.bankInfo.accountNo || '');
+            setAccountName(data.bankInfo.accountName || '');
         }
-    }, []);
+    }, [data]);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+    // Operasi finansial: plain useMutation (TANPA offline-queue) agar behavior
+    // sama seperti api.post lama — penarikan tidak boleh diam-diam diantre offline.
+    const withdrawMutation = useMutation({
+        mutationFn: (payload: Record<string, unknown>) =>
+            api.post('/api/mobile/mitra/withdraw', payload),
+        onSuccess: () => {
+            presentSuccessMessage('Permintaan penarikan berhasil dibuat');
+            setShowForm(false);
+            setAmount('');
+            setNotes('');
+            refetch();
+        },
+        onError: (error: any) => {
+            const msg = error?.response?.data?.error || 'Gagal membuat permintaan';
+            if (msg === 'Gagal membuat permintaan') {
+                presentAppError(error, {
+                    screen: 'MitraWithdrawScreen',
+                    route: '/(app)/mitra-withdraw',
+                    fallbackTitle: 'Error',
+                });
+            } else {
+                presentErrorMessage(msg, 'Error');
+            }
+        },
+    });
+    const submitting = withdrawMutation.isPending;
 
     const handleSubmit = async () => {
         const numAmount = parseFloat(amount);
@@ -124,36 +143,15 @@ export default function MitraWithdrawScreen() {
                 { text: 'Batal', style: 'cancel' },
                 {
                     text: 'Ya, Tarik',
-                    onPress: async () => {
-                        setSubmitting(true);
-                        try {
-                            await api.post('/api/mobile/mitra/withdraw', {
-                                amount: numAmount,
-                                method,
-                                bankName: method === 'TRANSFER' ? bankName : undefined,
-                                accountNumber: method === 'TRANSFER' ? accountNumber : undefined,
-                                accountName: method === 'TRANSFER' ? accountName : undefined,
-                                notes: notes || undefined,
-                            });
-                            presentSuccessMessage('Permintaan penarikan berhasil dibuat');
-                            setShowForm(false);
-                            setAmount('');
-                            setNotes('');
-                            fetchData();
-                        } catch (error: any) {
-                            const msg = error?.response?.data?.error || 'Gagal membuat permintaan';
-                            if (msg === 'Gagal membuat permintaan') {
-                                presentAppError(error, {
-                                    screen: 'MitraWithdrawScreen',
-                                    route: '/(app)/mitra-withdraw',
-                                    fallbackTitle: 'Error',
-                                });
-                            } else {
-                                presentErrorMessage(msg, 'Error');
-                            }
-                        } finally {
-                            setSubmitting(false);
-                        }
+                    onPress: () => {
+                        withdrawMutation.mutate({
+                            amount: numAmount,
+                            method,
+                            bankName: method === 'TRANSFER' ? bankName : undefined,
+                            accountNumber: method === 'TRANSFER' ? accountNumber : undefined,
+                            accountName: method === 'TRANSFER' ? accountName : undefined,
+                            notes: notes || undefined,
+                        });
                     },
                 },
             ]
@@ -176,7 +174,7 @@ export default function MitraWithdrawScreen() {
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 <ScrollView
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchData(true)} />}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => refetch()} />}
                     contentContainerStyle={tw`pb-6`}
                 >
                     {/* Header */}
