@@ -85,7 +85,7 @@ Before responding, internally:
 - **Navigation**: Expo Router (file-based)
 - **Data Fetching**: TanStack Query (React Query v5)
 - **Styling**: twrnc (Tailwind React Native Classnames)
-- **State**: Zustand (client/UI state only)
+- **State**: React Context (client/UI & global state — Auth, Tenant, Realtime). *Zustand TIDAK dipakai / tidak terinstall.*
 - **Validation**: Zod
 
 ---
@@ -283,7 +283,7 @@ Backend dikonsumsi mobile via REST API. Kontrak yang disepakati:
 
 ### State Management
 - Server state → TanStack Query
-- Client/UI state → Zustand
+- Client/UI & global state → **React Context** (`src/context/`: AuthContext, TenantContext, RealtimeProvider). Zustand tidak dipakai.
 - Form state → React Hook Form + Zod resolver
 
 ---

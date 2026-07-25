@@ -3,6 +3,8 @@
 > Peta tunggal repo ini untuk manusia & AI agent. **Baca ini dulu sebelum menebak lokasi file.**
 > Ini repo **mobile-only** (Expo/React Native), bukan monorepo. Backend ada di repo terpisah.
 > Terakhir diperbarui: 2026-07-25.
+>
+> **Arsitektur & pattern + status penerapannya:** [architecture/patterns-and-status.md](architecture/patterns-and-status.md).
 
 ## TL;DR struktur
 
