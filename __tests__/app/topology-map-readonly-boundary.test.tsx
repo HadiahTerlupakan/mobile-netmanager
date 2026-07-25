@@ -90,6 +90,9 @@ jest.mock('@/utils/maplibre', () => ({
       return <>{children}</>;
     },
     LineLayer: () => null,
+    CircleLayer: () => null,
+    SymbolLayer: () => null,
+    UserLocation: () => null,
     MarkerView: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Logger: { setLogCallback: jest.fn() },
     setAccessToken: jest.fn(),
@@ -128,6 +131,8 @@ jest.mock('lucide-react-native', () => ({
   Flag: 'Flag',
   Home: 'Home',
   Layers: 'Layers',
+  List: 'List',
+  LocateFixed: 'LocateFixed',
   MapPin: 'MapPin',
   RefreshCw: 'RefreshCw',
   Search: 'Search',

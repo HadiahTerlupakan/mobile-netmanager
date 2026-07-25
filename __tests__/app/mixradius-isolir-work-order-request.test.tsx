@@ -7,6 +7,24 @@ const mockMutate = jest.fn();
 const mockLoadingModal = jest.fn((_props?: unknown) => null);
 const mockRenderedCustomerItems: Array<any> = [];
 const mockUseApiQuery = jest.fn((options?: unknown) => options);
+const mockUseInfiniteQuery = jest.fn((options?: unknown) => options);
+
+// Bentuk hasil useInfiniteQuery: daftar customer dibungkus satu page.
+// Filtering (Isolir/Disabled) sengaja TIDAK dilakukan di sini — itu logika
+// screen yang sedang diuji; mock hanya menyediakan raw rows.
+const buildInfiniteResult = (customers: Array<any>) => ({
+  data: {
+    pages: [{ data: customers, recordsFiltered: customers.length, recordsTotal: customers.length }],
+  },
+  fetchNextPage: jest.fn(),
+  hasNextPage: false,
+  isFetchingNextPage: false,
+  isFetching: false,
+  refetch: jest.fn(),
+  isRefetching: false,
+  isError: false,
+  error: null,
+});
 const mockUseApiMutation = jest.fn((options?: unknown) => ({
   mutate: jest.fn(),
   isPending: false,
@@ -52,6 +70,7 @@ jest.mock('@/constants/features', () => ({
 
 jest.mock('@/hooks/queries', () => ({
   useApiQuery: (options: unknown) => mockUseApiQuery(options),
+  useInfiniteQuery: (options: unknown) => mockUseInfiniteQuery(options),
   useApiMutation: (options: unknown) => mockUseApiMutation(options),
   useCreateWorkOrderRequest: (options?: unknown) =>
     mockUseCreateWorkOrderRequest(options),
@@ -156,20 +175,10 @@ describe('mixradius isolir work order request boundary', () => {
     const { Alert } = require('react-native');
     Alert.alert = mockAlert;
 
-    mockUseApiQuery.mockImplementation(({ queryKey }: any) => {
-      if (queryKey?.[1] === 'groups') {
-        return { data: [] };
-      }
-
-      return {
-        data: { data: [mixRadiusCustomer], recordsFiltered: 1, recordsTotal: 1 },
-        isFetching: false,
-        refetch: jest.fn(),
-        isRefetching: false,
-        isError: false,
-        error: null,
-      };
-    });
+    // useApiQuery kini hanya untuk daftar groups.
+    mockUseApiQuery.mockImplementation(() => ({ data: [] }));
+    // Daftar customer isolir datang dari useInfiniteQuery.
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteResult([mixRadiusCustomer]));
   });
 
   it('menggunakan flow request work order mobile untuk aksi dismantle', () => {
@@ -249,19 +258,7 @@ describe('mixradius isolir work order request boundary', () => {
   it('tidak menampilkan customer dengan auth_status Disabled-Users di tab Isolir (Isolir = Expired only)', () => {
     const disabledCustomer = { ...mixRadiusCustomer, id: 'cust-disabled', auth_status: 'Disabled-Users' };
     const expiredCustomer = { ...mixRadiusCustomer, id: 'cust-expired', auth_status: 'Expired' };
-    mockUseApiQuery.mockImplementation(({ queryKey }: any) => {
-      if (queryKey?.[1] === 'groups') {
-        return { data: [] };
-      }
-      return {
-        data: { data: [disabledCustomer, expiredCustomer], recordsFiltered: 2, recordsTotal: 2 },
-        isFetching: false,
-        refetch: jest.fn(),
-        isRefetching: false,
-        isError: false,
-        error: null,
-      };
-    });
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteResult([disabledCustomer, expiredCustomer]));
 
     const MixRadiusIsolirScreen = require('../../app/(app)/mixradius/isolir').default;
     render(<MixRadiusIsolirScreen />);

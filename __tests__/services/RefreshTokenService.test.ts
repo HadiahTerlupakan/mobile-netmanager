@@ -35,6 +35,7 @@ jest.mock('@/services/TenantService', () => ({
 jest.mock('@/constants/appVersion', () => ({
   CURRENT_VERSION_CODE_LABEL: '1',
   CURRENT_VERSION_NAME: '1.0.0',
+  getOtaUpdateId: () => 'test-ota-update-id',
 }));
 
 jest.mock('@/constants/Events', () => ({

@@ -121,14 +121,16 @@ describe('Config API_URL', () => {
     expect(Config.CAN_MANUALLY_CHECK_APP_UPDATES).toBe(false)
   })
 
-  it('disables app update checks for Android production builds', () => {
+  // Sejak a8a4eb3, production Android (standalone, di luar Expo Go) DIIZINKAN
+  // cek update (OTA + APK Play Store). Test lama mengharap disable → sudah basi.
+  it('enables app update checks for Android production builds', () => {
     process.env.EXPO_PUBLIC_APP_VARIANT = 'production'
     mockPlatform('android')
     mockExpoRuntime({ executionEnvironment: 'standalone' })
 
     const Config = loadConfig()
 
-    expect(Config.CAN_AUTO_CHECK_APP_UPDATES).toBe(false)
-    expect(Config.CAN_MANUALLY_CHECK_APP_UPDATES).toBe(false)
+    expect(Config.CAN_AUTO_CHECK_APP_UPDATES).toBe(true)
+    expect(Config.CAN_MANUALLY_CHECK_APP_UPDATES).toBe(true)
   })
 })
