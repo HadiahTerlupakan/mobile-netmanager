@@ -6,7 +6,7 @@ import { presentAppError, presentInfoMessage, presentSuccessMessage } from '@/ut
 import { logger } from '@/utils/logger';
 import { ClaimPointSchema, sanitizeInput, validateData } from '@/utils/validation';
 import { Ionicons } from '@expo/vector-icons';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
@@ -27,7 +27,6 @@ export default function ClaimPointScreen() {
     const [buktiUrls, setBuktiUrls] = useState<string[]>([]);
     const [buktiMetadata, setBuktiMetadata] = useState<{ width: number; height: number; type: string }[]>([]);
     const [keterangan, setKeterangan] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [showLoading, setShowLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
 
@@ -121,9 +120,55 @@ export default function ClaimPointScreen() {
 
     const [loadingProgress, setLoadingProgress] = useState(0);
 
-    // ...
+    // Submit claim: upload batch foto (dengan progress) lalu POST claim.
+    // Dibungkus useMutation — behavior sama seperti flow raw sebelumnya.
+    const claimMutation = useMutation({
+        mutationFn: async (keteranganValue: string | null) => {
+            setLoadingMessage('Mengupload foto bukti...');
+            const uploadedUrls = await uploadService.uploadBatch(
+                buktiUrls,
+                'marketing/point-claims',
+                (index, total, progress) => {
+                    setLoadingMessage(`Mengupload foto ${index}/${total}...`);
+                    setLoadingProgress(progress.percentage);
+                }
+            );
 
-    const handleSubmit = async () => {
+            setLoadingMessage('Mengirim claim...');
+            setLoadingProgress(0); // Indeterminate for API call
+
+            await api.post(
+                `/api/marketing/canvasing/${id}/claim`,
+                {
+                    buktiUrls: uploadedUrls,
+                    buktiMetadata,
+                    keterangan: keteranganValue,
+                }
+            );
+        },
+        onSuccess: () => {
+            setShowLoading(false);
+
+            // Invalidate cache agar list & detail update
+            queryClient.invalidateQueries({ queryKey: ["marketing_canvasing_list"] });
+            queryClient.invalidateQueries({ queryKey: [`marketing_canvasing_detail`, String(id)] });
+            queryClient.invalidateQueries({ queryKey: [`marketing_canvasing_claim`, String(id)] });
+            queryClient.invalidateQueries({ queryKey: ["marketing_point_summary"] });
+
+            presentSuccessMessage('Claim poin berhasil diajukan. Tunggu approval dari admin.');
+            router.back();
+        },
+        onError: (error) => {
+            setShowLoading(false);
+            presentAppError(error, {
+                screen: 'ClaimPointScreen',
+                route: '/(app)/marketing/canvasing/[id]/claim',
+            });
+        },
+    });
+    const isSubmitting = claimMutation.isPending;
+
+    const handleSubmit = () => {
         if (buktiUrls.length === 0) {
             presentInfoMessage('Minimal upload 1 foto bukti', 'Validasi');
             return;
@@ -142,55 +187,10 @@ export default function ClaimPointScreen() {
                 { text: 'Batal', style: 'cancel' },
                 {
                     text: 'Submit',
-                    onPress: async () => {
-                        setIsSubmitting(true);
+                    onPress: () => {
                         setShowLoading(true);
                         setLoadingProgress(0);
-                        setLoadingMessage('Mengupload foto bukti...');
-
-                        try {
-                            // Upload all photos
-                            const uploadedUrls = await uploadService.uploadBatch(
-                                buktiUrls,
-                                'marketing/point-claims',
-                                (index, total, progress) => {
-                                    setLoadingMessage(`Mengupload foto ${index}/${total}...`);
-                                    setLoadingProgress(progress.percentage);
-                                }
-                            );
-
-                            setLoadingMessage('Mengirim claim...');
-                            setLoadingProgress(0); // Indeterminate for API call
-
-                            // Submit claim
-                            await api.post(
-                                `/api/marketing/canvasing/${id}/claim`,
-                                {
-                                    buktiUrls: uploadedUrls,
-                                    buktiMetadata,
-                                    keterangan: validation.data.keterangan || null,
-                                }
-                            );
-
-                            setShowLoading(false);
-
-                            // Invalidate cache agar list & detail update
-                            queryClient.invalidateQueries({ queryKey: ["marketing_canvasing_list"] });
-                            queryClient.invalidateQueries({ queryKey: [`marketing_canvasing_detail`, String(id)] });
-                            queryClient.invalidateQueries({ queryKey: [`marketing_canvasing_claim`, String(id)] });
-                            queryClient.invalidateQueries({ queryKey: ["marketing_point_summary"] });
-
-                            presentSuccessMessage('Claim poin berhasil diajukan. Tunggu approval dari admin.');
-                            router.back();
-                        } catch (error) {
-                            setShowLoading(false);
-                            presentAppError(error, {
-                                screen: 'ClaimPointScreen',
-                                route: '/(app)/marketing/canvasing/[id]/claim',
-                            });
-                        } finally {
-                            setIsSubmitting(false);
-                        }
+                        claimMutation.mutate(validation.data.keterangan || null);
                     }
                 }
             ]

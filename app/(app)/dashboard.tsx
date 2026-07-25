@@ -8,7 +8,7 @@ import { WorkOrderCard } from '@/components/organisms/dashboard/WorkOrderCard';
 import { MitraSalesDashboardScreen } from '@/components/screens/MitraSalesDashboardScreen';
 import { MitraTeknisiDashboardScreen } from '@/components/screens/MitraTeknisiDashboardScreen';
 import { useAuth } from '@/context/AuthContext';
-import { useOfflineQuery } from '@/hooks/queries';
+import { useMutation, useOfflineQuery } from '@/hooks/queries';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { queryKeys } from '@/lib/queryClient';
 import { TenantService } from '@/services/TenantService';
@@ -88,6 +88,22 @@ function DashboardScreen() {
         await Promise.all([refetchStats(), refetchProfile(), refetchCanvasing()]);
         setRefreshing(false);
     }, [refetchStats, refetchProfile, refetchCanvasing]);
+
+    // Pencairan bonus (finansial) → plain useMutation, tanpa offline-queue.
+    const cashoutMutation = useMutation({
+        mutationFn: () => api.post('/api/marketing/claims/cashout'),
+        onSuccess: () => {
+            presentSuccessMessage('Bonus canvasing berhasil dicairkan! Saldo akan direset menjadi 0.');
+            refetchStats();
+        },
+        onError: (error) => {
+            presentAppError(error, {
+                screen: 'DashboardScreen',
+                route: '/(app)/dashboard',
+                fallbackTitle: 'Gagal',
+            });
+        },
+    });
 
     const handleWorkOrderPress = useCallback(() => {
         router.push('/(app)/work-order' as Href);
@@ -354,19 +370,7 @@ function DashboardScreen() {
                                                     { text: 'Batal', style: 'cancel' },
                                                     {
                                                         text: 'Cairkan',
-                                                        onPress: async () => {
-                                                            try {
-                                                                await api.post('/api/marketing/claims/cashout');
-                                                                presentSuccessMessage('Bonus canvasing berhasil dicairkan! Saldo akan direset menjadi 0.');
-                                                                refetchStats();
-                                                            } catch (error) {
-                                                                presentAppError(error, {
-                                                                    screen: 'DashboardScreen',
-                                                                    route: '/(app)/dashboard',
-                                                                    fallbackTitle: 'Gagal',
-                                                                });
-                                                            }
-                                                        }
+                                                        onPress: () => cashoutMutation.mutate(),
                                                     }
                                                 ]
                                             );
