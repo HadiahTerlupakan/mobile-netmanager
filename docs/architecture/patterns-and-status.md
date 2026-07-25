@@ -43,10 +43,17 @@ Pelengkap:
 
 Arsitektur **ada dan sadar**, tapi penerapan **~60-70%**, belum ditegakkan:
 
-1. **Dependency rule dilanggar ~separuh screen.**
-   Dari ~49 screen di `app/`: ~21 memakai TanStack Query hook (benar), ~20 masih
-   memanggil `api.*` langsung (bypass layer hook). → aturannya ada, separuh kode
-   belum ikut. **Ini prioritas #1 untuk konsistensi.**
+1. **Dependency rule — SUDAH ditegakkan (2026-07-25).**
+   Sebelumnya ~separuh screen memanggil `api.*` langsung untuk server-state /
+   mutation. Kini semua screen memakai hook: GET via `useApiQuery`/`useQuery`/
+   `useInfiniteQuery`, write via `useMutation`/`useApiMutation`. `api.*` hanya
+   dipanggil DI DALAM `queryFn`/`mutationFn` (layer client yang benar).
+   **Satu pengecualian sadar:** `app/(auth)/login.tsx` tetap memakai
+   `performLogin` (useCallback + `skipGlobalAuthHandler` + `signIn`) — auth
+   kritis, migrasi berisiko lockout, manfaat rendah.
+   Catatan pemilihan hook mutation: operasi **finansial/sensitif** (withdraw,
+   payment, cashout, ganti password) pakai **plain `useMutation`** (BUKAN
+   `useApiMutation`) supaya tidak diam-diam di-antre offline.
 
 2. **Belum ada pemisahan Repository / Domain / DTO eksplisit.**
    Folder `repositories/`, `domain/`, `dto/` tidak ada. Service mencampur akses
@@ -63,8 +70,8 @@ Arsitektur **ada dan sadar**, tapi penerapan **~60-70%**, belum ditegakkan:
 
 Urutan disarankan (dari aman → berdampak):
 
-1. **Tegakkan dependency rule** — migrasikan ~20 screen yang bypass `api.*` ke
-   hook TanStack Query, satu per satu. Pola sudah ada (`useApiQuery`/`useApiMutation`).
+1. ~~**Tegakkan dependency rule**~~ ✅ SELESAI (2026-07-25) — semua screen kini
+   lewat hook; `api.*` hanya di dalam queryFn/mutationFn. Kecuali login (sadar).
 2. **Perjelas layer service** — pisahkan pure/domain dari side-effect secara
    bertahap (lanjutan dari ekstraksi Sync/Location yang sudah dimulai).
 3. **Standarkan validasi** — Zod + React Hook Form untuk semua form.
