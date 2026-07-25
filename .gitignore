@@ -99,3 +99,9 @@ refined-analogy-*.json
 
 # Local OTA/build backups (not for repo)
 backups/
+
+# Raw icon-generator export (real icons live in assets/images/)
+IconKitchen-Output/
+
+# Stale agent tooling artifacts
+.remember/tmp/

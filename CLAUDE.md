@@ -171,31 +171,39 @@ modules/<domain>/
 - `modules/database/` — Shared database module
 - `modules/events/` — Domain events & dispatchers
 
-### Mobile — Feature-based Architecture
+### Mobile — Atomic Design + Service/Hook Layer
+
+> ⚠️ **Struktur NYATA repo ini** (bukan `features/`). Peta detail: `docs/REPO_MAP.md`.
+> Referensi arsitektur lengkap: `ARCHITECTURE.md`.
 
 **Dependency Rule:**
 ```
-app/ (screens)  →  features/<domain>/api/  →  lib/api-client  →  backend REST API
+app/ (screens)  →  src/hooks/ (TanStack Query)  →  src/services/api.ts (Axios)  →  backend REST API
 ```
 
-**Structure:**
+**Structure (aktual):**
 ```
-mobile/
-├── app/                    # Expo Router — file-based routing
-│   ├── (auth)/             # Auth screens
+mobile-netmanager/
+├── app/                    # Expo Router — file-based routing (SEMUA screen di sini)
+│   ├── (app)/              # Screen karyawan/teknisi (dashboard, work-order, absensi, dst)
+│   ├── (auth)/             # Auth screens (login)
 │   ├── (customer)/         # Customer portal screens
-│   └── (teknisi)/          # Teknisi portal screens
-├── components/             # Reusable UI components
-├── features/               # Feature modules
-│   └── <domain>/
-│       ├── api/            # TanStack Query hooks + API calls
-│       ├── components/     # Feature-specific components
-│       ├── types/          # TypeScript types/DTOs
-│       └── utils/
-├── lib/                    # Shared utilities (auth, axios, storage)
-├── hooks/                  # Shared custom hooks
-└── constants/              # App-wide constants
+│   ├── _layout.tsx         # Root layout + provider
+│   └── index.tsx           # Entry redirect guard
+└── src/
+    ├── components/         # Atomic Design: atoms/ molecules/ organisms/ templates/ screens/ providers/
+    ├── services/           # Business logic & API client (api.ts, SyncService, DatabaseService, dst)
+    ├── hooks/              # Custom hooks — queries/ (TanStack Query) + lifecycle hooks
+    ├── context/            # React Context providers (Auth, Socket)
+    ├── lib/                # queryClient, notificationCache
+    ├── utils/              # Pure helpers (date, phone, geo, crypto, logger)
+    ├── constants/          # Konstanta & tema
+    ├── types/              # TypeScript types/DTO
+    └── native/             # Native module bridges
 ```
+
+> ❌ TIDAK ADA folder `features/`, `lib/api-client`, atau route group `(teknisi)/`.
+> Kalau butuh ekstrak logic dari screen → taruh di `src/hooks/` (stateful/query) atau `src/services/`/`src/utils/` (pure/domain).
 
 ---
 
@@ -251,7 +259,7 @@ Backend dikonsumsi mobile via REST API. Kontrak yang disepakati:
 - File > **300 baris** → pecah jadi modul terpisah
 - 1 component per file
 - Props interface wajib didefinisikan eksplisit (bukan `any`)
-- Tidak ada logic bisnis di layer component — pindahkan ke custom hook atau `features/`
+- Tidak ada logic bisnis di layer component — pindahkan ke custom hook (`src/hooks/`) atau service (`src/services/`)
 
 ---
 
@@ -300,7 +308,7 @@ Jika diminta review kode:
 - [ ] Ada `useState` yang seharusnya TanStack Query?
 - [ ] Ada `StyleSheet.create()` yang seharusnya `twrnc`?
 - [ ] Navigation sudah pakai Expo Router dengan benar?
-- [ ] Ada logic bisnis di `app/` yang seharusnya di `features/`?
+- [ ] Ada logic bisnis di `app/` yang seharusnya di `src/hooks/` atau `src/services/`?
 - [ ] Props interface didefinisikan eksplisit?
 
 ---

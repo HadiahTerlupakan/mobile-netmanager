@@ -28,7 +28,7 @@ A controlled input component that integrates seamlessly with React Hook Form.
 
 #### File Location
 ```
-/Users/rohadimraja/Documents/mobile-netmanager/src/components/atoms/FormInput.tsx
+src/components/atoms/FormInput.tsx
 ```
 
 #### Props
@@ -79,7 +79,7 @@ A controlled select/picker component for React Hook Form using `@react-native-pi
 
 #### File Location
 ```
-/Users/rohadimraja/Documents/mobile-netmanager/src/components/atoms/FormSelect.tsx
+src/components/atoms/FormSelect.tsx
 ```
 
 #### Props
@@ -141,7 +141,7 @@ A custom hook that wraps `useForm` with Zod validation resolver.
 
 #### File Location
 ```
-/Users/rohadimraja/Documents/mobile-netmanager/src/hooks/useFormWithValidation.ts
+src/hooks/useFormWithValidation.ts
 ```
 
 #### Parameters
@@ -358,9 +358,10 @@ You can extend styles by passing custom styles through props.
 5. **Default values**: Always provide defaultValues to prevent uncontrolled component warnings
 6. **Validation mode**: Use `mode: 'onSubmit'` for better UX (validate on submit, then on change)
 
-## Examples File
+## Examples
 
-See `/Users/rohadimraja/Documents/mobile-netmanager/FORM_COMPONENTS_EXAMPLES.tsx` for comprehensive examples including:
+Untuk contoh nyata, lihat penggunaan `FormInput`/`FormSelect` di screen `app/(app)/` yang memakai
+React Hook Form (mis. form izin, request work order). Pola umum:
 
 - Basic login form
 - Registration form with selects
