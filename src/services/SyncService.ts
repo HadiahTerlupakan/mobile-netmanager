@@ -16,9 +16,14 @@ import { cleanupOfflinePhotos } from '@/utils/persistPhoto';
 import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { TelemetryService } from './TelemetryService';
 import { RefreshTokenService } from './RefreshTokenService';
+import {
+  collectPersistedPhotoUris,
+  getOptimalConcurrency,
+  isPermanentSyncFailure,
+  prioritizeQueue,
+} from './syncQueueHelpers';
 
 const SYNC_REQUEST_TIMEOUT_MS = HTTP_TIMEOUTS.sync;
-const PERMANENT_SYNC_FAILURE_STATUSES = new Set([400, 404, 409, 422]);
 const MAX_ATTENDANCE_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_GENERAL_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -29,30 +34,6 @@ const MAX_GENERAL_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
  */
 const MAX_GLOBAL_RETRY_COUNT = 10;
 
-/**
- * Kumpulkan semua URI photo yang sudah dipersist offline pada queue item,
- * sehingga bisa di-cleanup setelah sync (sukses / permanent failure / TTL).
- * Tanpa cleanup, file menumpuk selamanya di documentDirectory/offline-photos/.
- */
-function collectPersistedPhotoUris(item: SyncQueueItem): string[] {
-  const meta = (item.body && typeof item.body === 'object' ? (item.body as Record<string, unknown>).meta : undefined) as
-    | { photos?: unknown; photoMap?: unknown }
-    | undefined;
-  if (!meta) return [];
-
-  const uris: string[] = [];
-  if (Array.isArray(meta.photos)) {
-    for (const p of meta.photos) {
-      if (typeof p === 'string') uris.push(p);
-    }
-  }
-  if (meta.photoMap && typeof meta.photoMap === 'object') {
-    for (const v of Object.values(meta.photoMap as Record<string, unknown>)) {
-      if (typeof v === 'string') uris.push(v);
-    }
-  }
-  return uris;
-}
 
 /** Returns true if the URL belongs to an attendance endpoint. */
 const isAttendanceEndpoint = (url: string): boolean =>
@@ -99,9 +80,6 @@ const parseQueuePayload = <T extends Record<string, unknown>>(
 
 const cloneQueuePayload = <T extends Record<string, unknown>>(value: T): T =>
     JSON.parse(JSON.stringify(value)) as T;
-
-const isPermanentSyncFailure = (status: number): boolean =>
-    PERMANENT_SYNC_FAILURE_STATUSES.has(status);
 
 // Helper for upload (outside component)
 const uploadFile = async (uri: string, type: string, watermarkLines?: string[]): Promise<string | null> => {
@@ -197,10 +175,10 @@ export const SyncService = {
         logger.sync(`[SyncService] Found ${queue.length} items to sync.`);
 
         // Prioritize queue items
-        const prioritizedQueue = SyncService.prioritizeQueue(queue);
+        const prioritizedQueue = prioritizeQueue(queue);
 
         // Adaptive concurrency based on queue size
-        const concurrency = SyncService.getOptimalConcurrency(prioritizedQueue.length);
+        const concurrency = getOptimalConcurrency(prioritizedQueue.length);
         logger.sync(`[SyncService] Processing with concurrency: ${concurrency}`);
 
         // Helper to get token (can't use hook here outside component)
@@ -233,55 +211,6 @@ export const SyncService = {
     }
   },
 
-  /**
-   * Prioritize queue items based on type/importance
-   */
-  prioritizeQueue: (queue: SyncQueueItem[]): SyncQueueItem[] => {
-      // Priority: Work orders > Attendance > Inventory > Others
-      const priorityMap: Record<string, number> = {
-          'work-order': 1,
-          'check-in': 2,
-          'check-out': 2,
-          'absensi': 2,
-          'barang-masuk': 3,
-          'barang-keluar': 3,
-          'inventory': 3,
-          'default': 4
-      };
-
-      return [...queue].sort((a, b) => {
-          const getPriority = (url: string) => {
-              for (const [key, priority] of Object.entries(priorityMap)) {
-                  if (url.includes(key)) return priority;
-              }
-              return priorityMap.default;
-          };
-
-          const priorityA = getPriority(a.url);
-          const priorityB = getPriority(b.url);
-
-          if (priorityA !== priorityB) {
-              return priorityA - priorityB;
-          }
-
-          // Same priority: sort by created date (FIFO)
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      });
-  },
-
-  /**
-   * Determine optimal concurrency based on queue size
-   */
-  getOptimalConcurrency: (queueSize: number): number => {
-      // Small queue: process quickly
-      if (queueSize <= 3) return 2;
-
-      // Medium queue: balanced
-      if (queueSize <= 10) return 3;
-
-      // Large queue: limit to prevent overwhelming network/device
-      return 4;
-  },
 
   /**
    * Process a single queue item with retry logic (Exponential Backoff)
