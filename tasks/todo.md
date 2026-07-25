@@ -26,7 +26,15 @@
 - [~] absensi.tsx (927) → **SUDAH cukup rapi** (pakai useAttendanceSubmission, attendanceGeofencePolicy, attendanceCaptureState, geo). Ekstraksi lanjut low-gain/high-risk.
 - [x] LocationTrackingService (592→527) → getLocationConfig ke locationTrackingConfig.ts + named constants. Divalidasi test (11 pass).
 - [x] SyncService (631→560) → ekstrak helper murni (prioritas, konkurensi, photo-uri, permanent-failure) ke syncQueueHelpers.ts + **10 test baru** (tutup gap no-test) + named constants.
-- [~] SyncService sisa: processQueue/processQueueItem (god method, stateful) → butuh test integrasi dulu sebelum dipecah. Tunda.
+- [x] SyncService processQueue → **6 test integrasi orkestrasi** (jaring pengaman: guard, prioritas, token, DB-fail). Sekarang aman dipecah nanti.
+- [~] SyncService sisa: processQueueItem (god method item-level, stateful + retry/upload) → jaring pengaman processQueue sudah ada; pemecahan lanjut butuh mock upload/api lebih dalam. Tunda.
+
+## Fase 6 — Jaring pengaman untuk god method ✅ SELESAI
+- [x] Test integrasi processQueue (6 test) — prasyarat pemecahan aman
+- **Full suite: 300 pass, 0 fail. tsc 0 error.**
+
+## Catatan
+- Ada 1 suite pre-existing yang intermittently flaky (timing) — di luar scope, bukan dari perubahan sesi ini.
 
 ## Fase 5 — Fix 5 test pre-existing yang gagal ✅ SELESAI
 - [x] root-layout-privacy: tambah __mocks__/expo-linking.js (8 pass)
