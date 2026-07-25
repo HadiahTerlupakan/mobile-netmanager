@@ -14,12 +14,19 @@
 - [x] Tambah .gitignore entries
 - [~] logo/ & plans/ DIBIARKAN (rekomendasi saja — mungkin source/riwayat yang mau disimpan)
 
-## Fase 3 — Medium risk: konsolidasi duplikasi
-- [ ] Haversine 3× → 1 util (src/utils/geo.ts)
-- [ ] Storage 3 sumber → 1 wrapper (src/utils/storage.ts)
-- [ ] Auth-token 3 file → 1 authority
+## Fase 3 — Medium risk: konsolidasi duplikasi ✅ SEBAGIAN
+- [x] Haversine 3× → 1 util (src/utils/geo.ts) — geofenceUtils & LocationTrackingService kini import dari geo
+- [~] Storage 3 sumber → **DITUNDA (data-safety)**: wrapper pakai prefix `netmanager_`, call-site mentah tanpa prefix → beda namespace. Migrasi butuh langkah baca-lama→tulis-baru per key + test device. JANGAN ganti buta.
+- [~] Auth-token 3 file → **DITUNDA (risiko logout massal)**: authority terdokumentasi di docs/REPO_MAP.md. Konsolidasi butuh test auth end-to-end di device.
 
-## Fase 4 — Higher risk: pecah god files (satu per satu + verifikasi)
-- [ ] topology-map.tsx (2042) → ekstrak geo/geojson util + query hook
-- [ ] absensi.tsx (927) → ekstrak geofence/capture hooks
-- [ ] SyncService/LocationTrackingService → pisah tanggung jawab
+## Fase 4 — Higher risk: pecah god files ✅ MULAI
+- [x] topology-map.tsx (2042→1953) → helper murni diekstrak ke topologyHelpers.tsx
+- [ ] topology-map: lanjut ekstrak GeoJSON builder (devicesGeoJson :~680, connectionLines :~810) → jadikan fungsi murni terima param, keluarkan ke topologyHelpers. **Butuh test device** (render peta).
+- [~] absensi.tsx (927) → **SUDAH cukup rapi**: sudah pakai useAttendanceSubmission, attendanceGeofencePolicy, attendanceCaptureState, geo. Sisa = orkestrasi screen. Ekstraksi lanjut low-gain/high-risk.
+- [ ] SyncService (631) → pisah: queue-processing vs photo-metadata/watermark vs toast. Incremental.
+- [ ] LocationTrackingService (592) → pisah: battery-config vs permission-flow vs push/buffer.
+
+## Catatan test (pre-existing, di luar scope sesi ini)
+Suite gagal SEBELUM sesi & tidak terkait perubahan: Config, RefreshTokenService,
+root-layout-privacy-route, mixradius-isolir, topology-map-readonly-boundary
+(gagal identik di baseline — masalah mock komponen di test, bukan kode produksi).
