@@ -69,7 +69,10 @@ export async function presentForegroundNotification(
       pressAction: {
         id: 'default',
       },
-      smallIcon: 'ic_notification',
+      // WORKAROUND(OTA): `ic_notification` tidak ada di native build saat ini
+      // → notifee throw & heads-up gagal tampil. `ic_launcher` selalu ada.
+      // Kembalikan ke 'ic_notification' setelah icon masuk build EAS berikutnya.
+      smallIcon: 'ic_launcher',
     },
   });
 }

@@ -145,7 +145,7 @@ export default function NotificationsScreen() {
   const notificationMutation = useApiMutation({
     endpoint: "/api/mobile/notifications",
     method: "POST",
-    invalidateKeys: [queryKeys.notifications.list()],
+    invalidateKeys: [queryKeys.notifications.list(), queryKeys.notifications.unread()],
     showErrorAlert: false
   });
 

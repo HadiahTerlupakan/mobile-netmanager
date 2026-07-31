@@ -7,6 +7,7 @@ import { presentForegroundNotification } from '@/services/ForegroundNotification
 import { errorReportingService } from '@/services/ErrorReportingService';
 import { presentInfoMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
+import notifee, { EventType } from '@notifee/react-native';
 import { Href, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
@@ -53,6 +54,7 @@ export function useNotificationSetup() {
       '/izin',
       '/chat',
       '/holidays',
+      '/marketing/canvasing',
     ];
 
     const handleNotificationNavigation = (data: { url?: string }) => {
@@ -144,7 +146,25 @@ export function useNotificationSetup() {
           }
         );
 
-        notificationCleanupRef.current = cleanup;
+        // Notifikasi foreground ditampilkan manual via notifee (bukan FCM
+        // tray), sehingga tap-nya TIDAK memicu onNotificationOpenedApp.
+        // Tanpa listener notifee ini, tap heads-up saat app terbuka = no-op.
+        const unsubscribeNotifeeForeground = notifee.onForegroundEvent(
+          ({ type, detail }) => {
+            if (type !== EventType.PRESS) return;
+
+            const url = detail.notification?.data?.url;
+            logger.info('Notifee foreground notification tapped, url:', url);
+            handleNotificationNavigation(
+              typeof url === 'string' ? { url } : {}
+            );
+          }
+        );
+
+        notificationCleanupRef.current = () => {
+          cleanup();
+          unsubscribeNotifeeForeground();
+        };
       } catch (error) {
         logger.error('Failed to setup notifications:', error);
         errorReportingService.captureException(

@@ -29,6 +29,7 @@ module.exports = {
     "^expo-crypto$": "<rootDir>/__mocks__/expo-crypto.js",
     "^expo-battery$": "<rootDir>/__mocks__/expo-battery.js",
     "^expo-task-manager$": "<rootDir>/__mocks__/expo-task-manager.js",
+    "^@notifee/react-native$": "<rootDir>/__mocks__/@notifee/react-native.js",
     "^@/utils/logger$": "<rootDir>/__mocks__/logger.js",
   },
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
