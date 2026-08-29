@@ -34,6 +34,7 @@ const mockDatabaseMarkAsFailed = jest
   .fn<(id: number, reason: string) => Promise<void>>()
   .mockResolvedValue(undefined);
 const mockDatabaseClearSessionData = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+type AppStateListener = (state: string) => void;
 
 jest.mock('@react-native-community/netinfo', () => ({
   fetch: mockNetInfoFetch,
@@ -90,9 +91,15 @@ jest.mock('@/services/DatabaseService', () => ({
 
 const { DatabaseService } = require('@/services/DatabaseService') as DatabaseServiceModule;
 const { SyncService } = require('@/services/SyncService') as SyncServiceModule;
+const { AppState } = require('react-native') as typeof import('react-native');
+
+let mockAppStateAddEventListener: jest.SpiedFunction<typeof AppState.addEventListener>;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockAppStateAddEventListener = jest
+    .spyOn(AppState, 'addEventListener')
+    .mockReturnValue({ remove: jest.fn() } as never);
   SyncService.isMonitoring = false;
   SyncService.isProcessing = false;
   mockNetInfoFetch.mockResolvedValue({
@@ -100,6 +107,35 @@ beforeEach(() => {
     isInternetReachable: true,
   });
 });
+
+/**
+ * Jalankan `action` di bawah fake timers, majukan timer debounce drain, lalu
+ * tunggu processQueue yang terpicu selesai. Fake timers harus aktif SEBELUM
+ * action supaya setTimeout debounce-nya tertangkap.
+ */
+async function runAndFlushQueueDrain(action: () => void) {
+  jest.useFakeTimers();
+  try {
+    action();
+    jest.runOnlyPendingTimers();
+  } finally {
+    jest.useRealTimers();
+  }
+  await new Promise(resolve => setImmediate(resolve));
+}
+
+/** startMonitoring + selesaikan drain awal, kembalikan listener AppState. */
+async function startMonitoringAndSettle(): Promise<AppStateListener | undefined> {
+  await runAndFlushQueueDrain(() => SyncService.startMonitoring());
+  return mockAppStateAddEventListener.mock.calls.find(
+    ([event]) => event === 'change',
+  )?.[1] as AppStateListener | undefined;
+}
+
+/** Kirim perubahan AppState lalu selesaikan drain yang mungkin terpicu. */
+async function triggerAppState(listener: AppStateListener | undefined, state: string) {
+  await runAndFlushQueueDrain(() => listener?.(state));
+}
 
 describe('SyncService', () => {
   describe('isOnline', () => {
@@ -147,6 +183,41 @@ describe('SyncService', () => {
       SyncService.startMonitoring();
       
       expect(mockNetInfoAddEventListener).toHaveBeenCalledTimes(1);
+    });
+
+    // Tanpa drain awal, antrean absensi offline diam sampai kebetulan ada
+    // transisi jaringan — bisa berjam-jam setelah karyawan menekan absen.
+    it('should drain the queue on start instead of waiting for a network transition', async () => {
+      mockDatabaseGetPendingQueue.mockResolvedValue([]);
+
+      await startMonitoringAndSettle();
+
+      expect(mockDatabaseGetPendingQueue).toHaveBeenCalled();
+    });
+
+    // Jaringan sering pulih saat app di background, sehingga event NetInfo
+    // terlewat. Kembali ke foreground harus ikut memicu drain.
+    it('should drain the queue when the app returns to the foreground', async () => {
+      mockDatabaseGetPendingQueue.mockResolvedValue([]);
+
+      const appStateListener = await startMonitoringAndSettle();
+      expect(appStateListener).toBeDefined();
+      mockDatabaseGetPendingQueue.mockClear();
+
+      await triggerAppState(appStateListener, 'active');
+
+      expect(mockDatabaseGetPendingQueue).toHaveBeenCalled();
+    });
+
+    it('should not drain the queue when the app goes to the background', async () => {
+      mockDatabaseGetPendingQueue.mockResolvedValue([]);
+
+      const appStateListener = await startMonitoringAndSettle();
+      mockDatabaseGetPendingQueue.mockClear();
+
+      await triggerAppState(appStateListener, 'background');
+
+      expect(mockDatabaseGetPendingQueue).not.toHaveBeenCalled();
     });
   });
 

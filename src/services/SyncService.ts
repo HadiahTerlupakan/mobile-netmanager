@@ -1,7 +1,7 @@
 import NetInfo from '@react-native-community/netinfo';
 import { isAxiosError } from 'axios';
 import pLimit from 'p-limit';
-import { DeviceEventEmitter } from 'react-native';
+import { AppState, DeviceEventEmitter } from 'react-native';
 import { DatabaseService, SyncQueueItem } from './DatabaseService';
 import * as SecureStore from 'expo-secure-store'; // Ensure SyncQueueItem is exported
 import { presentErrorMessage } from '@/utils/errorPresenter';
@@ -33,6 +33,9 @@ const MAX_GENERAL_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
  * di processQueueItem habis → markAsRetry → next batch retry 3x lagi → ...).
  */
 const MAX_GLOBAL_RETRY_COUNT = 10;
+
+/** Debounce drain antrean supaya pemicu beruntun (jaringan + foreground) menyatu. */
+const SYNC_DRAIN_DEBOUNCE_MS = 2000;
 
 
 /** Returns true if the URL belongs to an attendance endpoint. */
@@ -118,17 +121,36 @@ export const SyncService = {
     const unsubscribe = NetInfo.addEventListener(state => {
       logger.sync('[SyncService] Network state changed:', state.isConnected);
       if (state.isConnected && state.isInternetReachable) {
-        // Debounce sync processing
-        if (SyncService.processTimeout) {
-            clearTimeout(SyncService.processTimeout);
-        }
-        SyncService.processTimeout = setTimeout(() => {
-            SyncService.processQueue();
-        }, 2000);
+        SyncService.scheduleQueueDrain();
       }
     });
 
-    eventManager.addListener('sync', null, unsubscribe);
+    // Jaringan sering sudah stabil saat app dibuka, atau pulih ketika app di
+    // background — dua kondisi yang tidak menghasilkan event NetInfo. Tanpa
+    // kedua pemicu di bawah, antrean offline (mis. absensi) baru terkirim saat
+    // kebetulan ada transisi jaringan berikutnya, yang bisa berjam-jam kemudian.
+    const appStateSubscription = AppState.addEventListener('change', nextState => {
+      if (nextState !== 'active') return;
+      logger.sync('[SyncService] App returned to foreground, draining queue...');
+      SyncService.scheduleQueueDrain();
+    });
+
+    eventManager.addListener('sync', null, () => {
+      unsubscribe();
+      appStateSubscription.remove();
+    });
+
+    SyncService.scheduleQueueDrain();
+  },
+
+  /** Jadwalkan drain antrean dengan debounce agar pemicu beruntun tidak menumpuk. */
+  scheduleQueueDrain: () => {
+    if (SyncService.processTimeout) {
+      clearTimeout(SyncService.processTimeout);
+    }
+    SyncService.processTimeout = setTimeout(() => {
+      SyncService.processQueue();
+    }, SYNC_DRAIN_DEBOUNCE_MS);
   },
 
   stopMonitoring: () => {
