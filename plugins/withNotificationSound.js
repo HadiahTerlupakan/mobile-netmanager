@@ -1,9 +1,4 @@
-const {
-  IOSConfig,
-  withAndroidManifest,
-  withDangerousMod,
-  withXcodeProject,
-} = require('@expo/config-plugins');
+const { IOSConfig, withDangerousMod, withXcodeProject } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -19,15 +14,14 @@ const path = require('path');
  * - Android: `res/raw/notif_soft.wav`, dirujuk tanpa ekstensi (`notif_soft`)
  * - iOS: berkas di bundle utama, dirujuk lengkap (`notif_soft.wav`)
  *
- * Plugin ini juga mengarahkan notifikasi FCM latar belakang ke channel yang
- * membawa nada tersebut. Sejak Android 8, suara ditentukan oleh channel, bukan
- * oleh payload — tanpa penunjuk ini notifikasi saat aplikasi tertutup mendarat
- * di channel cadangan bikinan FCM dan tetap berbunyi bawaan perangkat.
+ * Channel untuk notifikasi latar belakang TIDAK diatur di sini.
+ * `@react-native-firebase/messaging` sudah mendeklarasikan
+ * `default_notification_channel_id` di manifest-nya dan mengambil nilainya dari
+ * `firebase.json`. Menambahkan meta-data kedua membuat manifest merger menolak
+ * build, jadi channel diatur di `firebase.json` saja.
  */
 
 const SOUND_FILE_NAME = 'notif_soft.wav';
-const NOTIFICATION_CHANNEL_ID = 'high-priority-soft';
-const DEFAULT_CHANNEL_META = 'com.google.firebase.messaging.default_notification_channel_id';
 const SOURCE_RELATIVE_PATH = path.join('assets', 'sounds', SOUND_FILE_NAME);
 
 function readSoundFile(projectRoot) {
@@ -101,35 +95,8 @@ function withIosNotificationSound(config) {
   });
 }
 
-function withAndroidDefaultChannel(config) {
-  return withAndroidManifest(config, (config) => {
-    const application = config.modResults.manifest.application?.[0];
-    if (!application) return config;
-
-    application['meta-data'] = application['meta-data'] ?? [];
-    const existing = application['meta-data'].find(
-      (item) => item.$?.['android:name'] === DEFAULT_CHANNEL_META,
-    );
-
-    if (existing) {
-      existing.$['android:value'] = NOTIFICATION_CHANNEL_ID;
-      return config;
-    }
-
-    application['meta-data'].push({
-      $: {
-        'android:name': DEFAULT_CHANNEL_META,
-        'android:value': NOTIFICATION_CHANNEL_ID,
-      },
-    });
-
-    return config;
-  });
-}
-
 module.exports = function withNotificationSound(config) {
   config = withAndroidNotificationSound(config);
-  config = withAndroidDefaultChannel(config);
   config = withIosNotificationSound(config);
 
   return config;

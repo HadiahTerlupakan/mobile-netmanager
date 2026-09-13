@@ -1,6 +1,6 @@
 {
   "react-native": {
-    "messaging_android_notification_channel_id": "high-priority"
+    "messaging_android_notification_channel_id": "high-priority-soft"
   },
   "firestore": {
     "rules": "firestore.rules"

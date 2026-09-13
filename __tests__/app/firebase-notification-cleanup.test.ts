@@ -22,11 +22,16 @@ describe('firebase-only mobile notification cleanup', () => {
   });
 
   it('pins Firebase Android notifications to the managed high-priority channel', () => {
+    // Channel diganti dari 'high-priority' ke 'high-priority-soft' saat nada
+    // notifikasi diubah: Android mengunci suara sebuah channel setelah dibuat,
+    // jadi nada baru menuntut id baru. Nilai ini juga yang dipakai
+    // @react-native-firebase/messaging untuk mengisi meta-data
+    // default_notification_channel_id di manifest-nya.
     const firebaseJsonSource = readFileSync(join(__dirname, '../../firebase.json'), 'utf8');
     const firebaseConfig = JSON.parse(firebaseJsonSource);
 
     expect(firebaseConfig['react-native']).toEqual(expect.objectContaining({
-      messaging_android_notification_channel_id: 'high-priority',
+      messaging_android_notification_channel_id: 'high-priority-soft',
     }));
   });
 

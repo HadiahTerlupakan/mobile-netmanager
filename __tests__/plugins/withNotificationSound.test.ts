@@ -8,11 +8,6 @@ import path from 'node:path';
 const withNotificationSound = require('../../plugins/withNotificationSound');
 
 type DangerousMod = (config: unknown) => Promise<unknown>;
-type ManifestMod = (config: unknown) => Promise<{
-  modResults: { manifest: { application: { 'meta-data'?: { $: Record<string, string> }[] }[] } };
-}>;
-
-const META_CHANNEL = 'com.google.firebase.messaging.default_notification_channel_id';
 
 /**
  * `android/` dan `ios/` tidak ikut version control — keduanya diregenerasi tiap
@@ -83,38 +78,35 @@ describe('withNotificationSound', () => {
       'scripts/generate-notification-sound.py'
     );
   });
+});
 
-  const jalankanModManifest = (metaAwal: { $: Record<string, string> }[] = []) => {
-    const config = withNotificationSound({ name: 'RADPRO', slug: 'radpro' });
-    const action = config.mods.android.manifest as ManifestMod;
+/**
+ * `@react-native-firebase/messaging` sudah mendeklarasikan
+ * `default_notification_channel_id` di manifest-nya sendiri, dengan nilai dari
+ * `firebase.json`. Menambahkan meta-data kedua lewat config plugin membuat
+ * manifest merger menolak build — itu yang menggagalkan build EAS #43.
+ *
+ * Jadi channel diatur di satu tempat saja, dan tes ini menjaga agar nilainya
+ * tidak melenceng dari channel yang benar-benar dibuat aplikasi.
+ */
+describe('channel notifikasi Android', () => {
+  const akarRepo = path.join(__dirname, '..', '..');
 
-    return action({
-      ...config,
-      modRequest: { projectRoot, platformProjectRoot: platformRoot },
-      modResults: { manifest: { application: [{ 'meta-data': metaAwal }] } },
-    });
-  };
+  const bacaChannelFirebaseJson = (): string =>
+    JSON.parse(fs.readFileSync(path.join(akarRepo, 'firebase.json'), 'utf8'))[
+      'react-native'
+    ].messaging_android_notification_channel_id;
 
-  it('mengarahkan notifikasi FCM latar belakang ke channel bernada lembut', async () => {
-    // Sejak Android 8 suara ditentukan channel, bukan payload. Tanpa penunjuk
-    // ini notifikasi saat aplikasi tertutup mendarat di channel cadangan FCM
-    // dan tetap berbunyi bawaan perangkat.
-    const hasil = await jalankanModManifest();
+  it('sama persis dengan channel yang dibuat aplikasi', () => {
+    // Kalau keduanya melenceng, notifikasi latar belakang mendarat di channel
+    // yang tidak pernah dibuat dan kembali berbunyi bawaan perangkat.
+    const sumber = fs.readFileSync(
+      path.join(akarRepo, 'src', 'services', 'ForegroundNotificationService.ts'),
+      'utf8'
+    );
 
-    const meta = hasil.modResults.manifest.application[0]['meta-data'] ?? [];
-    expect(meta).toContainEqual({
-      $: { 'android:name': META_CHANNEL, 'android:value': 'high-priority-soft' },
-    });
-  });
-
-  it('memperbarui penunjuk yang sudah ada alih-alih menggandakannya', async () => {
-    const hasil = await jalankanModManifest([
-      { $: { 'android:name': META_CHANNEL, 'android:value': 'high-priority' } },
-    ]);
-
-    const meta = hasil.modResults.manifest.application[0]['meta-data'] ?? [];
-    const cocok = meta.filter((m) => m.$['android:name'] === META_CHANNEL);
-    expect(cocok).toHaveLength(1);
-    expect(cocok[0].$['android:value']).toBe('high-priority-soft');
+    expect(sumber).toContain(
+      `const FOREGROUND_NOTIFICATION_CHANNEL_ID = '${bacaChannelFirebaseJson()}'`
+    );
   });
 });
