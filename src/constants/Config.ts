@@ -62,6 +62,31 @@ const getApiUrl = () => {
   return getDevApiUrl();
 };
 
+/**
+ * Tentukan apakah laporan error dikirim ke backend.
+ *
+ * Arahnya sengaja gagal-terbuka. Sebelumnya pelaporan hanya menyala kalau
+ * varian bernilai persis `production`, sehingga bundle rilis yang dibangun
+ * dengan profil lain — `preview` menyetelnya `staging` — mematikan pemantauan
+ * tanpa suara. Nilai `EXPO_PUBLIC_*` dibekukan ke dalam bundle saat build,
+ * jadi satu build dengan profil keliru cukup untuk membutakan pemantauan
+ * sampai ada yang sadar berhari-hari kemudian.
+ *
+ * Sekarang bundle rilis melapor kecuali dimatikan eksplisit, dan bundle
+ * pengembangan tetap diam kecuali diminta.
+ */
+export function resolveBackendErrorReporting(
+  env: Record<string, string | undefined> = process.env,
+  isDevBundle: boolean = typeof __DEV__ !== 'undefined' && __DEV__,
+): boolean {
+  const flag = env.EXPO_PUBLIC_ENABLE_ERROR_REPORTING;
+
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+
+  return !isDevBundle;
+}
+
 export const Config = {
   // Automatically switch between Dev, Staging, and Prod based on environment variant
   API_URL: getApiUrl(),
@@ -69,7 +94,5 @@ export const Config = {
   IS_PRODUCTION: process.env.EXPO_PUBLIC_APP_VARIANT === 'production',
   CAN_AUTO_CHECK_APP_UPDATES: canCheckAppUpdatesOnCurrentBuild,
   CAN_MANUALLY_CHECK_APP_UPDATES: canCheckAppUpdatesOnCurrentBuild,
-  ENABLE_BACKEND_ERROR_REPORTING:
-    process.env.EXPO_PUBLIC_ENABLE_ERROR_REPORTING === 'true'
-    || process.env.EXPO_PUBLIC_APP_VARIANT === 'production',
+  ENABLE_BACKEND_ERROR_REPORTING: resolveBackendErrorReporting(),
 };
