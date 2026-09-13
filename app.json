@@ -171,7 +171,8 @@
       "@react-native-firebase/messaging/app.plugin.js",
       "./plugins/withNetworkSecurity",
       "./plugins/withNotifeeRepo",
-      "./plugins/withReleaseSigningConfig"
+      "./plugins/withReleaseSigningConfig",
+      "./plugins/withNotificationSound"
     ],
     "experiments": {
       "typedRoutes": true
