@@ -6,6 +6,11 @@
  * - AsyncStorage persister untuk offline caching
  */
 
+import {
+  describeFailedRequest,
+  getHttpStatus,
+  shouldReportToBackend,
+} from "@/lib/queryErrorReporting";
 import { errorReportingService } from "@/services/ErrorReportingService";
 import { logger } from "@/utils/logger";
 import { showToast } from "@/utils/errorPresenter";
@@ -25,6 +30,37 @@ const normalizeQueryError = (error: unknown): Error => {
   return new Error("Unknown query error");
 };
 
+/**
+ * Pesan yang menjelaskan keadaan, bukan menampilkan kode HTTP mentah.
+ *
+ * 401 dan 426 tidak punya entri karena sudah ditangani interceptor API
+ * (refresh token dan paksa update), jadi toast-nya justru mengganggu.
+ */
+const TOAST_MESSAGE_BY_STATUS: Record<number, string> = {
+  403: "Anda tidak punya akses ke data ini.",
+  404: "Data tidak ditemukan atau sudah dihapus.",
+  409: "Data sudah berubah di server. Muat ulang lalu coba lagi.",
+};
+
+const SILENT_TOAST_STATUSES = new Set([401, 426]);
+
+const showFailureToast = (
+  error: unknown,
+  fallbackTitle: string,
+  fallbackMessage: string,
+) => {
+  const status = getHttpStatus(error);
+  if (status !== undefined && SILENT_TOAST_STATUSES.has(status)) return;
+
+  const normalized = normalizeQueryError(error);
+  const message =
+    (status !== undefined ? TOAST_MESSAGE_BY_STATUS[status] : undefined) ??
+    normalized.message ??
+    fallbackMessage;
+
+  showToast("error", fallbackTitle, message || fallbackMessage);
+};
+
 const safeSerialize = (value: unknown): string => {
   try {
     return JSON.stringify(value);
@@ -40,17 +76,18 @@ export const queryClient = new QueryClient({
       const normalizedError = normalizeQueryError(error);
       const queryKey = safeSerialize(query.queryKey);
       logger.error("[QueryClient] Query failed:", queryKey, normalizedError.message);
-      
-      errorReportingService.captureException(normalizedError, {
-        source: "query",
-        queryKey,
-      });
 
-      // Show toast if it's a critical error or background fetch failure
-      // (Ignore unauthorized as it's handled by API interceptor)
-      if (!normalizedError.message.includes('401') && !normalizedError.message.includes('426')) {
-        showToast('error', 'Gagal Memuat Data', normalizedError.message || 'Terjadi kesalahan koneksi');
+      // Hasil yang diharapkan seperti 403 dan 404 tidak dilaporkan: itu jawaban
+      // sah dari server, dan mengirimnya menenggelamkan error yang nyata.
+      if (shouldReportToBackend(error)) {
+        errorReportingService.captureException(normalizedError, {
+          source: "query",
+          queryKey,
+          ...describeFailedRequest(error),
+        });
       }
+
+      showFailureToast(error, "Gagal Memuat Data", "Terjadi kesalahan koneksi");
     },
   }),
   mutationCache: new MutationCache({
@@ -58,16 +95,23 @@ export const queryClient = new QueryClient({
       const normalizedError = normalizeQueryError(error);
       const mutationKey = safeSerialize(mutation.options.mutationKey ?? null);
       logger.error("[QueryClient] Mutation failed:", mutationKey, normalizedError.message);
-      
-      errorReportingService.captureException(normalizedError, {
-        source: "mutation",
-        mutationKey,
-      });
 
-      // Mutations usually need explicit feedback
-      if (!normalizedError.message.includes('401') && !normalizedError.message.includes('426')) {
-        showToast('error', 'Gagal Menyimpan Perubahan', normalizedError.message || 'Terjadi kesalahan saat memproses data');
+      // mutationKey hampir selalu null karena mutation tidak menyetelnya;
+      // endpoint yang gagal diambil dari error-nya sendiri supaya laporan
+      // tetap bisa ditelusuri ke sumbernya.
+      if (shouldReportToBackend(error)) {
+        errorReportingService.captureException(normalizedError, {
+          source: "mutation",
+          mutationKey,
+          ...describeFailedRequest(error),
+        });
       }
+
+      showFailureToast(
+        error,
+        "Gagal Menyimpan Perubahan",
+        "Terjadi kesalahan saat memproses data",
+      );
     },
   }),
   defaultOptions: {
