@@ -1,0 +1,276 @@
+name: Build Android AAB
+
+# Build native pindah dari EAS cloud ke runner Gitea sendiri karena kuota build
+# akun gratis. Yang ikut pindah bukan hanya perintahnya: dua tanggung jawab yang
+# dulu dipegang EAS sekarang milik workflow ini.
+#
+# 1. Menandatangani artefak. `plugins/withReleaseSigningConfig.js` menulis
+#    `signingConfig hasReleaseConfig ? release : debug` — build tanpa kredensial
+#    tetap menghasilkan AAB, hanya bertanda tangan kunci debug. Artefak itu
+#    terlihat normal sampai Play Store menolaknya.
+# 2. Memberi versionCode. `appVersionSource: "remote"` berarti EAS yang dulu
+#    memegang angkanya; tanpa pengganti, `expo prebuild` menulis versionCode 1.
+#
+# Keduanya baru terlihat saat unggah ke Play Store, setelah satu build panjang
+# terbuang. Karena itu keduanya diperiksa di sini, sedini mungkin.
+#
+# Catatan sumber daya: runner ini 4 core / 11 GB dan `capacity: 1`, dipakai juga
+# oleh deploy produksi netmanager. Proyek ini memakai New Architecture, jadi
+# build mengompilasi C++ untuk empat ABI. Build di sini jauh lebih lama daripada
+# ~21 menit di EAS cloud — itu harga yang ditukar dengan kuota.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code_override:
+        description: >-
+          versionCode yang dipakai. Kosongkan untuk memakai
+          RADPRO_VERSION_CODE_BASE + nomor run.
+        type: string
+        required: false
+
+# Dua build native bersamaan akan berebut 11 GB RAM dan menjatuhkan keduanya.
+concurrency:
+  group: build-android
+  cancel-in-progress: false
+
+env:
+  REPO_CLONE_URL: http://gitea:3000/${{ github.repository }}.git
+  AAB_PATH: android/app/build/outputs/bundle/release/app-release.aab
+  KEYSTORE_NAMA: release.jks
+
+jobs:
+  build:
+    name: Build & sign AAB
+    runs-on: android-ci
+    steps:
+      # Kredensial diperiksa sebelum apa pun dipasang atau dibangun. Tanpa ini
+      # secret yang hilang baru terasa di akhir — dan Gradle tidak berhenti, ia
+      # jatuh ke debug keystore.
+      #
+      # Nilai secret tidak pernah dicetak; yang dilaporkan hanya ada/tidak ada.
+      - name: Periksa kredensial signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RADPRO_RELEASE_KEYSTORE_BASE64 }}
+          RADPRO_RELEASE_STORE_PASSWORD: ${{ secrets.RADPRO_RELEASE_STORE_PASSWORD }}
+          RADPRO_RELEASE_KEY_ALIAS: ${{ secrets.RADPRO_RELEASE_KEY_ALIAS }}
+          RADPRO_RELEASE_KEY_PASSWORD: ${{ secrets.RADPRO_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          gagal() { echo "::error::$1"; exit 1; }
+
+          [ -n "${KEYSTORE_BASE64}" ] || gagal "Secret RADPRO_RELEASE_KEYSTORE_BASE64 kosong"
+          [ -n "${RADPRO_RELEASE_STORE_PASSWORD}" ] || gagal "Secret RADPRO_RELEASE_STORE_PASSWORD kosong"
+          [ -n "${RADPRO_RELEASE_KEY_ALIAS}" ] || gagal "Secret RADPRO_RELEASE_KEY_ALIAS kosong"
+          [ -n "${RADPRO_RELEASE_KEY_PASSWORD}" ] || gagal "Secret RADPRO_RELEASE_KEY_PASSWORD kosong"
+
+          # Base64 yang rusak baru ketahuan saat decode; lebih murah sekarang.
+          printf '%s' "${KEYSTORE_BASE64}" | base64 -d > /tmp/uji-keystore 2>/dev/null \
+            || gagal "RADPRO_RELEASE_KEYSTORE_BASE64 bukan base64 yang sah"
+          [ -s /tmp/uji-keystore ] || gagal "Keystore hasil decode kosong"
+          rm -f /tmp/uji-keystore
+
+          echo "Kredensial signing lengkap."
+
+      - name: Ambil kode dari Gitea
+        run: |
+          set -euo pipefail
+          git init -q .
+          git remote add origin "${REPO_CLONE_URL}"
+          git config --local http.extraheader \
+            "Authorization: basic $(printf 'x-access-token:%s' '${{ github.token }}' | base64 -w0)"
+          git fetch -q --depth=1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+          git config --local --unset-all http.extraheader
+
+      - name: Pasang dependensi
+        run: |
+          set -euo pipefail
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          for percobaan in 1 2 3; do
+            if npm ci --no-audit --prefer-offline; then break; fi
+            if [ "$percobaan" = 3 ]; then echo "npm ci gagal setelah 3 percobaan" >&2; exit 1; fi
+            echo "npm ci gagal (percobaan $percobaan), mengulang dalam 15 detik" >&2
+            sleep 15
+          done
+
+      # Gerbang mutu dijalankan sebelum build panjangnya, bukan sesudah: satu
+      # kesalahan tipe tidak pantas menghabiskan satu jam waktu runner.
+      - name: Lint
+        run: npx expo lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Tes unit
+        run: npx jest --ci
+
+      - name: Tentukan versionCode
+        env:
+          OVERRIDE: ${{ inputs.version_code_override }}
+          BASE: ${{ vars.RADPRO_VERSION_CODE_BASE }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${OVERRIDE:-}" ]; then
+            VERSION_CODE="${OVERRIDE}"
+            echo "versionCode dari input manual: ${VERSION_CODE}"
+          else
+            # Basis disimpan sebagai variabel repo supaya bisa dinaikkan tanpa
+            # menyentuh kode. 46 adalah versionCode terakhir yang diunggah lewat
+            # EAS; build pertama di sini menjadi 47.
+            VERSION_CODE="$(( ${BASE:-46} + GITHUB_RUN_NUMBER ))"
+            echo "versionCode = basis ${BASE:-46} + run ${GITHUB_RUN_NUMBER} = ${VERSION_CODE}"
+          fi
+
+          echo "RADPRO_VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
+
+      # Fingerprint dihitung di mesin yang sama dengan yang membangun AAB.
+      # Selama build ada di EAS, angka ini diambil dari `eas build:list` karena
+      # hash lokal bisa berbeda dari hash EAS. Begitu keduanya dikerjakan di
+      # sini, sumber perbedaan itu hilang.
+      - name: Hitung fingerprint runtimeVersion
+        run: |
+          set -euo pipefail
+          FINGERPRINT="$(node ./scripts/compute-fingerprint.js . android)"
+          echo "runtimeVersion: ${FINGERPRINT}"
+          echo "RADPRO_FINGERPRINT=${FINGERPRINT}" >> "$GITHUB_ENV"
+
+      - name: Generate proyek Android
+        env:
+          EXPO_PUBLIC_APP_VARIANT: production
+          EXPO_DEBUG: "false"
+        run: |
+          set -euo pipefail
+          npx expo prebuild --platform android --clean --no-install
+          chmod +x android/gradlew
+
+      # Keystore ditulis setelah prebuild: `--clean` menghapus seluruh isi
+      # android/, termasuk berkas apa pun yang ditaruh di sana sebelumnya.
+      - name: Pasang keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RADPRO_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${KEYSTORE_BASE64}" | base64 -d > "android/app/${KEYSTORE_NAMA}"
+          chmod 600 "android/app/${KEYSTORE_NAMA}"
+          echo "Keystore terpasang ($(stat -c %s "android/app/${KEYSTORE_NAMA}") byte)."
+
+      - name: Verifikasi kunci dan versionCode sebelum build
+        env:
+          RADPRO_RELEASE_STORE_PASSWORD: ${{ secrets.RADPRO_RELEASE_STORE_PASSWORD }}
+          RADPRO_RELEASE_KEY_ALIAS: ${{ secrets.RADPRO_RELEASE_KEY_ALIAS }}
+          SIDIK_DIHARAPKAN: ${{ vars.RADPRO_UPLOAD_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+
+          # Sidik jari kunci. Play Store hanya menerima unggahan yang
+          # ditandatangani kunci upload yang terdaftar; kunci yang salah
+          # ditolak setelah build selesai dan terunggah.
+          SIDIK="$(keytool -list -v \
+            -keystore "android/app/${KEYSTORE_NAMA}" \
+            -alias "${RADPRO_RELEASE_KEY_ALIAS}" \
+            -storepass "${RADPRO_RELEASE_STORE_PASSWORD}" 2>/dev/null \
+            | grep -i 'SHA256:' | head -1 | sed 's/.*SHA256: *//' | tr -d ' ')"
+
+          [ -n "${SIDIK}" ] || {
+            echo "::error::Tidak bisa membaca sidik jari kunci — alias atau password keystore salah." >&2
+            exit 1
+          }
+          echo "Sidik jari kunci (SHA-256): ${SIDIK}"
+
+          if [ -z "${SIDIK_DIHARAPKAN:-}" ]; then
+            echo "::warning::Variabel RADPRO_UPLOAD_CERT_SHA256 belum diset. Bandingkan sidik jari di atas dengan sertifikat kunci upload di Play Console, lalu simpan sebagai variabel repo supaya pergantian kunci tertangkap otomatis."
+          elif [ "${SIDIK}" != "${SIDIK_DIHARAPKAN}" ]; then
+            echo "::error::Sidik jari kunci tidak cocok dengan RADPRO_UPLOAD_CERT_SHA256. Play Store akan menolak artefak ini." >&2
+            exit 1
+          else
+            echo "Sidik jari kunci cocok dengan yang terdaftar."
+          fi
+
+          # versionCode yang benar-benar tertulis ke proyek hasil prebuild.
+          # Memeriksa niat (env) tidak cukup — yang menentukan isi artefak
+          # adalah angka di build.gradle.
+          TERTULIS="$(grep -oE 'versionCode +[0-9]+' android/app/build.gradle | head -1 | grep -oE '[0-9]+')"
+          echo "versionCode di build.gradle: ${TERTULIS} (diharapkan ${RADPRO_VERSION_CODE})"
+
+          [ "${TERTULIS}" = "${RADPRO_VERSION_CODE}" ] || {
+            echo "::error::versionCode di build.gradle (${TERTULIS}) tidak sama dengan yang diminta (${RADPRO_VERSION_CODE}). app.config.ts tidak menerima RADPRO_VERSION_CODE." >&2
+            exit 1
+          }
+
+      - name: Build AAB
+        env:
+          EXPO_PUBLIC_APP_VARIANT: production
+          EXPO_DEBUG: "false"
+          RADPRO_RELEASE_STORE_FILE: ${{ env.KEYSTORE_NAMA }}
+          RADPRO_RELEASE_STORE_PASSWORD: ${{ secrets.RADPRO_RELEASE_STORE_PASSWORD }}
+          RADPRO_RELEASE_KEY_ALIAS: ${{ secrets.RADPRO_RELEASE_KEY_ALIAS }}
+          RADPRO_RELEASE_KEY_PASSWORD: ${{ secrets.RADPRO_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cd android
+          # --no-daemon: daemon yang menetap menahan 4 GB heap di runner yang
+          # juga melayani deploy produksi.
+          ./gradlew :app:bundleRelease -x lint -x lintVitalRelease --no-daemon
+
+      # Langkah inilah yang menutup jebakan debug-signing. Build di atas tetap
+      # "berhasil" tanpa kredensial yang benar; yang membedakan hanya siapa
+      # penandatangannya.
+      - name: Verifikasi tanda tangan artefak
+        run: |
+          set -euo pipefail
+
+          [ -f "${AAB_PATH}" ] || {
+            echo "::error::AAB tidak ditemukan di ${AAB_PATH}" >&2
+            exit 1
+          }
+
+          SERTIFIKAT="$(jarsigner -verify -verbose:summary -certs "${AAB_PATH}" 2>&1)"
+          printf '%s\n' "${SERTIFIKAT}" | grep -iE 'jar verified|CN=' | head -5
+
+          printf '%s\n' "${SERTIFIKAT}" | grep -q 'jar verified' || {
+            echo "::error::AAB tidak lolos verifikasi tanda tangan." >&2
+            exit 1
+          }
+
+          # Debug keystore Android selalu memakai alias androiddebugkey dengan
+          # subjek CN=Android Debug. Kalau salah satunya muncul, Gradle jatuh ke
+          # cabang debug dan artefak ini tidak layak diunggah.
+          if printf '%s\n' "${SERTIFIKAT}" | grep -qiE 'androiddebugkey|CN=Android Debug'; then
+            echo "::error::AAB ditandatangani debug keystore, bukan kunci rilis. Play Store akan menolaknya." >&2
+            exit 1
+          fi
+
+          echo "Artefak ditandatangani kunci rilis."
+          echo "Ukuran: $(stat -c %s "${AAB_PATH}") byte"
+          echo "SHA-256 artefak: $(sha256sum "${AAB_PATH}" | cut -d' ' -f1)"
+
+      # Fingerprint disimpan ke berkas yang sudah menjadi sumber ketiga di
+      # scripts/get-eas-fingerprint.js, sehingga publish OTA tetap menemukan
+      # angka yang benar tanpa memanggil EAS.
+      - name: Catat fingerprint untuk OTA
+        run: |
+          set -euo pipefail
+          printf '%s\n' "${RADPRO_FINGERPRINT}" > eas-production-fingerprint.txt
+          echo "eas-production-fingerprint.txt: ${RADPRO_FINGERPRINT}"
+          echo "::notice::Commit eas-production-fingerprint.txt ke main setelah AAB ini terbit di Play Store, supaya publish OTA menargetkan runtimeVersion yang benar."
+
+      - name: Unggah artefak
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-${{ env.RADPRO_VERSION_CODE }}-aab
+          path: |
+            ${{ env.AAB_PATH }}
+            eas-production-fingerprint.txt
+          retention-days: 30
+          if-no-files-found: error
+
+      # Runner ini menetap antar-run dan melayani repo lain. Keystore yang
+      # tertinggal akan terbawa ke job berikutnya.
+      - name: Hapus keystore
+        if: always()
+        run: rm -f "android/app/${KEYSTORE_NAMA}" /tmp/uji-keystore
