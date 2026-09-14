@@ -154,6 +154,39 @@ jobs:
           npx expo prebuild --platform android --clean --no-install
           chmod +x android/gradlew
 
+          # Memori Gradle disetel di sini, bukan di app.json. Run #16 gagal di
+          # menit ke-107 karena R8 kehabisan heap 2 GiB: app.json meminta 4 GB
+          # lewat expo-build-properties.gradleProperties, tetapi plugin itu
+          # tidak mengenal opsi tersebut dan mengabaikannya diam-diam. EAS tidak
+          # pernah terkena karena mesin build-nya menyetel memori sendiri.
+          #
+          # Anggaran container 9 GB: heap 5 GB + metaspace 1 GB untuk daemon
+          # Gradle (R8 berjalan di dalamnya), sisanya untuk kompilasi C++ dua
+          # worker. Kotlin dikompilasi di dalam proses Gradle supaya tidak ada
+          # JVM kedua yang meminta heap sendiri di luar anggaran itu.
+          sed -i '/^org\.gradle\.jvmargs=/d; /^kotlin\.daemon\.jvmargs=/d; /^kotlin\.compiler\.execution\.strategy=/d' android/gradle.properties
+          # Diawali baris baru: gradle.properties hasil prebuild tidak diakhiri
+          # newline, dan tanpa ini pengaturan heap menempel ke baris terakhir
+          # (android.extraMavenRepos) — heap tidak terbaca dan repositori
+          # JitPack ikut rusak.
+          printf '\n%s\n%s\n' \
+            'org.gradle.jvmargs=-Xmx5g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8' \
+            'kotlin.compiler.execution.strategy=in-process' \
+            >> android/gradle.properties
+
+          # Dibuktikan, bukan diasumsikan: tepat satu baris jvmargs yang benar,
+          # dan baris extraMavenRepos masih utuh.
+          [ "$(grep -c '^org\.gradle\.jvmargs=-Xmx5g ' android/gradle.properties)" = 1 ] || {
+            echo "::error::org.gradle.jvmargs tidak tertulis sebagai satu baris utuh di gradle.properties" >&2
+            cat android/gradle.properties >&2
+            exit 1
+          }
+          grep -qE '^android\.extraMavenRepos=\[.*\]$' android/gradle.properties || {
+            echo "::error::Baris android.extraMavenRepos rusak setelah gradle.properties diubah" >&2
+            exit 1
+          }
+          grep -E '^(org\.gradle\.jvmargs|kotlin\.compiler|android\.extraMavenRepos)' android/gradle.properties
+
       # Keystore ditulis setelah prebuild: `--clean` menghapus seluruh isi
       # android/, termasuk berkas apa pun yang ditaruh di sana sebelumnya.
       - name: Pasang keystore

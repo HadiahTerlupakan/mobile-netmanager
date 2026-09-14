@@ -124,4 +124,25 @@ describe('workflow build Android', () => {
     expect(workflow).toContain('base/assets/index.android.bundle');
     expect(workflow).toMatch(/:web:/);
   });
+
+  it('menyetel heap Gradle sendiri setelah prebuild, cukup untuk R8', () => {
+    // Run #16 gagal di menit ke-107: `minifyReleaseWithR8` OutOfMemoryError
+    // dengan heap 2 GiB. app.json meminta 4 GB lewat
+    // expo-build-properties.gradleProperties, tetapi plugin itu tidak mengenal
+    // opsi tersebut dan mengabaikannya diam-diam; gradle.properties hasil
+    // prebuild tetap memakai bawaan template. EAS tidak pernah terkena karena
+    // mesin build-nya menyetel memori Gradle sendiri.
+    const workflow = bacaWorkflow();
+    const indeksPrebuild = workflow.indexOf('npx expo prebuild');
+    const indeksHeap = workflow.indexOf('org.gradle.jvmargs');
+    const indeksGradle = workflow.indexOf('./gradlew :app:bundleRelease');
+
+    expect(indeksHeap).toBeGreaterThan(indeksPrebuild);
+    expect(indeksGradle).toBeGreaterThan(indeksHeap);
+
+    const heap = workflow.match(/org\.gradle\.jvmargs=-Xmx(\d+)([mg])/);
+    expect(heap).not.toBeNull();
+    const megabyte = Number(heap![1]) * (heap![2] === 'g' ? 1024 : 1);
+    expect(megabyte).toBeGreaterThanOrEqual(4096);
+  });
 });
