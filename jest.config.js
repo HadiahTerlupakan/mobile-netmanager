@@ -10,6 +10,8 @@ if (!originalGlobal.__ExpoImportMetaRegistry) {
 module.exports = {
   preset: "react-native",
   testEnvironment: "node",
+  // Zona waktu dipatok sebelum environment tes dibuat; lihat jest.global-setup.js.
+  globalSetup: "<rootDir>/jest.global-setup.js",
   setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
   testMatch: ["**/__tests__/**/*.test.ts?(x)"],
   transform: {

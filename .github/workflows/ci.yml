@@ -29,3 +29,8 @@ jobs:
 
       - name: Typecheck
         run: npx tsc --noEmit
+
+      # Sebelumnya tidak ada langkah tes di sini, sehingga 12 tes absensi yang
+      # bergantung zona waktu lolos tanpa pernah dijalankan CI.
+      - name: Tes unit
+        run: npx jest --ci
