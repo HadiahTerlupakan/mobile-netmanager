@@ -73,84 +73,31 @@ jobs:
       - name: Tes unit
         run: npx jest --ci
 
-      # Jenkinsfile.ota membandingkan `git diff` terhadap `android/`, `ios/`,
-      # `app.config.ts`, dan `package.json`. Pemeriksaan itu tidak pernah bisa
-      # bekerja: `android/` dan `ios/` ada di .gitignore sehingga tak pernah
-      # muncul di diff, dan daftarnya melewatkan `app.json` serta `plugins/` —
-      # justru berkas yang paling sering menggeser sisi native.
+      # Publish lewat `scripts/publish-update.sh`, skrip yang sama dengan yang
+      # dipakai Jenkins. OTA proyek ini TIDAK memakai EAS Update: `app.config.ts`
+      # mengarahkan `updates.url` ke `/api/mobile/app-update/manifest` milik
+      # netmanager, jadi bundle diekspor lalu diunggah ke server sendiri.
       #
-      # Penggantinya tidak menghitung fingerprint sendiri. Nilai yang dihitung
-      # di luar EAS tidak terbukti sebanding dengan milik EAS — mesin lokal yang
-      # punya sisa `android/` hasil prebuild menghasilkan angka berbeda, dan
-      # gerbang yang salah banding akan memblokir semua OTA.
-      #
-      # Karena itu EAS sendiri yang ditanya: `eas update --json` melaporkan
-      # runtimeVersion update yang baru terbit, dan itu dibandingkan dengan
-      # runtimeVersion build terakhir. Menerbitkan update yang tidak terjangkau
-      # tidak merusak apa pun — perangkat hanya mengabaikannya — jadi memeriksa
-      # setelah publish aman, dan hasilnya pasti sebanding.
-      - name: Publish OTA
-        id: publish
+      # Skrip itu juga sudah menyelesaikan soal runtimeVersion: ia mengambil
+      # fingerprint dari EAS build, bukan menghitungnya lokal — hash lokal bisa
+      # berbeda karena file secret, google-services.json, dan env tidak sama.
+      # Itulah sebabnya ia butuh EXPO_TOKEN selain token publish.
+      - name: Publish OTA ke server netmanager
         env:
+          APP_UPDATE_PUBLISH_TOKEN: ${{ secrets.APP_UPDATE_PUBLISH_TOKEN }}
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
+
+          if [ -z "${APP_UPDATE_PUBLISH_TOKEN:-}" ]; then
+            echo "::error::Secret APP_UPDATE_PUBLISH_TOKEN belum diset di repo ini."
+            exit 1
+          fi
+
           # Pesan commit ditampung di variabel lebih dulu, bukan disubstitusikan
           # langsung di baris perintah — isinya datang dari luar dan tidak boleh
           # sampai ikut dievaluasi shell.
           subject="$(git log -1 --pretty=%s)"
 
-          npx eas update \
-            --branch production \
-            --message "${GITHUB_SHA:0:8} - ${subject}" \
-            --non-interactive --json > update.json
-
-          runtime="$(node -e "
-            const d = require('./update.json');
-            const list = Array.isArray(d) ? d : [d];
-            const found = list.map(u => u && u.runtimeVersion).find(Boolean);
-            console.log(found || '');
-          ")"
-
-          if [ -z "$runtime" ]; then
-            echo "::error::runtimeVersion update tidak terbaca dari keluaran eas update."
-            exit 1
-          fi
-
-          echo "runtime=$runtime" >> "$GITHUB_OUTPUT"
-          echo "runtimeVersion update: $runtime"
-
-      # Publish yang fingerprint-nya bergeser tidak "gagal" — ia berhasil lalu
-      # tidak sampai ke perangkat mana pun. Tanpa pemeriksaan ini, kegagalannya
-      # tak terlihat sampai ada yang bertanya kenapa perbaikannya tidak muncul.
-      - name: Pastikan update terjangkau perangkat
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          UPDATE_RUNTIME: ${{ steps.publish.outputs.runtime }}
-          ALLOW_MISMATCH: ${{ inputs.allow_runtime_mismatch }}
-        run: |
-          set -euo pipefail
-
-          build_runtime="$(npx eas build:list --platform android --limit 1 --status finished --json --non-interactive \
-            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s)[0]||{};console.log(b.runtimeVersion||'')})")"
-
-          echo "runtime update       : ${UPDATE_RUNTIME}"
-          echo "runtime build terakhir: ${build_runtime:-(tidak terbaca)}"
-
-          if [ -z "$build_runtime" ]; then
-            echo "::warning::Runtime build terakhir tidak terbaca — keterjangkauan update tidak bisa dipastikan."
-            exit 0
-          fi
-
-          if [ "$UPDATE_RUNTIME" = "$build_runtime" ]; then
-            echo "Update terjangkau oleh build terakhir."
-            exit 0
-          fi
-
-          if [ "${ALLOW_MISMATCH:-false}" = "true" ]; then
-            echo "::warning::Runtime berbeda, diterima atas permintaan eksplisit."
-            exit 0
-          fi
-
-          echo "::error::Update sudah terbit tetapi runtimeVersion-nya berbeda dari build terakhir, sehingga tidak akan diterima perangkat mana pun. Perubahan ini menyentuh sisi native dan butuh APK baru, bukan OTA."
-          exit 1
+          chmod +x ./scripts/publish-update.sh
+          ./scripts/publish-update.sh production "${GITHUB_SHA:0:8} - ${subject}"

@@ -16,38 +16,38 @@ describe('workflow publish OTA', () => {
   );
 
   it('menjalankan lint, typecheck, dan tes sebelum publish', () => {
-    const urutan = ['expo lint', 'tsc --noEmit', 'jest --ci', 'eas update'];
+    const urutan = ['expo lint', 'tsc --noEmit', 'jest --ci', 'publish-update.sh'];
     const posisi = urutan.map((pola) => workflow.indexOf(pola));
 
     expect(posisi.every((i) => i >= 0)).toBe(true);
     expect(posisi).toEqual([...posisi].sort((a, b) => a - b));
   });
 
-  it('memeriksa keterjangkauan update terhadap build terakhir', () => {
-    expect(workflow).toContain('Pastikan update terjangkau perangkat');
-    expect(workflow).toContain('eas build:list');
-    expect(workflow).toContain('runtimeVersion');
+  it('memakai skrip publish milik repo, bukan eas update', () => {
+    // OTA proyek ini self-hosted: app.config.ts mengarahkan updates.url ke
+    // /api/mobile/app-update/manifest milik netmanager, bukan u.expo.dev.
+    // `eas update` menolak konfigurasi seperti ini.
+    expect(workflow).toContain('scripts/publish-update.sh');
+    expect(workflow).not.toContain('eas update');
   });
 
-  it('menggagalkan job ketika update tidak terjangkau', () => {
-    // Peringatan saja tidak cukup: publish yang tidak sampai terlihat sukses.
-    const bagian = workflow.slice(
-      workflow.indexOf('Pastikan update terjangkau perangkat')
-    );
-
-    expect(bagian).toContain('::error::');
-    expect(bagian).toContain('exit 1');
+  it('menerbitkan ke channel production', () => {
+    expect(workflow).toContain('publish-update.sh production');
   });
 
-  it('hanya menerima ketidakcocokan runtime atas permintaan eksplisit', () => {
-    expect(workflow).toContain('allow_runtime_mismatch');
-    expect(workflow).toContain('ALLOW_MISMATCH');
+  it('berhenti lebih dulu ketika token publish belum diset', () => {
+    expect(workflow).toContain('APP_UPDATE_PUBLISH_TOKEN');
+    expect(workflow).toContain('::error::');
+  });
+
+  it('menyediakan EXPO_TOKEN untuk resolusi fingerprint', () => {
+    // publish-update.sh mengambil fingerprint dari EAS build, bukan menghitung
+    // lokal, sehingga tetap butuh kredensial EAS.
+    expect(workflow).toContain('EXPO_TOKEN');
   });
 
   it('tidak menyisipkan pesan commit langsung ke baris perintah', () => {
-    // Isi pesan commit datang dari luar; ia ditampung variabel lebih dulu.
     expect(workflow).toContain('subject="$(git log -1 --pretty=%s)"');
-    expect(workflow).not.toContain('--message "${GITHUB_SHA:0:8} - $(git log');
   });
 
   it('hanya terpicu dari branch main', () => {
