@@ -28,7 +28,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
 ARG ANDROID_PLATFORM=36
 ARG ANDROID_BUILD_TOOLS=36.0.0
 ARG ANDROID_NDK=27.1.12297006
-ARG CMDLINE_TOOLS_VERSION=11076708
 ARG NODE_MAJOR=20
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -44,28 +43,76 @@ RUN curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
     && rm -rf /var/lib/apt/lists/* \
     && node --version && npm --version
 
-# Android command line tools harus berada di
-# $ANDROID_HOME/cmdline-tools/latest/ — sdkmanager menolak layout lain.
-RUN mkdir -p "${ANDROID_HOME}/cmdline-tools" \
-    && curl -fsSL -o /tmp/cmdline-tools.zip \
-        "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip" \
-    && unzip -q /tmp/cmdline-tools.zip -d "${ANDROID_HOME}/cmdline-tools" \
-    && mv "${ANDROID_HOME}/cmdline-tools/cmdline-tools" "${ANDROID_HOME}/cmdline-tools/latest" \
-    && rm /tmp/cmdline-tools.zip
+# ── Android SDK ──────────────────────────────────────────────────────────────
+# Paket diunduh dengan aria2c, 16 koneksi paralel, bukan lewat sdkmanager.
+#
+# dl.google.com membatasi kecepatan per koneksi dari jaringan VPS ini: satu
+# koneksi terukur 48-370 KB/s, delapan koneksi paralel 1,9 MB/s. sdkmanager
+# hanya memakai satu koneksi, dan dengan kecepatan itu ~950 MB paket (NDK saja
+# 633 MB) butuh berjam-jam. Build pertama image ini sempat tertahan di sini.
+#
+# Nama berkas dan SHA-1 diambil dari
+# https://dl.google.com/android/repository/repository2-3.xml. Checksum
+# diverifikasi aria2c sebelum berkas dipakai, jadi unduhan paralel tidak menukar
+# integritas dengan kecepatan. Menaikkan versi paket berarti memperbarui nama
+# berkas dan checksum-nya bersamaan.
+RUN apt-get update && apt-get install -y --no-install-recommends aria2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Format tiap baris: <berkas> <sha1> <tujuan relatif ANDROID_HOME>
+RUN printf '%s\n' \
+    'commandlinetools-linux-16111833_latest.zip e025545c62a8e64c7559119566a569fb1dec5f60 cmdline-tools/latest' \
+    'platform-tools_r37.0.1-linux.zip 477254aa5f903c15cf51001717bdf347fb6b53e0 platform-tools' \
+    'platform-36_r02.zip 2c1a80dd4d9f7d0e6dd336ec603d9b5c55a6f576 platforms/android-36' \
+    'build-tools_r36_linux.zip b0b6376977657e8ad9b969bacf4093601da2c6fb build-tools/36.0.0' \
+    'android-ndk-r27b-linux.zip 6fc476b2e57d7c01ac0c95817746b927035b9749 ndk/27.1.12297006' \
+    'cmake-3.22.1-linux.zip fd0a48b4a758310df8c7aa51f59840ed48fe7ed8 cmake/3.22.1' \
+    > /tmp/sdk-paket.txt
+
+RUN set -eu; \
+    mkdir -p /tmp/sdk-zip "${ANDROID_HOME}"; \
+    while read -r berkas sha1 tujuan; do \
+        [ -n "$berkas" ] || continue; \
+        echo "unduh ${berkas}"; \
+        aria2c --quiet=true --console-log-level=warn \
+            --max-connection-per-server=16 --split=16 --min-split-size=4M \
+            --max-tries=10 --retry-wait=5 --timeout=60 \
+            --checksum="sha-1=${sha1}" \
+            --dir=/tmp/sdk-zip --out="${berkas}" \
+            "https://dl.google.com/android/repository/${berkas}"; \
+        rm -rf /tmp/sdk-buka && mkdir -p /tmp/sdk-buka; \
+        unzip -q "/tmp/sdk-zip/${berkas}" -d /tmp/sdk-buka; \
+        rm "/tmp/sdk-zip/${berkas}"; \
+        mkdir -p "$(dirname "${ANDROID_HOME}/${tujuan}")"; \
+        # Tiap zip membungkus isinya dalam satu direktori dengan nama yang tidak \
+        # konsisten (android-16/, android-ndk-r27b/, cmdline-tools/). Kalau \
+        # memang hanya ada satu direktori, isinya yang dipindah; kalau tidak, \
+        # seluruh hasil ekstrak. \
+        isi="$(ls -A /tmp/sdk-buka)"; \
+        if [ "$(printf '%s\n' "$isi" | wc -l)" = 1 ] && [ -d "/tmp/sdk-buka/$isi" ]; then \
+            mv "/tmp/sdk-buka/$isi" "${ANDROID_HOME}/${tujuan}"; \
+        else \
+            mv /tmp/sdk-buka "${ANDROID_HOME}/${tujuan}"; \
+        fi; \
+    done < /tmp/sdk-paket.txt; \
+    rm -rf /tmp/sdk-zip /tmp/sdk-buka
 
 ENV PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 
-# Lisensi disetujui lebih dulu; tanpa ini sdkmanager menggantung menunggu input
-# yang tidak akan pernah datang di runner tanpa TTY.
-RUN yes | sdkmanager --licenses > /dev/null 2>&1 || true
-
-RUN sdkmanager --install \
-        "platform-tools" \
-        "platforms;android-${ANDROID_PLATFORM}" \
-        "build-tools;${ANDROID_BUILD_TOOLS}" \
-        "ndk;${ANDROID_NDK}" \
-        "cmake;3.22.1" \
-    && yes | sdkmanager --licenses > /dev/null 2>&1 || true
+# Lisensi ditulis langsung sebagai berkas hash, bukan lewat
+# `sdkmanager --licenses`. Perintah itu menghubungi dl.google.com, dan dari
+# jaringan ini ia bisa diam bermenit-menit; ditambah `|| true`, kegagalannya
+# tidak terlihat sampai Gradle menolak paket karena lisensi belum disetujui.
+# Hash di bawah adalah hash teks lisensi Android SDK yang dipakai AGP untuk
+# memeriksa persetujuan.
+RUN mkdir -p "${ANDROID_HOME}/licenses" \
+    && printf '\n%s\n%s\n%s' \
+        24333f8a63b6825ea9c5514f83c2829b004d1fee \
+        8933bad161af4178b1185d1a37fbf41ea5269c55 \
+        d56f5187479451eabf01fb78af6dfcb131a6481e \
+        > "${ANDROID_HOME}/licenses/android-sdk-license" \
+    && printf '\n%s' 84831b9409646a918e30573bab4c9c91346d8abd \
+        > "${ANDROID_HOME}/licenses/android-sdk-preview-license"
 
 ENV ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/${ANDROID_NDK}" \
     GRADLE_USER_HOME=/gradle-cache
@@ -89,6 +136,24 @@ RUN set -eu; \
         || { echo "apksigner tidak ada — verifikasi tanda tangan tidak akan bisa dijalankan" >&2; exit 1; }; \
     test -d "${ANDROID_NDK_HOME}" \
         || { echo "NDK ${ANDROID_NDK} tidak terpasang" >&2; exit 1; }; \
+    # Paket dipasang dengan unzip, bukan sdkmanager, jadi yang diperiksa adalah \
+    # source.properties — berkas yang dibaca Gradle untuk mengenali paket. \
+    # `sdkmanager --list_installed` sengaja tidak dipakai: ia tetap menghubungi \
+    # dl.google.com dan menggantung bermenit-menit dari jaringan ini. \
+    periksa() { \
+        berkas="${ANDROID_HOME}/$1/source.properties"; \
+        grep -qE "$2" "$berkas" 2>/dev/null \
+            || { echo "$1 tidak dikenali: $berkas tidak memuat $2" >&2; exit 1; }; \
+        echo "  ok $1"; \
+    }; \
+    periksa "platforms/android-${ANDROID_PLATFORM}" "AndroidVersion.ApiLevel *= *${ANDROID_PLATFORM}"; \
+    periksa "build-tools/${ANDROID_BUILD_TOOLS}" "Pkg.Revision *= *${ANDROID_BUILD_TOOLS}"; \
+    periksa "ndk/${ANDROID_NDK}" "Pkg.Revision *= *${ANDROID_NDK}"; \
+    periksa "cmake/3.22.1" "Pkg.Revision *= *3.22.1"; \
+    periksa "platform-tools" "Pkg.Revision"; \
+    periksa "cmdline-tools/latest" "Pkg.Revision"; \
+    test -s "${ANDROID_HOME}/licenses/android-sdk-license" \
+        || { echo "lisensi SDK belum tertulis" >&2; exit 1; }; \
     echo "Image runner Android siap."
 
 WORKDIR /workspace
