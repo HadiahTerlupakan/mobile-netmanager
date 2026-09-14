@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -9,13 +9,11 @@ import { join } from 'node:path';
  * update yang runtimeVersion-nya bergeser tetap "berhasil" terbit lalu diam-diam
  * tidak diterima perangkat mana pun.
  */
-const VARIAN: Array<[string, string]> = [
-  ['GitHub', '.github/workflows/ota.yml'],
-  ['Gitea', '.gitea/workflows/ota.yml'],
-];
-
-describe.each(VARIAN)('workflow publish OTA (%s)', (_nama, berkas) => {
-  const workflow = readFileSync(join(__dirname, '../..', berkas), 'utf8');
+describe('workflow publish OTA', () => {
+  const workflow = readFileSync(
+    join(__dirname, '../../.gitea/workflows/ota.yml'),
+    'utf8'
+  );
 
   it('menjalankan lint, typecheck, dan tes sebelum publish', () => {
     const urutan = ['expo lint', 'tsc --noEmit', 'jest --ci', 'eas update'];
@@ -54,5 +52,25 @@ describe.each(VARIAN)('workflow publish OTA (%s)', (_nama, berkas) => {
 
   it('hanya terpicu dari branch main', () => {
     expect(workflow).toContain('branches: [main]');
+  });
+});
+
+/**
+ * CI/CD proyek ini tinggal di Gitea. Workflow GitHub dihapus karena keduanya
+ * terpicu pada push ke `main` — satu commit yang didorong ke dua remote akan
+ * menerbitkan OTA dua kali ke pengguna yang sama.
+ */
+describe('rumah CI/CD', () => {
+  it('tidak menyisakan workflow GitHub yang ikut menerbitkan OTA', () => {
+    expect(existsSync(join(__dirname, '../../.github/workflows'))).toBe(false);
+  });
+
+  it('menyimpan workflow di .gitea/workflows', () => {
+    expect(
+      existsSync(join(__dirname, '../../.gitea/workflows/ota.yml'))
+    ).toBe(true);
+    expect(existsSync(join(__dirname, '../../.gitea/workflows/ci.yml'))).toBe(
+      true
+    );
   });
 });
