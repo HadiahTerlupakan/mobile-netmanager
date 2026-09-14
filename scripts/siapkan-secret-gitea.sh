@@ -91,7 +91,7 @@ printf '\nUntuk tiap langkah: nilainya sudah ada di clipboard, tinggal tempel.\n
 langkah() {
     local nama="$1" nilai="$2" ke="$3" dari="$4"
     printf '%s' "${nilai}" | salin
-    printf '\n%s[%s/5]%s %s%s%s  (%s)\n' "$kuning" "$ke" "$nol" "$hijau" "${nama}" "$nol" "${dari}"
+    printf '\n%s[%s/6]%s %s%s%s  (%s)\n' "$kuning" "$ke" "$nol" "$hijau" "${nama}" "$nol" "${dari}"
     printf '      sudah di clipboard — tempel sebagai secret bernama di atas, lalu tekan Enter'
     read -r _
 }
@@ -108,12 +108,20 @@ node -e 'JSON.parse(require("fs").readFileSync("google-services.json","utf8"))' 
     || gagal "google-services.json bukan JSON yang sah"
 langkah GOOGLE_SERVICES_JSON_BASE64    "$(base64 < google-services.json | tr -d '\n')" 5 "google-services.json, base64"
 
+# Service account Play: menghitung versionCode berikutnya dan mengunggah AAB ke
+# track internal. Berkas yang sama dipakai `eas submit` (eas.json).
+SA_PLAY="$(node -p 'require("./eas.json").submit.production.android.serviceAccountKeyPath')"
+[ -f "${SA_PLAY}" ] || gagal "Service account Play tidak ada di ${SA_PLAY}"
+node -e 'const s=require(process.argv[1]); if(!s.client_email||!s.private_key) process.exit(1)' "./${SA_PLAY#./}" \
+    || gagal "${SA_PLAY} bukan service account yang sah"
+langkah GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 "$(base64 < "${SA_PLAY}" | tr -d '\n')" 6 "service account Play, base64"
+
 # Clipboard dikosongkan: nilai terakhir yang tertinggal di sana adalah password.
 printf '' | salin
 
 cat <<PESAN
 
-${hijau}Lima secret selesai.${nol}
+${hijau}Enam secret selesai.${nol}
 
 ${kuning}Satu langkah lagi — variabel (bukan secret):${nol}
   ${URL_VARIABEL}
@@ -126,8 +134,8 @@ ${kuning}Satu langkah lagi — variabel (bukan secret):${nol}
   berbeda, jangan diisi — artinya keystore ini bukan yang dipakai Play Store,
   dan build apa pun darinya akan ditolak saat unggah.
 
-  Isi juga RADPRO_VERSION_CODE_BASE = 46  (versionCode terakhir dari EAS;
-  build pertama di Gitea akan menjadi 47).
+  RADPRO_VERSION_CODE_BASE tidak lagi dipakai: versionCode dihitung dari
+  bundle tertinggi di Play Store.
 
 ${merah}Setelah selesai:${nol} hapus ${CREDENTIALS_JSON} dan ${JALUR_KEYSTORE} dari
 direktori ini kalau tidak lagi dibutuhkan — keduanya berisi kunci penandatangan

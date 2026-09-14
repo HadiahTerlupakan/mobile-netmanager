@@ -24,14 +24,22 @@ describe('workflow build Android', () => {
     expect(existsSync(join(__dirname, '../..', WORKFLOW_PATH))).toBe(true);
   });
 
-  it('hanya jalan kalau diminta, bukan tiap push', () => {
-    // Build native memakan puluhan menit di runner ini dan runner-nya melayani
-    // deploy produksi netmanager juga (capacity 1). Memicunya tiap push akan
-    // mengantre deploy di belakang build aplikasi.
+  it('terpicu otomatis hanya oleh perubahan berkas native', () => {
+    // Build native memakan 1-2 jam di runner yang juga melayani deploy
+    // produksi (capacity 1). Perubahan JS dikirim lewat OTA; build hanya
+    // diperlukan ketika sesuatu yang tidak bisa dikirim OTA berubah.
     const workflow = bacaWorkflow();
+    const { NATIVE_PATHS } = require('../../scripts/native-state.js');
+    const blokPush = workflow.slice(workflow.indexOf('  push:'), workflow.indexOf('  workflow_dispatch:'));
 
     expect(workflow).toContain('workflow_dispatch:');
-    expect(workflow).not.toMatch(/^on:\s*\n\s+push:/m);
+    expect(blokPush).toContain('branches: [main]');
+    expect(blokPush).toContain('paths:');
+    for (const jalur of NATIVE_PATHS) {
+      expect(blokPush).toContain(jalur);
+    }
+    // Catatan build yang di-commit balik tidak boleh memicu build lagi.
+    expect(blokPush).not.toContain('native-build.json');
   });
 
   it('memeriksa kredensial keystore sebelum membangun apa pun', () => {
@@ -63,14 +71,15 @@ describe('workflow build Android', () => {
     expect(workflow).toContain('keytool -list');
   });
 
-  it('memberi versionCode eksplisit dan memastikan angkanya benar-benar terpakai', () => {
-    // `expo prebuild` menulis versionCode 1 kalau tidak ada yang menyediakan
-    // angkanya. Memeriksa build.gradle hasil prebuild membuktikan angka yang
-    // dihitung benar-benar sampai ke artefak.
+  it('menghitung versionCode dari Play Store dan memastikan angkanya terpakai', () => {
+    // Nomor run Gitea dihitung per repo, bukan per workflow, sehingga basis +
+    // nomor run melompat-lompat. Play sendiri yang menegakkan aturan
+    // "lebih besar dari bundle tertinggi", jadi angkanya diambil dari sana.
     const workflow = bacaWorkflow();
 
+    expect(workflow).toContain('play-internal.js next-version-code');
+    expect(workflow).not.toContain('GITHUB_RUN_NUMBER');
     expect(workflow).toContain('RADPRO_VERSION_CODE');
-    expect(workflow).toContain('versionCode');
     expect(workflow).toContain('build.gradle');
   });
 
@@ -100,7 +109,8 @@ describe('workflow build Android', () => {
     const workflow = bacaWorkflow();
 
     expect(workflow).toContain('base/assets/fingerprint');
-    expect(workflow).toContain('eas-production-fingerprint.txt');
+    // Runtime dari artefak itu yang dicatat untuk OTA.
+    expect(workflow).toMatch(/native-state\.js record "\$\{RADPRO_FINGERPRINT\}"/);
     expect(workflow).not.toContain('compute-fingerprint.js');
   });
 
@@ -144,5 +154,27 @@ describe('workflow build Android', () => {
     expect(heap).not.toBeNull();
     const megabyte = Number(heap![1]) * (heap![2] === 'g' ? 1024 : 1);
     expect(megabyte).toBeGreaterThanOrEqual(4096);
+  });
+
+  it('mengunggah ke track internal setelah semua pemeriksaan artefak lolos', () => {
+    const workflow = bacaWorkflow();
+    const indeksUnggah = workflow.indexOf('play-internal.js upload');
+
+    expect(indeksUnggah).toBeGreaterThan(workflow.indexOf('jarsigner -verify'));
+    expect(indeksUnggah).toBeGreaterThan(workflow.indexOf('base/assets/index.android.bundle'));
+    expect(workflow).toContain('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON');
+    expect(workflow).not.toMatch(/tracks\/production|track production/);
+  });
+
+  it('mencatat build native ke main setelah unggahan berhasil', () => {
+    // OTA membaca catatan ini untuk tahu runtime tujuan dan kapan harus
+    // menahan diri. Catatan yang ditulis sebelum unggahan berhasil akan
+    // mengarahkan OTA ke APK yang tidak pernah terbit.
+    const workflow = bacaWorkflow();
+    const indeksCatat = workflow.indexOf('native-state.js record');
+
+    expect(indeksCatat).toBeGreaterThan(workflow.indexOf('play-internal.js upload'));
+    expect(workflow).toContain('native-build.json');
+    expect(workflow).toMatch(/git push[^\n]*main/);
   });
 });

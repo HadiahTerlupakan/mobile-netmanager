@@ -50,6 +50,18 @@ describe('workflow publish OTA', () => {
     expect(workflow).toContain('subject="$(git log -1 --pretty=%s)"');
   });
 
+  it('menahan OTA ketika bagian native berubah sejak build terakhir', () => {
+    // JS yang memanggil modul native yang belum ada di APK membuat aplikasi
+    // crash. native-state.js membandingkan hash berkas native HEAD dengan
+    // catatan build terakhir sebelum publish.
+    const indeksPenjaga = workflow.indexOf('native-state.js ota-target');
+    const indeksPublish = workflow.indexOf('./scripts/publish-update.sh');
+
+    expect(indeksPenjaga).toBeGreaterThan(-1);
+    expect(indeksPublish).toBeGreaterThan(indeksPenjaga);
+    expect(workflow).toContain('RUNTIME_VERSION_OVERRIDE');
+  });
+
   it('hanya terpicu dari branch main', () => {
     expect(workflow).toContain('branches: [main]');
   });

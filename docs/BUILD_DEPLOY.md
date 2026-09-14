@@ -164,3 +164,46 @@ Pakai `eas build --local` (lihat command di atas). Tidak antri, gratis.
 
 *Last updated: 2026-07-17*
 *Build process: `eas build --local` (recommended, no EAS cloud queue)*
+
+---
+
+## Build Android Otomatis (Gitea Actions)
+
+Build native tidak lagi memakai EAS cloud (kuota akun gratis). Workflow
+`.gitea/workflows/build-android.yml` berjalan di runner `android-ci` milik
+sendiri.
+
+**Kapan terpicu:** push ke `main` yang mengubah berkas native — `app.json`,
+`app.config.ts`, `eas.json`, `package.json`, `package-lock.json`, `plugins/`,
+`firebase.json`, `assets/images/`, `assets/sounds/`, `assets/expo-updates/`.
+Perubahan JS saja tetap lewat OTA. Bisa juga dijalankan manual lewat
+*Run workflow*.
+
+**Yang dikerjakan, berurutan:**
+1. Lint, typecheck, tes
+2. versionCode = bundle tertinggi di Play Store + 1
+3. `expo prebuild`, lalu build AAB bertanda tangan kunci rilis
+4. Menolak artefak bila: sidik jari kunci ≠ `RADPRO_UPLOAD_CERT_SHA256`,
+   ditandatangani debug keystore, atau bundle JS membawa konfigurasi Firebase
+   non-web
+5. Unggah ke **track internal** Play Store
+6. Commit `native-build.json` (runtimeVersion dari AAB + hash berkas native) ke
+   `main`
+
+**Promosi ke produksi tetap manual:** uji versi internal di perangkat, lalu
+Play Console → Testing → Internal testing → *Promote release* → Production.
+
+**Hubungannya dengan OTA:** `ota.yml` membaca `native-build.json`. Bila berkas
+native HEAD berbeda dari build terakhir, OTA **ditahan** — JS baru ke APK lama
+bisa crash. Setelah build baru tercatat, commit pencatatannya memicu OTA untuk
+menyusul.
+
+**Durasi:** build pertama setelah cache kosong 1,5–2 jam (Google Maven dari
+jaringan VPS lambat); berikutnya jauh lebih cepat karena cache Gradle bertahan
+di volume `act-gradle-cache`.
+
+**Secret yang dibutuhkan** (siapkan dengan `./scripts/siapkan-secret-gitea.sh`):
+`RADPRO_RELEASE_KEYSTORE_BASE64`, `RADPRO_RELEASE_STORE_PASSWORD`,
+`RADPRO_RELEASE_KEY_ALIAS`, `RADPRO_RELEASE_KEY_PASSWORD`,
+`GOOGLE_SERVICES_JSON_BASE64`, `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64`.
+Variabel: `RADPRO_UPLOAD_CERT_SHA256`.

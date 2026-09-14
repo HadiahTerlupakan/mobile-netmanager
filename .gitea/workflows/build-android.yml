@@ -10,6 +10,7 @@ name: Build Android AAB
 #    terlihat normal sampai Play Store menolaknya.
 # 2. Memberi versionCode. `appVersionSource: "remote"` berarti EAS yang dulu
 #    memegang angkanya; tanpa pengganti, `expo prebuild` menulis versionCode 1.
+#    Angkanya kini dihitung dari bundle tertinggi di Play Store.
 #
 # Keduanya baru terlihat saat unggah ke Play Store, setelah satu build panjang
 # terbuang. Karena itu keduanya diperiksa di sini, sedini mungkin.
@@ -20,12 +21,33 @@ name: Build Android AAB
 # ~21 menit di EAS cloud — itu harga yang ditukar dengan kuota.
 
 on:
+  # Otomatis hanya ketika sesuatu yang tidak bisa dikirim lewat OTA berubah.
+  # Daftar ini sama dengan NATIVE_PATHS di scripts/native-state.js (dijaga tes),
+  # ditambah berkas pipeline ini sendiri supaya perubahan pipeline langsung
+  # diuji oleh build sungguhan. native-build.json — catatan yang di-commit balik
+  # oleh workflow ini — sengaja tidak ada di sini supaya tidak memicu dirinya.
+  push:
+    branches: [main]
+    paths:
+      - "app.json"
+      - "app.config.ts"
+      - "eas.json"
+      - "package.json"
+      - "package-lock.json"
+      - "plugins/**"
+      - "firebase.json"
+      - "assets/images/**"
+      - "assets/sounds/**"
+      - "assets/expo-updates/**"
+      - ".gitea/workflows/build-android.yml"
+      - "scripts/play-internal.js"
+      - "scripts/native-state.js"
   workflow_dispatch:
     inputs:
       version_code_override:
         description: >-
-          versionCode yang dipakai. Kosongkan untuk memakai
-          RADPRO_VERSION_CODE_BASE + nomor run.
+          versionCode yang dipakai. Kosongkan untuk memakai versionCode
+          tertinggi di Play Store + 1.
         type: string
         required: false
 
@@ -56,10 +78,19 @@ jobs:
           RADPRO_RELEASE_KEY_ALIAS: ${{ secrets.RADPRO_RELEASE_KEY_ALIAS }}
           RADPRO_RELEASE_KEY_PASSWORD: ${{ secrets.RADPRO_RELEASE_KEY_PASSWORD }}
           GOOGLE_SERVICES_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          PLAY_SA_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
         run: |
           set -euo pipefail
 
           gagal() { echo "::error::$1"; exit 1; }
+
+          # Service account Play dipakai dua kali: sebelum build untuk menghitung
+          # versionCode, dan sesudahnya untuk mengunggah. Diperiksa di sini
+          # supaya secret yang hilang tidak baru ketahuan setelah build sejam.
+          [ -n "${PLAY_SA_BASE64}" ] || gagal "Secret GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 kosong"
+          printf '%s' "${PLAY_SA_BASE64}" | base64 -d \
+            | node -e 'const s=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!s.client_email||!s.private_key) process.exit(1)' 2>/dev/null \
+            || gagal "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 bukan service account yang sah"
 
           # google-services.json di-.gitignore. Dulu EAS menyuntikkannya lewat
           # variabel berkas GOOGLE_SERVICES_JSON; tanpa itu `expo prebuild`
@@ -116,24 +147,19 @@ jobs:
       - name: Tes unit
         run: npx jest --ci
 
+      # Play sendiri yang menegakkan aturan "lebih besar dari setiap bundle yang
+      # pernah diunggah", jadi angkanya dihitung dari daftar bundle di sana.
+      # Nomor run Gitea tidak bisa dipakai: dihitung per repo, bukan per
+      # workflow, sehingga melompat setiap kali CI atau OTA berjalan.
       - name: Tentukan versionCode
         env:
           OVERRIDE: ${{ inputs.version_code_override }}
-          BASE: ${{ vars.RADPRO_VERSION_CODE_BASE }}
+          PLAY_SA_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
         run: |
           set -euo pipefail
-
-          if [ -n "${OVERRIDE:-}" ]; then
-            VERSION_CODE="${OVERRIDE}"
-            echo "versionCode dari input manual: ${VERSION_CODE}"
-          else
-            # Basis disimpan sebagai variabel repo supaya bisa dinaikkan tanpa
-            # menyentuh kode. 46 adalah versionCode terakhir yang diunggah lewat
-            # EAS; build pertama di sini menjadi 47.
-            VERSION_CODE="$(( ${BASE:-46} + GITHUB_RUN_NUMBER ))"
-            echo "versionCode = basis ${BASE:-46} + run ${GITHUB_RUN_NUMBER} = ${VERSION_CODE}"
-          fi
-
+          export GOOGLE_PLAY_SERVICE_ACCOUNT_JSON="$(printf '%s' "${PLAY_SA_BASE64}" | base64 -d)"
+          VERSION_CODE="$(node scripts/play-internal.js next-version-code "${OVERRIDE:-}")"
+          echo "versionCode: ${VERSION_CODE}"
           echo "RADPRO_VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
 
       - name: Pasang google-services.json
@@ -319,7 +345,7 @@ jobs:
       # expo-updates saat build Gradle. Fingerprint yang dihitung ulang secara
       # lokal bisa berbeda dari angka itu, dan perangkat hanya menerima OTA yang
       # runtime-nya sama persis dengan yang tertanam.
-      - name: Catat runtimeVersion untuk OTA
+      - name: Baca runtimeVersion dari AAB
         run: |
           set -euo pipefail
           RUNTIME="$(unzip -p "${AAB_PATH}" base/assets/fingerprint | tr -d '[:space:]')"
@@ -327,10 +353,60 @@ jobs:
             echo "::error::base/assets/fingerprint di AAB kosong atau tidak sah: '${RUNTIME}'" >&2
             exit 1
           }
-          printf '%s\n' "${RUNTIME}" > eas-production-fingerprint.txt
           echo "RADPRO_FINGERPRINT=${RUNTIME}" >> "$GITHUB_ENV"
           echo "runtimeVersion tertanam di AAB: ${RUNTIME}"
-          echo "::notice::Setelah AAB versionCode ${RADPRO_VERSION_CODE} terbit di Play Store, commit eas-production-fingerprint.txt (${RUNTIME}) ke main supaya publish OTA menargetkan runtime ini."
+
+      # Track internal saja. Promosi ke produksi sengaja manual lewat Play
+      # Console, setelah build diuji di perangkat.
+      - name: Unggah ke Play Store (track internal)
+        env:
+          PLAY_SA_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+        run: |
+          set -euo pipefail
+          export GOOGLE_PLAY_SERVICE_ACCOUNT_JSON="$(printf '%s' "${PLAY_SA_BASE64}" | base64 -d)"
+          VERSION_NAME="$(node -p 'require("./app.json").expo.version')"
+          node scripts/play-internal.js upload "${AAB_PATH}" "${RADPRO_VERSION_CODE}" "${VERSION_NAME} (${RADPRO_VERSION_CODE})"
+          echo "::notice::versionCode ${RADPRO_VERSION_CODE} terbit di track internal. Uji di perangkat, lalu promosikan ke produksi lewat Play Console."
+
+      # Catatan ini yang dibaca workflow OTA: runtime tujuan, dan kapan harus
+      # menahan diri karena bagian native berubah. Ditulis hanya setelah
+      # unggahan berhasil — catatan yang mendahuluinya akan mengarahkan OTA ke
+      # APK yang tidak pernah terbit.
+      #
+      # Hash native dihitung di commit yang dibangun, lalu berkasnya diletakkan
+      # di atas main terbaru: main bisa sudah maju selama build berjalan.
+      # Commit ini tidak memakai [skip ci] supaya OTA menyusul menerbitkan JS
+      # HEAD ke runtime baru.
+      - name: Catat build native ke main
+        run: |
+          set -euo pipefail
+          node scripts/native-state.js record "${RADPRO_FINGERPRINT}" "${RADPRO_VERSION_CODE}"
+          cp native-build.json /tmp/native-build.json
+
+          git config --local user.name "gitea-actions"
+          git config --local user.email "actions@gitea.local"
+          git config --local http.extraheader \
+            "Authorization: basic $(printf 'x-access-token:%s' '${{ github.token }}' | base64 -w0)"
+
+          for percobaan in 1 2 3; do
+            git fetch -q --depth=1 origin main
+            git checkout -q -B catat-build FETCH_HEAD
+            cp /tmp/native-build.json native-build.json
+            git add native-build.json
+            git commit -q -m "chore(build): catat build native versionCode ${RADPRO_VERSION_CODE}" \
+              -m "runtimeVersion ${RADPRO_FINGERPRINT}, dibangun dari ${GITHUB_SHA}."
+            if git push -q origin HEAD:refs/heads/main; then
+              echo "native-build.json tercatat di main."
+              break
+            fi
+            if [ "$percobaan" = 3 ]; then
+              echo "::error::Gagal mencatat native-build.json ke main. AAB sudah di track internal, tetapi OTA belum tahu runtime barunya." >&2
+              exit 1
+            fi
+            echo "main bergerak, mengulang pencatatan (percobaan $percobaan)" >&2
+            sleep 5
+          done
+          git config --local --unset-all http.extraheader
 
       - name: Unggah artefak
         uses: actions/upload-artifact@v4
@@ -338,7 +414,7 @@ jobs:
           name: app-release-${{ env.RADPRO_VERSION_CODE }}-aab
           path: |
             ${{ env.AAB_PATH }}
-            eas-production-fingerprint.txt
+            native-build.json
           retention-days: 30
           if-no-files-found: error
 

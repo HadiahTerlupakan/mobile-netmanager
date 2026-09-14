@@ -99,5 +99,28 @@ jobs:
           # sampai ikut dievaluasi shell.
           subject="$(git log -1 --pretty=%s)"
 
+          # Runtime tujuan dan izin terbit ditentukan catatan build native
+          # terakhir (native-build.json), bukan fingerprint yang dihitung ulang.
+          # JS yang memanggil modul native yang belum ada di APK membuat aplikasi
+          # crash, jadi OTA ditahan ketika berkas native HEAD berbeda dari build
+          # terakhir — build Android sendiri sudah terpicu otomatis oleh
+          # perubahan itu.
+          set +e
+          target="$(node scripts/native-state.js ota-target)"
+          status_target=$?
+          set -e
+          if [ "$status_target" = 3 ]; then
+            echo "::notice::OTA ditahan: bagian native berubah sejak build terakhir. Menunggu build Android selesai dan tercatat."
+            exit 0
+          fi
+          [ "$status_target" = 0 ] || { echo "::error::native-state.js ota-target gagal (exit ${status_target})"; exit 1; }
+
+          if [ -n "${target}" ]; then
+            export RUNTIME_VERSION_OVERRIDE="${target}"
+            echo "Runtime tujuan dari native-build.json: ${target}"
+          else
+            echo "native-build.json belum ada — runtime tujuan diambil dari EAS build:list."
+          fi
+
           chmod +x ./scripts/publish-update.sh
           ./scripts/publish-update.sh production "${GITHUB_SHA:0:8} - ${subject}"
