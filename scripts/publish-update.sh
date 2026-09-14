@@ -89,9 +89,43 @@ export RUNTIME_VERSION
 echo ""
 echo "📦 Step 1/4: Building bundle (expo export)..."
 rm -rf "${DIST_DIR}"
-NODE_ENV=production EXPO_PUBLIC_APP_VARIANT="${EXPO_VARIANT}" \
-    npx expo export --platform "${PLATFORM}" --output-dir "${DIST_DIR}" \
+# --clear: nilai EXPO_PUBLIC_* ditanam ke bundle saat Metro mentransformasi
+# berkas, dan hasil transformasi di-cache tanpa ikut memperhitungkan nilai env.
+# Tanpa --clear, bundle bisa membawa nilai dari export sebelumnya meski env
+# sudah diganti — itu yang terjadi pada OTA 8f311761: bundle terbit dengan API
+# key Android yang ditolak Firebase Auth (403), dan chat serta realtime work
+# order mati di perangkat build 46.
+#
+# EXPO_NO_DOTENV=1: .env.local di mesin pengembang berisi nilai pengembangan
+# (key Firebase Android, EXPO_PUBLIC_ENABLE_ERROR_REPORTING=false). Expo CLI
+# memuatnya otomatis, sehingga bundle yang diterbitkan dari laptop berbeda dari
+# bundle build EAS. Nilai produksi harus datang dari lingkungan pemanggil.
+NODE_ENV=production EXPO_NO_DOTENV=1 EXPO_PUBLIC_APP_VARIANT="${EXPO_VARIANT}" \
+    npx expo export --platform "${PLATFORM}" --output-dir "${DIST_DIR}" --clear \
     || { echo "❌ expo export gagal"; exit 2; }
+
+# Periksa isi bundle, bukan env: yang sampai ke perangkat adalah bundle.
+#
+# Firebase JS SDK butuh konfigurasi web. Konfigurasi Android (key dari
+# google-services.json) ditolak Google untuk panggilan JS dengan 403, sehingga
+# bundle yang membawanya lolos build lalu mematikan chat dan realtime work order
+# di perangkat tanpa laporan error ke backend. OTA 8f311761 terbit seperti itu.
+BUNDLE_FILE="$(find "${DIST_DIR}/_expo/static/js/${PLATFORM}" -type f \( -name '*.hbc' -o -name '*.js' \) | head -1)"
+[[ -n "${BUNDLE_FILE}" ]] || { echo "❌ Bundle ${PLATFORM} tidak ditemukan di ${DIST_DIR}"; exit 2; }
+
+if ! grep -qaE '1:[0-9]+:web:[0-9a-f]+' "${BUNDLE_FILE}"; then
+    echo "❌ Bundle tidak memuat app id Firebase web. Firebase JS SDK akan ditolak Google."
+    exit 2
+fi
+if grep -qaE '1:[0-9]+:android:[0-9a-f]+' "${BUNDLE_FILE}"; then
+    echo "❌ Bundle memuat app id Firebase Android — konfigurasi Android ditolak untuk panggilan JS."
+    exit 2
+fi
+if [[ -n "${EXPO_PUBLIC_FIREBASE_API_KEY:-}" ]] && ! grep -qaF "${EXPO_PUBLIC_FIREBASE_API_KEY}" "${BUNDLE_FILE}"; then
+    echo "❌ EXPO_PUBLIC_FIREBASE_API_KEY yang diberikan tidak sampai ke bundle."
+    exit 2
+fi
+echo "   konfigurasi Firebase di bundle: web ✓"
 
 if [[ ! -f "${DIST_DIR}/metadata.json" ]]; then
     echo "❌ ${DIST_DIR}/metadata.json tidak ditemukan setelah expo export"

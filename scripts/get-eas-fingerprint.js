@@ -30,10 +30,16 @@ function tryEnv() {
   return fromEnv && fromEnv.length >= 16 ? fromEnv : null;
 }
 
+// Binary milik proyek (eas-cli ada di devDependencies), bukan `eas` dari PATH.
+// Di runner CI `eas` tidak terpasang global; memanggil nama polosnya gagal, dan
+// kegagalan yang ditelan diam-diam membuat run OTA #12 jatuh ke berkas
+// fingerprint basi dan terbit ke runtime yang tidak dimiliki perangkat mana pun.
+const EAS_BIN = path.join(__dirname, "..", "node_modules", ".bin", "eas");
+
 function tryEasBuildList() {
   try {
     const raw = execFileSync(
-      "eas",
+      EAS_BIN,
       [
         "build:list",
         "--platform",
@@ -43,14 +49,22 @@ function tryEasBuildList() {
         "--json",
         "--non-interactive",
       ],
-      { encoding: "utf8", timeout: 60000 },
+      { encoding: "utf8", timeout: 60000, stdio: ["ignore", "pipe", "pipe"] },
     );
-    const builds = JSON.parse(raw);
+    const builds = JSON.parse(raw.slice(raw.indexOf("[")));
     const finished = builds.find(
-      (b) => b.status === "FINISHED" && b.fingerprint?.hash,
+      (b) => b.status === "FINISHED" && (b.runtimeVersion || b.fingerprint?.hash),
     );
-    return finished?.fingerprint?.hash ?? null;
-  } catch {
+    if (!finished) {
+      process.stderr.write("   EAS build:list: tidak ada build FINISHED dengan runtimeVersion\n");
+      return null;
+    }
+    // runtimeVersion adalah angka yang ditanam di APK; fingerprint.hash hanya
+    // cadangan untuk build lama yang tidak mencatatnya.
+    return finished.runtimeVersion || finished.fingerprint.hash;
+  } catch (err) {
+    const pesan = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    process.stderr.write(`⚠️  EAS build:list gagal, mencoba sumber berikutnya: ${pesan}\n`);
     return null;
   }
 }
@@ -60,7 +74,9 @@ function tryFingerprintFile() {
     if (!fs.existsSync(FINGERPRINT_FILE)) return null;
     const hash = fs.readFileSync(FINGERPRINT_FILE, "utf8").trim();
     return hash.length >= 16 ? hash : null;
-  } catch {
+  } catch (err) {
+    const pesan = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`⚠️  Gagal membaca ${path.basename(FINGERPRINT_FILE)}: ${pesan}\n`);
     return null;
   }
 }

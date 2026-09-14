@@ -15,7 +15,7 @@ type ExpoVersionConfig = {
   } | null
 }
 
-function pickPositiveInt(...candidates: Array<number | string | null | undefined>): number | null {
+function pickPositiveInt(...candidates: (number | string | null | undefined)[]): number | null {
   for (const candidate of candidates) {
     const n = Number(candidate)
     if (Number.isFinite(n) && n > 0) return n

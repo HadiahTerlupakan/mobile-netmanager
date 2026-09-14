@@ -55,10 +55,18 @@ jobs:
           RADPRO_RELEASE_STORE_PASSWORD: ${{ secrets.RADPRO_RELEASE_STORE_PASSWORD }}
           RADPRO_RELEASE_KEY_ALIAS: ${{ secrets.RADPRO_RELEASE_KEY_ALIAS }}
           RADPRO_RELEASE_KEY_PASSWORD: ${{ secrets.RADPRO_RELEASE_KEY_PASSWORD }}
+          GOOGLE_SERVICES_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
         run: |
           set -euo pipefail
 
           gagal() { echo "::error::$1"; exit 1; }
+
+          # google-services.json di-.gitignore. Dulu EAS menyuntikkannya lewat
+          # variabel berkas GOOGLE_SERVICES_JSON; tanpa itu `expo prebuild`
+          # gagal menyalinnya (run #13 berhenti persis di sana).
+          [ -n "${GOOGLE_SERVICES_BASE64}" ] || gagal "Secret GOOGLE_SERVICES_JSON_BASE64 kosong"
+          printf '%s' "${GOOGLE_SERVICES_BASE64}" | base64 -d | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null \
+            || gagal "GOOGLE_SERVICES_JSON_BASE64 bukan base64 dari JSON yang sah"
 
           [ -n "${KEYSTORE_BASE64}" ] || gagal "Secret RADPRO_RELEASE_KEYSTORE_BASE64 kosong"
           [ -n "${RADPRO_RELEASE_STORE_PASSWORD}" ] || gagal "Secret RADPRO_RELEASE_STORE_PASSWORD kosong"
@@ -128,21 +136,19 @@ jobs:
 
           echo "RADPRO_VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
 
-      # Fingerprint dihitung di mesin yang sama dengan yang membangun AAB.
-      # Selama build ada di EAS, angka ini diambil dari `eas build:list` karena
-      # hash lokal bisa berbeda dari hash EAS. Begitu keduanya dikerjakan di
-      # sini, sumber perbedaan itu hilang.
-      - name: Hitung fingerprint runtimeVersion
+      - name: Pasang google-services.json
+        env:
+          GOOGLE_SERVICES_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
         run: |
           set -euo pipefail
-          FINGERPRINT="$(node ./scripts/compute-fingerprint.js . android)"
-          echo "runtimeVersion: ${FINGERPRINT}"
-          echo "RADPRO_FINGERPRINT=${FINGERPRINT}" >> "$GITHUB_ENV"
+          printf '%s' "${GOOGLE_SERVICES_BASE64}" | base64 -d > google-services.json
+          echo "google-services.json terpasang ($(stat -c %s google-services.json) byte)."
 
       - name: Generate proyek Android
         env:
           EXPO_PUBLIC_APP_VARIANT: production
           EXPO_DEBUG: "false"
+          EXPO_NO_DOTENV: "1"
         run: |
           set -euo pipefail
           npx expo prebuild --platform android --clean --no-install
@@ -206,6 +212,7 @@ jobs:
         env:
           EXPO_PUBLIC_APP_VARIANT: production
           EXPO_DEBUG: "false"
+          EXPO_NO_DOTENV: "1"
           RADPRO_RELEASE_STORE_FILE: ${{ env.KEYSTORE_NAMA }}
           RADPRO_RELEASE_STORE_PASSWORD: ${{ secrets.RADPRO_RELEASE_STORE_PASSWORD }}
           RADPRO_RELEASE_KEY_ALIAS: ${{ secrets.RADPRO_RELEASE_KEY_ALIAS }}
@@ -254,15 +261,43 @@ jobs:
           echo "Ukuran: $(stat -c %s "${AAB_PATH}") byte"
           echo "SHA-256 artefak: $(sha256sum "${AAB_PATH}" | cut -d' ' -f1)"
 
-      # Fingerprint disimpan ke berkas yang sudah menjadi sumber ketiga di
-      # scripts/get-eas-fingerprint.js, sehingga publish OTA tetap menemukan
-      # angka yang benar tanpa memanggil EAS.
-      - name: Catat fingerprint untuk OTA
+      # Isi bundle JS diperiksa dari artefak, bukan dari env: yang dijalankan
+      # perangkat adalah bundle di dalam AAB. Firebase JS SDK butuh konfigurasi
+      # web — key Android ditolak Google untuk panggilan JS (403), dan bundle
+      # yang membawanya tetap lolos build lalu mematikan chat serta realtime
+      # work order. OTA 8f311761 terbit dengan cacat persis itu.
+      - name: Periksa konfigurasi Firebase di bundle
         run: |
           set -euo pipefail
-          printf '%s\n' "${RADPRO_FINGERPRINT}" > eas-production-fingerprint.txt
-          echo "eas-production-fingerprint.txt: ${RADPRO_FINGERPRINT}"
-          echo "::notice::Commit eas-production-fingerprint.txt ke main setelah AAB ini terbit di Play Store, supaya publish OTA menargetkan runtimeVersion yang benar."
+          unzip -p "${AAB_PATH}" base/assets/index.android.bundle > /tmp/bundle-aab
+
+          grep -qaE '1:[0-9]+:web:[0-9a-f]+' /tmp/bundle-aab || {
+            echo "::error::Bundle di AAB tidak memuat app id Firebase web. Chat dan realtime akan ditolak Google (403)." >&2
+            exit 1
+          }
+          if grep -qaE '1:[0-9]+:android:[0-9a-f]+' /tmp/bundle-aab; then
+            echo "::error::Bundle di AAB memuat app id Firebase Android — ditolak untuk panggilan dari JS SDK." >&2
+            exit 1
+          fi
+          rm -f /tmp/bundle-aab
+          echo "Konfigurasi Firebase di bundle: web."
+
+      # runtimeVersion dibaca dari artefak — base/assets/fingerprint, ditulis
+      # expo-updates saat build Gradle. Fingerprint yang dihitung ulang secara
+      # lokal bisa berbeda dari angka itu, dan perangkat hanya menerima OTA yang
+      # runtime-nya sama persis dengan yang tertanam.
+      - name: Catat runtimeVersion untuk OTA
+        run: |
+          set -euo pipefail
+          RUNTIME="$(unzip -p "${AAB_PATH}" base/assets/fingerprint | tr -d '[:space:]')"
+          [ "${#RUNTIME}" -ge 16 ] || {
+            echo "::error::base/assets/fingerprint di AAB kosong atau tidak sah: '${RUNTIME}'" >&2
+            exit 1
+          }
+          printf '%s\n' "${RUNTIME}" > eas-production-fingerprint.txt
+          echo "RADPRO_FINGERPRINT=${RUNTIME}" >> "$GITHUB_ENV"
+          echo "runtimeVersion tertanam di AAB: ${RUNTIME}"
+          echo "::notice::Setelah AAB versionCode ${RADPRO_VERSION_CODE} terbit di Play Store, commit eas-production-fingerprint.txt (${RUNTIME}) ke main supaya publish OTA menargetkan runtime ini."
 
       - name: Unggah artefak
         uses: actions/upload-artifact@v4
@@ -278,4 +313,4 @@ jobs:
       # tertinggal akan terbawa ke job berikutnya.
       - name: Hapus keystore
         if: always()
-        run: rm -f "android/app/${KEYSTORE_NAMA}" /tmp/uji-keystore
+        run: rm -f "android/app/${KEYSTORE_NAMA}" /tmp/uji-keystore /tmp/bundle-aab google-services.json

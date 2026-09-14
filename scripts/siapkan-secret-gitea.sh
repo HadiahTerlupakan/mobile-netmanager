@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Menyiapkan empat secret signing Android untuk repo Gitea, dari
-# credentials.json yang diunduh dari EAS.
+# Menyiapkan secret build Android untuk repo Gitea: empat nilai signing dari
+# credentials.json yang diunduh dari EAS, plus google-services.json.
 #
 # Kenapa lewat skrip, bukan salin-tempel manual: satu karakter meleset pada
 # password keystore tidak menggagalkan apa pun sampai Gradle mencoba memakainya
@@ -91,7 +91,7 @@ printf '\nUntuk tiap langkah: nilainya sudah ada di clipboard, tinggal tempel.\n
 langkah() {
     local nama="$1" nilai="$2" ke="$3" dari="$4"
     printf '%s' "${nilai}" | salin
-    printf '\n%s[%s/4]%s %s%s%s  (%s)\n' "$kuning" "$ke" "$nol" "$hijau" "${nama}" "$nol" "${dari}"
+    printf '\n%s[%s/5]%s %s%s%s  (%s)\n' "$kuning" "$ke" "$nol" "$hijau" "${nama}" "$nol" "${dari}"
     printf '      sudah di clipboard — tempel sebagai secret bernama di atas, lalu tekan Enter'
     read -r _
 }
@@ -101,12 +101,19 @@ langkah RADPRO_RELEASE_STORE_PASSWORD  "${STORE_PASSWORD}"                      
 langkah RADPRO_RELEASE_KEY_ALIAS       "${KEY_ALIAS}"                                 3 "keyAlias"
 langkah RADPRO_RELEASE_KEY_PASSWORD    "${KEY_PASSWORD}"                              4 "keyPassword"
 
+# google-services.json di-.gitignore; dulu EAS menyuntikkannya lewat variabel
+# berkas GOOGLE_SERVICES_JSON. Tanpanya `expo prebuild` di runner gagal.
+[ -f google-services.json ] || gagal "google-services.json tidak ada di direktori ini"
+node -e 'JSON.parse(require("fs").readFileSync("google-services.json","utf8"))' \
+    || gagal "google-services.json bukan JSON yang sah"
+langkah GOOGLE_SERVICES_JSON_BASE64    "$(base64 < google-services.json | tr -d '\n')" 5 "google-services.json, base64"
+
 # Clipboard dikosongkan: nilai terakhir yang tertinggal di sana adalah password.
 printf '' | salin
 
 cat <<PESAN
 
-${hijau}Empat secret selesai.${nol}
+${hijau}Lima secret selesai.${nol}
 
 ${kuning}Satu langkah lagi — variabel (bukan secret):${nol}
   ${URL_VARIABEL}

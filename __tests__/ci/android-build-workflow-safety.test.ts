@@ -92,12 +92,36 @@ describe('workflow build Android', () => {
     expect(posisi).toEqual([...posisi].sort((a, b) => a - b));
   });
 
-  it('mencatat fingerprint runtimeVersion hasil build', () => {
+  it('mencatat runtimeVersion yang benar-benar tertanam di AAB', () => {
     // OTA hanya sampai ke perangkat yang runtimeVersion-nya sama persis.
-    // Selama build ada di EAS, angka itu diambil dari `eas build:list`; begitu
-    // build pindah ke sini, mesin yang sama harus mencatatnya sendiri.
+    // Fingerprint yang dihitung ulang secara lokal bisa berbeda dari yang
+    // ditanam expo-updates saat build; yang dipakai perangkat adalah berkas
+    // base/assets/fingerprint di dalam artefak.
     const workflow = bacaWorkflow();
 
+    expect(workflow).toContain('base/assets/fingerprint');
     expect(workflow).toContain('eas-production-fingerprint.txt');
+    expect(workflow).not.toContain('compute-fingerprint.js');
+  });
+
+  it('memasang google-services.json dari secret sebelum prebuild', () => {
+    // Berkas ini di-.gitignore; dulu EAS menyuntikkannya lewat variabel berkas
+    // GOOGLE_SERVICES_JSON. Tanpa itu `expo prebuild` gagal menyalinnya.
+    const workflow = bacaWorkflow();
+    const indeksPasang = workflow.indexOf('GOOGLE_SERVICES_JSON_BASE64');
+    // Perintahnya, bukan penyebutan di komentar kepala berkas.
+    const indeksPrebuild = workflow.indexOf('npx expo prebuild');
+
+    expect(indeksPasang).toBeGreaterThan(-1);
+    expect(indeksPrebuild).toBeGreaterThan(indeksPasang);
+  });
+
+  it('menolak AAB yang bundle JS-nya membawa konfigurasi Firebase non-web', () => {
+    // Build tetap lolos dengan konfigurasi Android, lalu chat dan realtime work
+    // order mati di perangkat karena Google menolak key Android untuk JS SDK.
+    const workflow = bacaWorkflow();
+
+    expect(workflow).toContain('base/assets/index.android.bundle');
+    expect(workflow).toMatch(/:web:/);
   });
 });
