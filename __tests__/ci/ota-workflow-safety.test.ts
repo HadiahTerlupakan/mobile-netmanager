@@ -74,3 +74,26 @@ describe('rumah CI/CD', () => {
     );
   });
 });
+
+/**
+ * Publish OTA memanggil `npx eas`. Tanpa `eas-cli` terpasang di proyek, npx
+ * tidak bisa memetakan nama binary `eas` ke paketnya dan job berhenti dengan
+ * "could not determine executable to run" — kegagalan yang tidak menyebut EAS
+ * sama sekali, sehingga sulit dikenali.
+ *
+ * Versinya dipatok persis supaya CI memakai yang sama dengan yang diverifikasi
+ * di mesin pengembang.
+ */
+describe('ketergantungan eas-cli', () => {
+  const pkg = JSON.parse(
+    readFileSync(join(__dirname, '../../package.json'), 'utf8')
+  );
+
+  it('terpasang sebagai devDependency', () => {
+    expect(pkg.devDependencies?.['eas-cli']).toBeDefined();
+  });
+
+  it('dipatok pada versi persis, bukan rentang', () => {
+    expect(pkg.devDependencies['eas-cli']).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+});
