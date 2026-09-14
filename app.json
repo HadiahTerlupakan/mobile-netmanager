@@ -68,7 +68,6 @@
     },
     "android": {
       "package": "com.netmanager.mobile",
-      "versionCode": 42,
       "adaptiveIcon": {
         "backgroundColor": "#0a46aa",
         "foregroundImage": "./assets/images/android-icon-foreground.png"

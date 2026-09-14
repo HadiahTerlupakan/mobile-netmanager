@@ -57,3 +57,31 @@ describe('syarat target API Google Play', () => {
     );
   });
 });
+
+/**
+ * `appVersionSource: "remote"` membuat EAS yang memegang versionCode dan
+ * menaikkannya otomatis tiap build. Nilai yang dipatok di `app.json` diabaikan
+ * saat build, tetapi tetap ikut ke `Constants.expoConfig` — sehingga aplikasi
+ * melaporkan angka patokan itu, bukan versi yang benar-benar terpasang.
+ *
+ * Build 45 melaporkan dirinya 42 karena ini, dan setiap aplikasi akan mengira
+ * dirinya usang selamanya begitu `app_releases` dinaikkan.
+ */
+describe('sumber versionCode', () => {
+  it('tidak memaku versionCode di app config', () => {
+    const appJson = JSON.parse(
+      readFileSync(join(__dirname, '../../app.json'), 'utf8')
+    );
+
+    expect(appJson.expo.android?.versionCode).toBeUndefined();
+  });
+
+  it('menyerahkan versionCode ke EAS lewat appVersionSource remote', () => {
+    const easJson = JSON.parse(
+      readFileSync(join(__dirname, '../../eas.json'), 'utf8')
+    );
+
+    expect(easJson.cli.appVersionSource).toBe('remote');
+    expect(easJson.build.production.autoIncrement).toBe(true);
+  });
+});

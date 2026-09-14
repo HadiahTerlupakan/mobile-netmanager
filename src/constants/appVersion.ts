@@ -1,3 +1,4 @@
+import * as Application from 'expo-application'
 import Constants from 'expo-constants'
 import * as Updates from 'expo-updates'
 
@@ -22,16 +23,27 @@ function pickPositiveInt(...candidates: Array<number | string | null | undefined
   return null
 }
 
-export function resolveAppVersion(config?: ExpoVersionConfig) {
-  const platformAndroid = (
-    Constants as {
-      platform?: { android?: { versionCode?: number | null } }
-    }
-  ).platform?.android?.versionCode
-
+/**
+ * Versi yang dilaporkan aplikasi ke `/api/mobile/app-version/check`.
+ *
+ * `Application.nativeBuildVersion` dibaca dari binary yang benar-benar
+ * terpasang, jadi ia satu-satunya sumber yang selalu benar. Nilai di `app.json`
+ * dipatok manual dan tidak pernah ikut naik — EAS memakai
+ * `appVersionSource: "remote"` dengan autoIncrement, sehingga build 45 tetap
+ * melaporkan dirinya 42 dan setiap aplikasi akan mengira dirinya usang selamanya
+ * begitu `app_releases` dinaikkan, termasuk yang baru saja update.
+ *
+ * `Constants.platform` sebelumnya dicoba lebih dulu, tetapi ia bagian manifest
+ * klasik yang tidak ada lagi di build Expo SDK 54 — selalu undefined, sehingga
+ * resolusinya selalu jatuh ke `app.json`.
+ */
+export function resolveAppVersion(
+  config?: ExpoVersionConfig,
+  nativeBuildVersion: string | null | undefined = Application.nativeBuildVersion,
+) {
   const versionCode =
     pickPositiveInt(
-      platformAndroid,
+      nativeBuildVersion,
       config?.android?.versionCode,
       config?.extra?.versionCode,
     ) ?? FALLBACK_VERSION_CODE
