@@ -1,0 +1,156 @@
+name: Publish OTA
+
+# Menggantikan Jenkinsfile.ota — versi untuk Gitea Actions.
+#
+# `actions/checkout` dan `actions/setup-node` tidak dipakai: keduanya diunduh
+# dari github.com setiap job, dan dari mesin Gitea ini egress github.com sering
+# i/o timeout. Kode diambil langsung dari Gitea, dan Node 20 sudah tersedia
+# karena label `ubuntu-latest` memetakan ke image `node:20-bullseye`.
+#
+# OTA hanya mengirim bundle JavaScript. Perangkat menerima update hanya bila
+# `runtimeVersion`-nya sama persis dengan binary terpasang, dan di proyek ini
+# runtimeVersion dihitung dari fingerprint native. Karena itu publish yang
+# fingerprint-nya bergeser tidak "gagal" — ia berhasil lalu tidak sampai ke
+# siapa pun. Job ini menolaknya lebih dulu supaya kegagalannya terlihat.
+
+on:
+  push:
+    branches: [main]
+    # Perubahan yang tidak ikut ke bundle JS tidak perlu memicu publish.
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".github/**"
+  workflow_dispatch:
+    inputs:
+      allow_runtime_mismatch:
+        description: >-
+          Publish walau fingerprint berbeda dari build terakhir. Centang HANYA
+          setelah APK dengan fingerprint baru benar-benar tersebar — kalau
+          tidak, update ini tidak akan diterima perangkat mana pun.
+        type: boolean
+        default: false
+
+concurrency:
+  group: publish-ota
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Fingerprint guard & publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ambil kode dari Gitea
+        run: |
+          set -euo pipefail
+          git init -q .
+          git remote add origin "http://gitea:3000/${{ github.repository }}.git"
+          git config --local http.extraheader \
+            "Authorization: basic $(printf 'x-access-token:%s' '${{ github.token }}' | base64 -w0)"
+          # Riwayat penuh diperlukan: pesan commit dipakai sebagai catatan rilis.
+          git fetch -q --depth=1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+          git config --local --unset-all http.extraheader
+
+      - name: Pasang dependensi
+        run: |
+          set -euo pipefail
+          npm config set fetch-retries 5
+          for percobaan in 1 2 3; do
+            if npm ci --no-audit --prefer-offline; then break; fi
+            if [ "$percobaan" = 3 ]; then echo "npm ci gagal setelah 3 percobaan" >&2; exit 1; fi
+            sleep 15
+          done
+
+      # Gate mutu: OTA mengirim JS langsung ke pengguna tanpa melewati review
+      # toko, jadi tidak ada jaring pengaman lain di belakangnya.
+      - name: Lint
+        run: npx expo lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Tes unit
+        run: npx jest --ci
+
+      # Jenkinsfile.ota membandingkan `git diff` terhadap `android/`, `ios/`,
+      # `app.config.ts`, dan `package.json`. Pemeriksaan itu tidak pernah bisa
+      # bekerja: `android/` dan `ios/` ada di .gitignore sehingga tak pernah
+      # muncul di diff, dan daftarnya melewatkan `app.json` serta `plugins/` —
+      # justru berkas yang paling sering menggeser sisi native.
+      #
+      # Penggantinya tidak menghitung fingerprint sendiri. Nilai yang dihitung
+      # di luar EAS tidak terbukti sebanding dengan milik EAS — mesin lokal yang
+      # punya sisa `android/` hasil prebuild menghasilkan angka berbeda, dan
+      # gerbang yang salah banding akan memblokir semua OTA.
+      #
+      # Karena itu EAS sendiri yang ditanya: `eas update --json` melaporkan
+      # runtimeVersion update yang baru terbit, dan itu dibandingkan dengan
+      # runtimeVersion build terakhir. Menerbitkan update yang tidak terjangkau
+      # tidak merusak apa pun — perangkat hanya mengabaikannya — jadi memeriksa
+      # setelah publish aman, dan hasilnya pasti sebanding.
+      - name: Publish OTA
+        id: publish
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Pesan commit ditampung di variabel lebih dulu, bukan disubstitusikan
+          # langsung di baris perintah — isinya datang dari luar dan tidak boleh
+          # sampai ikut dievaluasi shell.
+          subject="$(git log -1 --pretty=%s)"
+
+          npx eas update \
+            --branch production \
+            --message "${GITHUB_SHA:0:8} - ${subject}" \
+            --non-interactive --json > update.json
+
+          runtime="$(node -e "
+            const d = require('./update.json');
+            const list = Array.isArray(d) ? d : [d];
+            const found = list.map(u => u && u.runtimeVersion).find(Boolean);
+            console.log(found || '');
+          ")"
+
+          if [ -z "$runtime" ]; then
+            echo "::error::runtimeVersion update tidak terbaca dari keluaran eas update."
+            exit 1
+          fi
+
+          echo "runtime=$runtime" >> "$GITHUB_OUTPUT"
+          echo "runtimeVersion update: $runtime"
+
+      # Publish yang fingerprint-nya bergeser tidak "gagal" — ia berhasil lalu
+      # tidak sampai ke perangkat mana pun. Tanpa pemeriksaan ini, kegagalannya
+      # tak terlihat sampai ada yang bertanya kenapa perbaikannya tidak muncul.
+      - name: Pastikan update terjangkau perangkat
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          UPDATE_RUNTIME: ${{ steps.publish.outputs.runtime }}
+          ALLOW_MISMATCH: ${{ inputs.allow_runtime_mismatch }}
+        run: |
+          set -euo pipefail
+
+          build_runtime="$(npx eas build:list --platform android --limit 1 --status finished --json --non-interactive \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const b=JSON.parse(s)[0]||{};console.log(b.runtimeVersion||'')})")"
+
+          echo "runtime update       : ${UPDATE_RUNTIME}"
+          echo "runtime build terakhir: ${build_runtime:-(tidak terbaca)}"
+
+          if [ -z "$build_runtime" ]; then
+            echo "::warning::Runtime build terakhir tidak terbaca — keterjangkauan update tidak bisa dipastikan."
+            exit 0
+          fi
+
+          if [ "$UPDATE_RUNTIME" = "$build_runtime" ]; then
+            echo "Update terjangkau oleh build terakhir."
+            exit 0
+          fi
+
+          if [ "${ALLOW_MISMATCH:-false}" = "true" ]; then
+            echo "::warning::Runtime berbeda, diterima atas permintaan eksplisit."
+            exit 0
+          fi
+
+          echo "::error::Update sudah terbit tetapi runtimeVersion-nya berbeda dari build terakhir, sehingga tidak akan diterima perangkat mana pun. Perubahan ini menyentuh sisi native dan butuh APK baru, bukan OTA."
+          exit 1

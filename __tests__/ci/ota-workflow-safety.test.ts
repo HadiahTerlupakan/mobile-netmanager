@@ -9,11 +9,13 @@ import { join } from 'node:path';
  * update yang runtimeVersion-nya bergeser tetap "berhasil" terbit lalu diam-diam
  * tidak diterima perangkat mana pun.
  */
-describe('workflow publish OTA', () => {
-  const workflow = readFileSync(
-    join(__dirname, '../../.github/workflows/ota.yml'),
-    'utf8'
-  );
+const VARIAN = [
+  ['GitHub', '.github/workflows/ota.yml'],
+  ['Gitea', '.gitea/workflows/ota.yml'],
+] as const;
+
+describe.each(VARIAN)('workflow publish OTA (%s)', (_nama, berkas) => {
+  const workflow = readFileSync(join(__dirname, '../..', berkas), 'utf8');
 
   it('menjalankan lint, typecheck, dan tes sebelum publish', () => {
     const urutan = ['expo lint', 'tsc --noEmit', 'jest --ci', 'eas update'];

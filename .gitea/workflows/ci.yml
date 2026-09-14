@@ -1,0 +1,68 @@
+name: Mobile CI
+
+# Versi Gitea dari .github/workflows/ci.yml.
+#
+# Dua perbedaan dari versi GitHub, keduanya karena keterbatasan mesin Gitea:
+#
+# 1. `actions/checkout` tidak dipakai. Ia diunduh dari github.com setiap job,
+#    dan dari mesin ini egress github.com sering i/o timeout. Repositorinya
+#    sendiri ada di Gitea lokal, jadi kode diambil langsung dari sana.
+# 2. `actions/setup-node` tidak dipakai. Label `ubuntu-latest` di runner ini
+#    memetakan ke image `node:20-bullseye`, jadi Node 20 sudah tersedia.
+
+on:
+  push:
+    branches: [main, staging, develop]
+  pull_request:
+    branches: [main, staging, develop]
+
+env:
+  REPO_CLONE_URL: http://gitea:3000/${{ github.repository }}.git
+
+jobs:
+  check:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ambil kode dari Gitea
+        run: |
+          set -euo pipefail
+          git init -q .
+          git remote add origin "${REPO_CLONE_URL}"
+          # Token ditaruh di config lokal, bukan di argumen perintah, supaya
+          # tidak terbaca lewat daftar proses.
+          git config --local http.extraheader \
+            "Authorization: basic $(printf 'x-access-token:%s' '${{ github.token }}' | base64 -w0)"
+          git fetch -q --depth=1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+          git config --local --unset-all http.extraheader
+
+      - name: Pasang dependensi
+        run: |
+          set -euo pipefail
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          # fetch-retries hanya mengulang permintaan individual; ECONNRESET di
+          # tengah aliran tetap membatalkan seluruh `npm ci`, dan jaringan mesin
+          # ini sudah terbukti tidak selalu mulus.
+          for percobaan in 1 2 3; do
+            if npm ci --no-audit --prefer-offline; then
+              break
+            fi
+            if [ "$percobaan" = 3 ]; then
+              echo "npm ci gagal setelah 3 percobaan" >&2
+              exit 1
+            fi
+            echo "npm ci gagal (percobaan $percobaan), mengulang dalam 15 detik" >&2
+            sleep 15
+          done
+
+      - name: Lint
+        run: npx expo lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Tes unit
+        run: npx jest --ci
