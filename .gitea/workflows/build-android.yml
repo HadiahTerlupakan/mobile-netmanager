@@ -215,7 +215,12 @@ jobs:
           cd android
           # --no-daemon: daemon yang menetap menahan 4 GB heap di runner yang
           # juga melayani deploy produksi.
-          ./gradlew :app:bundleRelease -x lint -x lintVitalRelease --no-daemon
+          #
+          # --max-workers=2: tiap worker menjalankan kompilasi C++ New
+          # Architecture sendiri-sendiri. Empat worker paralel di atas heap
+          # Gradle 4 GB menembus batas 9 GB container dan dibunuh OOM — gagal
+          # yang tampil sebagai "exit 137" tanpa satu pun pesan kompilasi.
+          ./gradlew :app:bundleRelease -x lint -x lintVitalRelease --no-daemon --max-workers=2
 
       # Langkah inilah yang menutup jebakan debug-signing. Build di atas tetap
       # "berhasil" tanpa kredensial yang benar; yang membedakan hanya siapa
