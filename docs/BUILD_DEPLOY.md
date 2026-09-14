@@ -73,7 +73,7 @@ Setelah submit ke Play Store:
    ```bash
    node scripts/get-eas-fingerprint.js android > eas-production-fingerprint.txt
    ```
-   File ini dipakai Jenkins OTA pipeline untuk match APK di Play Store.
+   File ini dipakai workflow OTA untuk match APK di Play Store.
 
 4. **Update `app_releases` di DB netmanager-production**:
    ```sql
@@ -92,9 +92,9 @@ Setelah submit ke Play Store:
 
 ## OTA Pipeline (JS only)
 
-Perubahan JS/TS saja (tidak ada native change) cukup **push ke `main`** — Jenkins OTA otomatis:
+Perubahan JS/TS saja (tidak ada native change) cukup **push ke `main`** — workflow OTA Gitea otomatis:
 
-1. `push main` → trigger `Jenkinsfile.ota`
+1. `push main` → trigger `.gitea/workflows/ota.yml`
 2. `get-eas-fingerprint.js` ambil fingerprint dari EAS build terbaru (atau file `eas-production-fingerprint.txt`)
 3. `publish-update.sh` publish OTA dengan fingerprint yang match APK Play Store
 4. User buka app → `expo-updates` cek manifest → OTA ter-apply otomatis

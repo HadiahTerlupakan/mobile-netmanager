@@ -163,4 +163,4 @@ git switch staging
 
 echo -e "${GREEN}Git promotion selesai.${NC}"
 echo -e "${YELLOW}Build APK production:    ./build_apk.sh production${NC}"
-echo -e "${YELLOW}Publish OTA bundle:      via Jenkins (sesuai workflow OTA staging→prod)${NC}"
+echo -e "${YELLOW}Publish OTA bundle:      otomatis via .gitea/workflows/ota.yml saat push ke main${NC}"

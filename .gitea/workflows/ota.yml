@@ -1,6 +1,6 @@
 name: Publish OTA
 
-# Menggantikan Jenkinsfile.ota — versi untuk Gitea Actions.
+# Menggantikan Jenkinsfile.ota, yang sudah dihapus bersama Jenkins.
 #
 # `actions/checkout` dan `actions/setup-node` tidak dipakai: keduanya diunduh
 # dari github.com setiap job, dan dari mesin Gitea ini egress github.com sering
@@ -74,7 +74,7 @@ jobs:
         run: npx jest --ci
 
       # Publish lewat `scripts/publish-update.sh`, skrip yang sama dengan yang
-      # dipakai Jenkins. OTA proyek ini TIDAK memakai EAS Update: `app.config.ts`
+      # dipakai sebelumnya. OTA proyek ini TIDAK memakai EAS Update: `app.config.ts`
       # mengarahkan `updates.url` ke `/api/mobile/app-update/manifest` milik
       # netmanager, jadi bundle diekspor lalu diunggah ke server sendiri.
       #

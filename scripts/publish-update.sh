@@ -82,7 +82,7 @@ else
     fi
     echo "   runtimeVersion (EAS fingerprint): ${RUNTIME_VERSION}"
 fi
-# Export agar stage Verify Manifest di Jenkinsfile bisa pakai
+# Export agar langkah verifikasi manifest di workflow OTA bisa pakai
 export RUNTIME_VERSION
 
 # Step 1: Clean & export bundle
@@ -179,7 +179,7 @@ fi
 UPDATE_ID=$(node -p "JSON.parse(require('fs').readFileSync('${RESPONSE_FILE}','utf8')).data?.id || 'unknown'")
 rm -f "${RESPONSE_FILE}"
 
-# Step 4/4: Print fingerprint untuk dipakai Jenkinsfile Verify Manifest
+# Step 4/4: Print fingerprint untuk dipakai langkah verifikasi manifest
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  ✅ OTA published successfully"
