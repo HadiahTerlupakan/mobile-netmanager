@@ -1,4 +1,8 @@
-import { CURRENT_VERSION_CODE, CURRENT_VERSION_NAME } from '@/constants/appVersion';
+import {
+  CURRENT_VERSION_CODE,
+  CURRENT_VERSION_CODE_SOURCE,
+  CURRENT_VERSION_NAME,
+} from '@/constants/appVersion';
 import { Config } from '@/constants/Config';
 import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { TenantService } from '@/services/TenantService';
@@ -92,7 +96,11 @@ class ErrorReportingService {
       severity,
       route: typeof context?.route === 'string' ? context.route : undefined,
       screen: typeof context?.screen === 'string' ? context.screen : undefined,
-      appVersion: `${CURRENT_VERSION_NAME}+${CURRENT_VERSION_CODE}`,
+      // Versi cadangan ditandai: laporan lama berisi "1.0.0+53" yang tampak
+      // seperti build sungguhan padahal versinya tidak pernah terbaca.
+      appVersion: `${CURRENT_VERSION_NAME}+${CURRENT_VERSION_CODE}${
+        CURRENT_VERSION_CODE_SOURCE === 'fallback' ? ' (versi tidak terbaca)' : ''
+      }`,
       platform: Platform.OS,
       occurredAt: new Date().toISOString(),
       stack,

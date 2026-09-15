@@ -2,8 +2,21 @@ import * as Application from 'expo-application'
 import Constants from 'expo-constants'
 import * as Updates from 'expo-updates'
 
-export const FALLBACK_VERSION_CODE = 53
+/**
+ * Dipakai hanya bila versionCode tidak terbaca dari binary maupun app config.
+ *
+ * Nilainya sengaja 0 — lebih rendah dari build mana pun. Angka ini ikut
+ * ditandatangani ke JWT saat login dan dipakai server untuk gerbang
+ * MOBILE_MIN_NATIVE_VERSION_CODE, serta dibandingkan dengan `app_releases`.
+ * Nilai lama (53) lebih tinggi dari build sungguhan: aplikasi yang jatuh ke
+ * cadangan tidak pernah ditawari update dan lolos gerbang versi minimum.
+ * Versi yang tidak terbaca diperlakukan sebagai yang tertua; akibat terburuknya
+ * diminta update dari Play Store, yang terlihat dan bisa dipulihkan.
+ */
+export const FALLBACK_VERSION_CODE = 0
 export const FALLBACK_VERSION_NAME = '1.0.0'
+
+export type VersionCodeSource = 'native' | 'config' | 'fallback'
 
 type ExpoVersionConfig = {
   version?: string | null
@@ -40,17 +53,32 @@ function pickPositiveInt(...candidates: (number | string | null | undefined)[]):
 export function resolveAppVersion(
   config?: ExpoVersionConfig,
   nativeBuildVersion: string | null | undefined = Application.nativeBuildVersion,
+  nativeApplicationVersion: string | null | undefined = Application.nativeApplicationVersion,
 ) {
-  const versionCode =
-    pickPositiveInt(
-      nativeBuildVersion,
-      config?.android?.versionCode,
-      config?.extra?.versionCode,
-    ) ?? FALLBACK_VERSION_CODE
+  const dariNative = pickPositiveInt(nativeBuildVersion)
+  const dariConfig = pickPositiveInt(config?.android?.versionCode, config?.extra?.versionCode)
 
-  const versionName = config?.version?.trim() || FALLBACK_VERSION_NAME
+  const versionCodeSource: VersionCodeSource =
+    dariNative !== null ? 'native' : dariConfig !== null ? 'config' : 'fallback'
+  const versionCode = dariNative ?? dariConfig ?? FALLBACK_VERSION_CODE
 
-  return { versionCode, versionName }
+  // Nama versi mengikuti aturan yang sama: binary dulu, app.json yang dipatok
+  // manual hanya sebagai cadangan.
+  const versionName =
+    nativeApplicationVersion?.trim() || config?.version?.trim() || FALLBACK_VERSION_NAME
+
+  return { versionCode, versionName, versionCodeSource }
+}
+
+type ResolvedAppVersion = ReturnType<typeof resolveAppVersion>
+
+/** Label versi untuk layar dan laporan; versi cadangan ditandai jelas. */
+export function formatAppVersionLabel(version: ResolvedAppVersion, otaIdShort: string): string {
+  const build =
+    version.versionCodeSource === 'fallback'
+      ? 'Build tidak terbaca'
+      : `Build ${version.versionCode}`
+  return `RADPRO v${version.versionName} (${build} · OTA #${otaIdShort})`
 }
 
 const currentAppVersion = resolveAppVersion(
@@ -59,6 +87,7 @@ const currentAppVersion = resolveAppVersion(
 
 export const CURRENT_VERSION_CODE = currentAppVersion.versionCode
 export const CURRENT_VERSION_NAME = currentAppVersion.versionName
+export const CURRENT_VERSION_CODE_SOURCE = currentAppVersion.versionCodeSource
 export const CURRENT_VERSION_CODE_LABEL = String(CURRENT_VERSION_CODE)
 
 export function getOtaUpdateId(): string {
@@ -72,6 +101,5 @@ export function getOtaUpdateIdShort(): string {
 }
 
 export function getAppVersionLabel(): string {
-  const ota = getOtaUpdateIdShort()
-  return `RADPRO v${CURRENT_VERSION_NAME} (Build ${CURRENT_VERSION_CODE_LABEL} · OTA #${ota})`
+  return formatAppVersionLabel(currentAppVersion, getOtaUpdateIdShort())
 }
