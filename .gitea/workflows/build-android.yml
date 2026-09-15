@@ -414,15 +414,48 @@ jobs:
           done
           git config --local --unset-all http.extraheader
 
-      - name: Unggah artefak
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-${{ env.RADPRO_VERSION_CODE }}-aab
-          path: |
-            ${{ env.AAB_PATH }}
-            native-build.json
-          retention-days: 30
-          if-no-files-found: error
+      # Push dengan token Actions tidak memicu workflow lain, jadi commit
+      # pencatatan di atas tidak akan menjalankan ota.yml. JS yang masuk ke main
+      # selama build berjalan tidak ada di AAB ini; tanpa susulan, ia baru
+      # terkirim di push berikutnya.
+      #
+      # Susulan hanya berjalan bila main memang bergerak, dan tetap melewati
+      # penahan native yang sama dengan ota.yml: bila berkas native ikut berubah,
+      # build berikutnya sudah terpicu dan OTA ditahan sampai ia tercatat.
+      #
+      # Langkah "Unggah artefak" (upload-artifact@v4) dihapus: Gitea menolaknya
+      # dengan GHESNotSupportedError dan membuat run #20 merah padahal AAB sudah
+      # terbit. AAB bisa diunduh dari App bundle explorer di Play Console.
+      - name: Susulkan OTA ke runtime baru
+        env:
+          APP_UPDATE_PUBLISH_TOKEN: ${{ secrets.APP_UPDATE_PUBLISH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Salinan kerja kini di atas main terbaru (berisi commit pencatatan).
+          if git diff --quiet "${GITHUB_SHA}" HEAD -- . ':(exclude)native-build.json'; then
+            echo "main tidak bergerak selama build — JS di AAB sudah yang terbaru, susulan tidak perlu."
+            exit 0
+          fi
+
+          echo "main bergerak selama build:"
+          git diff --name-only "${GITHUB_SHA}" HEAD -- . ':(exclude)native-build.json'
+
+          set +e
+          target="$(node scripts/native-state.js ota-target)"
+          status_target=$?
+          set -e
+          if [ "$status_target" = 3 ]; then
+            echo "::notice::Berkas native ikut berubah; OTA susulan ditahan sampai build berikutnya tercatat."
+            exit 0
+          fi
+          [ "$status_target" = 0 ] && [ -n "${target}" ] \
+            || { echo "::error::native-state.js ota-target gagal (exit ${status_target})"; exit 1; }
+
+          [ -n "${APP_UPDATE_PUBLISH_TOKEN:-}" ] || { echo "::error::Secret APP_UPDATE_PUBLISH_TOKEN belum diset"; exit 1; }
+          npm ci --no-audit --prefer-offline
+          RUNTIME_VERSION_OVERRIDE="${target}" ./scripts/publish-update.sh production \
+            "$(git rev-parse --short HEAD) - susulan setelah build versionCode ${RADPRO_VERSION_CODE}"
 
       # Runner ini menetap antar-run dan melayani repo lain. Keystore yang
       # tertinggal akan terbawa ke job berikutnya.

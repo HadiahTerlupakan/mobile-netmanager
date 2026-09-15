@@ -195,8 +195,20 @@ Play Console → Testing → Internal testing → *Promote release* → Producti
 
 **Hubungannya dengan OTA:** `ota.yml` membaca `native-build.json`. Bila berkas
 native HEAD berbeda dari build terakhir, OTA **ditahan** — JS baru ke APK lama
-bisa crash. Setelah build baru tercatat, commit pencatatannya memicu OTA untuk
-menyusul.
+bisa crash.
+
+Commit pencatatan dibuat dengan token Actions, dan push semacam itu **tidak**
+memicu workflow lain. Karena itu workflow build sendiri yang menyusulkan OTA
+bila `main` bergerak selama build berjalan (JS yang masuk saat itu tidak ada di
+AAB). Bila `main` tidak bergerak, susulan dilewati.
+
+**Setelah build internal terbit, OTA menargetkan runtime build itu.** Pengguna
+produksi yang masih di versi lama tidak menerima OTA berikutnya sampai versi
+internal dipromosikan ke produksi — jangan biarkan versi internal menggantung
+lama.
+
+AAB tidak disimpan sebagai artefak Gitea (`upload-artifact@v4` ditolak Gitea);
+unduh dari Play Console → *App bundle explorer* bila diperlukan.
 
 **Durasi:** build pertama setelah cache kosong 1,5–2 jam (Google Maven dari
 jaringan VPS lambat); berikutnya jauh lebih cepat karena cache Gradle bertahan

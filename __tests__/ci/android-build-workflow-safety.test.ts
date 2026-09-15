@@ -177,4 +177,28 @@ describe('workflow build Android', () => {
     expect(workflow).toContain('native-build.json');
     expect(workflow).toMatch(/git push[^\n]*main/);
   });
+
+  it('tidak memakai upload-artifact v4 yang ditolak Gitea', () => {
+    // Run #20 merah di langkah terakhir: @actions/artifact v2+ mendeteksi
+    // server non-GitHub dan menolak jalan (GHESNotSupportedError), padahal AAB
+    // sudah terunggah ke Play dan tercatat. AAB tetap bisa diunduh dari App
+    // bundle explorer di Play Console.
+    expect(bacaWorkflow()).not.toMatch(/actions\/upload-artifact@v4/);
+  });
+
+  it('menyusulkan OTA sendiri bila main bergerak selama build', () => {
+    // Push yang memakai token Actions tidak memicu workflow lain, jadi commit
+    // pencatatan tidak akan pernah menjalankan ota.yml. JS yang masuk ke main
+    // selama build berjalan tidak ada di AAB; tanpa susulan, ia baru terkirim
+    // di push berikutnya. Susulan tetap melewati penahan native yang sama.
+    const workflow = bacaWorkflow();
+    const indeksCatat = workflow.indexOf('native-state.js record');
+    const indeksSusulan = workflow.indexOf('native-state.js ota-target');
+    const indeksPublish = workflow.indexOf('publish-update.sh production');
+
+    expect(indeksSusulan).toBeGreaterThan(indeksCatat);
+    expect(indeksPublish).toBeGreaterThan(indeksSusulan);
+    expect(workflow).toContain('APP_UPDATE_PUBLISH_TOKEN');
+    expect(workflow).toContain('git diff --quiet');
+  });
 });
