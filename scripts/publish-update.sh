@@ -110,7 +110,7 @@ NODE_ENV=production EXPO_NO_DOTENV=1 EXPO_PUBLIC_APP_VARIANT="${EXPO_VARIANT}" \
 # google-services.json) ditolak Google untuk panggilan JS dengan 403, sehingga
 # bundle yang membawanya lolos build lalu mematikan chat dan realtime work order
 # di perangkat tanpa laporan error ke backend. OTA 8f311761 terbit seperti itu.
-BUNDLE_FILE="$(find "${DIST_DIR}/_expo/static/js/${PLATFORM}" -type f \( -name '*.hbc' -o -name '*.js' \) | head -1)"
+BUNDLE_FILE="$(find "${DIST_DIR}/_expo/static/js/${PLATFORM}" -type f \( -name '*.hbc' -o -name '*.js' \) -print -quit)"
 [[ -n "${BUNDLE_FILE}" ]] || { echo "❌ Bundle ${PLATFORM} tidak ditemukan di ${DIST_DIR}"; exit 2; }
 
 if ! grep -qaE '1:[0-9]+:web:[0-9a-f]+' "${BUNDLE_FILE}"; then

@@ -76,7 +76,7 @@ SIDIK="$(keytool -list -v \
     -keystore "${JALUR_KEYSTORE}" \
     -alias "${KEY_ALIAS}" \
     -storepass "${STORE_PASSWORD}" 2>/dev/null \
-    | grep -i 'SHA256:' | head -1 | sed 's/.*SHA256: *//' | tr -d ' ')"
+    | awk 'tolower($0) ~ /sha256:/ && !ketemu { sub(/.*SHA256: */, ""); gsub(/ /, ""); print; ketemu=1 }')"
 
 [ -n "${SIDIK}" ] || gagal "Tidak bisa membaca sidik jari — alias atau password di ${CREDENTIALS_JSON} tidak cocok dengan keystore-nya"
 

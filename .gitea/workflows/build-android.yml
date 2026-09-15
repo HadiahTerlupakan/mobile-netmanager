@@ -239,7 +239,7 @@ jobs:
             -keystore "android/app/${KEYSTORE_NAMA}" \
             -alias "${RADPRO_RELEASE_KEY_ALIAS}" \
             -storepass "${RADPRO_RELEASE_STORE_PASSWORD}" 2>/dev/null \
-            | grep -i 'SHA256:' | head -1 | sed 's/.*SHA256: *//' | tr -d ' ')"
+            | awk 'tolower($0) ~ /sha256:/ && !ketemu { sub(/.*SHA256: */, ""); gsub(/ /, ""); print; ketemu=1 }')"
 
           [ -n "${SIDIK}" ] || {
             echo "::error::Tidak bisa membaca sidik jari kunci — alias atau password keystore salah." >&2
@@ -259,7 +259,7 @@ jobs:
           # versionCode yang benar-benar tertulis ke proyek hasil prebuild.
           # Memeriksa niat (env) tidak cukup — yang menentukan isi artefak
           # adalah angka di build.gradle.
-          TERTULIS="$(grep -oE 'versionCode +[0-9]+' android/app/build.gradle | head -1 | grep -oE '[0-9]+')"
+          TERTULIS="$(awk 'match($0, /versionCode +[0-9]+/) && !ketemu { s=substr($0, RSTART, RLENGTH); gsub(/[^0-9]/, "", s); print s; ketemu=1 }' android/app/build.gradle)"
           echo "versionCode di build.gradle: ${TERTULIS} (diharapkan ${RADPRO_VERSION_CODE})"
 
           [ "${TERTULIS}" = "${RADPRO_VERSION_CODE}" ] || {
@@ -301,9 +301,15 @@ jobs:
           }
 
           SERTIFIKAT="$(jarsigner -verify -verbose:summary -certs "${AAB_PATH}" 2>&1)"
-          printf '%s\n' "${SERTIFIKAT}" | grep -iE 'jar verified|CN=' | head -5
+          awk 'tolower($0) ~ /jar verified|signed by/' <<< "${SERTIFIKAT}"
 
-          printf '%s\n' "${SERTIFIKAT}" | grep -q 'jar verified' || {
+          # Pencocokan teks memakai here-string, bukan pipa. Keluaran jarsigner
+          # untuk AAB sangat panjang: di bawah pipefail, `grep -q` yang berhenti
+          # di kecocokan pertama membuat printf kena SIGPIPE dan seluruh pipa
+          # dianggap gagal. Run #17 menolak AAB yang bertanda tangan benar
+          # karena itu — dan di dalam `if`, cacat yang sama bisa meloloskan
+          # artefak bertanda tangan debug.
+          grep -q 'jar verified' <<< "${SERTIFIKAT}" || {
             echo "::error::AAB tidak lolos verifikasi tanda tangan." >&2
             exit 1
           }
@@ -311,7 +317,7 @@ jobs:
           # Debug keystore Android selalu memakai alias androiddebugkey dengan
           # subjek CN=Android Debug. Kalau salah satunya muncul, Gradle jatuh ke
           # cabang debug dan artefak ini tidak layak diunggah.
-          if printf '%s\n' "${SERTIFIKAT}" | grep -qiE 'androiddebugkey|CN=Android Debug'; then
+          if grep -qiE 'androiddebugkey|CN=Android Debug' <<< "${SERTIFIKAT}"; then
             echo "::error::AAB ditandatangani debug keystore, bukan kunci rilis. Play Store akan menolaknya." >&2
             exit 1
           fi
