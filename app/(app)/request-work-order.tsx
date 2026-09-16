@@ -1,18 +1,21 @@
+import {
+  CustomerContactFields,
+  CustomerContactFormValues,
+} from "@/components/molecules/CustomerContactFields";
 import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
 import { isOfflineMutationQueuedResult, useApiQuery, useCreateWorkOrderRequest } from "@/hooks/queries";
-import api from "@/services/api";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import {
-  getCustomerSearchFailureMessage,
-  readCustomerSearchResults,
-  shouldShowCustomerSearchEmptyState,
-  shouldShowCustomerSearchErrorState,
-} from "@/utils/requestWorkOrderSearch";
-import { RequestWorkOrderSchema, sanitizeInput, validateData } from "@/utils/validation";
+  CONTACT_NAME_MIN_LENGTH,
+  RequestWorkOrderContact,
+  RequestWorkOrderContactSchema,
+  RequestWorkOrderSchema,
+  sanitizeInput,
+  validateData,
+} from "@/utils/validation";
 import { useRouter } from "expo-router";
-import debounce from "lodash/debounce";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -20,15 +23,13 @@ import {
   Cable,
   ChevronDown,
   LucideIcon,
-  Search,
   Truck,
   User,
   Wifi,
   Wrench,
-  X,
   Zap,
 } from "lucide-react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -98,24 +99,17 @@ const INTERNAL_QUICK_ACTIONS: QuickAction[] = [
   },
 ];
 
-interface MixRadiusCustomer {
-  id: string;
-  memberId: string;
-  username: string;
-  fullname: string;
-  phone: string;
-  address: string;
-  planName: string;
-  ownerName: string;
-  status: string;
-  isOnline?: boolean;
-}
-
 interface Department {
   id: string;
   name: string;
   code?: string;
 }
+
+const EMPTY_CUSTOMER_CONTACT: CustomerContactFormValues = {
+  contactName: "",
+  contactPhone: "",
+  locationAddress: "",
+};
 
 export default function RequestWorkOrderScreen() {
   useFeatureGuard(AppFeature.WORK_ORDER);
@@ -159,14 +153,11 @@ export default function RequestWorkOrderScreen() {
 
   const departments = departmentsData || [];
 
-  // Customer Search State
-  const [searchQuery, setSearchQuery] = useState("");
-  const [customers, setCustomers] = useState<MixRadiusCustomer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] =
-    useState<MixRadiusCustomer | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
+  // Customer Mode State - kontak pelanggan diisi manual
+  const [customerContact, setCustomerContact] =
+    useState<CustomerContactFormValues>(EMPTY_CUSTOMER_CONTACT);
+  const hasContactName =
+    customerContact.contactName.trim().length >= CONTACT_NAME_MIN_LENGTH;
 
   // UI State
   const [showLoading, setShowLoading] = useState(false);
@@ -177,95 +168,16 @@ export default function RequestWorkOrderScreen() {
 
   // Reset form when switching mode
   const handleModeChange = (mode: "CUSTOMER" | "INTERNAL") => {
-    searchCustomers.cancel();
     setWoMode(mode);
     // Reset form
     setTitle("");
     setDescription("");
     setNotes("");
     setPriority("HIGH");
-    // Reset customer
-    setSelectedCustomer(null);
-    setSearchQuery("");
-    setCustomers([]);
-    setSearchError(null);
-    setShowSearchResults(false);
-    setSearching(false);
+    // Reset customer contact
+    setCustomerContact(EMPTY_CUSTOMER_CONTACT);
     // Reset department
     setSelectedDepartment(null);
-  };
-
-  // Search Customers from MixRadius
-  const searchCustomers = useMemo(
-    () => debounce(async (query: string) => {
-      if (!query || query.length < 2) {
-        setCustomers([]);
-        setShowSearchResults(false);
-        setSearchError(null);
-        return;
-      }
-      setSearching(true);
-      setSearchError(null);
-      try {
-        const res = await api.get(
-          `/api/mobile/mixradius/customers?search=${encodeURIComponent(query)}`,
-          { skipRetry: true },
-        );
-        const results = readCustomerSearchResults(res.data);
-        setCustomers(results);
-        setShowSearchResults(true);
-      } catch (error) {
-        logger.error("Search failed:", error);
-        setCustomers([]);
-        setSearchError(getCustomerSearchFailureMessage(error));
-        setShowSearchResults(true);
-      } finally {
-        setSearching(false);
-      }
-    }, 500),
-    [],
-  );
-
-  useEffect(() => () => {
-    searchCustomers.cancel();
-  }, [searchCustomers]);
-
-  // Handle search input change
-  const handleSearchChange = (text: string) => {
-    setSearchQuery(text);
-    if (text.length >= 2) {
-      searchCustomers(text);
-    } else {
-      searchCustomers.cancel();
-      setSearching(false);
-      setCustomers([]);
-      setShowSearchResults(false);
-      setSearchError(null);
-    }
-  };
-
-  // Select customer
-  const selectCustomer = (customer: MixRadiusCustomer) => {
-    searchCustomers.cancel();
-    setSelectedCustomer(customer);
-    setShowSearchResults(false);
-    setSearchError(null);
-    setSearching(false);
-    setSearchQuery(customer.fullname);
-    if (!title) {
-      setTitle(`Troubleshoot - ${customer.fullname}`);
-    }
-  };
-
-  // Clear selected customer
-  const clearCustomer = () => {
-    searchCustomers.cancel();
-    setSelectedCustomer(null);
-    setSearchQuery("");
-    setCustomers([]);
-    setSearchError(null);
-    setShowSearchResults(false);
-    setSearching(false);
   };
 
   // Select department
@@ -285,8 +197,8 @@ export default function RequestWorkOrderScreen() {
     setPriority(action.priority);
     setDescription(action.description);
 
-    if (woMode === "CUSTOMER" && selectedCustomer) {
-      setTitle(`${action.title} - ${selectedCustomer.fullname}`);
+    if (woMode === "CUSTOMER" && hasContactName) {
+      setTitle(`${action.title} - ${customerContact.contactName.trim()}`);
     } else if (woMode === "INTERNAL" && selectedDepartment) {
       setTitle(`${action.title} - ${selectedDepartment.name}`);
     } else {
@@ -296,17 +208,22 @@ export default function RequestWorkOrderScreen() {
 
   // Submit Handler
   const handleSubmit = async () => {
-    // Validations based on mode
+    // Validations based on mode (kontak hanya terisi di mode Customer)
+    let validCustomerContact: RequestWorkOrderContact | null = null;
     if (woMode === "CUSTOMER") {
-      if (!selectedCustomer) {
-        presentInfoMessage("Pilih pelanggan terlebih dahulu", "Error");
+      const contactValidation = validateData(RequestWorkOrderContactSchema, {
+        contactName: sanitizeInput(customerContact.contactName),
+        contactPhone: sanitizeInput(customerContact.contactPhone),
+        locationAddress: sanitizeInput(customerContact.locationAddress),
+      });
+      if (!contactValidation.success) {
+        presentInfoMessage(contactValidation.error, "Data Tidak Valid");
         return;
       }
-    } else {
-      if (!selectedDepartment) {
-        presentInfoMessage("Pilih Department terlebih dahulu", "Error");
-        return;
-      }
+      validCustomerContact = contactValidation.data;
+    } else if (!selectedDepartment) {
+      presentInfoMessage("Pilih Department terlebih dahulu", "Error");
+      return;
     }
 
     // 1. Validate & Sanitize Input
@@ -329,21 +246,17 @@ export default function RequestWorkOrderScreen() {
     try {
       const validData = validation.data;
       const payload =
-        woMode === "CUSTOMER"
+        validCustomerContact
           ? {
             type,
             priority,
             title: validData.title,
             description: validData.description,
             isInternal: false,
-            contactName: selectedCustomer!.fullname,
-            contactPhone: selectedCustomer!.phone,
-            locationAddress: selectedCustomer!.address,
-            notes:
-              validData.notes ||
-              `Pelanggan: ${selectedCustomer!.username} (${selectedCustomer!.memberId})\nPaket: ${selectedCustomer!.planName}\nOwner: ${selectedCustomer!.ownerName}`,
-            mixRadiusCustomerId: selectedCustomer!.id,
-            mixRadiusMemberId: selectedCustomer!.memberId,
+            contactName: validCustomerContact.contactName,
+            contactPhone: validCustomerContact.contactPhone || undefined,
+            locationAddress: validCustomerContact.locationAddress || undefined,
+            notes: validData.notes || undefined,
           }
           : {
             type,
@@ -367,9 +280,7 @@ export default function RequestWorkOrderScreen() {
           setTitle("");
           setDescription("");
           setNotes("");
-          setSelectedCustomer(null);
-          setSearchQuery("");
-          setCustomers([]);
+          setCustomerContact(EMPTY_CUSTOMER_CONTACT);
           setSelectedDepartment(null);
 
           if (isOffline) {
@@ -398,13 +309,13 @@ export default function RequestWorkOrderScreen() {
 
   const isFormValid =
     woMode === "CUSTOMER"
-      ? selectedCustomer && title.trim() && description.trim()
+      ? hasContactName && title.trim() && description.trim()
       : selectedDepartment && title.trim() && description.trim();
 
   const currentQuickActions =
     woMode === "CUSTOMER" ? CUSTOMER_QUICK_ACTIONS : INTERNAL_QUICK_ACTIONS;
   const showTemplates =
-    (woMode === "CUSTOMER" && selectedCustomer) ||
+    (woMode === "CUSTOMER" && hasContactName) ||
     (woMode === "INTERNAL" && selectedDepartment);
 
   return (
@@ -506,168 +417,17 @@ export default function RequestWorkOrderScreen() {
           </Text>
         </View>
 
-        {/* CUSTOMER MODE: Search Pelanggan */}
+        {/* CUSTOMER MODE: Kontak pelanggan diisi manual */}
         {woMode === "CUSTOMER" && (
           <View style={tw`mb-4`}>
             <Text style={tw`text-xs font-bold text-slate-500 uppercase mb-2`}>
-              1. Pilih Pelanggan *
+              1. Data Pelanggan *
             </Text>
-
-            {selectedCustomer ? (
-              <View
-                style={tw`bg-green-50 p-4 rounded-xl border border-green-200`}
-              >
-                <View style={tw`flex-row justify-between items-start`}>
-                  <View style={tw`flex-1`}>
-                    <View style={tw`flex-row items-center`}>
-                      <Text style={tw`text-base font-bold text-slate-900`}>
-                        {selectedCustomer.fullname}
-                      </Text>
-                      <View
-                        style={[
-                          tw`ml-2 px-2 py-0.5 rounded-full`,
-                          selectedCustomer.isOnline
-                            ? tw`bg-green-500`
-                            : tw`bg-gray-400`,
-                        ]}
-                      >
-                        <Text style={tw`text-xs text-white font-medium`}>
-                          {selectedCustomer.isOnline ? "Online" : "Offline"}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={tw`text-sm text-slate-600 mt-1`}>
-                      ID: {selectedCustomer.memberId} •{" "}
-                      {selectedCustomer.username}
-                    </Text>
-                    <Text style={tw`text-sm text-slate-500 mt-1`}>
-                      📞 {selectedCustomer.phone || "-"}
-                    </Text>
-                    <Text style={tw`text-sm text-slate-500`} numberOfLines={2}>
-                      📍 {selectedCustomer.address || "-"}
-                    </Text>
-                    <Text style={tw`text-xs text-sky-600 mt-1`}>
-                      {selectedCustomer.planName} • {selectedCustomer.ownerName}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={clearCustomer}
-                    disabled={showLoading}
-                  >
-                    <X size={20} color="#ef4444" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <View>
-                <View style={tw`relative`}>
-                  <View style={tw`absolute left-3 top-3 z-10`}>
-                    {searching ? (
-                      <ActivityIndicator size="small" color="#0284c7" />
-                    ) : (
-                      <Search size={20} color="#94a3b8" />
-                    )}
-                  </View>
-                  <TextInput
-                    style={tw`bg-gray-50 p-3 pl-10 rounded-xl border border-gray-200`}
-                    placeholder="Cari nama / username / ID pelanggan..."
-                    value={searchQuery}
-                    onChangeText={handleSearchChange}
-                    placeholderTextColor="#94a3b8"
-                    editable={!showLoading}
-                    autoCapitalize="none"
-                  />
-                </View>
-
-                {showSearchResults &&
-                  searchQuery.length >= 2 &&
-                  customers.length > 0 && (
-                    <View
-                      style={tw`bg-white border border-gray-200 rounded-xl mt-1 max-h-64 overflow-hidden shadow-lg`}
-                    >
-                      <ScrollView nestedScrollEnabled>
-                        {customers.slice(0, 50).map((customer) => (
-                          <TouchableOpacity
-                            key={customer.id}
-                            onPress={() => selectCustomer(customer)}
-                            style={tw`p-3 border-b border-gray-100`}
-                          >
-                            <View style={tw`flex-row items-start`}>
-                              <View style={tw`mr-2 mt-1`}>
-                                <View
-                                  style={[
-                                    tw`w-3 h-3 rounded-full`,
-                                    customer.isOnline
-                                      ? tw`bg-green-500`
-                                      : tw`bg-gray-300`,
-                                  ]}
-                                />
-                              </View>
-                              <View style={tw`flex-1`}>
-                                <Text style={tw`font-medium text-slate-900`}>
-                                  {customer.fullname}
-                                </Text>
-                                <Text style={tw`text-xs text-slate-500`}>
-                                  {customer.memberId} • {customer.phone || "-"}
-                                </Text>
-                                {customer.address && (
-                                  <Text
-                                    style={tw`text-xs text-slate-400 mt-0.5`}
-                                    numberOfLines={2}
-                                  >
-                                    📍 {customer.address}
-                                  </Text>
-                                )}
-                              </View>
-                              <View style={tw`items-end`}>
-                                <Text style={tw`text-xs text-sky-600`}>
-                                  {customer.planName}
-                                </Text>
-                                <Text
-                                  style={[
-                                    tw`text-xs mt-0.5 font-medium`,
-                                    customer.isOnline
-                                      ? tw`text-green-600`
-                                      : tw`text-gray-400`,
-                                  ]}
-                                >
-                                  {customer.isOnline ? "Online" : "Offline"}
-                                </Text>
-                              </View>
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  )}
-
-                {shouldShowCustomerSearchErrorState({
-                  searching,
-                  searchQuery,
-                  searchError,
-                }) && (
-                    <View style={tw`bg-red-50 p-3 rounded-xl mt-1 border border-red-200`}>
-                      <Text style={tw`text-sm text-red-700 text-center`}>
-                        {searchError}
-                      </Text>
-                    </View>
-                  )}
-
-                {shouldShowCustomerSearchEmptyState({
-                  showSearchResults,
-                  searching,
-                  searchQuery,
-                  customersCount: customers.length,
-                  searchError,
-                }) && (
-                    <View style={tw`bg-gray-50 p-3 rounded-xl mt-1`}>
-                      <Text style={tw`text-sm text-slate-500 text-center`}>
-                        Pelanggan tidak ditemukan
-                      </Text>
-                    </View>
-                  )}
-              </View>
-            )}
+            <CustomerContactFields
+              values={customerContact}
+              onChange={setCustomerContact}
+              disabled={showLoading}
+            />
           </View>
         )}
 

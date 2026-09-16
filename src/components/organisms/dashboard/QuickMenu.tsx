@@ -10,8 +10,7 @@ import {
   LucideIcon,
   Map,
   MessageCircle,
-  PackageMinus,
-  WifiOff
+  PackageMinus
 } from "lucide-react-native";
 import React, { useCallback, useMemo } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
@@ -109,15 +108,6 @@ const MENU_ITEMS: MenuItem[] = [
     route: "/(app)/marketing/canvasing",
     requiredFeatures: [AppFeature.CANVASING],
     requiresSales: true,
-  },
-  {
-    title: "Isolir",
-    subtitle: "MixRadius",
-    icon: WifiOff,
-    color: "bg-red-100",
-    iconColor: "#dc2626",
-    route: "/(app)/mixradius/isolir",
-    requiredFeatures: [AppFeature.MIXRADIUS],
   },
 ];
 

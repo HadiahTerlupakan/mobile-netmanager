@@ -27,7 +27,6 @@ export enum AppFeature {
 
   // Network
   TOPOLOGY = 'm_topology',
-  MIXRADIUS = 'm_mixradius',
 
   // Partners
   PARTNERS = 'm_partners',

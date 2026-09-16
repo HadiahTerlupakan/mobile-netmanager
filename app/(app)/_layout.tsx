@@ -387,14 +387,6 @@ export default function AppLayout() {
           }}
         />
 
-        {/* MixRadius Screens - Hidden from tab bar */}
-        <Tabs.Screen
-          name="mixradius/isolir"
-          options={{
-            href: null,
-          }}
-        />
-
         {/* WO Request Screen - Hidden from tab bar, accessed via WO list */}
         <Tabs.Screen
           name="request-work-order"

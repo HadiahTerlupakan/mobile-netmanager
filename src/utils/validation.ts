@@ -92,6 +92,22 @@ export const RequestWorkOrderSchema = z.object({
   notes: z.string().optional(),
 });
 
+/** Panjang minimal nama pelanggan; dipakai juga layar Request WO untuk membuka template masalah. */
+export const CONTACT_NAME_MIN_LENGTH = 3;
+
+// Request Work Order — kontak pelanggan yang diisi manual (mode Customer)
+export const RequestWorkOrderContactSchema = z.object({
+  contactName: z
+    .string({ required_error: 'Nama pelanggan wajib diisi' })
+    .trim()
+    .min(CONTACT_NAME_MIN_LENGTH, `Nama pelanggan minimal ${CONTACT_NAME_MIN_LENGTH} karakter`)
+    .max(100, 'Nama pelanggan maksimal 100 karakter'),
+  contactPhone: z.string().trim().max(20, 'No. HP maksimal 20 karakter').optional(),
+  locationAddress: z.string().trim().max(500, 'Alamat maksimal 500 karakter').optional(),
+});
+
+export type RequestWorkOrderContact = z.infer<typeof RequestWorkOrderContactSchema>;
+
 // Claim Point Schema
 export const ClaimPointSchema = z.object({
   keterangan: z.string().max(1000, 'Keterangan maksimal 1000 karakter').optional(),
