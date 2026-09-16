@@ -186,7 +186,6 @@ export default function NewChatScreen() {
                                 onToggle={toggleUser}
                             />
                         )}
-                        estimatedItemSize={70}
                         contentContainerStyle={tw`pb-24`}
                         ListEmptyComponent={ListEmpty}
                         extraData={selectedUsers}

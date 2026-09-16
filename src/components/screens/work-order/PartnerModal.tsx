@@ -76,7 +76,6 @@ export const PartnerModal = React.memo(function PartnerModal({
               <FlashList
                 data={availablePartners}
                 keyExtractor={(item: UserSummary) => item.id}
-                estimatedItemSize={70}
                 renderItem={({ item }: { item: UserSummary }) => (
                   <TouchableOpacity
                     onPress={() => handleAdd(item.id)}

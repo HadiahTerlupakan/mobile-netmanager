@@ -545,7 +545,6 @@ export default function LemburScreen() {
         data={history}
         renderItem={renderOvertimeItem}
         keyExtractor={(item: Overtime) => item.id}
-        estimatedItemSize={80}
         removeClippedSubviews={true}
         ListHeaderComponent={ListHeader}
         contentContainerStyle={tw`pb-20`}

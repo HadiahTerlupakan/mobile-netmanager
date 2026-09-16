@@ -166,7 +166,6 @@ export default function IzinScreen() {
         data={history}
         renderItem={renderLeaveItem}
         keyExtractor={(item: LeaveRequest) => item.id}
-        estimatedItemSize={150}
         removeClippedSubviews={true}
         ListHeaderComponent={ListHeader}
         contentContainerStyle={tw`pb-20`}

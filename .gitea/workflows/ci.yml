@@ -59,7 +59,9 @@ jobs:
           done
 
       - name: Lint
-        run: npx expo lint
+        # Tanpa argumen, `expo lint` hanya memeriksa src/, app/, dan components/,
+        # sehingga index.js, scripts/, dan plugins/ tidak pernah dilint.
+        run: npx expo lint .
 
       - name: Typecheck
         run: npx tsc --noEmit

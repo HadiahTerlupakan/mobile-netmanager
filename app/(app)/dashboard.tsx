@@ -14,11 +14,11 @@ import { queryKeys } from '@/lib/queryClient';
 import { TenantService } from '@/services/TenantService';
 import api from '@/services/api';
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
-import { FlashList } from '@shopify/flash-list';
+import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import { Href, useRouter } from 'expo-router';
 import { Clock, MessageCircle } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, ListRenderItem, RefreshControl, ScrollView, Text, TouchableOpacity, useWindowDimensions, View, ViewToken } from 'react-native';
+import { Alert, RefreshControl, ScrollView, Text, TouchableOpacity, useWindowDimensions, View, ViewToken } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -295,7 +295,6 @@ function DashboardScreen() {
                         decelerationRate="fast"
                         onViewableItemsChanged={onViewableItemsChanged}
                         viewabilityConfig={viewabilityConfig}
-                        estimatedItemSize={width}
                     />
 
                     {carouselData.length > 1 && (

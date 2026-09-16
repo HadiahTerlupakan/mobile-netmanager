@@ -278,7 +278,6 @@ export default function NotificationsScreen() {
           data={notifications}
           renderItem={renderNotificationItem}
           keyExtractor={(item: Notification) => item.id}
-          estimatedItemSize={80}
           removeClippedSubviews={true}
           onEndReached={onLoadMore}
           onEndReachedThreshold={0.5}

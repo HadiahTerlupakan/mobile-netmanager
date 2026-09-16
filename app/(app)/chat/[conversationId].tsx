@@ -364,12 +364,10 @@ export default function ConversationScreen() {
                     keyExtractor={(item: ChatMessage) => item.id}
                     renderItem={renderMessage}
                     contentContainerStyle={tw`py-4`}
-                    estimatedItemSize={80}
-                    inverted // Inverted list for chat
                     onEndReached={onLoadMore}
                     onEndReachedThreshold={0.5}
                     ListEmptyComponent={
-                        <View style={tw`flex-1 items-center justify-center py-20 transform scale-y-[-1]`}>
+                        <View style={tw`flex-1 items-center justify-center py-20`}>
                             <Text style={tw`text-gray-400`}>Belum ada pesan</Text>
                             <Text style={tw`text-gray-400 text-sm`}>Mulai percakapan!</Text>
                         </View>

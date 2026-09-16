@@ -311,7 +311,6 @@ export default function KembalikanBarangScreen() {
           data={filteredBarangs}
           renderItem={({ item }: { item: Barang }) => <BarangItem item={item} onAdd={addItem} />}
           keyExtractor={(item: Barang) => item.id}
-          estimatedItemSize={120}
           ListHeaderComponent={ListHeader}
           contentContainerStyle={tw`pb-32`}
           refreshControl={
@@ -346,7 +345,6 @@ export default function KembalikanBarangScreen() {
               <FlashList
                 data={gudangs.filter((g) => g.nama.toLowerCase().includes(gudangSearch.toLowerCase()))}
                 keyExtractor={(item: Gudang) => item.id}
-                estimatedItemSize={70}
                 renderItem={({ item }: { item: Gudang }) => (
                   <TouchableOpacity onPress={() => { setSelectedGudang(item.id); setShowGudangModal(false); }} style={tw`flex-row items-center justify-between p-4 mb-2 rounded-xl border ${selectedGudang === item.id ? "bg-green-50 border-green-200" : "bg-white border-gray-100"}`}>
                     <View><Text style={tw`font-bold text-gray-900 ${selectedGudang === item.id ? "text-green-700" : ""}`}>{item.nama}</Text><Text style={tw`text-xs text-gray-500 mt-0.5`}>{item.lokasi}</Text></View>

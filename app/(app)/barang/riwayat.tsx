@@ -144,7 +144,6 @@ export default function RiwayatBarangScreen() {
                         refreshControl={
                             <RefreshControl refreshing={isRefetching} onRefresh={onRefresh} />
                         }
-                        estimatedItemSize={120} // Added estimated size for performance
                         ListEmptyComponent={EmptyComponent}
                         ListFooterComponent={ListFooterComponent}
                         contentContainerStyle={tw`py-4`}

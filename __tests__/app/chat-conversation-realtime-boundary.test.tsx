@@ -108,6 +108,11 @@ jest.mock('lucide-react-native', () => ({
 }));
 jest.mock('twrnc', () => () => ({}));
 
+// Dua tes di bawah sengaja di-skip: chat realtime di layar percakapan sedang
+// dimatikan (TODO(chat-realtime) / H5 di app/(app)/chat/[conversationId].tsx)
+// karena backend belum mem-publish event ke `chats/{id}/events` dan Firestore
+// rules belum mengizinkannya. Tes ini adalah spesifikasi saat fitur itu
+// dinyalakan kembali — aktifkan lagi bersamaan dengan perubahan tersebut.
 describe('mobile chat conversation realtime boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();

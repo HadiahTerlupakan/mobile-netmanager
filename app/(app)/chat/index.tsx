@@ -180,7 +180,6 @@ export default function ChatListScreen() {
                     data={conversations}
                     keyExtractor={(item: ChatConversation) => item.id}
                     renderItem={renderConversationItem}
-                    estimatedItemSize={80}
                     removeClippedSubviews={true}
                     refreshControl={
                         <RefreshControl

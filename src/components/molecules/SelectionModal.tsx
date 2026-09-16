@@ -157,7 +157,6 @@ export default function SelectionModal<T = unknown>({
                             data={filteredItems}
                             renderItem={renderItem}
                             keyExtractor={(item: any) => item.id}
-                            estimatedItemSize={60}
                             contentContainerStyle={tw`pb-6`}
                             keyboardShouldPersistTaps="handled"
                         />

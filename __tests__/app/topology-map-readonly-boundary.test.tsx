@@ -27,6 +27,9 @@ type MockShapeSourceProps = {
 
 const mockMapViewProps: MockMapViewProps[] = [];
 const mockShapeSourceProps: MockShapeSourceProps[] = [];
+const mockUserLocationRenders: unknown[] = [];
+let mockUserLocation: [number, number] | null = null;
+let mockIsScreenFocused = true;
 const mockApiGet = jest.fn();
 const mockApiPost = jest.fn();
 const mockApiDelete = jest.fn();
@@ -41,6 +44,16 @@ jest.mock('@/context/AuthContext', () => ({
 
 jest.mock('@/hooks/useFeatureGuard', () => ({
   useFeatureGuard: (...args: any[]) => mockUseFeatureGuard(...args),
+}));
+
+// Watcher GPS punya tesnya sendiri di __tests__/hooks/useUserLocationWatcher.test.tsx;
+// di sini cukup nilai lokasi yang diterima layar.
+jest.mock('@/hooks/useUserLocationWatcher', () => ({
+  useUserLocationWatcher: () => mockUserLocation,
+}));
+
+jest.mock('@react-navigation/native', () => ({
+  useIsFocused: () => mockIsScreenFocused,
 }));
 
 jest.mock('@/constants/features', () => ({
@@ -63,10 +76,6 @@ jest.mock('@/components/organisms/topology/DeviceDetailModal', () => ({
 
 jest.mock('@/components/organisms/topology/DeviceCreateModal', () => ({
   DeviceCreateModal: mockDeviceCreateModal,
-}));
-
-jest.mock('@/components/organisms/topology/FilterPanel', () => ({
-  FilterPanel: () => null,
 }));
 
 jest.mock('@/components/organisms/topology/TopologyErrorBoundary', () => ({
@@ -92,7 +101,10 @@ jest.mock('@/utils/maplibre', () => ({
     LineLayer: () => null,
     CircleLayer: () => null,
     SymbolLayer: () => null,
-    UserLocation: () => null,
+    UserLocation: (props: unknown) => {
+      mockUserLocationRenders.push(props);
+      return null;
+    },
     MarkerView: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Logger: { setLogCallback: jest.fn() },
     setAccessToken: jest.fn(),
@@ -190,6 +202,8 @@ describe('topology mobile read-only boundary', () => {
     jest.clearAllMocks();
     mockMapViewProps.length = 0;
     mockShapeSourceProps.length = 0;
+    mockUserLocation = null;
+    mockIsScreenFocused = true;
     mockUseApiQuery.mockReturnValue({
       data: topologyData,
       isPending: false,
@@ -237,5 +251,40 @@ describe('topology mobile read-only boundary', () => {
       expect.stringContaining('ODC 1'),
       [{ text: 'Tutup' }],
     );
+  });
+});
+
+// <MapLibreGL.UserLocation visible> menyalakan GPS native MapLibre selama
+// ter-mount (LocationManager.addListener → MLRNLocationModule.start), sedangkan
+// layar tab ini tetap ter-mount setelah pengguna pindah ke layar lain.
+describe('topology map location tracking', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUserLocationRenders.length = 0;
+    mockUserLocation = [106.8, -6.2];
+    mockUseApiQuery.mockReturnValue({
+      data: topologyData,
+      isPending: false,
+      error: null,
+      refetch: jest.fn(),
+    });
+  });
+
+  it('does not keep MapLibre location tracking mounted while the map screen is not focused', () => {
+    mockIsScreenFocused = false;
+    const TopologyMapScreen = require('../../app/(app)/topology-map').default;
+
+    render(<TopologyMapScreen />);
+
+    expect(mockUserLocationRenders).toHaveLength(0);
+  });
+
+  it('shows the user location marker while the map screen is focused', () => {
+    mockIsScreenFocused = true;
+    const TopologyMapScreen = require('../../app/(app)/topology-map').default;
+
+    render(<TopologyMapScreen />);
+
+    expect(mockUserLocationRenders.length).toBeGreaterThan(0);
   });
 });

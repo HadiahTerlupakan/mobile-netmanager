@@ -374,7 +374,6 @@ export default function AmbilBarangScreen() {
         data={filteredBarangs}
         renderItem={({ item }: { item: Barang }) => <BarangItem item={item} onAdd={addItem} />}
         keyExtractor={(item: Barang) => item.id}
-        estimatedItemSize={120}
         ListHeaderComponent={ListHeader}
         contentContainerStyle={tw`pb-32`}
         refreshControl={<RefreshControl refreshing={loadingBarangNet} onRefresh={refetchBarang} tintColor="#2563eb" />}
@@ -396,7 +395,6 @@ export default function AmbilBarangScreen() {
               <FlashList
                 data={gudangs.filter((g) => g.nama.toLowerCase().includes(gudangSearch.toLowerCase()))}
                 keyExtractor={(item: Gudang) => item.id}
-                estimatedItemSize={70}
                 renderItem={({ item }: { item: Gudang }) => (
                   <TouchableOpacity onPress={() => { if (selectedItems.length > 0 && selectedGudang !== item.id) { Alert.alert("Konfirmasi", "Ganti gudang akan menghapus item terpilih. Lanjutkan?", [{ text: "Batal", style: "cancel" }, { text: "Ya", onPress: () => { setSelectedItems([]); setSelectedGudang(item.id); setShowGudangModal(false); } }]); } else { setSelectedGudang(item.id); setShowGudangModal(false); } }} style={tw`flex-row items-center justify-between p-4 mb-2 rounded-xl border ${selectedGudang === item.id ? "bg-blue-50 border-blue-200" : "bg-white border-gray-100"}`}><View><Text style={tw`font-bold text-gray-900 ${selectedGudang === item.id ? "text-blue-700" : ""}`}>{item.nama}</Text><Text style={tw`text-xs text-gray-500 mt-0.5`}>{item.lokasi}</Text></View>{selectedGudang === item.id && <CheckCircle size={20} color="#2563eb" />}</TouchableOpacity>
                 )}

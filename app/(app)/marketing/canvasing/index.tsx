@@ -423,7 +423,6 @@ export default function CanvasingListScreen() {
           data={filteredRequests}
           renderItem={renderCanvasingItem}
           keyExtractor={(item: CanvasingRequest) => item.id.toString()}
-          estimatedItemSize={180}
           removeClippedSubviews={true}
           contentContainerStyle={tw`p-4 pb-12`}
           onEndReached={onLoadMore}

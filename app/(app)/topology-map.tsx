@@ -1,13 +1,14 @@
 import { TopologySkeleton } from "@/components/molecules/TopologySkeleton";
 import { useAuth } from "@/context/AuthContext";
 import { useApiQuery } from "@/hooks/queries";
+import { useUserLocationWatcher } from "@/hooks/useUserLocationWatcher";
 import api from "@/services/api";
 import { getUserFriendlyError } from "@/utils/errorHandling";
 import { logger } from "@/utils/logger";
 import { getMapLibre, isMapLibreAvailable, isWeb } from "@/utils/maplibre";
 import toGeoJSON from "@/utils/togeojson-wrapper";
-import * as Location from "expo-location";
 import { FlashList } from "@shopify/flash-list";
+import { useIsFocused } from "@react-navigation/native";
 import { DOMParser } from "@xmldom/xmldom";
 import { useRouter } from "expo-router";
 import {
@@ -51,10 +52,6 @@ import { WebMapView } from "@/components/organisms/topology/WebMapView";
 import tw from "twrnc";
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
-
-// Get MapLibre (will be null in Expo Go)
-const MapLibreGL = getMapLibre();
-
 // Helper & tipe murni layar topology diekstrak ke modul topology.
 import {
   GeoJSONFeature,
@@ -69,7 +66,22 @@ import {
   VisibilityState,
 } from "@/components/organisms/topology/topologyTypes";
 
-// Types
+// Get MapLibre (will be null in Expo Go)
+const MapLibreGL = getMapLibre();
+
+// Semua layer peta selalu tampil. Panel filter layer sudah diganti modal
+// daftar perangkat, jadi tidak ada lagi yang mengubah nilai ini.
+const ALL_LAYERS_VISIBLE: VisibilityState = {
+  otb: true,
+  odc: true,
+  odp: true,
+  pole: true,
+  joinbox: true,
+  pelanggan: true,
+  kmz: true,
+  lines: true,
+};
+
 // MapLibre Config (only if available)
 if (MapLibreGL) {
   MapLibreGL.setAccessToken(null); // Not needed for open tiles
@@ -153,23 +165,11 @@ export default function TopologyMapScreen() {
     west: number;
   } | null>(null);
 
-  const [visibility, setVisibility] = useState<VisibilityState>({
-    otb: true,
-    odc: true,
-    odp: true,
-    pole: true,
-    joinbox: true,
-    pelanggan: true,
-    kmz: true,
-    lines: true,
-  });
-
   const [kmzFeatures, setKmzFeatures] = useState<GeoJSONFeature[]>([]);
   const kmzCache = useRef<Map<string, GeoJSONFeature[]>>(new Map()); // Cache for processed KMZ files
   const cameraRef = useRef<any>(null);
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(
-    null,
-  );
+  const userLocation = useUserLocationWatcher();
+  const isFocused = useIsFocused();
 
   const [selectedDevice, setSelectedDevice] = useState<{
     data: DeviceData;
@@ -316,7 +316,6 @@ export default function TopologyMapScreen() {
               </View>
             </TouchableOpacity>
           )}
-          estimatedItemSize={70}
           style={{ maxHeight: 250 }}
           keyboardShouldPersistTaps="handled"
         />
@@ -354,39 +353,6 @@ export default function TopologyMapScreen() {
   useEffect(() => {
     logger.info("[TopologyMap] Component MOUNTED");
     return () => logger.info("[TopologyMap] Component UNMOUNTED");
-  }, []);
-
-  useEffect(() => {
-    let sub: { remove: () => void } | null = null;
-    (async () => {
-      try {
-        const { status } =
-          await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          logger.info("[TopologyMap] Location permission not granted");
-          return;
-        }
-        const pos = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        const coord: [number, number] = [
-          pos.coords.longitude,
-          pos.coords.latitude,
-        ];
-        setUserLocation(coord);
-        logger.info("[TopologyMap] Got user location:", coord);
-        sub = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.Balanced, timeInterval: 30000 },
-          (p) =>
-            setUserLocation([p.coords.longitude, p.coords.latitude]),
-        );
-      } catch (e) {
-        logger.warn("[TopologyMap] Failed to get user location:", e);
-      }
-    })();
-    return () => {
-      if (sub) sub.remove();
-    };
   }, []);
 
   useEffect(() => {
@@ -501,24 +467,24 @@ export default function TopologyMapScreen() {
 
   // Convert data to GeoJSON for ShapeSource (builder murni di topologyHelpers)
   const devicesGeoJson = useMemo(
-    (): GeoJSONFeatureCollection => buildDevicesGeoJson(data, visibility),
-    [data, visibility],
+    (): GeoJSONFeatureCollection => buildDevicesGeoJson(data, ALL_LAYERS_VISIBLE),
+    [data],
   );
 
   // Connection lines GeoJSON (builder murni di topologyHelpers)
   const connectionLines = useMemo(
     (): GeoJSONFeatureCollection =>
-      buildConnectionLines(data, devicesGeoJson.features, visibility.lines),
-    [data, visibility, devicesGeoJson],
+      buildConnectionLines(data, devicesGeoJson.features, ALL_LAYERS_VISIBLE.lines),
+    [data, devicesGeoJson],
   );
 
   // KMZ GeoJSON
   const kmzGeoJson = useMemo(() => {
-    if (!visibility.kmz || !kmzFeatures || kmzFeatures.length === 0) {
+    if (!kmzFeatures || kmzFeatures.length === 0) {
       return { type: "FeatureCollection", features: [] };
     }
     return { type: "FeatureCollection", features: kmzFeatures };
-  }, [visibility.kmz, kmzFeatures]);
+  }, [kmzFeatures]);
 
   const onLineSelected = useCallback((event: any) => {
     const feature = event.features[0];
@@ -620,53 +586,6 @@ export default function TopologyMapScreen() {
       type,
     );
   }, [data, handleMarkerPress]);
-
-  const counts = useMemo(() => {
-    const empty = {
-      otb: 0,
-      odc: 0,
-      odp: 0,
-      joinbox: 0,
-      pole: 0,
-      pelanggan: 0,
-      kmz: 0,
-      lines: 0,
-    };
-    if (!data) return empty;
-
-    const nodeCounts = { ...empty };
-    for (const node of data.nodes ?? []) {
-      const t = (node.type || "").toLowerCase();
-      if (t === "server" || t === "olt" || t === "otb") nodeCounts.otb += 1;
-      else if (t === "odc") nodeCounts.odc += 1;
-      else if (t === "odp") nodeCounts.odp += 1;
-      else if (t === "joinbox") nodeCounts.joinbox += 1;
-      else if (t === "pole") nodeCounts.pole += 1;
-      else if (t === "ont" || t === "pelanggan" || t === "customer")
-        nodeCounts.pelanggan += 1;
-    }
-
-    return {
-      otb: data.otbs.length + nodeCounts.otb,
-      otbs: data.otbs.length + nodeCounts.otb,
-      odc: data.odcs.length + nodeCounts.odc,
-      odcs: data.odcs.length + nodeCounts.odc,
-      odp: data.odps.length + nodeCounts.odp,
-      odps: data.odps.length + nodeCounts.odp,
-      joinbox: data.joinboxes.length + nodeCounts.joinbox,
-      joinboxes: data.joinboxes.length + nodeCounts.joinbox,
-      pole: data.poles.length + nodeCounts.pole,
-      poles: data.poles.length + nodeCounts.pole,
-      pelanggan: data.pelanggans.length + nodeCounts.pelanggan,
-      pelanggans: data.pelanggans.length + nodeCounts.pelanggan,
-      kmz: data.kmzFiles?.length || 0,
-      lines: data.edges?.length || 0,
-    };
-  }, [data]);
-
-  const handleToggleVisibility = useCallback((type: DeviceType | 'lines') => {
-    setVisibility((prev) => ({ ...prev, [type]: !prev[type] }));
-  }, []);
 
   const handleCameraChange = useCallback((payload: any) => {
     // Update zoom level (using ref to prevent re-renders)
@@ -945,7 +864,7 @@ export default function TopologyMapScreen() {
             <WebMapView
               devices={webDevices}
               lines={webLines}
-              visibility={visibility}
+              visibility={ALL_LAYERS_VISIBLE}
               onDevicePress={handleWebDevicePress}
               onRefresh={() => fetchData()}
               loading={loading}
@@ -1060,7 +979,9 @@ export default function TopologyMapScreen() {
               defaultSettings={initialCamera}
             />
 
-            {isMapLibreAvailable && userLocation ? (
+            {/* UserLocation menyalakan GPS native MapLibre selama ter-mount, dan
+                layar tab ini tetap ter-mount setelah ditinggalkan. */}
+            {isMapLibreAvailable && isFocused && userLocation ? (
               <MapLibreGL.UserLocation
                 visible={true}
                 animated={false}

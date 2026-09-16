@@ -81,6 +81,9 @@ const isIdempotentRequest = (config?: AxiosRequestConfig): boolean => {
   return Boolean(getHeaderValue(config.headers, 'Idempotency-Key'));
 };
 
+// `axios.create` adalah pemakaian yang didokumentasikan axios; named export
+// `create` hanya alias, dan mock axios di tes memakai bentuk default ini.
+// eslint-disable-next-line import/no-named-as-default-member
 const api = axios.create({
   baseURL: TenantService.getTenantUrl(),
   headers: {

@@ -178,7 +178,7 @@ export interface TopologyData {
 /**
  * State visibilitas layer peta (per tipe perangkat + garis + kmz).
  * Sengaja `type` (bukan interface) agar dapat index signature implisit
- * sehingga tetap assignable ke Record<string, boolean> di props FilterPanel.
+ * sehingga tetap assignable ke Record<string, boolean> di props WebMapView.
  */
 export type VisibilityState = {
   otb: boolean;

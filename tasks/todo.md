@@ -43,3 +43,36 @@
 - [x] Config: test basi → produksi kini ENABLE update check (kode sengaja diubah a8a4eb3) (7 pass)
 - [x] RefreshTokenService: mock appVersion kurang getOtaUpdateId (ditambah 89c12dc) (5 pass)
 - **Hasil: full suite 284 pass, 0 fail (dari 14 fail). tsc 0 error.**
+
+---
+
+# TODO — Perbaikan Warning Codebase (2026-09-17)
+
+> Batas aman: JANGAN sentuh `package.json`, `package-lock.json`, `app.config.ts`, `app.json`, `plugins/`, `.gitignore`,
+> `.gitea/workflows/build-android.yml` — memicu build native (NATIVE_PATHS) dan/atau menggeser fingerprint OTA.
+> Baseline fingerprint Android: `53b6043015f8f441208f09a2d4084a24e06dc95c` → harus identik di akhir.
+
+- [x] 1. topology-map: watcher GPS terikat fokus + guard pembatalan → `src/hooks/useUserLocationWatcher.ts` (TDD)
+  - [x] 1b. `<MapLibreGL.UserLocation>` menyalakan GPS native MapLibre selama ter-mount → dirender hanya saat layar fokus (`useIsFocused`) (TDD)
+- [x] 2. isolir: buka modal site saat error → refetch groups (TDD; mutation check deps ListHeader tertangkap)
+  - ⚠️ BATAL (2026-09-17, workstream penghapusan MixRadius): screen Isolir MixRadius DIHAPUS total — `app/(app)/mixradius/isolir.tsx`, `src/services/MixRadiusService.ts`, `IsolirSkeleton`, dan tesnya (`__tests__/app/mixradius-isolir-work-order-request.test.tsx`, `__tests__/services/MixRadiusService.test.ts`). Endpoint backend-nya sudah 503 dan akan 404. Jangan dilanjutkan & jangan pulihkan file-file tersebut.
+- [x] 3. ESLint: globals Node (manual, tanpa paket `globals`) untuk `scripts/` & `plugins/` + CI `expo lint .` (ci.yml saja)
+- [x] 4. index.js: urutan import (import/first) — output Babel identik
+- [x] 5. edit-profile: `MediaTypeOptions` → `mediaTypes: ['images']`
+- [x] 6. topology-map: hapus kode mati (`counts`, `handleToggleVisibility`, `FilterPanel.tsx`), `visibility` jadi konstanta, rapikan import
+- [x] 7. FlashList v2: hapus `estimatedItemSize` (ternyata 18 tempat, bukan 8) + `src/types/flash-list.d.ts` → membuka 2 error tipe tersembunyi (chat `inverted` diabaikan v2 → empty state terbalik; dashboard `ListRenderItem` salah impor), keduanya diperbaiki
+- [x] 8. Tes chat yang di-skip: SENGAJA (chat realtime dimatikan, TODO(chat-realtime)) → tetap skip + alasan eksplisit
+- [x] 9. api.ts `axios.create`: suppress false positive dengan alasan
+- [~] DITUNDA ke build native berikutnya: upgrade patch expo-doctor, hapus `jest-expo`, fallback plist iOS di `app.config.ts`
+- [x] Verifikasi (salinan terisolasi HEAD + patch ini): tsc 0 · `eslint .` 255 file 0 warning · jest 421 pass/2 skip, 0 warning act · bundle Android OK · fingerprint Android identik `53b6043…`. Tree gabungan (dengan workstream MixRadius): tsc 0 · lint 0 · jest 416 pass.
+
+---
+
+# TODO — Hapus MixRadius dari mobile (2026-09-17)
+
+> Panel billing MixRadius permanen tidak bisa dipakai (CAPTCHA); endpoint backend 503 → akan 404. JS/TS saja (tanpa native) → cukup OTA nanti.
+
+- [x] Hapus fitur Isolir: screen `mixradius/isolir`, `MixRadiusService`, `IsolirSkeleton`, route di `(app)/_layout.tsx`, tile QuickMenu, `AppFeature.MIXRADIUS` + tesnya
+- [x] Request WO mode Customer: pencarian pelanggan MixRadius → input kontak manual (`CustomerContactFields`) + Zod `RequestWorkOrderContactSchema`; hapus `requestWorkOrderSearch` + tesnya
+- [x] Tes baru: `__tests__/utils/validation.test.ts` (9) + `__tests__/app/request-work-order-customer-contact.test.tsx` (8)
+- [x] Verifikasi: tsc 0 error, eslint file yang diubah 0 error, jest penuh 413 pass / 0 fail / 2 skip, sweep `mixradius|isolir` kosong

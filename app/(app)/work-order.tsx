@@ -318,7 +318,6 @@ function WorkOrderScreenContent() {
           data={workOrders}
           keyExtractor={(item: WorkOrder) => item.id}
           renderItem={renderItem}
-          estimatedItemSize={200}
           removeClippedSubviews={true}
           onEndReachedThreshold={0.5}
           contentContainerStyle={tw`pb-20 pt-1 px-4`}

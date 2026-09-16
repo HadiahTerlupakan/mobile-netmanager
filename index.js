@@ -4,11 +4,7 @@ import "expo-router/entry";
 import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
-// Initialize App Check sebelum apa pun yang akses Firebase services.
-// Async fire-and-forget — bila gagal, Firebase tetap bisa diakses
-// (hanya akan ditolak kalau service di-Enforce di Firebase Console).
 import { initializeAppCheckService } from '@/services/AppCheckService';
-initializeAppCheckService();
 
 // Custom entry point for expo-router
 // This ensures LocationTrackingService is loaded at app cold start
@@ -17,6 +13,13 @@ initializeAppCheckService();
 import { getMessaging, setBackgroundMessageHandler } from '@react-native-firebase/messaging';
 import notifee, { AndroidImportance } from '@notifee/react-native';
 import { Platform } from 'react-native';
+
+// Initialize App Check sebelum apa pun yang akses Firebase services.
+// Async fire-and-forget — bila gagal, Firebase tetap bisa diakses
+// (hanya akan ditolak kalau service di-Enforce di Firebase Console).
+// Semua import di atas tetap dievaluasi lebih dulu (import di-hoist), jadi
+// memindahkan panggilan ini ke bawah blok import tidak mengubah urutan eksekusi.
+initializeAppCheckService();
 
 /**
  * Background FCM handler.
