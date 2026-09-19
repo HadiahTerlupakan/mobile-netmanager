@@ -22,6 +22,13 @@ export interface PelangganPage {
   meta: { page: number; limit: number; total: number; totalPages: number };
 }
 
+/** Bentuk mentah respons endpoint, sebelum dipetakan ke PelangganPage. */
+export interface PelangganListResponse {
+  success: boolean;
+  data: MobilePelanggan[];
+  meta: PelangganPage["meta"];
+}
+
 interface ListParams {
   status?: string;
   search?: string;
@@ -39,7 +46,7 @@ const toQueryParams = (params: ListParams): Record<string, string | number> =>
 export const PelangganService = {
   /** Ambil satu halaman daftar pelanggan milik site karyawan. */
   async list(params: ListParams): Promise<PelangganPage> {
-    const response = await api.get("/api/mobile/pelanggan", {
+    const response = await api.get<PelangganListResponse>("/api/mobile/pelanggan", {
       params: toQueryParams(params),
     });
     return { data: response.data.data, meta: response.data.meta };

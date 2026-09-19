@@ -1,10 +1,29 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-const mockGet = jest.fn<(url: string, config?: unknown) => Promise<unknown>>();
+import type { MobilePelanggan, PelangganListResponse } from '@/services/PelangganService';
+
+const mockGet = jest.fn<(url: string, config?: unknown) => Promise<{ data: PelangganListResponse }>>();
 
 jest.mock('@/services/api', () => ({ __esModule: true, default: { get: (u: string, c?: unknown) => mockGet(u, c) } }));
 
 import { PelangganService } from '@/services/PelangganService';
+
+/** Fixture lengkap 13 field sesuai DTO backend — hilang/salah nama field harus gagal di tsc. */
+const pelangganFixture: MobilePelanggan = {
+  id: 'plg-1',
+  idPelanggan: 'PLG-0001',
+  nama: 'Budi',
+  username: 'budi01',
+  status: 'ISOLIR',
+  paket: 'Paket 20 Mbps',
+  alamat: 'Jl. Merdeka No. 1',
+  noTelp: '081234567890',
+  jatuhTempo: '2026-09-05',
+  siteId: 'site-1',
+  siteName: 'POP Cileungsi',
+  latitude: -6.375,
+  longitude: 106.95,
+};
 
 describe('PelangganService.list', () => {
   beforeEach(() => {
@@ -12,7 +31,7 @@ describe('PelangganService.list', () => {
     mockGet.mockResolvedValue({
       data: {
         success: true,
-        data: [{ id: 'plg-1', nama: 'Budi' }],
+        data: [pelangganFixture],
         meta: { page: 2, limit: 20, total: 45, totalPages: 3 },
       },
     });
