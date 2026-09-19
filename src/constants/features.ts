@@ -25,6 +25,9 @@ export enum AppFeature {
   // Finance
   SALARY = 'm_salary',
 
+  // Customer
+  PELANGGAN = 'm_pelanggan',
+
   // Network
   TOPOLOGY = 'm_topology',
 
