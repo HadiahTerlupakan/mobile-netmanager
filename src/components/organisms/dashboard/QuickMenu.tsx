@@ -10,7 +10,8 @@ import {
   LucideIcon,
   Map,
   MessageCircle,
-  PackageMinus
+  PackageMinus,
+  WifiOff
 } from "lucide-react-native";
 import React, { useCallback, useMemo } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
@@ -108,6 +109,15 @@ const MENU_ITEMS: MenuItem[] = [
     route: "/(app)/marketing/canvasing",
     requiredFeatures: [AppFeature.CANVASING],
     requiresSales: true,
+  },
+  {
+    title: "Isolir",
+    subtitle: "Pelanggan",
+    icon: WifiOff,
+    color: "bg-red-100",
+    iconColor: "#dc2626",
+    route: "/(app)/pelanggan/isolir",
+    requiredFeatures: [AppFeature.PELANGGAN],
   },
 ];
 

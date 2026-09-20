@@ -289,6 +289,12 @@ export default function AppLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="pelanggan/isolir"
+          options={{
+            href: null,
+          }}
+        />
 
         <Tabs.Screen
           name="complete-work-order/[id]"
