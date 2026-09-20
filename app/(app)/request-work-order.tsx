@@ -1,3 +1,4 @@
+import { PelangganPicker } from "@/components/molecules/PelangganPicker";
 import {
   CustomerContactFields,
   CustomerContactFormValues,
@@ -5,6 +6,7 @@ import {
 import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
 import { isOfflineMutationQueuedResult, useApiQuery, useCreateWorkOrderRequest } from "@/hooks/queries";
+import { MobilePelanggan } from "@/services/PelangganService";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import {
@@ -15,7 +17,7 @@ import {
   sanitizeInput,
   validateData,
 } from "@/utils/validation";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -29,7 +31,7 @@ import {
   Wrench,
   Zap,
 } from "lucide-react-native";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -115,6 +117,10 @@ export default function RequestWorkOrderScreen() {
   useFeatureGuard(AppFeature.WORK_ORDER);
 
   const router = useRouter();
+  const { pelangganId, pelangganNama } = useLocalSearchParams<{
+    pelangganId?: string;
+    pelangganNama?: string;
+  }>();
 
   // WO Mode: Customer vs Internal
   const [woMode, setWoMode] = useState<"CUSTOMER" | "INTERNAL">("CUSTOMER");
@@ -153,9 +159,13 @@ export default function RequestWorkOrderScreen() {
 
   const departments = departmentsData || [];
 
-  // Customer Mode State - kontak pelanggan diisi manual
-  const [customerContact, setCustomerContact] =
-    useState<CustomerContactFormValues>(EMPTY_CUSTOMER_CONTACT);
+  // Customer Mode State - pelanggan opsional ditautkan dari daftar isolir/picker;
+  // kontak tetap bisa diisi manual untuk calon pelanggan yang belum terdaftar.
+  const [linkedPelangganId, setLinkedPelangganId] = useState<string | undefined>(pelangganId);
+  const [showPelangganPicker, setShowPelangganPicker] = useState(false);
+  const [customerContact, setCustomerContact] = useState<CustomerContactFormValues>(
+    pelangganNama ? { ...EMPTY_CUSTOMER_CONTACT, contactName: pelangganNama } : EMPTY_CUSTOMER_CONTACT,
+  );
   const hasContactName =
     customerContact.contactName.trim().length >= CONTACT_NAME_MIN_LENGTH;
 
@@ -174,8 +184,9 @@ export default function RequestWorkOrderScreen() {
     setDescription("");
     setNotes("");
     setPriority("HIGH");
-    // Reset customer contact
+    // Reset customer contact & tautan pelanggan terdaftar
     setCustomerContact(EMPTY_CUSTOMER_CONTACT);
+    setLinkedPelangganId(undefined);
     // Reset department
     setSelectedDepartment(null);
   };
@@ -185,6 +196,16 @@ export default function RequestWorkOrderScreen() {
     setSelectedDepartment(dept);
     setShowDepartmentPicker(false);
   };
+
+  // Tautkan pelanggan terdaftar yang dipilih dari picker ke form kontak
+  const handleSelectPelanggan = useCallback((pelanggan: MobilePelanggan) => {
+    setLinkedPelangganId(pelanggan.id);
+    setCustomerContact({
+      contactName: pelanggan.nama,
+      contactPhone: pelanggan.noTelp ?? "",
+      locationAddress: pelanggan.alamat ?? "",
+    });
+  }, []);
 
   // Apply Quick Action Template
   const applyQuickAction = (action: {
@@ -253,6 +274,7 @@ export default function RequestWorkOrderScreen() {
             title: validData.title,
             description: validData.description,
             isInternal: false,
+            ...(linkedPelangganId ? { pelangganId: linkedPelangganId } : {}),
             contactName: validCustomerContact.contactName,
             contactPhone: validCustomerContact.contactPhone || undefined,
             locationAddress: validCustomerContact.locationAddress || undefined,
@@ -282,6 +304,7 @@ export default function RequestWorkOrderScreen() {
           setNotes("");
           setCustomerContact(EMPTY_CUSTOMER_CONTACT);
           setSelectedDepartment(null);
+          setLinkedPelangganId(undefined);
 
           if (isOffline) {
             presentInfoMessage("Request diantrikan dan akan dikirim saat online", "Offline");
@@ -417,12 +440,21 @@ export default function RequestWorkOrderScreen() {
           </Text>
         </View>
 
-        {/* CUSTOMER MODE: Kontak pelanggan diisi manual */}
+        {/* CUSTOMER MODE: pelanggan bisa ditautkan dari daftar terdaftar, atau diisi manual */}
         {woMode === "CUSTOMER" && (
           <View style={tw`mb-4`}>
             <Text style={tw`text-xs font-bold text-slate-500 uppercase mb-2`}>
               1. Data Pelanggan *
             </Text>
+            <TouchableOpacity
+              onPress={() => setShowPelangganPicker(true)}
+              style={tw`mb-3 py-2 px-3 rounded-lg border border-sky-200 bg-sky-50`}
+              disabled={showLoading}
+            >
+              <Text style={tw`text-sky-700 text-xs font-bold`}>
+                {linkedPelangganId ? "Ganti Pelanggan Terdaftar" : "Pilih Pelanggan Terdaftar"}
+              </Text>
+            </TouchableOpacity>
             <CustomerContactFields
               values={customerContact}
               onChange={setCustomerContact}
@@ -618,6 +650,13 @@ export default function RequestWorkOrderScreen() {
 
       {/* Loading Modal */}
       <LoadingModal visible={showLoading} message={loadingMessage} />
+
+      {/* Picker Pelanggan Terdaftar */}
+      <PelangganPicker
+        visible={showPelangganPicker}
+        onClose={() => setShowPelangganPicker(false)}
+        onSelect={handleSelectPelanggan}
+      />
     </SafeAreaView>
   );
 }

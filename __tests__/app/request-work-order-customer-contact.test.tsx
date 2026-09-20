@@ -18,6 +18,7 @@ const mockPresentSuccessMessage = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ back: mockRouterBack }),
+  useLocalSearchParams: () => ({}),
 }));
 
 jest.mock('@/hooks/useFeatureGuard', () => ({
@@ -34,6 +35,18 @@ jest.mock('@/hooks/queries', () => ({
   useApiQuery: (options: unknown) => mockUseApiQuery(options),
   useCreateWorkOrderRequest: () => ({ mutate: mockMutate }),
   isOfflineMutationQueuedResult: jest.fn(() => false),
+}));
+
+// Layar kini merender PelangganPicker (modal tertutup di semua tes ini), yang
+// memanggil usePelangganList asli; tanpa mock ini hook itu memanggil
+// useInfiniteQuery tanpa QueryClientProvider dan melempar error.
+jest.mock('@/hooks/queries/usePelangganList', () => ({
+  usePelangganList: () => ({
+    data: undefined,
+    fetchNextPage: jest.fn(),
+    hasNextPage: false,
+    isFetching: false,
+  }),
 }));
 
 jest.mock('@/utils/errorPresenter', () => ({
