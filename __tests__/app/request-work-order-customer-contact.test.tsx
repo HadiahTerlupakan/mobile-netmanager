@@ -28,7 +28,15 @@ jest.mock('@/hooks/useFeatureGuard', () => ({
 jest.mock('@/constants/features', () => ({
   AppFeature: {
     WORK_ORDER: 'work_order',
+    PELANGGAN: 'm_pelanggan',
   },
+}));
+
+// Tombol "Pilih Pelanggan Terdaftar" kini digerbangi <Can I={AppFeature.PELANGGAN}>,
+// yang membaca useAuth(); pengguna di suite ini diberi izin itu supaya layar
+// tetap dirender utuh seperti sebelumnya.
+jest.mock('@/context/AuthContext', () => ({
+  useAuth: () => ({ user: { role: 'TEKNISI', features: ['work_order', 'm_pelanggan'] } }),
 }));
 
 jest.mock('@/hooks/queries', () => ({

@@ -1,3 +1,4 @@
+import { Can } from "@/components/atoms/Can";
 import { PelangganPicker } from "@/components/molecules/PelangganPicker";
 import {
   CustomerContactFields,
@@ -161,13 +162,29 @@ export default function RequestWorkOrderScreen() {
 
   // Customer Mode State - pelanggan opsional ditautkan dari daftar isolir/picker;
   // kontak tetap bisa diisi manual untuk calon pelanggan yang belum terdaftar.
-  const [linkedPelangganId, setLinkedPelangganId] = useState<string | undefined>(pelangganId);
+  const [linkedPelangganId, setLinkedPelangganId] = useState<string | undefined>();
   // Nama pelanggan yang tertaut, dipakai sebagai pembanding saat kontak diedit manual.
-  const [linkedPelangganName, setLinkedPelangganName] = useState<string | undefined>(pelangganNama);
+  const [linkedPelangganName, setLinkedPelangganName] = useState<string | undefined>();
   const [showPelangganPicker, setShowPelangganPicker] = useState(false);
-  const [customerContact, setCustomerContact] = useState<CustomerContactFormValues>(
-    pelangganNama ? { ...EMPTY_CUSTOMER_CONTACT, contactName: pelangganNama } : EMPTY_CUSTOMER_CONTACT,
-  );
+  const [customerContact, setCustomerContact] =
+    useState<CustomerContactFormValues>(EMPTY_CUSTOMER_CONTACT);
+
+  // Layar ini milik <Tabs>, jadi masuk ulang dari daftar isolir hanya
+  // memperbarui route params tanpa mem-mount ulang komponen. Params karena itu
+  // diperlakukan sebagai perintah sekali pakai, bukan nilai awal state.
+  useEffect(() => {
+    if (!pelangganId) return;
+    setLinkedPelangganId(pelangganId);
+    setLinkedPelangganName(pelangganNama);
+    setCustomerContact({ ...EMPTY_CUSTOMER_CONTACT, contactName: pelangganNama ?? "" });
+    // Masuk dari daftar isolir selalu berarti WO pelanggan, bukan internal.
+    setWoMode("CUSTOMER");
+    // Tandai params sudah dikonsumsi supaya masuk ulang dengan pelanggan yang
+    // sama tetap memicu efek ini. Efek jalan sekali lagi dengan pelangganId
+    // kosong lalu berhenti di guard di atas — tidak ada loop.
+    router.setParams({ pelangganId: undefined, pelangganNama: undefined });
+  }, [pelangganId, pelangganNama, router]);
+
   const hasContactName =
     customerContact.contactName.trim().length >= CONTACT_NAME_MIN_LENGTH;
 
@@ -468,15 +485,19 @@ export default function RequestWorkOrderScreen() {
             <Text style={tw`text-xs font-bold text-slate-500 uppercase mb-2`}>
               1. Data Pelanggan *
             </Text>
-            <TouchableOpacity
-              onPress={() => setShowPelangganPicker(true)}
-              style={tw`mb-3 py-2 px-3 rounded-lg border border-sky-200 bg-sky-50`}
-              disabled={showLoading}
-            >
-              <Text style={tw`text-sky-700 text-xs font-bold`}>
-                {linkedPelangganId ? "Ganti Pelanggan Terdaftar" : "Pilih Pelanggan Terdaftar"}
-              </Text>
-            </TouchableOpacity>
+            {/* Pencarian pelanggan terdaftar memanggil endpoint m_pelanggan;
+                tanpa izin itu tombolnya disembunyikan, bukan dibiarkan 403. */}
+            <Can I={AppFeature.PELANGGAN}>
+              <TouchableOpacity
+                onPress={() => setShowPelangganPicker(true)}
+                style={tw`mb-3 py-2 px-3 rounded-lg border border-sky-200 bg-sky-50`}
+                disabled={showLoading}
+              >
+                <Text style={tw`text-sky-700 text-xs font-bold`}>
+                  {linkedPelangganId ? "Ganti Pelanggan Terdaftar" : "Pilih Pelanggan Terdaftar"}
+                </Text>
+              </TouchableOpacity>
+            </Can>
             <CustomerContactFields
               values={customerContact}
               onChange={handleCustomerContactChange}
@@ -676,11 +697,13 @@ export default function RequestWorkOrderScreen() {
       {/* Picker Pelanggan Terdaftar: mount hanya saat dibuka agar tidak
           memicu pencarian pelanggan sebelum diminta pengguna. */}
       {showPelangganPicker ? (
-        <PelangganPicker
-          visible={showPelangganPicker}
-          onClose={() => setShowPelangganPicker(false)}
-          onSelect={handleSelectPelanggan}
-        />
+        <Can I={AppFeature.PELANGGAN}>
+          <PelangganPicker
+            visible={showPelangganPicker}
+            onClose={() => setShowPelangganPicker(false)}
+            onSelect={handleSelectPelanggan}
+          />
+        </Can>
       ) : null}
     </SafeAreaView>
   );

@@ -14,6 +14,12 @@ type PelangganPickerProps = {
 const mockMutate = jest.fn<(payload: Record<string, unknown>, callbacks?: MutateCallbacks) => void>();
 const mockUseApiQuery = jest.fn();
 const mockSearchParams = jest.fn<() => Record<string, string | undefined>>();
+const mockSetParams = jest.fn();
+const mockUseAuth = jest.fn<() => { user: { role: string; features: string[] } | null }>();
+// expo-router mengembalikan objek router singleton yang identitasnya stabil di
+// semua render; mock ini harus stabil juga supaya dependency effect layar
+// berperilaku sama seperti di aplikasi.
+const mockRouter = { back: jest.fn(), setParams: mockSetParams };
 
 // Menangkap props yang diterima PelangganPicker setiap kali komponen ini
 // di-mount, supaya `onSelect` bisa dipanggil langsung dari tes tanpa perlu
@@ -21,10 +27,11 @@ const mockSearchParams = jest.fn<() => Record<string, string | undefined>>();
 let mockPelangganPickerProps: PelangganPickerProps | null = null;
 
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ back: jest.fn() }),
+  useRouter: () => mockRouter,
   useLocalSearchParams: () => mockSearchParams(),
 }));
 jest.mock('@/hooks/useFeatureGuard', () => ({ useFeatureGuard: jest.fn() }));
+jest.mock('@/context/AuthContext', () => ({ useAuth: () => mockUseAuth() }));
 jest.mock('@/constants/features', () => ({
   AppFeature: { WORK_ORDER: 'm_work_order', PELANGGAN: 'm_pelanggan' },
 }));
@@ -80,12 +87,22 @@ describe('request work order — tautan pelanggan', () => {
     mockMutate.mockReset();
     mockSearchParams.mockReturnValue({});
     mockUseApiQuery.mockReturnValue({ data: [], isPending: false, isError: false, error: null });
+    mockUseAuth.mockReturnValue({ user: { role: 'TEKNISI', features: ['m_pelanggan'] } });
     mockPelangganPickerProps = null;
   });
 
   const renderScreen = () => {
     const RequestWorkOrderScreen = require('../../app/(app)/request-work-order').default;
     return render(<RequestWorkOrderScreen />);
+  };
+
+  // Masuk ulang ke layar yang sama: <Tabs> mempertahankan instance komponen dan
+  // hanya memperbarui route params, jadi tes ini me-render ulang elemen yang
+  // sama alih-alih memanggil render() lagi (yang akan mem-mount ulang dan
+  // menyembunyikan bug params).
+  const rerenderScreen = (screen: ReturnType<typeof renderScreen>) => {
+    const RequestWorkOrderScreen = require('../../app/(app)/request-work-order').default;
+    screen.rerender(<RequestWorkOrderScreen />);
   };
 
   const submitFocUt = (screen: ReturnType<typeof renderScreen>) => {
@@ -126,6 +143,30 @@ describe('request work order — tautan pelanggan', () => {
     renderScreen();
 
     expect(mockPelangganPickerProps).toBeNull();
+  });
+
+  it('menyembunyikan tombol pilih pelanggan dari pengguna tanpa m_pelanggan', () => {
+    mockUseAuth.mockReturnValue({ user: { role: 'TEKNISI', features: ['m_work_order'] } });
+
+    const screen = renderScreen();
+
+    expect(screen.queryByText('Pilih Pelanggan Terdaftar')).toBeNull();
+    // Kontak manual tetap tersedia: gerbang ini hanya menutup pencarian pelanggan terdaftar.
+    expect(screen.getByLabelText('Nama Pelanggan')).toBeTruthy();
+  });
+
+  it('menampilkan tombol pilih pelanggan untuk pengguna dengan m_pelanggan', () => {
+    const screen = renderScreen();
+
+    expect(screen.getByText('Pilih Pelanggan Terdaftar')).toBeTruthy();
+  });
+
+  it('menampilkan tombol pilih pelanggan untuk SUPER_ADMIN tanpa fitur eksplisit', () => {
+    mockUseAuth.mockReturnValue({ user: { role: 'SUPER_ADMIN', features: [] } });
+
+    const screen = renderScreen();
+
+    expect(screen.getByText('Pilih Pelanggan Terdaftar')).toBeTruthy();
   });
 
   it('mengirim pelangganId dan mengisi kontak dari pelanggan yang dipilih lewat picker', () => {
@@ -171,6 +212,61 @@ describe('request work order — tautan pelanggan', () => {
     const [payload] = mockMutate.mock.calls[0];
     expect(payload.pelangganId).toBeUndefined();
     expect(payload.contactName).toBe('Orang Lain');
+  });
+
+  it('memakai pelanggan terbaru saat layar dimasuki lagi tanpa remount', () => {
+    mockSearchParams.mockReturnValue({ pelangganId: 'plg-1', pelangganNama: 'Budi Santoso' });
+    const screen = renderScreen();
+
+    mockSearchParams.mockReturnValue({ pelangganId: 'plg-2', pelangganNama: 'Siti Aminah' });
+    rerenderScreen(screen);
+    submitFocUt(screen);
+
+    const [payload] = mockMutate.mock.calls[0];
+    expect(payload).toMatchObject({ pelangganId: 'plg-2', contactName: 'Siti Aminah' });
+  });
+
+  it('menerapkan lagi pelanggan yang sama saat diajukan ulang setelah WO pertama terkirim', () => {
+    mockMutate.mockImplementation((_payload, callbacks) => callbacks?.onSuccess?.());
+    mockSearchParams.mockReturnValue({ pelangganId: 'plg-1', pelangganNama: 'Budi Santoso' });
+    const screen = renderScreen();
+
+    submitFocUt(screen);
+
+    // Params sudah dikonsumsi -> expo-router mengosongkannya, lalu pengguna
+    // masuk lagi dari daftar isolir untuk pelanggan yang sama.
+    mockSearchParams.mockReturnValue({});
+    rerenderScreen(screen);
+    mockSearchParams.mockReturnValue({ pelangganId: 'plg-1', pelangganNama: 'Budi Santoso' });
+    rerenderScreen(screen);
+    submitFocUt(screen);
+
+    expect(mockMutate).toHaveBeenCalledTimes(2);
+    const [secondPayload] = mockMutate.mock.calls[1];
+    expect(secondPayload).toMatchObject({ pelangganId: 'plg-1', contactName: 'Budi Santoso' });
+  });
+
+  it('mengosongkan params setelah dikonsumsi supaya pelanggan yang sama bisa dikirim lagi', () => {
+    mockSearchParams.mockReturnValue({ pelangganId: 'plg-1', pelangganNama: 'Budi Santoso' });
+
+    renderScreen();
+
+    expect(mockSetParams).toHaveBeenCalledWith({
+      pelangganId: undefined,
+      pelangganNama: undefined,
+    });
+  });
+
+  it('mengembalikan mode ke Customer saat masuk dari daftar isolir', () => {
+    const screen = renderScreen();
+
+    fireEvent.press(screen.getByText('Internal (FOC)'));
+    expect(screen.getByText('1. Pilih Department *')).toBeTruthy();
+
+    mockSearchParams.mockReturnValue({ pelangganId: 'plg-1', pelangganNama: 'Budi Santoso' });
+    rerenderScreen(screen);
+
+    expect(screen.getByText('1. Data Pelanggan *')).toBeTruthy();
   });
 
   it('mempertahankan tautan pelanggan saat hanya No. HP yang diedit', () => {
