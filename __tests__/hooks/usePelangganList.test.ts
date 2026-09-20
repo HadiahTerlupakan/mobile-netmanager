@@ -11,8 +11,24 @@ jest.mock('@tanstack/react-query', () => ({
   keepPreviousData: 'keepPreviousData-sentinel',
 }));
 
+const mockList = jest.fn();
+
+jest.mock('@/services/PelangganService', () => ({
+  PelangganService: { list: (...args: any[]) => mockList(...args) },
+}));
+
 import { keepPreviousData } from '@tanstack/react-query';
 import { getNextPelangganPage, usePelangganList } from '@/hooks/queries/usePelangganList';
+
+const PAGE_SIZE = 20;
+
+/** Opsi terakhir yang diterima useInfiniteQuery. */
+const lastQueryOptions = () =>
+  mockUseInfiniteQuery.mock.calls[mockUseInfiniteQuery.mock.calls.length - 1][0] as {
+    queryKey: unknown[];
+    queryFn: (context: { pageParam: number }) => unknown;
+    initialPageParam: number;
+  };
 
 const page = (current: number, totalPages: number) => ({
   data: [],
@@ -34,6 +50,33 @@ describe('getNextPelangganPage', () => {
 });
 
 describe('usePelangganList', () => {
+  it('memakai query key [pelanggan, list, params] supaya cache terpisah per filter', () => {
+    const params = { status: 'ISOLIR', search: 'budi' };
+
+    renderHook(() => usePelangganList(params));
+
+    expect(lastQueryOptions().queryKey).toEqual(['pelanggan', 'list', params]);
+  });
+
+  it('meminta halaman pertama lebih dulu', () => {
+    renderHook(() => usePelangganList({ status: 'ISOLIR' }));
+
+    expect(lastQueryOptions().initialPageParam).toBe(1);
+  });
+
+  it('meneruskan pageParam dan filter ke PelangganService.list', () => {
+    renderHook(() => usePelangganList({ status: 'ISOLIR', search: 'budi' }));
+
+    lastQueryOptions().queryFn({ pageParam: 2 });
+
+    expect(mockList).toHaveBeenCalledWith({
+      status: 'ISOLIR',
+      search: 'budi',
+      page: 2,
+      limit: PAGE_SIZE,
+    });
+  });
+
   it('meneruskan placeholderData: keepPreviousData supaya daftar tidak berkedip kosong saat query key berubah', () => {
     renderHook(() => usePelangganList({ status: 'ISOLIR', search: 'budi' }));
 
