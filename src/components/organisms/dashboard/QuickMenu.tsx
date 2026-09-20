@@ -33,6 +33,8 @@ interface MenuItem {
   route: string;
   requiredFeatures: string[];
   requiresSales?: boolean;
+  /** Menu khusus karyawan internal; tidak ditampilkan sama sekali ke mitra. */
+  internalOnly?: boolean;
 }
 
 const MENU_ITEMS: MenuItem[] = [
@@ -118,6 +120,8 @@ const MENU_ITEMS: MenuItem[] = [
     iconColor: "#dc2626",
     route: "/(app)/pelanggan/isolir",
     requiredFeatures: [AppFeature.PELANGGAN],
+    // Data billing pelanggan tidak boleh terekspos ke mitra eksternal.
+    internalOnly: true,
   },
 ];
 
@@ -139,7 +143,9 @@ const QuickMenuComponent = ({
 
   const processedMenuItems = useMemo(() => {
     const visibleItems = isMitra
-      ? MENU_ITEMS.filter(item => item.title !== 'Izin & Cuti' && item.title !== 'Lembur')
+      ? MENU_ITEMS.filter(
+        item => !item.internalOnly && item.title !== 'Izin & Cuti' && item.title !== 'Lembur',
+      )
       : MENU_ITEMS;
 
     return visibleItems.map((item) => {
