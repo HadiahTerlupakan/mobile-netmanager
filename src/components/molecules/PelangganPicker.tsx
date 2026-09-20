@@ -1,13 +1,14 @@
 import { FlashList } from "@shopify/flash-list";
 import { Search, X } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
-import { Modal, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Modal, Text, TextInput, TouchableOpacity, View } from "react-native";
 import tw from "twrnc";
 
 import { PelangganPickerRow } from "@/components/molecules/PelangganPickerRow";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePelangganList } from "@/hooks/queries/usePelangganList";
 import { MobilePelanggan } from "@/services/PelangganService";
+import { resolvePelangganListMessage } from "@/utils/pelangganListMessage";
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -23,10 +24,15 @@ export function PelangganPicker({ visible, onClose, onSelect }: PelangganPickerP
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
   // Tanpa filter status: pelanggan aktif maupun isolir boleh dipilih.
   // Backend sudah mengecualikan DISMANTLE.
-  const { data, fetchNextPage, hasNextPage, isFetching } = usePelangganList({
+  const { data, fetchNextPage, hasNextPage, isFetching, isError, error } = usePelangganList({
     search: debouncedSearch,
   });
   const pelanggans = data?.pages.flatMap((page) => page.data) ?? [];
+  const emptyMessage = resolvePelangganListMessage({
+    isError,
+    error,
+    emptyMessage: "Pelanggan tidak ditemukan",
+  });
 
   const handleSelect = useCallback(
     (pelanggan: MobilePelanggan) => {
@@ -67,8 +73,12 @@ export function PelangganPicker({ visible, onClose, onSelect }: PelangganPickerP
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
           ListEmptyComponent={
-            isFetching ? null : (
-              <Text style={tw`text-gray-400 text-center py-10`}>Pelanggan tidak ditemukan</Text>
+            isFetching ? (
+              <View style={tw`items-center justify-center py-10`}>
+                <ActivityIndicator size="large" color="#2563eb" />
+              </View>
+            ) : (
+              <Text style={tw`text-gray-400 text-center py-10`}>{emptyMessage}</Text>
             )
           }
         />

@@ -12,9 +12,9 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePelangganList } from "@/hooks/queries/usePelangganList";
 import { useFeatureGuard } from "@/hooks/useFeatureGuard";
 import { MobilePelanggan } from "@/services/PelangganService";
+import { resolvePelangganListMessage } from "@/utils/pelangganListMessage";
 
 const SEARCH_DEBOUNCE_MS = 400;
-const FORBIDDEN_STATUS = 403;
 
 export default function PelangganIsolirScreen() {
   useFeatureGuard(AppFeature.PELANGGAN);
@@ -30,8 +30,11 @@ export default function PelangganIsolirScreen() {
   } = usePelangganList({ status: "ISOLIR", search: debouncedSearch });
 
   const pelanggans = data?.pages.flatMap((page) => page.data) ?? [];
-  const isForbidden =
-    (error as { response?: { status?: number } } | null)?.response?.status === FORBIDDEN_STATUS;
+  const emptyMessage = resolvePelangganListMessage({
+    isError,
+    error,
+    emptyMessage: "Tidak ada pelanggan terisolir.",
+  });
 
   const handleRequestWorkOrder = useCallback(
     (pelanggan: MobilePelanggan) => {
@@ -88,13 +91,7 @@ export default function PelangganIsolirScreen() {
           ) : (
             <View style={tw`items-center justify-center py-20 px-8`}>
               {isError ? <AlertTriangle size={40} color="#dc2626" /> : <CloudOff size={40} color="#d1d5db" />}
-              <Text style={tw`text-gray-500 mt-4 text-center`}>
-                {isForbidden
-                  ? "Belum ada site yang ditugaskan ke Anda. Hubungi admin."
-                  : isError
-                    ? "Gagal memuat data pelanggan."
-                    : "Tidak ada pelanggan terisolir."}
-              </Text>
+              <Text style={tw`text-gray-500 mt-4 text-center`}>{emptyMessage}</Text>
             </View>
           )
         }
