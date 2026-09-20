@@ -2,7 +2,7 @@ import { FlashList } from "@shopify/flash-list";
 import { Stack, useRouter } from "expo-router";
 import { AlertTriangle, CloudOff, Search, X } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
-import { RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import tw from "twrnc";
 
@@ -81,7 +81,11 @@ export default function PelangganIsolirScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#2563eb" />
         }
         ListEmptyComponent={
-          isFetching ? null : (
+          isFetching ? (
+            <View style={tw`items-center justify-center py-20 px-8`}>
+              <ActivityIndicator size="large" color="#2563eb" />
+            </View>
+          ) : (
             <View style={tw`items-center justify-center py-20 px-8`}>
               {isError ? <AlertTriangle size={40} color="#dc2626" /> : <CloudOff size={40} color="#d1d5db" />}
               <Text style={tw`text-gray-500 mt-4 text-center`}>

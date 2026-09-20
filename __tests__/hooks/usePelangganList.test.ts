@@ -1,5 +1,18 @@
-import { describe, expect, it } from '@jest/globals';
-import { getNextPelangganPage } from '@/hooks/queries/usePelangganList';
+import { describe, expect, it, jest } from '@jest/globals';
+import { renderHook } from '@testing-library/react-native';
+
+const mockUseInfiniteQuery = jest.fn();
+
+// Mock utuh: file ini hanya butuh useInfiniteQuery dan keepPreviousData, dan
+// menghindari perlu QueryClientProvider hanya untuk memeriksa opsi yang
+// diteruskan ke useInfiniteQuery.
+jest.mock('@tanstack/react-query', () => ({
+  useInfiniteQuery: (...args: any[]) => mockUseInfiniteQuery(...args),
+  keepPreviousData: 'keepPreviousData-sentinel',
+}));
+
+import { keepPreviousData } from '@tanstack/react-query';
+import { getNextPelangganPage, usePelangganList } from '@/hooks/queries/usePelangganList';
 
 const page = (current: number, totalPages: number) => ({
   data: [],
@@ -17,5 +30,15 @@ describe('getNextPelangganPage', () => {
 
   it('berhenti ketika hasil kosong', () => {
     expect(getNextPelangganPage(page(1, 0))).toBeUndefined();
+  });
+});
+
+describe('usePelangganList', () => {
+  it('meneruskan placeholderData: keepPreviousData supaya daftar tidak berkedip kosong saat query key berubah', () => {
+    renderHook(() => usePelangganList({ status: 'ISOLIR', search: 'budi' }));
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ placeholderData: keepPreviousData }),
+    );
   });
 });

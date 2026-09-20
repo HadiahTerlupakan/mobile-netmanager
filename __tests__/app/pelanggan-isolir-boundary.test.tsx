@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { ActivityIndicator } from 'react-native';
 
 const mockUsePelangganList = jest.fn();
 const mockUseFeatureGuard = jest.fn();
@@ -83,20 +84,37 @@ describe('layar isolir pelanggan', () => {
   it('meminta pelanggan berstatus ISOLIR dan dijaga feature guard', () => {
     const PelangganIsolirScreen = require('../../app/(app)/pelanggan/isolir').default;
 
-    render(<PelangganIsolirScreen />);
+    const { getByText } = render(<PelangganIsolirScreen />);
 
     expect(mockUseFeatureGuard).toHaveBeenCalledWith('m_pelanggan');
     expect(mockUsePelangganList).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'ISOLIR' }),
     );
+    // Bukan cuma argumen hook: pastikan layar benar-benar merender kartu
+    // pelanggan dari fixture, supaya tes ini tidak tetap hijau kalau layar
+    // diam-diam mengembalikan null.
+    expect(getByText('Budi Santoso')).toBeTruthy();
   });
 
   it('tidak memanggil endpoint tulis apa pun dari layar ini', () => {
     const PelangganIsolirScreen = require('../../app/(app)/pelanggan/isolir').default;
 
-    render(<PelangganIsolirScreen />);
+    const { getByText } = render(<PelangganIsolirScreen />);
 
+    expect(getByText('Budi Santoso')).toBeTruthy();
     expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
+  it('menampilkan indikator memuat saat pemuatan pertama, bukan pesan kosong', () => {
+    mockUsePelangganList.mockReturnValue(
+      queryResult({ data: undefined, isFetching: true }),
+    );
+    const PelangganIsolirScreen = require('../../app/(app)/pelanggan/isolir').default;
+
+    const { UNSAFE_getByType, queryByText } = render(<PelangganIsolirScreen />);
+
+    expect(UNSAFE_getByType(ActivityIndicator)).toBeTruthy();
+    expect(queryByText('Tidak ada pelanggan terisolir.')).toBeNull();
   });
 
   it('membuka Ajukan WO dengan membawa pelanggan terpilih', () => {

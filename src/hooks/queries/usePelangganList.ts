@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 
 import { PelangganPage, PelangganService } from "@/services/PelangganService";
 
@@ -18,5 +18,9 @@ export function usePelangganList(params: { status?: string; search?: string }) {
     initialPageParam: 1,
     getNextPageParam: getNextPelangganPage,
     staleTime: STALE_TIME_MS,
+    // Tanpa ini, tiap perubahan search yang ter-debounce membuat queryKey baru
+    // -> data balik undefined selama refetch -> layar Isolir mengosongkan
+    // seluruh daftar di setiap jeda ketik, bukan cuma saat load pertama.
+    placeholderData: keepPreviousData,
   });
 }
