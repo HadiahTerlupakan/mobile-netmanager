@@ -162,6 +162,8 @@ export default function RequestWorkOrderScreen() {
   // Customer Mode State - pelanggan opsional ditautkan dari daftar isolir/picker;
   // kontak tetap bisa diisi manual untuk calon pelanggan yang belum terdaftar.
   const [linkedPelangganId, setLinkedPelangganId] = useState<string | undefined>(pelangganId);
+  // Nama pelanggan yang tertaut, dipakai sebagai pembanding saat kontak diedit manual.
+  const [linkedPelangganName, setLinkedPelangganName] = useState<string | undefined>(pelangganNama);
   const [showPelangganPicker, setShowPelangganPicker] = useState(false);
   const [customerContact, setCustomerContact] = useState<CustomerContactFormValues>(
     pelangganNama ? { ...EMPTY_CUSTOMER_CONTACT, contactName: pelangganNama } : EMPTY_CUSTOMER_CONTACT,
@@ -187,6 +189,7 @@ export default function RequestWorkOrderScreen() {
     // Reset customer contact & tautan pelanggan terdaftar
     setCustomerContact(EMPTY_CUSTOMER_CONTACT);
     setLinkedPelangganId(undefined);
+    setLinkedPelangganName(undefined);
     // Reset department
     setSelectedDepartment(null);
   };
@@ -200,12 +203,30 @@ export default function RequestWorkOrderScreen() {
   // Tautkan pelanggan terdaftar yang dipilih dari picker ke form kontak
   const handleSelectPelanggan = useCallback((pelanggan: MobilePelanggan) => {
     setLinkedPelangganId(pelanggan.id);
+    setLinkedPelangganName(pelanggan.nama);
     setCustomerContact({
       contactName: pelanggan.nama,
       contactPhone: pelanggan.noTelp ?? "",
       locationAddress: pelanggan.alamat ?? "",
     });
   }, []);
+
+  // Lepas tautan bila nama kontak diedit manual jadi berbeda dari pelanggan
+  // yang tertaut. Edit No. HP/alamat tidak melepas tautan — memperbaiki data
+  // kontak pelanggan yang sama adalah hal wajar.
+  const handleCustomerContactChange = useCallback(
+    (values: CustomerContactFormValues) => {
+      const isNameChangedFromLinkedPelanggan =
+        linkedPelangganName !== undefined &&
+        values.contactName.trim() !== linkedPelangganName.trim();
+      if (isNameChangedFromLinkedPelanggan) {
+        setLinkedPelangganId(undefined);
+        setLinkedPelangganName(undefined);
+      }
+      setCustomerContact(values);
+    },
+    [linkedPelangganName],
+  );
 
   // Apply Quick Action Template
   const applyQuickAction = (action: {
@@ -305,6 +326,7 @@ export default function RequestWorkOrderScreen() {
           setCustomerContact(EMPTY_CUSTOMER_CONTACT);
           setSelectedDepartment(null);
           setLinkedPelangganId(undefined);
+          setLinkedPelangganName(undefined);
 
           if (isOffline) {
             presentInfoMessage("Request diantrikan dan akan dikirim saat online", "Offline");
@@ -457,7 +479,7 @@ export default function RequestWorkOrderScreen() {
             </TouchableOpacity>
             <CustomerContactFields
               values={customerContact}
-              onChange={setCustomerContact}
+              onChange={handleCustomerContactChange}
               disabled={showLoading}
             />
           </View>
@@ -651,12 +673,15 @@ export default function RequestWorkOrderScreen() {
       {/* Loading Modal */}
       <LoadingModal visible={showLoading} message={loadingMessage} />
 
-      {/* Picker Pelanggan Terdaftar */}
-      <PelangganPicker
-        visible={showPelangganPicker}
-        onClose={() => setShowPelangganPicker(false)}
-        onSelect={handleSelectPelanggan}
-      />
+      {/* Picker Pelanggan Terdaftar: mount hanya saat dibuka agar tidak
+          memicu pencarian pelanggan sebelum diminta pengguna. */}
+      {showPelangganPicker ? (
+        <PelangganPicker
+          visible={showPelangganPicker}
+          onClose={() => setShowPelangganPicker(false)}
+          onSelect={handleSelectPelanggan}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
