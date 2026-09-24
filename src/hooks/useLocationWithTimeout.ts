@@ -3,10 +3,40 @@ import * as Location from "expo-location";
 import { logger } from "@/utils/logger";
 import { requestForegroundLocationWithDisclosure } from "@/utils/locationDisclosure";
 
-interface LocationResult {
+/** Hasil pencarian lokasi; string kosong berarti koordinat tidak didapat. */
+export interface LocationResult {
   latitude: string;
   longitude: string;
   locationName: string;
+  /** Akurasi horizontal dalam meter, null bila tidak diketahui. */
+  accuracy: number | null;
+}
+
+const BATAS_TUNGGU_BAWAAN_MS = 15_000;
+
+function keHasil(lokasi: Location.LocationObject | null, locationName: string): LocationResult {
+  return {
+    latitude: lokasi?.coords.latitude.toString() ?? "",
+    longitude: lokasi?.coords.longitude.toString() ?? "",
+    locationName,
+    accuracy: lokasi?.coords.accuracy ?? null,
+  };
+}
+
+async function namaLokasi(lokasi: Location.LocationObject): Promise<string> {
+  try {
+    const hasil = await Location.reverseGeocodeAsync({
+      latitude: lokasi.coords.latitude,
+      longitude: lokasi.coords.longitude,
+    });
+    if (hasil.length === 0) return "";
+    const alamat = hasil[0];
+    const nama = `${alamat.street || ""} ${alamat.district || ""} ${alamat.city || ""}`.trim();
+    return nama || alamat.name || alamat.region || "";
+  } catch (geoError) {
+    logger.error("Geocoding failed:", geoError);
+    return "";
+  }
 }
 
 /**
@@ -15,70 +45,46 @@ interface LocationResult {
  */
 export function useLocationWithTimeout() {
   /**
-   * Fetches current GPS position (with 15s timeout — GPS first fix di luar
-   * ruangan bisa 10s+) dan reverse geocodes hasil. Falls back ke cached
-   * location bila fresh fetch timeout.
+   * Ambil posisi GPS dengan batas waktu (fix pertama di luar ruangan bisa
+   * 10 detik lebih) lalu reverse geocode. Jatuh ke `cachedLocation` bila
+   * izin ditolak atau waktu habis. `akurasiGps` default `Balanced` agar
+   * pemanggil lama tidak berubah.
    */
   const getLocationWithTimeout = useCallback(
     async (
       cachedLocation: Location.LocationObject | null,
-      timeoutMs = 15_000,
+      timeoutMs = BATAS_TUNGGU_BAWAAN_MS,
+      akurasiGps: Location.Accuracy = Location.Accuracy.Balanced,
     ): Promise<LocationResult> => {
-      let finalLocation = cachedLocation;
-      let locationName = "";
-
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        // Gerbang disclosure: pastikan izin (didahului disclosure) sebelum akses GPS
         const { status } = await requestForegroundLocationWithDisclosure();
         if (status !== "granted") {
           logger.info("Location permission not granted, using cached/last known");
-          return {
-            latitude: finalLocation?.coords.latitude.toString() ?? "",
-            longitude: finalLocation?.coords.longitude.toString() ?? "",
-            locationName,
-          };
+          return keHasil(cachedLocation, "");
         }
-
-        const locPromise = Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
+        const batasWaktu = new Promise<null>((resolve) => {
+          timer = setTimeout(() => resolve(null), timeoutMs);
         });
-
-        const timeoutPromise = new Promise<null>((resolve) =>
-          setTimeout(() => resolve(null), timeoutMs),
-        );
-
-        const result = await Promise.race([locPromise, timeoutPromise]);
-
-        if (result) {
-          finalLocation = result as Location.LocationObject;
-
-          try {
-            const reverseGeocode = await Location.reverseGeocodeAsync({
-              latitude: finalLocation.coords.latitude,
-              longitude: finalLocation.coords.longitude,
-            });
-
-            if (reverseGeocode.length > 0) {
-              const addr = reverseGeocode[0];
-              locationName =
-                `${addr.street || ""} ${addr.district || ""} ${addr.city || ""}`.trim();
-              if (!locationName) locationName = addr.name || addr.region || "";
-            }
-          } catch (geoError) {
-            logger.error("Geocoding failed:", geoError);
-          }
-        } else {
-          logger.info("Location fetch timed out, using cached/last known");
+        let posisi: Location.LocationObject | null;
+        try {
+          posisi = await Promise.race([
+            Location.getCurrentPositionAsync({ accuracy: akurasiGps }),
+            batasWaktu,
+          ]);
+        } finally {
+          // Cegah timer menggantung setelah race selesai, apa pun hasilnya.
+          clearTimeout(timer);
         }
+        if (!posisi) {
+          logger.info("Location fetch timed out, using cached/last known");
+          return keHasil(cachedLocation, "");
+        }
+        return keHasil(posisi, await namaLokasi(posisi));
       } catch (e) {
         logger.error("Could not update location/geocode:", e);
+        return keHasil(cachedLocation, "");
       }
-
-      return {
-        latitude: finalLocation?.coords.latitude.toString() ?? "",
-        longitude: finalLocation?.coords.longitude.toString() ?? "",
-        locationName,
-      };
     },
     [],
   );
