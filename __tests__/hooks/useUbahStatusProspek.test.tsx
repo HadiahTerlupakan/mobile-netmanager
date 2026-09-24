@@ -3,6 +3,21 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { act, renderHook } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+// Instrumentasi `useMutation` asli (bukan mock) untuk membuktikan hook ini
+// SUNGGUH meneruskan `meta` ke opsinya — `jest.spyOn` tidak bisa dipakai
+// karena export ESM paket ini tidak bisa didefinisikan ulang.
+const mockPanggilanUseMutation: unknown[] = [];
+jest.mock('@tanstack/react-query', () => {
+  const asli = jest.requireActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  return {
+    ...asli,
+    useMutation: (opsi: unknown) => {
+      mockPanggilanUseMutation.push(opsi);
+      return asli.useMutation(opsi as Parameters<typeof asli.useMutation>[0]);
+    },
+  };
+});
+
 const mockUbahStatus = jest.fn<(id: string, status: string) => Promise<unknown>>();
 jest.mock('@/services/PresurveiService', () => ({
   PresurveiService: { ubahStatusProspek: (id: string, status: string) => mockUbahStatus(id, status) },
@@ -81,6 +96,22 @@ describe('useUbahStatusProspek', () => {
     expect(mockGalat).toHaveBeenCalledWith(galat, expect.objectContaining({ screen: 'RincianProspek' }));
     expect(mockPesanGalat).not.toHaveBeenCalled();
     expect(invalidasi).not.toHaveBeenCalled();
+    client.clear();
+  });
+
+  // RULING fix round Task 15 (#2): membuktikan hook SUNGGUH meneruskan
+  // `meta.skipGlobalErrorToast` ke `useMutation` (bukan cuma mekanisme
+  // `queryClient.ts` yang bekerja secara umum, dibuktikan terpisah di
+  // `__tests__/lib/queryClient.test.ts`) — tanpa ini, MutationCache.onError
+  // global tetap menggandakan toast di atas pesan spesifik hook ini.
+  it('meneruskan meta.skipGlobalErrorToast ke useMutation', () => {
+    mockPanggilanUseMutation.length = 0;
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    renderHook(() => useUbahStatusProspek('p-1'), { wrapper: bungkus(client) });
+
+    expect(mockPanggilanUseMutation).toContainEqual(
+      expect.objectContaining({ meta: { skipGlobalErrorToast: true } }),
+    );
     client.clear();
   });
 

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 const mockShowToast = jest.fn();
 jest.mock('@/utils/errorPresenter', () => ({
@@ -161,5 +161,81 @@ describe('queryClient toast peredam per query (meta.silentToastStatuses)', () =>
     ).rejects.toBe(galat500);
 
     expect(mockShowToast).toHaveBeenCalledWith('error', 'Gagal Memuat Data', 'Unknown query error');
+  });
+});
+
+// Ruling fix round Task 15 (#2): `MutationCache.onError` sebelumnya tidak
+// membaca `meta` sama sekali, sehingga toast generik "Gagal Menyimpan
+// Perubahan" SELALU tampil untuk setiap galat mutasi — bahkan untuk hook
+// yang sudah menampilkan pesannya sendiri (mis. `useUbahStatusProspek`),
+// menghasilkan toast ganda. `meta.skipGlobalErrorToast: true` meredam
+// toast global itu untuk SATU mutasi tertentu; mutasi lain (absensi,
+// canvasing, WO, dll.) yang tidak menyetel meta ini tetap menampilkan
+// toast seperti sebelumnya. Dibuktikan lewat `MutationCache.build().execute()`
+// langsung terhadap `queryClient` sungguhan, tanpa React, supaya tidak perlu
+// `act(...)`.
+describe('queryClient toast peredam per mutasi (meta.skipGlobalErrorToast)', () => {
+  // Berkas ini tidak me-reset mock secara global; describe query di atas
+  // sudah memanggil `mockShowToast` sebelum blok ini berjalan.
+  beforeEach(() => {
+    mockShowToast.mockClear();
+  });
+
+  afterAll(() => {
+    queryClient.clear();
+  });
+
+  const jalankanMutasiGagal = (galat: unknown, meta?: Record<string, unknown>) => {
+    const mutation = queryClient.getMutationCache().build(queryClient, {
+      mutationFn: () => Promise.reject(galat),
+      retry: false,
+      meta,
+    });
+    return mutation.execute(undefined);
+  };
+
+  it('meredam toast global saat meta.skipGlobalErrorToast true', async () => {
+    const galat500 = { isAxiosError: true, response: { status: 500 } };
+
+    await expect(
+      jalankanMutasiGagal(galat500, { skipGlobalErrorToast: true }),
+    ).rejects.toBe(galat500);
+
+    expect(mockShowToast).not.toHaveBeenCalled();
+  });
+
+  it('tetap menampilkan toast global tanpa meta.skipGlobalErrorToast (mutasi lain tidak terpengaruh)', async () => {
+    const galat500 = { isAxiosError: true, response: { status: 500 } };
+
+    await expect(jalankanMutasiGagal(galat500)).rejects.toBe(galat500);
+
+    // Status 500 tidak ada di TOAST_MESSAGE_BY_STATUS, dan `galat500` bukan
+    // instance Error, jadi normalizeQueryError jatuh ke pesan generiknya
+    // sendiri ("Unknown query error") — bukan fallbackMessage `queryClient.ts`.
+    expect(mockShowToast).toHaveBeenCalledWith(
+      'error',
+      'Gagal Menyimpan Perubahan',
+      'Unknown query error',
+    );
+  });
+
+  it('regresi galat jaringan: diredam dengan meta, tetap tampil tanpa meta', async () => {
+    const galatJaringan = Object.assign(new Error('Network Error'), {
+      isAxiosError: true,
+      response: undefined,
+    });
+
+    await expect(jalankanMutasiGagal(galatJaringan)).rejects.toBe(galatJaringan);
+    expect(mockShowToast).toHaveBeenCalledWith(
+      'error',
+      'Gagal Menyimpan Perubahan',
+      'Network Error',
+    );
+    mockShowToast.mockClear();
+
+    await expect(
+      jalankanMutasiGagal(galatJaringan, { skipGlobalErrorToast: true }),
+    ).rejects.toBe(galatJaringan);
+    expect(mockShowToast).not.toHaveBeenCalled();
   });
 });

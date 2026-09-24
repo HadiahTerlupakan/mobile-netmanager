@@ -51,6 +51,11 @@ export function useUbahStatusProspek(prospekId: string) {
   return useMutation({
     mutationFn: (status: ProspekStatus) => PresurveiService.ubahStatusProspek(prospekId, status),
     retry: false,
+    // Ruling fix round Task 15 (#2): onError di bawah sudah menampilkan
+    // pesannya sendiri (409 vs galat lain) — tanpa ini, toast global
+    // `MutationCache.onError` (`src/lib/queryClient.ts`) tetap tampil
+    // berdampingan dan menggandakan pesan untuk galat yang sama.
+    meta: { skipGlobalErrorToast: true },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.presurvei.all });
       presentSuccessMessage(PESAN_STATUS_DIUBAH);

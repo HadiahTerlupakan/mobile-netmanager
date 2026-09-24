@@ -39,6 +39,11 @@ export function useCatatKegiatan(onTersimpan: (hasil: HasilSimpanKegiatan) => vo
     invalidateKeys: [queryKeys.presurvei.all],
     successMessage: PESAN_TERCATAT,
     showErrorAlert: false,
+    // Ruling fix round Task 15 (#2): onError di bawah (dan per-panggilan di
+    // `useLayarCatatKegiatan`) sudah menangani semua kasus galatnya sendiri
+    // — tanpa ini, toast global `MutationCache.onError`
+    // (`src/lib/queryClient.ts`) tetap tampil berdampingan.
+    meta: { skipGlobalErrorToast: true },
     onSuccess: (data) => {
       const isAntre = isOfflineMutationQueuedResult(data);
       if (isAntre) void queryClient.invalidateQueries({ queryKey: queryKeys.presurvei.antrean() });

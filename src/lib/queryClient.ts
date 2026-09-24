@@ -63,6 +63,25 @@ const isStatusDiredamMeta = (status: number | undefined, meta: unknown): boolean
   return Array.isArray(daftarStatusDiredam) && daftarStatusDiredam.includes(status);
 };
 
+/**
+ * Peredam toast global per mutasi lewat `meta` (TanStack `MutationMeta`).
+ *
+ * Dipakai saat sebuah mutasi SUDAH menampilkan pesan galatnya sendiri lewat
+ * `onError` (mis. `useUbahStatusProspek`) — tanpa ini, `MutationCache.onError`
+ * (di bawah) selalu menampilkan toast generiknya sendiri juga, menghasilkan
+ * toast ganda untuk galat yang sama. Berbeda dari `MetaPeredamToast` (query)
+ * yang meredam per status kode; ini meredam SELURUH toast global untuk satu
+ * mutasi, karena hook pemanggil sudah menangani semua kasus galatnya sendiri.
+ * Mutasi lain yang tidak menyetel `meta` ini (absensi, canvasing, WO, dll.)
+ * tidak terpengaruh dan tetap menampilkan toast seperti sebelumnya.
+ */
+interface MetaPeredamToastMutasi {
+  skipGlobalErrorToast?: boolean;
+}
+
+const isToastGlobalDiredamMutasi = (meta: unknown): boolean =>
+  (meta as MetaPeredamToastMutasi | undefined)?.skipGlobalErrorToast === true;
+
 const showFailureToast = (
   error: unknown,
   fallbackTitle: string,
@@ -127,6 +146,8 @@ export const queryClient = new QueryClient({
           ...describeFailedRequest(error),
         });
       }
+
+      if (isToastGlobalDiredamMutasi(mutation.options.meta)) return;
 
       showFailureToast(
         error,

@@ -37,6 +37,21 @@ jest.mock('@/utils/attendanceIdempotency', () => ({
 }));
 jest.mock('@/utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
 
+// RULING fix round Task 15 (#2): instrumentasi `useMutation` asli untuk
+// membuktikan `useApiMutation` meneruskan `meta` sampai ke sana — `jest.spyOn`
+// tidak bisa dipakai karena export ESM paket ini tidak bisa didefinisikan ulang.
+const mockPanggilanUseMutation: unknown[] = [];
+jest.mock('@tanstack/react-query', () => {
+  const asli = jest.requireActual<typeof import('@tanstack/react-query')>('@tanstack/react-query');
+  return {
+    ...asli,
+    useMutation: (opsi: unknown) => {
+      mockPanggilanUseMutation.push(opsi);
+      return asli.useMutation(opsi as Parameters<typeof asli.useMutation>[0]);
+    },
+  };
+});
+
 import { useCatatKegiatan } from '@/hooks/presurvei/useCatatKegiatan';
 import { keMuatanKegiatan, NILAI_FORM_KEGIATAN_KOSONG } from '@/utils/presurvei/formKegiatan';
 import { bangunVariabelCatat } from '@/utils/presurvei/variabelCatat';
@@ -65,6 +80,20 @@ describe('useCatatKegiatan', () => {
     jest.clearAllMocks();
     mockAddToQueue.mockResolvedValue(undefined);
     mockUploadFile.mockImplementation(async (uri) => `https://cdn.test/${uri.split('/').pop()}`);
+    mockPanggilanUseMutation.length = 0;
+  });
+
+  // RULING fix round Task 15 (#2): tanpa meta ini, toast global
+  // `MutationCache.onError` (`src/lib/queryClient.ts`) tampil berdampingan
+  // dengan `presentAppError` yang sudah dipanggil `onError` hook ini sendiri.
+  it('meneruskan meta.skipGlobalErrorToast sampai ke useMutation', () => {
+    const client = buatClient();
+    renderHook(() => useCatatKegiatan(jest.fn()), { wrapper: bungkus(client) });
+
+    expect(mockPanggilanUseMutation).toContainEqual(
+      expect.objectContaining({ meta: { skipGlobalErrorToast: true } }),
+    );
+    client.clear();
   });
 
   it('mengantre kegiatan offline beserta titik GPS dan foto yang disalin', async () => {
