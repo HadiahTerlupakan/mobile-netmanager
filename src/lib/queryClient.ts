@@ -44,13 +44,34 @@ const TOAST_MESSAGE_BY_STATUS: Record<number, string> = {
 
 const SILENT_TOAST_STATUSES = new Set([401, 426]);
 
+/**
+ * Peredam toast per query lewat `meta` (TanStack `QueryMeta`).
+ *
+ * Dipakai saat status tertentu adalah jawaban bisnis yang sah untuk SATU
+ * query spesifik, bukan seluruh aplikasi — mis. 403 pada ringkasan Beranda
+ * sales berarti "presurvei belum aktif untuk user ini", bukan galat.
+ * `SILENT_TOAST_STATUSES` di atas untuk peredaman global; ini untuk
+ * peredaman lokal per query yang tidak boleh berlaku ke query lain.
+ */
+interface MetaPeredamToast {
+  silentToastStatuses?: number[];
+}
+
+const isStatusDiredamMeta = (status: number | undefined, meta: unknown): boolean => {
+  if (status === undefined) return false;
+  const daftarStatusDiredam = (meta as MetaPeredamToast | undefined)?.silentToastStatuses;
+  return Array.isArray(daftarStatusDiredam) && daftarStatusDiredam.includes(status);
+};
+
 const showFailureToast = (
   error: unknown,
   fallbackTitle: string,
   fallbackMessage: string,
+  meta?: unknown,
 ) => {
   const status = getHttpStatus(error);
   if (status !== undefined && SILENT_TOAST_STATUSES.has(status)) return;
+  if (isStatusDiredamMeta(status, meta)) return;
 
   const normalized = normalizeQueryError(error);
   const message =
@@ -87,7 +108,7 @@ export const queryClient = new QueryClient({
         });
       }
 
-      showFailureToast(error, "Gagal Memuat Data", "Terjadi kesalahan koneksi");
+      showFailureToast(error, "Gagal Memuat Data", "Terjadi kesalahan koneksi", query.meta);
     },
   }),
   mutationCache: new MutationCache({

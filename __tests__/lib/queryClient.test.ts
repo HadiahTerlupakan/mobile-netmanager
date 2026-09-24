@@ -1,6 +1,22 @@
-import { describe, expect, it } from '@jest/globals';
+import { afterAll, describe, expect, it, jest } from '@jest/globals';
 
-import { queryKeys } from '@/lib/queryClient';
+const mockShowToast = jest.fn();
+jest.mock('@/utils/errorPresenter', () => ({
+  showToast: (...args: unknown[]) => mockShowToast(...args),
+}));
+
+const mockCaptureException = jest.fn();
+jest.mock('@/services/ErrorReportingService', () => ({
+  errorReportingService: { captureException: (...args: unknown[]) => mockCaptureException(...args) },
+}));
+
+// `onError` mencatat tiap query gagal lewat logger.error — dibisukan di sini
+// karena kegagalan itu sengaja dipicu oleh test, bukan noise yang perlu dilihat.
+jest.mock('@/utils/logger', () => ({
+  logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
+
+import { queryClient, queryKeys } from '@/lib/queryClient';
 
 describe('queryKeys.attendance.status', () => {
   it('scopes attendance status queries per user', () => {
@@ -99,5 +115,51 @@ describe('queryKeys.attendance other scopes', () => {
       'history',
       'anonymous',
     ]);
+  });
+});
+
+// Ruling (Review Focus #4, Task 8): 403 dari endpoint ringkasan presurvei
+// tidak boleh memunculkan toast global "Gagal Memuat Data" — sales yang
+// belum diberi izin harus melihat status "belum aktif" di layar, bukan
+// galat. `useRingkasanPresurvei` (src/hooks/queries/useRingkasanPresurvei.ts)
+// menandai ini lewat `meta: { silentToastStatuses: [403] }`; di sini
+// dibuktikan langsung lewat `queryClient` sungguhan (bukan mock) bahwa
+// `QueryCache.onError` benar-benar meredam status yang tercantum di meta,
+// dan TETAP menampilkan toast untuk status yang tidak tercantum.
+describe('queryClient toast peredam per query (meta.silentToastStatuses)', () => {
+  afterAll(() => {
+    queryClient.clear();
+  });
+
+  it('meredam toast saat status galat tercantum di meta.silentToastStatuses', async () => {
+    const galat403 = { isAxiosError: true, response: { status: 403 } };
+
+    await expect(
+      queryClient.fetchQuery({
+        queryKey: ['uji-toast', 'diredam'],
+        queryFn: () => Promise.reject(galat403),
+        retry: false,
+        meta: { silentToastStatuses: [403] },
+      })
+    ).rejects.toBe(galat403);
+
+    expect(mockShowToast).not.toHaveBeenCalled();
+  });
+
+  it('tetap menampilkan toast untuk status yang tidak tercantum di meta', async () => {
+    const galat500 = { isAxiosError: true, response: { status: 500 } };
+
+    await expect(
+      queryClient.fetchQuery({
+        queryKey: ['uji-toast', 'tidak-diredam'],
+        queryFn: () => Promise.reject(galat500),
+        retry: false,
+        // meta sama seperti useRingkasanPresurvei — hanya 403 yang diredam,
+        // membuktikan ini bukan "matikan toast untuk seluruh query ringkasan".
+        meta: { silentToastStatuses: [403] },
+      })
+    ).rejects.toBe(galat500);
+
+    expect(mockShowToast).toHaveBeenCalledWith('error', 'Gagal Memuat Data', 'Unknown query error');
   });
 });

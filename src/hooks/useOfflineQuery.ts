@@ -1,6 +1,7 @@
 import { QueryFunctionContext, QueryKey, UseQueryOptions, useQuery } from '@tanstack/react-query';
 import { DatabaseService } from '@/services/DatabaseService';
 import { logger } from '@/utils/logger';
+import { isStatusOnline } from '@/utils/statusJaringan';
 import NetInfo from '@react-native-community/netinfo';
 import api from '@/services/api';
 
@@ -45,7 +46,7 @@ export function useOfflineQuery<TQueryFnData = unknown, TError = unknown, TData 
   ): Promise<TQueryFnData> => {
     // 1. Check Network State
     const netState = await NetInfo.fetch();
-    const isOffline = netState.isConnected === false || netState.isInternetReachable === false;
+    const isOffline = !isStatusOnline(netState);
 
     if (isOffline) {
        logger.info(`[OfflineQuery] Offline detected for ${keyString}, loading from storage`);
