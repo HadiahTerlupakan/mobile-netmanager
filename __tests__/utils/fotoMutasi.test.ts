@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 const mockPersist = jest.fn<(uri: string) => Promise<string>>();
+const mockIsBerkasAda = jest.fn<(uri: string) => Promise<boolean>>();
 jest.mock('@/utils/persistPhoto', () => ({
   persistPhotoForOffline: (uri: string) => mockPersist(uri),
+  isBerkasLokalAda: (uri: string) => mockIsBerkasAda(uri),
 }));
 
 import { NAMA_GALAT_UNGGAH_HABIS_WAKTU } from '@/services/UploadService';
 import {
+  adaFotoLokalHilang,
+  isGalatResponsServer,
   isUnggahHabisWaktu,
   salinFotoMetaUntukAntrean,
   unggahFotoMeta,
@@ -17,6 +21,8 @@ const unggah = jest.fn(async (uri: string, _tipe: string) => `https://cdn.test/$
 
 beforeEach(() => {
   unggah.mockClear();
+  mockIsBerkasAda.mockReset();
+  mockIsBerkasAda.mockResolvedValue(true);
   mockPersist.mockImplementation(async (uri) =>
     uri.replace('file:///cache/', 'file:///dokumen/offline-photos/'),
   );
@@ -50,6 +56,18 @@ describe('unggahFotoMeta', () => {
 
     expect(unggah).toHaveBeenCalledWith('file:///cache/a.jpg', 'general');
     expect(payload).toEqual({ foto: ['https://cdn.test/a.jpg'] });
+  });
+
+  it('mengembalikan URL hasil unggah, atau null bila tidak ada yang diunggah', async () => {
+    const urls = await unggahFotoMeta(
+      { photos: ['https://cdn.test/lama.jpg', 'file:///cache/b.jpg'], targetField: 'fotoUrls', singleFile: true },
+      {},
+      unggah,
+    );
+    const kosong = await unggahFotoMeta({ photos: [], targetField: 'fotoUrls' }, {}, unggah);
+
+    expect(urls).toEqual(['https://cdn.test/lama.jpg', 'https://cdn.test/b.jpg']);
+    expect(kosong).toBeNull();
   });
 
   it('payload tidak disentuh bila salah satu unggahan gagal', async () => {
@@ -106,11 +124,63 @@ describe('salinFotoMetaUntukAntrean', () => {
     expect(metaAsal.photos).toEqual(['file:///cache/a.jpg', 'https://cdn.test/lama.jpg']);
   });
 
+  it('memakai URL hasil unggah sebagai photos bila sudah terunggah, tanpa menyalin', async () => {
+    const urlTerunggah = Object.freeze(['https://cdn.test/a.jpg', 'https://cdn.test/b.jpg']);
+
+    const hasil = await salinFotoMetaUntukAntrean(
+      { photos: ['file:///cache/a.jpg', 'file:///cache/b.jpg'], targetField: 'fotoUrls' },
+      urlTerunggah,
+    );
+
+    expect(hasil).toEqual({
+      photos: ['https://cdn.test/a.jpg', 'https://cdn.test/b.jpg'],
+      targetField: 'fotoUrls',
+    });
+    expect(hasil.photos).not.toBe(urlTerunggah);
+    expect(mockPersist).not.toHaveBeenCalled();
+  });
+
   it('meta tanpa foto dikembalikan apa adanya', async () => {
     const hasil = await salinFotoMetaUntukAntrean({ requestId: 'r-1' });
 
     expect(hasil).toEqual({ requestId: 'r-1' });
     expect(mockPersist).not.toHaveBeenCalled();
+  });
+});
+
+describe('isGalatResponsServer', () => {
+  it('mengenali galat yang lahir dari respons server UploadService', () => {
+    expect(isGalatResponsServer(new Error('Upload failed with status 413: terlalu besar'))).toBe(true);
+    expect(isGalatResponsServer(new Error('Invalid response from upload server'))).toBe(true);
+    expect(isGalatResponsServer(new SyntaxError('Unexpected token < in JSON'))).toBe(true);
+  });
+
+  it('galat transport, habis waktu, dan nilai non-Error bukan respons server', () => {
+    const habisWaktu = new Error('Upload melebihi batas waktu');
+    habisWaktu.name = 'UploadTimeoutError';
+
+    expect(isGalatResponsServer(new Error('Network request failed'))).toBe(false);
+    expect(isGalatResponsServer(new Error('Unable to resolve host "api.test"'))).toBe(false);
+    expect(isGalatResponsServer(habisWaktu)).toBe(false);
+    expect(isGalatResponsServer('Upload failed with status 413')).toBe(false);
+  });
+});
+
+describe('adaFotoLokalHilang', () => {
+  it('true bila salah satu foto lokal tidak ada; URL tidak diperiksa', async () => {
+    mockIsBerkasAda.mockImplementation(async (uri) => !uri.endsWith('b.jpg'));
+
+    const hasil = await adaFotoLokalHilang({
+      photos: ['https://cdn.test/lama.jpg', 'file:///cache/a.jpg', 'file:///cache/b.jpg'],
+    });
+
+    expect(hasil).toBe(true);
+    expect(mockIsBerkasAda.mock.calls).toEqual([['file:///cache/a.jpg'], ['file:///cache/b.jpg']]);
+  });
+
+  it('false bila semua foto ada atau tidak ada foto', async () => {
+    expect(await adaFotoLokalHilang({ photos: ['file:///cache/a.jpg'] })).toBe(false);
+    expect(await adaFotoLokalHilang(undefined)).toBe(false);
   });
 });
 

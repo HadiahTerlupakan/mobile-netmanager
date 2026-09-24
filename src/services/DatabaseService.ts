@@ -374,6 +374,21 @@ class DatabaseServiceImpl {
     return rows.map((row) => this.rowToItem(row));
   }
 
+  /**
+   * Semua item antrean apa pun statusnya (termasuk FAILED). Dipakai untuk
+   * melindungi foto offline yang masih dirujuk sebelum sweep, jadi database
+   * yang tidak tersedia dilempar — `[]` akan berarti "hapus semua foto".
+   */
+  public async getAllQueueItems(): Promise<SyncQueueItem[]> {
+    if (!this.isReady) await this.waitForReady();
+    if (!this.db) throw new Error("Database antrean tidak tersedia");
+
+    const rows = await this.db.getAllAsync<SyncQueueRow>(
+      `SELECT * FROM ${SYNC_QUEUE_TABLE} ORDER BY createdAt ASC`,
+    );
+    return rows.map((row) => this.rowToItem(row));
+  }
+
   public async removeFromQueue(id: number): Promise<void> {
     if (!this.isReady) await this.waitForReady();
 
@@ -472,6 +487,7 @@ export const DatabaseService = {
     meta: Record<string, unknown> = {},
   ) => DatabaseServiceImpl.getInstance().addToQueue(url, method, body, meta),
   getPendingQueue: () => DatabaseServiceImpl.getInstance().getPendingQueue(),
+  getAllQueueItems: () => DatabaseServiceImpl.getInstance().getAllQueueItems(),
   removeFromQueue: (id: number) =>
     DatabaseServiceImpl.getInstance().removeFromQueue(id),
   markAsRetry: (id: number) =>

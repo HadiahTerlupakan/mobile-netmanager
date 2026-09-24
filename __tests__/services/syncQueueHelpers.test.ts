@@ -82,15 +82,16 @@ describe('collectPersistedPhotoUris', () => {
     expect(collectPersistedPhotoUris(makeItem({ body: '' }))).toEqual([]);
   });
 
-  it('kumpulkan URI dari meta.photos dan meta.photoMap', () => {
+  it('kumpulkan URI dari meta.photos dan meta.photoMap pada item.meta (string JSON, bentuk produksi)', () => {
+    // Bentuk yang ditulis DatabaseService.addToQueue: body dan meta string JSON
+    // terpisah (DatabaseService.ts:340,343). body sengaja memuat meta palsu
+    // supaya pembacaan body.meta tidak lolos.
     const item = makeItem({
-      // body runtime bisa berupa object (fungsi defensif membaca body.meta)
-      body: {
-        meta: {
-          photos: ['file://a.jpg', 'file://b.jpg', 123],
-          photoMap: { ktp: 'file://ktp.jpg', selfie: 'file://selfie.jpg', bad: 42 },
-        },
-      } as unknown as string,
+      body: JSON.stringify({ jenis: 'KUNJUNGAN', meta: { photos: ['file://salah.jpg'] } }),
+      meta: JSON.stringify({
+        photos: ['file://a.jpg', 'file://b.jpg', 123],
+        photoMap: { ktp: 'file://ktp.jpg', selfie: 'file://selfie.jpg', bad: 42 },
+      }),
     });
 
     expect(collectPersistedPhotoUris(item)).toEqual([
@@ -99,5 +100,17 @@ describe('collectPersistedPhotoUris', () => {
       'file://ktp.jpg',
       'file://selfie.jpg',
     ]);
+  });
+
+  it('meta JSON rusak atau bukan objek dilewati tanpa melempar', () => {
+    expect(collectPersistedPhotoUris(makeItem({ meta: '{rusak' }))).toEqual([]);
+    expect(collectPersistedPhotoUris(makeItem({ meta: 'null' }))).toEqual([]);
+    expect(collectPersistedPhotoUris(makeItem({ meta: '"teks"' }))).toEqual([]);
+  });
+
+  it('tetap membaca bentuk lama: meta sudah berupa objek', () => {
+    const item = makeItem({ meta: { photos: ['file://lama.jpg'] } as unknown as string });
+
+    expect(collectPersistedPhotoUris(item)).toEqual(['file://lama.jpg']);
   });
 });

@@ -2,6 +2,7 @@ import { DatabaseService } from '@/services/DatabaseService';
 import { ensureForegroundNotificationChannel } from '@/services/ForegroundNotificationService';
 import { networkStateService } from '@/services/NetworkStateService';
 import { performanceMonitor } from '@/services/PerformanceMonitor';
+import { sapuFotoOfflineYatim } from '@/services/sapuFotoOffline';
 import { SyncService } from '@/services/SyncService';
 import { errorReportingService } from '@/services/ErrorReportingService';
 import { logger } from '@/utils/logger';
@@ -10,6 +11,7 @@ import { useEffect } from 'react';
 /**
  * Initialize critical app services on mount
  * - Database initialization
+ * - Sweep foto offline yatim (setelah database siap)
  * - Foreground notification channel
  * - Sync monitoring (delayed)
  * - Performance tracking
@@ -33,6 +35,8 @@ export function useAppInitialization(isLoading: boolean) {
         logger.info('[Init] Phase 1: Database & network initialization');
         networkStateService.initialize();
         await DatabaseService.initDatabase();
+        // Tanpa ditunggu: sweep hanya reclaim disk dan tidak boleh menahan startup.
+        void sapuFotoOfflineYatim();
         await ensureForegroundNotificationChannel();
 
         logger.info('[Init] Phase 2: Starting sync monitoring');

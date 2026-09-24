@@ -32,28 +32,39 @@ const LARGE_QUEUE_CONCURRENCY = 4;
 export const isPermanentSyncFailure = (status: number): boolean =>
   PERMANENT_SYNC_FAILURE_STATUSES.has(status);
 
+type MetaFotoAntrean = { photos?: unknown; photoMap?: unknown };
+
+/**
+ * Baca `item.meta` sebagai objek. Di produksi berupa string JSON terpisah dari
+ * body (`DatabaseService.ts:340,343`); objek (bentuk lama) diterima apa adanya.
+ * JSON rusak atau bukan objek → `null`, tanpa melempar.
+ */
+function bacaMetaAntrean(meta: unknown): MetaFotoAntrean | null {
+  let nilai = meta;
+  if (typeof meta === 'string') {
+    try {
+      nilai = JSON.parse(meta);
+    } catch {
+      return null;
+    }
+  }
+  return nilai && typeof nilai === 'object' && !Array.isArray(nilai) ? (nilai as MetaFotoAntrean) : null;
+}
+
+const ambilString = (nilai: unknown): string[] =>
+  (Array.isArray(nilai) ? nilai : []).filter((v): v is string => typeof v === 'string');
+
 /**
  * Kumpulkan semua URI photo yang sudah dipersist offline pada queue item,
- * sehingga bisa di-cleanup setelah sync (sukses / permanent failure / TTL).
+ * sehingga bisa di-cleanup setelah sync (sukses / permanent failure / TTL)
+ * dan dilindungi dari sweep yatim.
  */
 export function collectPersistedPhotoUris(item: SyncQueueItem): string[] {
-  const meta = (item.body && typeof item.body === 'object' ? (item.body as Record<string, unknown>).meta : undefined) as
-    | { photos?: unknown; photoMap?: unknown }
-    | undefined;
+  const meta = bacaMetaAntrean(item.meta);
   if (!meta) return [];
 
-  const uris: string[] = [];
-  if (Array.isArray(meta.photos)) {
-    for (const p of meta.photos) {
-      if (typeof p === 'string') uris.push(p);
-    }
-  }
-  if (meta.photoMap && typeof meta.photoMap === 'object') {
-    for (const v of Object.values(meta.photoMap as Record<string, unknown>)) {
-      if (typeof v === 'string') uris.push(v);
-    }
-  }
-  return uris;
+  const petaFoto = meta.photoMap && typeof meta.photoMap === 'object' ? Object.values(meta.photoMap) : [];
+  return [...ambilString(meta.photos), ...ambilString(petaFoto)];
 }
 
 /**

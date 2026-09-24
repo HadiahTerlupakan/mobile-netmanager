@@ -275,8 +275,9 @@ export const SyncService = {
           logger.warn(
             `[SyncService] Item ${item.id} exceeded global retry budget (${globalRetry}/${MAX_GLOBAL_RETRY_COUNT}). Marking as failed.`,
           );
+          // Foto TIDAK dibersihkan: item FAILED tetap di antrean, dan sweep startup
+          // (sapuFotoOffline.ts) sengaja melindungi foto item FAILED.
           await DatabaseService.markAsFailed(item.id, 'Retry budget exceeded');
-          await cleanupOfflinePhotos(collectPersistedPhotoUris(item));
           TelemetryService.trackSyncResult({
             endpoint: item.url,
             outcome: 'permanent_failed',

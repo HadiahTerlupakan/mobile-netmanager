@@ -54,11 +54,15 @@ jest.mock('@/services/UploadService', () => ({
   },
   UploadType: {},
   NAMA_GALAT_UNGGAH_HABIS_WAKTU: 'UploadTimeoutError',
+  AWALAN_GALAT_STATUS_UNGGAH: 'Upload failed with status',
+  PESAN_RESPONS_UNGGAH_TIDAK_SAH: 'Invalid response from upload server',
 }));
 
 const mockPersist = jest.fn<(uri: string) => Promise<string>>();
+const mockIsBerkasAda = jest.fn<(uri: string) => Promise<boolean>>();
 jest.mock('@/utils/persistPhoto', () => ({
   persistPhotoForOffline: (uri: string) => mockPersist(uri),
+  isBerkasLokalAda: (uri: string) => mockIsBerkasAda(uri),
 }));
 
 jest.mock('@/utils/attendanceIdempotency', () => ({
@@ -105,6 +109,8 @@ describe('useApiMutation', () => {
     mockPersist.mockImplementation(async (uri) =>
       uri.replace('file:///cache/', 'file:///dokumen/offline-photos/'),
     );
+    mockIsBerkasAda.mockReset();
+    mockIsBerkasAda.mockResolvedValue(true);
     // Test antrean absensi mengganti implementasi ini; kembalikan agar urutan
     // test tidak memengaruhi hasil.
     const attendanceIdempotency = require('@/utils/attendanceIdempotency');
@@ -426,8 +432,9 @@ describe('useApiMutation', () => {
       );
     });
 
-    it('memasukkan ke antrean bila sinyal hilang saat unggah', async () => {
-      mockIsOnline.mockResolvedValueOnce(true as never).mockResolvedValueOnce(false as never);
+    it('memasukkan ke antrean bila galat transport terjadi saat NetInfo masih online', async () => {
+      // IOException OkHttp (mis. "Unable to resolve host") tidak mengubah NetInfo.
+      mockIsOnline.mockResolvedValue(true as never);
       mockUploadFile.mockRejectedValue(new Error('Network request failed'));
 
       await kirimKegiatan();
@@ -441,7 +448,24 @@ describe('useApiMutation', () => {
       );
     });
 
-    it('memasukkan ke antrean bila sinyal hilang saat kirim setelah foto terunggah', async () => {
+    it('memasukkan ke antrean bila respons server gagal lalu NetInfo sudah offline', async () => {
+      mockIsOnline.mockResolvedValueOnce(true as never).mockResolvedValueOnce(false as never);
+      mockUploadFile.mockRejectedValue(new Error('Upload failed with status 502: Bad Gateway'));
+
+      await kirimKegiatan();
+
+      expect(mockRequest).not.toHaveBeenCalled();
+      expect(mockAddToQueue).toHaveBeenCalledWith(
+        ENDPOINT_KEGIATAN,
+        'POST',
+        { jenis: 'KUNJUNGAN' },
+        META_ANTREAN_KEGIATAN,
+      );
+    });
+
+    it('mengantre dengan URL hasil unggah bila POST gagal jaringan setelah foto terunggah', async () => {
+      // SyncService hanya mengunggah URI file:// (SyncService.ts:321), jadi URL
+      // di meta.photos dipakai langsung tanpa unggah ulang.
       const { AxiosError } = require('axios');
       mockIsOnline.mockResolvedValue(true as never);
       mockRequest.mockRejectedValue(new AxiosError('Network Error', 'ERR_NETWORK'));
@@ -452,8 +476,24 @@ describe('useApiMutation', () => {
         ENDPOINT_KEGIATAN,
         'POST',
         { jenis: 'KUNJUNGAN', fotoUrls: ['https://cdn.test/a.jpg', 'https://cdn.test/b.jpg'] },
-        META_ANTREAN_KEGIATAN,
+        { ...META_ANTREAN_KEGIATAN, photos: ['https://cdn.test/a.jpg', 'https://cdn.test/b.jpg'] },
       );
+      expect(mockPersist).not.toHaveBeenCalled();
+    });
+
+    it('melempar, bukan mengantre, bila berkas foto lokal sudah hilang', async () => {
+      // Berkas yang hilang tidak akan pernah terkirim dari antrean; lebih baik
+      // pengguna diminta memotret ulang selagi masih di lokasi.
+      mockIsOnline.mockResolvedValue(true as never);
+      mockUploadFile.mockRejectedValue(new Error('File does not exist'));
+      mockIsBerkasAda.mockImplementation(async (uri) => uri !== 'file:///cache/b.jpg');
+
+      const { galat } = await kirimKegiatan();
+
+      const { PESAN_FOTO_LOKAL_HILANG } = require('@/utils/fotoMutasi');
+      expect(galat).toEqual(new Error(PESAN_FOTO_LOKAL_HILANG));
+      expect(mockAddToQueue).not.toHaveBeenCalled();
+      expect(mockRequest).not.toHaveBeenCalled();
     });
 
     it('melempar kegagalan unggah biasa saat masih online', async () => {

@@ -71,6 +71,12 @@ function isUnauthorizedUploadError(error: unknown): boolean {
 /** Nama galat habis waktu unggah; pemanggil memakainya untuk memutuskan antre. */
 export const NAMA_GALAT_UNGGAH_HABIS_WAKTU = 'UploadTimeoutError';
 
+/** Awalan pesan galat bila server menjawab dengan status non-2xx. */
+export const AWALAN_GALAT_STATUS_UNGGAH = 'Upload failed with status';
+
+/** Pesan galat bila server menjawab 2xx tanpa `url`. */
+export const PESAN_RESPONS_UNGGAH_TIDAK_SAH = 'Invalid response from upload server';
+
 class UploadTimeoutError extends Error {
   constructor(reason: 'hard' | 'no-progress') {
     super(
@@ -209,9 +215,9 @@ class UploadService {
             logger.info(`[UploadService] Success: ${data.url}`);
             return data.url;
           }
-          throw new Error('Invalid response from upload server');
+          throw new Error(PESAN_RESPONS_UNGGAH_TIDAK_SAH);
         } else {
-          throw new Error(`Upload failed with status ${responseStatus}: ${responseBody}`);
+          throw new Error(`${AWALAN_GALAT_STATUS_UNGGAH} ${responseStatus}: ${responseBody}`);
         }
 
       } catch (error) {
@@ -392,7 +398,7 @@ class UploadService {
              return responseBody;
           }
         } else {
-          throw new Error(`Upload failed with status ${responseStatus}: ${responseBody}`);
+          throw new Error(`${AWALAN_GALAT_STATUS_UNGGAH} ${responseStatus}: ${responseBody}`);
         }
 
       } catch (error) {

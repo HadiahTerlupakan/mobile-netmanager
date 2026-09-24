@@ -45,6 +45,10 @@ const mockDb = {
   }),
   getAllAsync: jest.fn((query, params) => {
     if (query.includes('SELECT * FROM')) {
+      // Tanpa filter status (mis. getAllQueueItems) → semua baris.
+      if (!query.includes('WHERE status IN')) {
+        return Promise.resolve([...rows]);
+      }
       // Return pending/retry rows sorted by createdAt
       const filtered = rows.filter(r => r.status === 'PENDING' || r.status === 'RETRY');
       return Promise.resolve(filtered);

@@ -133,6 +133,33 @@ describe('DatabaseService', () => {
       }
     });
 
+    it('getAllQueueItems mengembalikan item semua status, termasuk FAILED', async () => {
+      mockStorage.getItem.mockReturnValue(null);
+      await DatabaseService.initDatabase();
+      await DatabaseService.addToQueue('/api/tunda', 'POST', {}, { photos: ['file:///x/tunda.jpg'] });
+      await DatabaseService.addToQueue('/api/gagal', 'POST', {}, { photos: ['file:///x/gagal.jpg'] });
+      const gagal = (await DatabaseService.getPendingQueue()).find((i: any) => i.url === '/api/gagal');
+      await DatabaseService.markAsFailed(gagal.id, 'Retry budget exceeded');
+
+      const semua = await DatabaseService.getAllQueueItems();
+
+      expect(semua.map((i: any) => [i.url, i.status]).sort()).toEqual([
+        ['/api/gagal', 'FAILED'],
+        ['/api/tunda', 'PENDING'],
+      ]);
+      expect((await DatabaseService.getPendingQueue()).map((i: any) => i.url)).toEqual(['/api/tunda']);
+    });
+
+    it('getAllQueueItems melempar bila database gagal dibuka, bukan mengembalikan []', async () => {
+      // [] akan dibaca sweep sebagai "tak ada foto yang dirujuk" → semua terhapus.
+      const sqlite = require('expo-sqlite');
+      sqlite.openDatabaseAsync.mockImplementationOnce(() => Promise.reject(new Error('disk penuh')));
+      mockStorage.getItem.mockReturnValue(null);
+      await DatabaseService.initDatabase();
+
+      await expect(DatabaseService.getAllQueueItems()).rejects.toThrow('Database antrean tidak tersedia');
+    });
+
     it('should clear session queue and offline cache keys', async () => {
       mockStorage.getItem.mockImplementation((key) => {
         const storageKey = String(key);

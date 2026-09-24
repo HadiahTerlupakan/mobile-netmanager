@@ -23,7 +23,9 @@ import {
 import { extractApiErrorMessage } from "@/utils/errorHandling";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import {
-  isUnggahHabisWaktu,
+  adaFotoLokalHilang,
+  isGagalUnggahLayakAntre,
+  PESAN_FOTO_LOKAL_HILANG,
   salinFotoMetaUntukAntrean,
   unggahFotoMeta,
   unggahFotoTanpaUlang,
@@ -41,7 +43,11 @@ import * as Location from "expo-location";
 
 type HttpMethod = "POST" | "PUT" | "PATCH" | "DELETE";
 
-/** Pesan galat internal yang membelokkan mutasi ke antrean offline. */
+/**
+ * Pesan galat internal yang membelokkan mutasi ke antrean offline. Dicocokkan
+ * lewat `message`, jadi galat lain yang kebetulan berpesan persis "Offline"
+ * juga diantre (perilaku lama, dipertahankan).
+ */
 const OFFLINE_ERROR_MESSAGE = "Offline";
 
 export interface MutationMeta {
@@ -175,21 +181,24 @@ async function uploadFile(
 }
 
 /**
- * Unggah `meta.photos` di jalur online. Habis waktu, atau galat saat NetInfo
- * sudah offline, menjadi galat offline supaya mutasi diantre dengan salinan
- * foto. Galat lain (mis. 413) diteruskan; pemanggil masih memegang isian form.
+ * Unggah `meta.photos` di jalur online; kembalikan URL-nya (atau `null`).
+ * Galat yang layak antre (`isGagalUnggahLayakAntre`) menjadi galat offline
+ * supaya mutasi diantre dengan salinan foto — kecuali berkas lokalnya sudah
+ * hilang: antrean tak akan pernah bisa mengirimnya, jadi pengguna diminta
+ * memotret ulang. Galat respons server selagi online (mis. 413) diteruskan;
+ * pemanggil masih memegang isian form. `watermarkLines` tidak diteruskan di
+ * jalur ini (tidak ada pemanggil `meta.photos` yang mengisinya).
  */
 async function unggahFotoMetaAtauAntre(
   meta: MutationMeta | undefined,
   payload: Record<string, unknown>,
-): Promise<void> {
+): Promise<string[] | null> {
   try {
-    await unggahFotoMeta(meta, payload, unggahFotoTanpaUlang);
+    return await unggahFotoMeta(meta, payload, unggahFotoTanpaUlang);
   } catch (error) {
-    if (isUnggahHabisWaktu(error) || !(await SyncService.isOnline())) {
-      throw new Error(OFFLINE_ERROR_MESSAGE);
-    }
-    throw error;
+    if (!(await isGagalUnggahLayakAntre(error, SyncService.isOnline))) throw error;
+    if (await adaFotoLokalHilang(meta)) throw new Error(PESAN_FOTO_LOKAL_HILANG);
+    throw new Error(OFFLINE_ERROR_MESSAGE);
   }
 }
 
@@ -240,6 +249,7 @@ export function useApiMutation<
           ? ensureAttendanceRequestId({ ...variables })
           : { ...variables };
       const requestId = typeof payload.requestId === "string" ? payload.requestId : undefined;
+      let urlFotoTerunggah: string[] | null = null;
 
       if (attendanceMutation) {
         AttendanceTelemetryService.track("attendance_submit_started", {
@@ -266,7 +276,7 @@ export function useApiMutation<
         }
 
         // Setelah cek online: saat offline, unggahan hanya menunda antrean.
-        await unggahFotoMetaAtauAntre(variables.meta, payload);
+        urlFotoTerunggah = await unggahFotoMetaAtauAntre(variables.meta, payload);
 
         // Make API request with updated payload.
         // skipErrorToast=true → axios interceptor tidak emit toast; biarkan
@@ -305,10 +315,13 @@ export function useApiMutation<
             `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${resolvedEndpoint}`,
           );
 
-          const queueMeta = await salinFotoMetaUntukAntrean({
-            ...((variables.meta as Record<string, unknown>) || {}),
-            ...(requestId ? { requestId } : {}),
-          });
+          const queueMeta = await salinFotoMetaUntukAntrean(
+            {
+              ...((variables.meta as Record<string, unknown>) || {}),
+              ...(requestId ? { requestId } : {}),
+            },
+            urlFotoTerunggah,
+          );
 
           // Add to offline queue
           await DatabaseService.addToQueue(
