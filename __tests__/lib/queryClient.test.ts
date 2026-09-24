@@ -127,8 +127,43 @@ describe('queryKeys.attendance other scopes', () => {
 // `QueryCache.onError` benar-benar meredam status yang tercantum di meta,
 // dan TETAP menampilkan toast untuk status yang tidak tercantum.
 describe('queryClient toast peredam per query (meta.silentToastStatuses)', () => {
+  beforeEach(() => {
+    mockShowToast.mockClear();
+  });
+
   afterAll(() => {
     queryClient.clear();
+  });
+
+  // Review akhir M1: mutan yang membisukan toast untuk SEMUA query tanpa
+  // `meta` (WO, absensi, barang) sebelumnya lolos seluruh suite.
+  it('regresi: query lama TANPA meta tetap menampilkan toast galat', async () => {
+    const galat500 = { isAxiosError: true, response: { status: 500 } };
+
+    await expect(
+      queryClient.fetchQuery({
+        queryKey: ['uji-toast', 'tanpa-meta'],
+        queryFn: () => Promise.reject(galat500),
+        retry: false,
+      })
+    ).rejects.toBe(galat500);
+
+    expect(mockShowToast).toHaveBeenCalledWith('error', 'Gagal Memuat Data', 'Unknown query error');
+  });
+
+  it('regresi: galat jaringan (tanpa response) tetap bertoast walau meta meredam 403', async () => {
+    const galatJaringan = { isAxiosError: true, message: 'Network Error', response: undefined };
+
+    await expect(
+      queryClient.fetchQuery({
+        queryKey: ['uji-toast', 'jaringan-dengan-meta'],
+        queryFn: () => Promise.reject(galatJaringan),
+        retry: false,
+        meta: { silentToastStatuses: [403] },
+      })
+    ).rejects.toBe(galatJaringan);
+
+    expect(mockShowToast).toHaveBeenCalledWith('error', 'Gagal Memuat Data', expect.any(String));
   });
 
   it('meredam toast saat status galat tercantum di meta.silentToastStatuses', async () => {
