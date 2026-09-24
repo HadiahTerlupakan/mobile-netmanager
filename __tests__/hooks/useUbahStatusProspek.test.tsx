@@ -9,11 +9,14 @@ jest.mock('@/services/PresurveiService', () => ({
 }));
 const mockSukses = jest.fn();
 const mockGalat = jest.fn();
+const mockPesanGalat = jest.fn();
 jest.mock('@/utils/errorPresenter', () => ({
   presentSuccessMessage: (...a: unknown[]) => mockSukses(...a),
   presentAppError: (...a: unknown[]) => mockGalat(...a),
+  presentErrorMessage: (...a: unknown[]) => mockPesanGalat(...a),
 }));
 
+import { queryKeys } from '@/lib/queryClient';
 import { useUbahStatusProspek } from '@/hooks/presurvei/useUbahStatusProspek';
 
 const bungkus = (client: QueryClient) =>
@@ -38,7 +41,33 @@ describe('useUbahStatusProspek', () => {
     client.clear();
   });
 
-  it('menampilkan galat server dan tidak menyegarkan apa pun', async () => {
+  // RULING fix round Task 15 (#1): 409 `INVALID_STATE` berarti status
+  // sudah berubah di server (netmanager `ProspekService.ts:170`,
+  // `AppError(..., 409, 'INVALID_STATE')`). Rincian (`prospekDetail`) HARUS
+  // dimuat ulang secara tersasar — bukan seluruh `presurvei.all` — supaya
+  // layar tidak terus menampilkan status basi (staleTime 5 menit) dan sales
+  // tidak terus mencoba transisi yang sudah tidak sah.
+  it('409 INVALID_STATE memuat ulang rincian prospek dan memberi tahu sales', async () => {
+    const galat = { isAxiosError: true, response: { status: 409, data: { code: 'INVALID_STATE' } } };
+    mockUbahStatus.mockRejectedValue(galat);
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const invalidasi = jest.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useUbahStatusProspek('p-1'), { wrapper: bungkus(client) });
+
+    await act(async () => {
+      await result.current.mutateAsync('DEAL').catch(() => undefined);
+    });
+
+    expect(invalidasi).toHaveBeenCalledWith({
+      queryKey: queryKeys.presurvei.prospekDetail('p-1'),
+      exact: true,
+    });
+    expect(mockPesanGalat).toHaveBeenCalledWith(expect.stringMatching(/berubah/i), expect.any(String));
+    expect(mockGalat).not.toHaveBeenCalled();
+    client.clear();
+  });
+
+  it('galat lain (bukan INVALID_STATE) menampilkan galat generik dan tidak memuat ulang apa pun', async () => {
     const galat = { isAxiosError: true, response: { status: 409 } };
     mockUbahStatus.mockRejectedValue(galat);
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
@@ -50,6 +79,7 @@ describe('useUbahStatusProspek', () => {
     });
 
     expect(mockGalat).toHaveBeenCalledWith(galat, expect.objectContaining({ screen: 'RincianProspek' }));
+    expect(mockPesanGalat).not.toHaveBeenCalled();
     expect(invalidasi).not.toHaveBeenCalled();
     client.clear();
   });
