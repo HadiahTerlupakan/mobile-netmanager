@@ -16,6 +16,18 @@ export const KODE_IDEMPOTENSI_SEDANG_DIPROSES = 'IDEMPOTENCY_IN_PROGRESS';
  */
 export const KODE_IDEMPOTENSI_KUNCI_DIPAKAI_ULANG = 'IDEMPOTENCY_KEY_REUSED';
 
+/**
+ * Kode galat backend untuk 409 "transisi/status tidak sah": resource sudah
+ * berubah di server sejak klien membaca datanya (netmanager
+ * `ProspekService.ts:170`, dipakai `useUbahStatusProspek` DAN
+ * `useJadikanCanvasing` saat prospek sudah pernah dikonversi pihak lain).
+ * Family beda dari dua kode idempotensi di atas (itu soal kunci request,
+ * ini soal state bisnis), tapi bentuk deteksinya sama (409 + `data.code`) —
+ * dikumpulkan di sini satu sumber, bukan diduplikasi per hook (fix round 1
+ * Task 16).
+ */
+export const KODE_STATUS_TIDAK_SAH = 'INVALID_STATE';
+
 const HTTP_CONFLICT = 409;
 
 /** Kode galat pada balasan 409, atau null bila galat bukan 409 dari server. */
@@ -41,4 +53,12 @@ export function isGalatIdempotensiSedangDiproses(error: unknown): boolean {
  */
 export function isGalatIdempotensiKunciDipakaiUlang(error: unknown): boolean {
   return kodeGalatKonflik(error) === KODE_IDEMPOTENSI_KUNCI_DIPAKAI_ULANG;
+}
+
+/**
+ * Apakah galat berarti transisi/status resource sudah tidak sah karena
+ * sudah berubah di server sejak klien membaca datanya (409 `INVALID_STATE`).
+ */
+export function isGalatStatusTidakSah(error: unknown): boolean {
+  return kodeGalatKonflik(error) === KODE_STATUS_TIDAK_SAH;
 }

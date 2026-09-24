@@ -25,6 +25,8 @@ import {
   jalankanKonversi,
   KonversiSetengahJalanError,
   PESAN_SETENGAH_JALAN,
+  PESAN_SUDAH_DIKONVERSI,
+  unggahDenganCacheKtp,
   useJadikanCanvasing,
   type DependensiKonversi,
 } from '@/hooks/presurvei/useJadikanCanvasing';
@@ -94,6 +96,34 @@ describe('jalankanKonversi', () => {
       jalankanKonversi({ prospekId: 'p-1', statusAsal: 'NEGOSIASI', nilai: NILAI, fotoKtpLokal: 'file:///k.jpg' }, d),
     ).rejects.toThrow('Network request failed');
     expect(d.ubahStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe('unggahDenganCacheKtp', () => {
+  it('URI lokal yang sama tidak diunggah ulang', async () => {
+    const unggahAsli = jest.fn<DependensiKonversi['unggah']>(async () => 'https://cdn.test/ktp.webp');
+    const cache: { current: { uri: string; url: string } | null } = { current: null };
+    const unggah = unggahDenganCacheKtp(unggahAsli, cache);
+
+    const pertama = await unggah('file:///ktp.jpg', 'marketing');
+    const kedua = await unggah('file:///ktp.jpg', 'marketing');
+
+    expect(pertama).toBe('https://cdn.test/ktp.webp');
+    expect(kedua).toBe('https://cdn.test/ktp.webp');
+    expect(unggahAsli).toHaveBeenCalledTimes(1);
+  });
+
+  it('URI lokal yang berbeda diunggah ulang', async () => {
+    const unggahAsli = jest.fn<DependensiKonversi['unggah']>(
+      async (uri) => `https://cdn.test/${uri.split('/').pop()}`,
+    );
+    const cache: { current: { uri: string; url: string } | null } = { current: null };
+    const unggah = unggahDenganCacheKtp(unggahAsli, cache);
+
+    await unggah('file:///ktp-1.jpg', 'marketing');
+    await unggah('file:///ktp-2.jpg', 'marketing');
+
+    expect(unggahAsli).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -167,6 +197,107 @@ describe('useJadikanCanvasing', () => {
     });
 
     expect(mockJadikan).toHaveBeenCalledTimes(1);
+    client.clear();
+  });
+
+  it('POST gagal lalu dicoba lagi dengan foto yang sama tidak mengunggah ulang', async () => {
+    mockUpload.mockResolvedValue('https://cdn.test/ktp.webp');
+    mockJadikan
+      .mockRejectedValueOnce({ isAxiosError: true, response: { status: 500 } })
+      .mockResolvedValueOnce({ prospek: {} as never, canvasingId: 'cv-1' });
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useJadikanCanvasing(jest.fn()), { wrapper });
+    const masukan = { prospekId: 'p-1', statusAsal: 'DEAL' as const, nilai: NILAI, fotoKtpLokal: 'file:///k.jpg' };
+
+    await act(async () => {
+      await result.current.mutateAsync(masukan).catch(() => undefined);
+      await tungguNotifikasiBatch();
+    });
+    await act(async () => {
+      await result.current.mutateAsync(masukan);
+      await tungguNotifikasiBatch();
+    });
+
+    expect(mockUpload).toHaveBeenCalledTimes(1);
+    expect(mockJadikan).toHaveBeenNthCalledWith(1, 'p-1', expect.objectContaining({ fotoKtp: 'https://cdn.test/ktp.webp' }));
+    expect(mockJadikan).toHaveBeenNthCalledWith(2, 'p-1', expect.objectContaining({ fotoKtp: 'https://cdn.test/ktp.webp' }));
+    client.clear();
+  });
+
+  it('foto diganti sebelum dicoba lagi tetap diunggah ulang', async () => {
+    mockUpload
+      .mockResolvedValueOnce('https://cdn.test/lama.webp')
+      .mockResolvedValueOnce('https://cdn.test/baru.webp');
+    mockJadikan
+      .mockRejectedValueOnce({ isAxiosError: true, response: { status: 500 } })
+      .mockResolvedValueOnce({ prospek: {} as never, canvasingId: 'cv-1' });
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useJadikanCanvasing(jest.fn()), { wrapper });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({ prospekId: 'p-1', statusAsal: 'DEAL', nilai: NILAI, fotoKtpLokal: 'file:///lama.jpg' })
+        .catch(() => undefined);
+      await tungguNotifikasiBatch();
+    });
+    await act(async () => {
+      await result.current.mutateAsync({ prospekId: 'p-1', statusAsal: 'DEAL', nilai: NILAI, fotoKtpLokal: 'file:///baru.jpg' });
+      await tungguNotifikasiBatch();
+    });
+
+    expect(mockUpload).toHaveBeenCalledTimes(2);
+    expect(mockJadikan).toHaveBeenNthCalledWith(2, 'p-1', expect.objectContaining({ fotoKtp: 'https://cdn.test/baru.webp' }));
+    client.clear();
+  });
+
+  it('409 INVALID_STATE saat statusAsal sudah Deal berarti sudah dikonversi: muat ulang rincian dan kembali', async () => {
+    mockUpload.mockResolvedValue('https://cdn.test/ktp.webp');
+    mockJadikan.mockRejectedValue({ isAxiosError: true, response: { status: 409, data: { code: 'INVALID_STATE' } } });
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
+    const invalidasi = jest.spyOn(client, 'invalidateQueries');
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const kembaliKeRincian = jest.fn();
+    const { result } = renderHook(() => useJadikanCanvasing(kembaliKeRincian), { wrapper });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({ prospekId: 'p-1', statusAsal: 'DEAL', nilai: NILAI, fotoKtpLokal: 'file:///k.jpg' })
+        .catch(() => undefined);
+      await tungguNotifikasiBatch();
+    });
+
+    expect(invalidasi).toHaveBeenCalledWith({
+      queryKey: ['presurvei', 'prospek', 'detail', 'p-1'],
+      exact: true,
+    });
+    expect(mockPesanGagal).toHaveBeenCalledWith(PESAN_SUDAH_DIKONVERSI, 'Sudah Dikonversi');
+    expect(kembaliKeRincian).toHaveBeenCalledTimes(1);
+    client.clear();
+  });
+
+  it('409 lain (bukan INVALID_STATE) pada statusAsal Deal tetap galat umum, bukan "sudah dikonversi"', async () => {
+    mockUpload.mockResolvedValue('https://cdn.test/ktp.webp');
+    mockJadikan.mockRejectedValue({ isAxiosError: true, response: { status: 409, data: { code: 'LAIN' } } });
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
+    const invalidasi = jest.spyOn(client, 'invalidateQueries');
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const kembaliKeRincian = jest.fn();
+    const { result } = renderHook(() => useJadikanCanvasing(kembaliKeRincian), { wrapper });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({ prospekId: 'p-1', statusAsal: 'DEAL', nilai: NILAI, fotoKtpLokal: 'file:///k.jpg' })
+        .catch(() => undefined);
+      await tungguNotifikasiBatch();
+    });
+
+    expect(mockPesanGagal).not.toHaveBeenCalled();
+    expect(invalidasi).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['presurvei', 'prospek', 'detail', 'p-1'] }),
+    );
+    expect(kembaliKeRincian).not.toHaveBeenCalled();
     client.clear();
   });
 });
