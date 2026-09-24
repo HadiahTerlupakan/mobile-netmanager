@@ -129,11 +129,12 @@ describe('useUbahStatusProspek', () => {
 
   it('tidak mengulang otomatis saat gagal (retry mati)', async () => {
     mockUbahStatus.mockRejectedValue({ isAxiosError: true, response: { status: 500 } });
-    // Client TANPA override retry: false — membuktikan hook sendiri yang mematikan retry,
-    // bukan konfigurasi test. Produksi memakai `mutations.retry: 1` (queryClient.ts), yang
-    // tanpa `retry: false` eksplisit akan mengirim ulang PATCH dan bisa menampilkan 409
-    // "setengah jalan" untuk transisi yang sudah tidak sah (preflight P47).
-    const client = new QueryClient({ defaultOptions: { mutations: { gcTime: 0 } } });
+    // Client MENIRU default produksi `mutations.retry: 1` (queryClient.ts) — tanpa
+    // `retry: false` eksplisit di hook, PATCH dikirim ulang dan bisa menampilkan 409
+    // "setengah jalan" untuk transisi yang sudah tidak sah (preflight P47). Client
+    // tanpa `retry` memakai default TanStack `retry: 0` sehingga test tidak bergigi
+    // (review akhir M3).
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: 1, retryDelay: 0, gcTime: 0 } } });
     const { result } = renderHook(() => useUbahStatusProspek('p-1'), { wrapper: bungkus(client) });
 
     await act(async () => {
