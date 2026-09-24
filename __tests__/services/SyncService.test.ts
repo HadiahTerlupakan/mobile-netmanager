@@ -34,6 +34,12 @@ const mockDatabaseMarkAsFailed = jest
   .fn<(id: number, reason: string) => Promise<void>>()
   .mockResolvedValue(undefined);
 const mockDatabaseClearSessionData = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+const mockDatabaseTandaiUlangTanpaBiaya = jest.fn<(id: number) => Promise<void>>().mockResolvedValue(undefined);
+const mockDatabasePerbaruiMeta = jest
+  .fn<(id: number, meta: Record<string, unknown>) => Promise<void>>()
+  .mockResolvedValue(undefined);
+const mockPresentErrorMessage = jest.fn();
+const mockPresentInfoMessage = jest.fn();
 type AppStateListener = (state: string) => void;
 
 jest.mock('@react-native-community/netinfo', () => ({
@@ -86,7 +92,14 @@ jest.mock('@/services/DatabaseService', () => ({
     markAsRetry: mockDatabaseMarkAsRetry,
     markAsFailed: mockDatabaseMarkAsFailed,
     clearSessionData: mockDatabaseClearSessionData,
+    tandaiUlangTanpaBiaya: mockDatabaseTandaiUlangTanpaBiaya,
+    perbaruiMetaAntrean: mockDatabasePerbaruiMeta,
   }
+}));
+
+jest.mock('@/utils/errorPresenter', () => ({
+  presentErrorMessage: (...args: unknown[]) => mockPresentErrorMessage(...args),
+  presentInfoMessage: (...args: unknown[]) => mockPresentInfoMessage(...args),
 }));
 
 const { DatabaseService } = require('@/services/DatabaseService') as DatabaseServiceModule;
@@ -526,25 +539,58 @@ describe('SyncService', () => {
         response: { status: 409, data: { success: false, error: 'Galat idempotensi', code } },
       });
 
-    it('409 IDEMPOTENCY_IN_PROGRESS: item tetap di antrean (markAsRetry), bukan dibuang', async () => {
+    it('409 IDEMPOTENCY_IN_PROGRESS: item tetap di antrean tanpa memakan jatah, drain dijadwalkan ulang (review akhir I3)', async () => {
       tolak409('IDEMPOTENCY_IN_PROGRESS');
+      const jadwal = jest.spyOn(SyncService, 'scheduleQueueDrain').mockImplementation(() => undefined);
 
       await SyncService.processQueueItem(itemKegiatan(21), 'test-token');
 
-      expect(DatabaseService.markAsRetry).toHaveBeenCalledWith(21);
+      expect(mockDatabaseTandaiUlangTanpaBiaya).toHaveBeenCalledWith(21);
+      expect(jadwal).toHaveBeenCalledWith(30_000);
+      jadwal.mockRestore();
+      expect(DatabaseService.markAsRetry).not.toHaveBeenCalled();
       expect(DatabaseService.removeFromQueue).not.toHaveBeenCalled();
       expect(mockApiRequest).toHaveBeenCalledWith(
         expect.objectContaining({ headers: expect.objectContaining({ 'Idempotency-Key': 'presurvei-uuid-11c' }) }),
       );
     });
 
-    it('regresi: 409 IDEMPOTENCY_KEY_REUSED tetap permanen, item dibuang', async () => {
+    it('409 IDEMPOTENCY_KEY_REUSED pada replay POST ber-requestId: sudah tercatat, bukan "Data dibatalkan" (review akhir I2)', async () => {
       tolak409('IDEMPOTENCY_KEY_REUSED');
 
       await SyncService.processQueueItem(itemKegiatan(22), 'test-token');
 
       expect(DatabaseService.removeFromQueue).toHaveBeenCalledWith(22);
       expect(DatabaseService.markAsRetry).not.toHaveBeenCalled();
+      expect(mockPresentErrorMessage).not.toHaveBeenCalled();
+      expect(mockPresentInfoMessage).toHaveBeenCalledWith('Data offline sudah tercatat sebelumnya.');
+    });
+
+    it('regresi: 409 IDEMPOTENCY_KEY_REUSED tanpa requestId tetap "Data dibatalkan"', async () => {
+      tolak409('IDEMPOTENCY_KEY_REUSED');
+      const item = { ...itemKegiatan(24), body: JSON.stringify({ jenis: 'TELEPON' }), meta: '{}' };
+
+      await SyncService.processQueueItem(item, 'test-token');
+
+      expect(DatabaseService.removeFromQueue).toHaveBeenCalledWith(24);
+      expect(mockPresentErrorMessage).toHaveBeenCalledWith(
+        'Data dibatalkan: Galat idempotensi',
+        'Gagal Sinkronisasi Data',
+      );
+      expect(mockPresentInfoMessage).not.toHaveBeenCalled();
+    });
+
+    it('regresi: 409 IDEMPOTENCY_KEY_REUSED pada PATCH tetap "Data dibatalkan"', async () => {
+      tolak409('IDEMPOTENCY_KEY_REUSED');
+
+      await SyncService.processQueueItem({ ...itemKegiatan(25), method: 'PATCH' }, 'test-token');
+
+      expect(DatabaseService.removeFromQueue).toHaveBeenCalledWith(25);
+      expect(mockPresentErrorMessage).toHaveBeenCalledWith(
+        'Data dibatalkan: Galat idempotensi',
+        'Gagal Sinkronisasi Data',
+      );
+      expect(mockPresentInfoMessage).not.toHaveBeenCalled();
     });
 
     it('regresi: 409 biasa (BUSINESS_LOGIC_ERROR) tetap permanen, item dibuang', async () => {

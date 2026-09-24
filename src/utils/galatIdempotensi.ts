@@ -30,6 +30,13 @@ export const KODE_STATUS_TIDAK_SAH = 'INVALID_STATE';
 
 const HTTP_CONFLICT = 409;
 
+/**
+ * Jeda sebelum mengulang permintaan yang dibalas 409 `IDEMPOTENCY_IN_PROGRESS`.
+ * Sama dengan header `Retry-After` server (netmanager
+ * `lib/api/idempotency-route-helpers.ts` `IDEMPOTENCY_RETRY_AFTER_SECONDS = 30`).
+ */
+export const JEDA_ULANG_SEDANG_DIPROSES_MS = 30_000;
+
 /** Kode galat pada balasan 409, atau null bila galat bukan 409 dari server. */
 function kodeGalatKonflik(error: unknown): unknown {
   if (!isAxiosError(error) || !error.response) return null;

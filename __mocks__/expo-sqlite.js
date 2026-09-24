@@ -29,8 +29,18 @@ const mockDb = {
       const row = rows.find(r => r.id === id);
       if (row) {
         row.status = 'RETRY';
-        row.retryCount = (row.retryCount || 0) + 1;
+        // Hanya markAsRetry yang memakan jatah; tandaiUlangTanpaBiaya tidak.
+        if (query.includes('retryCount = retryCount + 1')) {
+          row.retryCount = (row.retryCount || 0) + 1;
+        }
         row.terminalReason = null;
+      }
+    }
+    else if (query.includes('SET meta = ?')) {
+      const [meta, id] = params || [];
+      const row = rows.find(r => r.id === id);
+      if (row) {
+        row.meta = meta;
       }
     }
     else if (query.includes("status = 'FAILED'")) {

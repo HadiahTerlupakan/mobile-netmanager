@@ -116,6 +116,37 @@ describe('DatabaseService', () => {
       }
     });
 
+    it('tandaiUlangTanpaBiaya: status RETRY tanpa menaikkan retryCount (409 in-progress, review akhir I3)', async () => {
+      mockStorage.getItem.mockReturnValue(null);
+      await DatabaseService.initDatabase();
+      await DatabaseService.addToQueue('/api/presurvei/kegiatan', 'POST', {});
+      const item = (await DatabaseService.getPendingQueue())[0];
+      await DatabaseService.markAsRetry(item.id);
+
+      await DatabaseService.tandaiUlangTanpaBiaya(item.id);
+
+      const [diperbarui] = await DatabaseService.getPendingQueue();
+      expect(diperbarui).toEqual(expect.objectContaining({ id: item.id, status: 'RETRY', retryCount: 1 }));
+    });
+
+    it('perbaruiMetaAntrean: mengganti meta item saja, badan dan status tetap (review akhir I2)', async () => {
+      mockStorage.getItem.mockReturnValue(null);
+      await DatabaseService.initDatabase();
+      await DatabaseService.addToQueue('/api/presurvei/kegiatan', 'POST', { jenis: 'KUNJUNGAN' }, { photos: ['file:///x/a.jpg'] });
+      const item = (await DatabaseService.getPendingQueue())[0];
+      const metaBaru = Object.freeze({ photos: ['file:///x/a.jpg'], urlFotoTerunggah: ['https://cdn.test/a.jpg'] });
+
+      await DatabaseService.perbaruiMetaAntrean(item.id, metaBaru);
+
+      const [diperbarui] = await DatabaseService.getPendingQueue();
+      expect(JSON.parse(diperbarui.meta)).toEqual({
+        photos: ['file:///x/a.jpg'],
+        urlFotoTerunggah: ['https://cdn.test/a.jpg'],
+      });
+      expect(diperbarui.body).toBe('{"jenis":"KUNJUNGAN"}');
+      expect(diperbarui.status).toBe('PENDING');
+    });
+
     it('should mark item as failed with terminal reason', async () => {
       mockStorage.getItem.mockReturnValue(null);
       await DatabaseService.initDatabase();

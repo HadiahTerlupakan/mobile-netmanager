@@ -4,7 +4,7 @@ import pLimit from 'p-limit';
 import { AppState, DeviceEventEmitter } from 'react-native';
 import { DatabaseService, SyncQueueItem } from './DatabaseService';
 import * as SecureStore from 'expo-secure-store'; // Ensure SyncQueueItem is exported
-import { presentErrorMessage } from '@/utils/errorPresenter';
+import { presentErrorMessage, presentInfoMessage } from '@/utils/errorPresenter';
 import { logger } from '../utils/logger';
 import { uploadService, UploadType } from './UploadService';
 import { eventManager } from '@/utils/EventManager';
@@ -14,7 +14,11 @@ import api from './api';
 import { extractApiErrorMessage } from '@/utils/errorHandling';
 import { cleanupOfflinePhotos } from '@/utils/persistPhoto';
 import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
-import { isGalatIdempotensiSedangDiproses } from '@/utils/galatIdempotensi';
+import {
+  isGalatIdempotensiKunciDipakaiUlang,
+  isGalatIdempotensiSedangDiproses,
+  JEDA_ULANG_SEDANG_DIPROSES_MS,
+} from '@/utils/galatIdempotensi';
 import { TelemetryService } from './TelemetryService';
 import { RefreshTokenService } from './RefreshTokenService';
 import {
@@ -53,6 +57,62 @@ type SyncQueueMeta = {
     singleFile?: boolean;
     photoMap?: Record<string, string>;
     requestId?: string;
+    /**
+     * URL server untuk `photos` (urutan sama), disimpan ke antrean begitu semua
+     * foto terunggah. `photos` sendiri tetap URI lokal supaya salinannya baru
+     * dibersihkan setelah item selesai dan tetap dilindungi dari sweep.
+     * Item lama tanpa medan ini diproses seperti sebelumnya.
+     */
+    urlFotoTerunggah?: string[];
+    /** URL server per medan `photoMap` yang sudah terunggah (lihat `urlFotoTerunggah`). */
+    urlPetaFotoTerunggah?: Record<string, string>;
+};
+
+/** Pesan saat replay ditolak 409 `IDEMPOTENCY_KEY_REUSED`: upaya sebelumnya sudah diterima server. */
+const PESAN_SUDAH_TERCATAT = 'Data offline sudah tercatat sebelumnya.';
+
+const isUriLokal = (uri: string): boolean => uri.startsWith('file://');
+
+/**
+ * URL tersimpan untuk `meta.photos`, hanya bila lengkap (satu URL per foto).
+ * Selain itu `null`: foto diproses seperti item lama.
+ */
+const ambilUrlFotoTersimpan = (meta: SyncQueueMeta): string[] | null => {
+    const { photos, urlFotoTerunggah } = meta;
+    if (!Array.isArray(photos) || !Array.isArray(urlFotoTerunggah)) return null;
+    if (urlFotoTerunggah.length !== photos.length) return null;
+    return urlFotoTerunggah.every((url) => typeof url === 'string' && url.length > 0) ? urlFotoTerunggah : null;
+};
+
+/**
+ * Simpan meta berisi URL foto terunggah ke antrean. Gagal simpan tidak
+ * menggagalkan item: cache di memori tetap berlaku untuk batch ini.
+ */
+const simpanUrlFotoKeAntrean = async (id: number, meta: SyncQueueMeta): Promise<void> => {
+    try {
+        await DatabaseService.perbaruiMetaAntrean(id, meta);
+    } catch (error) {
+        logger.warn(`[SyncService] URL foto item ${id} gagal disimpan ke antrean:`, error);
+    }
+};
+
+/**
+ * Replay POST ber-`requestId` yang ditolak 409 `IDEMPOTENCY_KEY_REUSED`.
+ * Badan antrean hanya bisa berubah lewat URL foto hasil unggah ulang, jadi
+ * kunci sama dengan hash beda berarti upaya sebelumnya sudah diterima server:
+ * item dituntaskan seperti sukses, bukan "Data dibatalkan".
+ */
+const tuntaskanItemSudahTercatat = async (item: SyncQueueItem, requestId: string): Promise<void> => {
+    logger.sync(`Item ${item.id} sudah tercatat di server (409 KEY_REUSED saat replay). Removing.`);
+    await cleanupOfflinePhotos(collectPersistedPhotoUris(item));
+    await DatabaseService.removeFromQueue(item.id);
+    TelemetryService.trackSyncResult({
+        endpoint: item.url,
+        outcome: 'succeeded',
+        payload: { requestId, reason: 'idempotency_key_reused' },
+    });
+    DeviceEventEmitter.emit('sync:succeeded', { endpoint: item.url, method: item.method, requestId });
+    presentInfoMessage(PESAN_SUDAH_TERCATAT);
 };
 
 class SyncQueuePhotoUploadError extends Error {}
@@ -144,14 +204,18 @@ export const SyncService = {
     SyncService.scheduleQueueDrain();
   },
 
-  /** Jadwalkan drain antrean dengan debounce agar pemicu beruntun tidak menumpuk. */
-  scheduleQueueDrain: () => {
+  /**
+   * Jadwalkan drain antrean dengan debounce agar pemicu beruntun tidak
+   * menumpuk. `jedaMs` lebih panjang dipakai untuk 409 in-progress
+   * (`JEDA_ULANG_SEDANG_DIPROSES_MS`); pemicu berikutnya menggantikan jadwal ini.
+   */
+  scheduleQueueDrain: (jedaMs: number = SYNC_DRAIN_DEBOUNCE_MS) => {
     if (SyncService.processTimeout) {
       clearTimeout(SyncService.processTimeout);
     }
     SyncService.processTimeout = setTimeout(() => {
       SyncService.processQueue();
-    }, SYNC_DRAIN_DEBOUNCE_MS);
+    }, jedaMs);
   },
 
   stopMonitoring: () => {
@@ -314,20 +378,20 @@ export const SyncService = {
             const body = cloneQueuePayload(baseBody);
             const meta = cloneQueuePayload(baseMeta);
             requestId = typeof body.requestId === 'string' ? body.requestId : (typeof meta.requestId === 'string' ? meta.requestId : undefined);
+            let isUrlFotoBaru = false;
 
             // 1. Legacy: Support Photo Uploads (Parallel if multiple)
             if (meta.photos && Array.isArray(meta.photos) && meta.photos.length > 0) {
-                logger.sync(`Uploading ${meta.photos.length} photos...`);
+                const urlTersimpan = ambilUrlFotoTersimpan(meta);
+                logger.sync(urlTersimpan ? `Memakai ${urlTersimpan.length} URL foto tersimpan...` : `Uploading ${meta.photos.length} photos...`);
 
-                const uploadPromises = meta.photos.map(async (photoUri: string) => {
-                     if (photoUri.startsWith('file://')) {
+                const uploadedUrls = urlTersimpan ?? await Promise.all(meta.photos.map(async (photoUri: string) => {
+                     if (isUriLokal(photoUri)) {
                         return await uploadFile(photoUri, meta.photoType || 'general', meta.watermarkLines);
                     }
 
                     return photoUri;
-                });
-
-                const uploadedUrls = await Promise.all(uploadPromises);
+                }));
                 const hasUploadFailure = uploadedUrls.some((url) => !url);
 
                 if (hasUploadFailure) {
@@ -344,13 +408,13 @@ export const SyncService = {
                      }
                 }
 
-                // Cache hasil upload ke baseMeta agar retry attempt berikutnya
-                // tidak meng-upload ulang foto yang sudah berhasil. Tanpa
-                // cache ini, network hiccup di POST request mid-stream akan
-                // menyebabkan ulang upload N foto setiap retry → orphan
-                // file di S3 + bandwidth wasted.
-                if (Array.isArray(baseMeta.photos)) {
-                    baseMeta.photos = validUploadedUrls;
+                // Cache hasil upload ke baseMeta (lalu ke antrean, di bawah) agar
+                // attempt dan batch berikutnya tidak meng-upload ulang: URL baru
+                // mengubah hash badan sehingga server idempoten membalas 409
+                // KEY_REUSED (review akhir I2), selain orphan file + bandwidth.
+                if (!urlTersimpan) {
+                    baseMeta.urlFotoTerunggah = validUploadedUrls;
+                    isUrlFotoBaru = meta.photos.some(isUriLokal);
                 }
             }
 
@@ -358,14 +422,19 @@ export const SyncService = {
             if (meta.photoMap && typeof meta.photoMap === 'object') {
                 logger.sync(`Processing photoMap for item ${item.id}...`);
 
+                const petaTersimpan = meta.urlPetaFotoTerunggah ?? {};
                 const photoEntries = Object.entries(meta.photoMap);
                 const uploadPromises = photoEntries.map(async ([field, uri]) => {
-                    if (typeof uri === 'string' && uri.startsWith('file://')) {
+                    const urlTersimpan = petaTersimpan[field];
+                    if (typeof urlTersimpan === 'string' && urlTersimpan.length > 0) {
+                        return { field, url: urlTersimpan, isBaru: false };
+                    }
+                    if (typeof uri === 'string' && isUriLokal(uri)) {
                         const url = await uploadFile(uri, meta.photoType || 'general', meta.watermarkLines);
                         if (!url) {
                           throw new SyncQueuePhotoUploadError(`Gagal upload foto untuk field ${field}`);
                         }
-                        return { field, url };
+                        return { field, url, isBaru: true };
                     }
                     return null;
                 });
@@ -373,15 +442,19 @@ export const SyncService = {
                 const results = await Promise.all(uploadPromises);
 
                 results.forEach(result => {
-                    if (result) {
-                        body[result.field] = result.url;
-                        // Cache server URL ke baseMeta.photoMap agar retry
-                        // berikutnya skip upload ulang.
-                        if (baseMeta.photoMap && typeof baseMeta.photoMap === 'object') {
-                            (baseMeta.photoMap as Record<string, unknown>)[result.field] = result.url;
-                        }
+                    if (!result) return;
+                    body[result.field] = result.url;
+                    // Cache server URL (terpisah dari photoMap lokal) agar attempt
+                    // dan batch berikutnya skip upload ulang.
+                    if (result.isBaru) {
+                        baseMeta.urlPetaFotoTerunggah = { ...baseMeta.urlPetaFotoTerunggah, [result.field]: result.url };
+                        isUrlFotoBaru = true;
                     }
                 });
+            }
+
+            if (isUrlFotoBaru) {
+                await simpanUrlFotoKeAntrean(item.id, baseMeta);
             }
 
             const headers: Record<string, string> = {
@@ -492,9 +565,19 @@ export const SyncService = {
                 // sama (permintaan pertama belum selesai, atau kunci yatim
                 // menunggu TTL pendek di server). Bukan kegagalan permanen —
                 // item tetap antre dan dikirim ulang dengan Idempotency-Key sama.
+                // Tidak memakan jatah ulang global (review akhir I3): item di
+                // ambang jatah akan jadi FAILED "submit ulang" padahal permintaan
+                // pertama hampir pasti commit. Drain dijadwalkan ulang sesuai
+                // Retry-After server; loop dibatasi TTL in-progress server.
                 if (isGalatIdempotensiSedangDiproses(error)) {
-                    logger.sync(`Item ${item.id} masih diproses server (409 in-progress). Marking for retry.`);
-                    await DatabaseService.markAsRetry(item.id);
+                    logger.sync(`Item ${item.id} masih diproses server (409 in-progress). Retry tanpa memakan jatah.`);
+                    await DatabaseService.tandaiUlangTanpaBiaya(item.id);
+                    SyncService.scheduleQueueDrain(JEDA_ULANG_SEDANG_DIPROSES_MS);
+                    return;
+                }
+
+                if (item.method === 'POST' && requestId !== undefined && isGalatIdempotensiKunciDipakaiUlang(error)) {
+                    await tuntaskanItemSudahTercatat(item, requestId);
                     return;
                 }
 

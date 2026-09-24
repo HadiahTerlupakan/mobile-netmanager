@@ -417,6 +417,45 @@ class DatabaseServiceImpl {
     });
   }
 
+  /**
+   * Tandai item untuk dicoba lagi TANPA memakan jatah `retryCount`. Khusus
+   * 409 `IDEMPOTENCY_IN_PROGRESS`: permintaan pertama masih berjalan di
+   * server, bukan kegagalan item ini. Loop dibatasi server sendiri — kunci
+   * in-progress kedaluwarsa setelah 120 detik (netmanager
+   * `lib/api/idempotency.ts` `IN_PROGRESS_TTL_SECONDS`).
+   */
+  public async tandaiUlangTanpaBiaya(id: number): Promise<void> {
+    if (!this.isReady) await this.waitForReady();
+
+    return this.withMutex(async () => {
+      if (!this.db) return;
+      await this.db.runAsync(
+        `UPDATE ${SYNC_QUEUE_TABLE}
+          SET status = 'RETRY',
+              terminalReason = NULL
+          WHERE id = ?`,
+        [id],
+      );
+    });
+  }
+
+  /**
+   * Ganti `meta` item antrean. Dipakai SyncService untuk menyimpan URL foto
+   * yang sudah terunggah, supaya batch berikutnya tidak mengunggah ulang
+   * (URL baru mengubah hash badan → 409 `IDEMPOTENCY_KEY_REUSED`).
+   */
+  public async perbaruiMetaAntrean(id: number, meta: Record<string, unknown>): Promise<void> {
+    if (!this.isReady) await this.waitForReady();
+
+    return this.withMutex(async () => {
+      if (!this.db) return;
+      await this.db.runAsync(
+        `UPDATE ${SYNC_QUEUE_TABLE} SET meta = ? WHERE id = ?`,
+        [JSON.stringify(meta), id],
+      );
+    });
+  }
+
   public async markAsFailed(id: number, reason: string): Promise<void> {
     if (!this.isReady) await this.waitForReady();
 
@@ -494,6 +533,10 @@ export const DatabaseService = {
     DatabaseServiceImpl.getInstance().markAsRetry(id),
   markAsFailed: (id: number, reason: string) =>
     DatabaseServiceImpl.getInstance().markAsFailed(id, reason),
+  tandaiUlangTanpaBiaya: (id: number) =>
+    DatabaseServiceImpl.getInstance().tandaiUlangTanpaBiaya(id),
+  perbaruiMetaAntrean: (id: number, meta: Record<string, unknown>) =>
+    DatabaseServiceImpl.getInstance().perbaruiMetaAntrean(id, meta),
   saveOfflineData: (key: string, data: unknown) =>
     DatabaseServiceImpl.getInstance().saveOfflineData(key, data),
   getOfflineData: <T,>(key: string) =>
