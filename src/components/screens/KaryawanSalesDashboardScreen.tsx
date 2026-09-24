@@ -16,8 +16,12 @@ import { useSegarkanPresurveiSetelahSinkron } from '@/hooks/queries/usePresurvei
 import { useSegarkanBerandaSales } from '@/hooks/useSegarkanBerandaSales';
 import { bolehCanvasing, punyaFitur } from '@/utils/persona';
 
-/** Menu cepat Beranda sales (spec §3): Presurvei & Canvasing sudah jadi tab. */
-const MENU_CEPAT_SALES: readonly IdMenuCepat[] = ['chat', 'izin'];
+/**
+ * Menu cepat Beranda sales (spec §3): Presurvei & Canvasing sudah jadi tab.
+ * Lembur & Kalender Libur dipertahankan (ruling I5 review akhir): kemampuan
+ * karyawan yang sudah ada sebelum OTA; tile terkunci sendiri tanpa izin.
+ */
+const MENU_CEPAT_SALES: readonly IdMenuCepat[] = ['chat', 'izin', 'lembur', 'holidays'];
 
 /** Beranda sales karyawan: absen, ringkasan presurvei, pencairan bonus canvasing, menu cepat. */
 export function KaryawanSalesDashboardScreen() {
