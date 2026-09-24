@@ -10,7 +10,7 @@ import { render } from '@testing-library/react-native';
 
 type PropsLayar = {
   name: string;
-  options?: { href?: unknown; title?: string };
+  options?: { href?: unknown; title?: string; tabBarStyle?: { display?: string } };
   listeners?: { tabPress?: (e: { preventDefault: () => void }) => void };
 };
 
@@ -76,6 +76,45 @@ const renderLayout = (user: Record<string, unknown>) => {
 
 const layar = (nama: string) => mockLayar.filter((props) => props.name === nama).at(-1);
 
+/** Penanda `href` tidak diisi (tab tampil dengan href bawaan), beda dari `href: null`. */
+const HREF_BAWAAN = 'bawaan';
+
+/** Sidik registrasi: nama, href, dan apakah tab bar disembunyikan, dalam urutan deklarasi. */
+const sidikRegistrasi = () =>
+  mockLayar.map((props) => [
+    props.name,
+    props.options && 'href' in props.options ? props.options.href : HREF_BAWAAN,
+    props.options?.tabBarStyle?.display ?? null,
+  ]);
+
+const SIDIK_TERSEMBUNYI = [
+  ['history', null, null],
+  ['work-order-detail/[id]', null, 'none'],
+  ['ambil-barang/[id]', null, 'none'],
+  ['lembur', null, null],
+  ['izin', null, null],
+  ['notifications', null, null],
+  ['topology-map', null, null],
+  ['pelanggan/isolir', null, null],
+  ['complete-work-order/[id]', null, 'none'],
+  ['kembalikan-barang/[id]', null, 'none'],
+  ['chat/index', null, null],
+  ['chat/[conversationId]', null, 'none'],
+  ['chat/new', null, 'none'],
+  ['holidays', null, null],
+  ['edit-profile', null, null],
+  ['change-password', null, null],
+  ['mitra-withdraw', null, 'none'],
+  ['id-card/[id]', null, 'none'],
+  ['marketing/canvasing/create', null, null],
+  ['marketing/canvasing/[id]/index', null, 'none'],
+  ['marketing/canvasing/[id]/claim', null, 'none'],
+  ['presurvei/kegiatan/catat', null, 'none'],
+  ['presurvei/prospek/[id]/index', null, 'none'],
+  ['presurvei/prospek/[id]/jadikan-canvasing', null, 'none'],
+  ['request-work-order', null, null],
+];
+
 describe('layout aplikasi — route presurvei', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -103,6 +142,78 @@ describe('layout aplikasi — route presurvei', () => {
 
     expect(terlihat).toEqual(['dashboard', 'work-order', 'barang', 'absensi', 'profile']);
     expect(mockPropsTabs.tabBar).toBeUndefined();
+  });
+
+  // Regresi ekstraksi `_layout.tsx` (Task 17): urutan, href, dan tab bar
+  // tersembunyi setiap route harus identik dengan sebelum ekstraksi.
+  it('registrasi route teknisi karyawan identik dengan sebelum ekstraksi', () => {
+    renderLayout(TEKNISI);
+
+    expect(sidikRegistrasi()).toEqual([
+      ['dashboard', HREF_BAWAAN, null],
+      ['presurvei/index', null, null],
+      ['work-order', '/work-order', null],
+      ['marketing/canvasing/index', null, null],
+      ['barang', '/barang', null],
+      ['absensi', '/absensi', null],
+      ['profile', HREF_BAWAAN, null],
+      ['mitra-wallet', null, null],
+      ...SIDIK_TERSEMBUNYI,
+    ]);
+  });
+
+  it('registrasi route mitra sales identik dengan sebelum ekstraksi', () => {
+    renderLayout({ ...TEKNISI, employeeType: 'MITRA_SALES', isSales: true, features: ['m_canvasing'] });
+
+    expect(sidikRegistrasi()).toEqual([
+      ['dashboard', HREF_BAWAAN, null],
+      ['presurvei/index', null, null],
+      ['work-order', null, null],
+      ['marketing/canvasing/index', '/marketing/canvasing', null],
+      ['barang', null, null],
+      ['absensi', null, null],
+      ['profile', HREF_BAWAAN, null],
+      ['mitra-wallet', '/mitra-wallet', null],
+      ...SIDIK_TERSEMBUNYI,
+    ]);
+  });
+
+  it('registrasi route mitra teknisi identik dengan sebelum ekstraksi', () => {
+    renderLayout({ ...TEKNISI, employeeType: 'MITRA_TEKNISI' });
+
+    expect(sidikRegistrasi()).toEqual([
+      ['dashboard', HREF_BAWAAN, null],
+      ['presurvei/index', null, null],
+      ['work-order', '/work-order', null],
+      ['marketing/canvasing/index', null, null],
+      ['barang', null, null],
+      ['absensi', null, null],
+      ['profile', HREF_BAWAAN, null],
+      ['mitra-wallet', '/mitra-wallet', null],
+      ...SIDIK_TERSEMBUNYI,
+    ]);
+  });
+
+  it('setiap route di RUTE_LAYAR_TERSEMBUNYI terdaftar tanpa tab, layar penuh tanpa tab bar', () => {
+    const { RUTE_LAYAR_TERSEMBUNYI } = require('@/constants/ruteLayarTersembunyi');
+    renderLayout(TEKNISI);
+
+    for (const { nama, isLayarPenuh } of RUTE_LAYAR_TERSEMBUNYI as { nama: string; isLayarPenuh: boolean }[]) {
+      expect([nama, layar(nama)?.options?.href, layar(nama)?.options?.tabBarStyle?.display ?? null]).toEqual([
+        nama,
+        null,
+        isLayarPenuh ? 'none' : null,
+      ]);
+    }
+  });
+
+  it('layar presurvei selain tab-nya adalah layar penuh di RUTE_LAYAR_TERSEMBUNYI', () => {
+    const { RUTE_LAYAR_TERSEMBUNYI } = require('@/constants/ruteLayarTersembunyi');
+    const layarPenuh = (RUTE_LAYAR_TERSEMBUNYI as { nama: string; isLayarPenuh: boolean }[])
+      .filter((rute) => rute.isLayarPenuh)
+      .map((rute) => rute.nama);
+
+    expect(layarPenuh).toEqual(expect.arrayContaining(RUTE_PRESURVEI_TERSEMBUNYI.filter((nama) => nama !== 'presurvei/index')));
   });
 
   it('tab Presurvei memakai judul Presurvei dan terkunci tanpa m_presurvei', () => {

@@ -18,6 +18,7 @@ import { LocationDisclosureProvider } from '@/components/providers/LocationDiscl
 import { MitraSalesTabBar } from '@/components/organisms/navigation/MitraSalesTabBar';
 import { MitraTeknisiTabBar } from '@/components/organisms/navigation/MitraTeknisiTabBar';
 import { AppFeature } from "@/constants/features";
+import { RUTE_LAYAR_TERSEMBUNYI } from "@/constants/ruteLayarTersembunyi";
 import { useAuth } from "@/context/AuthContext";
 import { useProfileSync } from "@/hooks/useProfileSync";
 import { isRouteAllowedDuringLeave } from '@/utils/leaveAccess';
@@ -25,6 +26,11 @@ import { logger } from "@/utils/logger";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const APP_DASHBOARD_ROUTE = "/(app)/dashboard";
+
+/** Opsi route tersembunyi: terdaftar tanpa tab. */
+const OPSI_TERSEMBUNYI = { href: null } as const;
+/** Opsi route tersembunyi layar penuh: tab bar ikut disembunyikan. */
+const OPSI_LAYAR_PENUH = { href: null, tabBarStyle: { display: "none" } } as const;
 
 export default function AppLayout() {
   const router = useRouter();
@@ -259,185 +265,14 @@ export default function AppLayout() {
           }}
         />
 
-        {/* Hidden Screens */}
-        <Tabs.Screen
-          name="history"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="work-order-detail/[id]"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-        <Tabs.Screen
-          name="ambil-barang/[id]"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-        <Tabs.Screen
-          name="lembur"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="izin"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="notifications"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="topology-map"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="pelanggan/isolir"
-          options={{
-            href: null,
-          }}
-        />
-
-        <Tabs.Screen
-          name="complete-work-order/[id]"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-        <Tabs.Screen
-          name="kembalikan-barang/[id]"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-
-        {/* Chat Screens - Hidden from tab bar, accessed via QuickMenu */}
-        <Tabs.Screen
-          name="chat/index"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="chat/[conversationId]"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-        <Tabs.Screen
-          name="chat/new"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-        <Tabs.Screen
-          name="holidays"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="edit-profile"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="change-password"
-          options={{
-            href: null,
-          }}
-        />
-
-        {/* Mitra Withdraw - Hidden, accessed from wallet */}
-        <Tabs.Screen
-          name="mitra-withdraw"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-
-        {/* ID Card WebView Screen */}
-        <Tabs.Screen
-          name="id-card/[id]"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-
-        {/* Work Order - Moved to dynamic tab slot above */}
-
-        {/* Marketing / Canvasing Screens - Hidden from tab bar */}
-        <Tabs.Screen
-          name="marketing/canvasing/create"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="marketing/canvasing/[id]/index"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-        <Tabs.Screen
-          name="marketing/canvasing/[id]/claim"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-
-        {/* Presurvei - layar di luar tab bar */}
-        <Tabs.Screen
-          name="presurvei/kegiatan/catat"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-        <Tabs.Screen
-          name="presurvei/prospek/[id]/index"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-        <Tabs.Screen
-          name="presurvei/prospek/[id]/jadikan-canvasing"
-          options={{
-            href: null,
-            tabBarStyle: { display: "none" },
-          }}
-        />
-
-        {/* WO Request Screen - Hidden from tab bar, accessed via WO list */}
-        <Tabs.Screen
-          name="request-work-order"
-          options={{
-            href: null,
-          }}
-        />
+        {/* Route tersembunyi — daftarnya di `RUTE_LAYAR_TERSEMBUNYI` */}
+        {RUTE_LAYAR_TERSEMBUNYI.map(({ nama, isLayarPenuh }) => (
+          <Tabs.Screen
+            key={nama}
+            name={nama}
+            options={isLayarPenuh ? OPSI_LAYAR_PENUH : OPSI_TERSEMBUNYI}
+          />
+        ))}
       </Tabs>
 
       {/* Announcement Popup - shows after login */}
