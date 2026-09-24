@@ -15,7 +15,8 @@ export type UploadType =
   | 'inventory-masuk'
   | 'inventory-keluar'
   | 'marketing/point-claims'
-  | 'marketing'; // Added for Canvasing
+  | 'marketing' // Added for Canvasing
+  | 'presurvei'; // Foto bukti kegiatan presurvei
 
 export interface UploadProgress {
   total: number;
@@ -67,6 +68,9 @@ function isUnauthorizedUploadError(error: unknown): boolean {
   return /status 401\b/.test(error.message);
 }
 
+/** Nama galat habis waktu unggah; pemanggil memakainya untuk memutuskan antre. */
+export const NAMA_GALAT_UNGGAH_HABIS_WAKTU = 'UploadTimeoutError';
+
 class UploadTimeoutError extends Error {
   constructor(reason: 'hard' | 'no-progress') {
     super(
@@ -74,7 +78,7 @@ class UploadTimeoutError extends Error {
         ? 'Upload melebihi batas waktu 60 detik. Periksa koneksi dan coba lagi.'
         : 'Upload terhenti — tidak ada progres selama 30 detik. Periksa koneksi.',
     );
-    this.name = 'UploadTimeoutError';
+    this.name = NAMA_GALAT_UNGGAH_HABIS_WAKTU;
   }
 }
 

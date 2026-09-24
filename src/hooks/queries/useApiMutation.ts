@@ -22,8 +22,14 @@ import {
 } from "@/utils/attendanceIdempotency";
 import { extractApiErrorMessage } from "@/utils/errorHandling";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
+import {
+  isUnggahHabisWaktu,
+  salinFotoMetaUntukAntrean,
+  unggahFotoMeta,
+  unggahFotoTanpaUlang,
+  unggahPetaFoto,
+} from "@/utils/fotoMutasi";
 import { logger } from "@/utils/logger";
-import { persistPhotoForOffline } from "@/utils/persistPhoto";
 import { requestForegroundLocationWithDisclosure } from "@/utils/locationDisclosure";
 import {
   useMutation,
@@ -34,6 +40,9 @@ import { AxiosError, isAxiosError } from "axios";
 import * as Location from "expo-location";
 
 type HttpMethod = "POST" | "PUT" | "PATCH" | "DELETE";
+
+/** Pesan galat internal yang membelokkan mutasi ke antrean offline. */
+const OFFLINE_ERROR_MESSAGE = "Offline";
 
 export interface MutationMeta {
   latitude?: number | null;
@@ -166,6 +175,25 @@ async function uploadFile(
 }
 
 /**
+ * Unggah `meta.photos` di jalur online. Habis waktu, atau galat saat NetInfo
+ * sudah offline, menjadi galat offline supaya mutasi diantre dengan salinan
+ * foto. Galat lain (mis. 413) diteruskan; pemanggil masih memegang isian form.
+ */
+async function unggahFotoMetaAtauAntre(
+  meta: MutationMeta | undefined,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await unggahFotoMeta(meta, payload, unggahFotoTanpaUlang);
+  } catch (error) {
+    if (isUnggahHabisWaktu(error) || !(await SyncService.isOnline())) {
+      throw new Error(OFFLINE_ERROR_MESSAGE);
+    }
+    throw error;
+  }
+}
+
+/**
  * Hook untuk mutations API dengan TanStack Query
  *
  * @example
@@ -222,22 +250,7 @@ export function useApiMutation<
       }
 
       try {
-        // Handle photoMap uploads
-        if (variables.meta?.photoMap) {
-          const photoMap = variables.meta.photoMap;
-          const photoType = variables.meta.photoType || "general";
-
-          // Upload all photos in parallel
-          const uploadPromises = Object.entries(photoMap).map(
-            async ([field, uri]) => {
-              if (!uri || uri.startsWith("http")) return; // Skip empty or already uploaded
-              const url = await uploadFile(uri, photoType);
-              payload[field] = url; // Update payload with server URL
-            },
-          );
-
-          await Promise.all(uploadPromises);
-        }
+        await unggahPetaFoto(variables.meta, payload, uploadFile);
 
         // Add location if requested
         if (includeLocation) {
@@ -249,8 +262,11 @@ export function useApiMutation<
         // Check connectivity before request
         const isOnline = await SyncService.isOnline();
         if (!isOnline) {
-          throw new Error("Offline");
+          throw new Error(OFFLINE_ERROR_MESSAGE);
         }
+
+        // Setelah cek online: saat offline, unggahan hanya menunda antrean.
+        await unggahFotoMetaAtauAntre(variables.meta, payload);
 
         // Make API request with updated payload.
         // skipErrorToast=true → axios interceptor tidak emit toast; biarkan
@@ -282,30 +298,17 @@ export function useApiMutation<
             error.message === "Network Error" ||
             !error.response);
         const isExplicitOffline =
-          error instanceof Error && error.message === "Offline";
+          error instanceof Error && error.message === OFFLINE_ERROR_MESSAGE;
 
         if (isExplicitOffline || isNetworkError) {
           logger.info(
             `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${resolvedEndpoint}`,
           );
 
-          const queueMeta: Record<string, unknown> = {
+          const queueMeta = await salinFotoMetaUntukAntrean({
             ...((variables.meta as Record<string, unknown>) || {}),
             ...(requestId ? { requestId } : {}),
-          };
-
-          // Persist photo URIs to stable storage before queuing
-          // so the OS doesn't clean temp files before sync occurs
-          if (queueMeta.photoMap && typeof queueMeta.photoMap === "object") {
-            const photoMap = queueMeta.photoMap as Record<string, string>;
-            const persistedMap: Record<string, string> = {};
-            for (const [field, uri] of Object.entries(photoMap)) {
-              if (uri && typeof uri === "string") {
-                persistedMap[field] = await persistPhotoForOffline(uri);
-              }
-            }
-            queueMeta.photoMap = persistedMap;
-          }
+          });
 
           // Add to offline queue
           await DatabaseService.addToQueue(
