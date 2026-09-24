@@ -2,7 +2,7 @@
 
 > Peta tunggal repo ini untuk manusia & AI agent. **Baca ini dulu sebelum menebak lokasi file.**
 > Ini repo **mobile-only** (Expo/React Native), bukan monorepo. Backend ada di repo terpisah.
-> Terakhir diperbarui: 2026-07-25.
+> Terakhir diperbarui: 2026-09-24.
 >
 > **Arsitektur & pattern + status penerapannya:** [architecture/patterns-and-status.md](architecture/patterns-and-status.md).
 
@@ -33,6 +33,8 @@ Tidak ada `features/`, tidak ada `lib/api-client`, tidak ada route group `(tekni
 | Konstanta/tema | `src/constants/` | |
 | Type/DTO | `src/types/` | |
 | Native bridge | `src/native/` | |
+| Persona & tab bar per tipe user | `src/utils/persona.ts`, `src/utils/tabKaryawanSales.ts`, `src/components/organisms/navigation/` | Persona = tata letak; izin (`punyaFitur`) = akses |
+| Presurvei (sales) | `app/(app)/presurvei/`, `src/utils/presurvei/`, `src/hooks/presurvei/`, `src/services/PresurveiService.ts` | Aturan murni di `utils/presurvei`; kontrak dijaga `__tests__/fixtures/presurvei/kontrak-mobile.json` |
 
 ## Auth & token flow (baca sebelum menyentuh auth)
 
