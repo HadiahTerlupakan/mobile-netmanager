@@ -44,6 +44,14 @@ export function useCatatKegiatan(onTersimpan: (hasil: HasilSimpanKegiatan) => vo
     // — tanpa ini, toast global `MutationCache.onError`
     // (`src/lib/queryClient.ts`) tetap tampil berdampingan.
     meta: { skipGlobalErrorToast: true },
+    // Review akhir I1: default produksi `mutations.retry: 1`
+    // (`src/lib/queryClient.ts`) akan mengulang otomatis setelah 5xx gateway
+    // yang datang SETELAH server commit. Ulangan itu mengunggah foto lagi
+    // (URL baru → hash badan beda) sehingga server membalas 409
+    // `IDEMPOTENCY_KEY_REUSED` pada upaya yang layar anggap pertama, dan
+    // simpan berikutnya memakai kunci baru → kegiatan ganda. Simpan ulang
+    // ditangani layar dengan kunci yang sama (`useLayarCatatKegiatan`).
+    retry: false,
     onSuccess: (data) => {
       const isAntre = isOfflineMutationQueuedResult(data);
       if (isAntre) void queryClient.invalidateQueries({ queryKey: queryKeys.presurvei.antrean() });
