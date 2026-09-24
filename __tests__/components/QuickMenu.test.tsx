@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
 
 const mockPush = jest.fn();
@@ -49,5 +49,59 @@ describe('QuickMenu', () => {
     const { getByText } = renderMenu({ isMitra: false, features: [], role: 'SUPER_ADMIN' });
 
     expect(getByText(ISOLIR_TILE)).toBeTruthy();
+  });
+
+  it('tidak menampilkan Presurvei bagi teknisi tanpa m_presurvei', () => {
+    const { queryByText } = renderMenu({ isMitra: false, features: [AppFeature.WORK_ORDER] });
+
+    expect(queryByText('Presurvei')).toBeNull();
+  });
+
+  it('menampilkan Presurvei aktif bagi teknisi ber-izin dan membuka tab presurvei', () => {
+    const { getByText } = renderMenu({ isMitra: false, features: [AppFeature.PRESURVEI] });
+
+    fireEvent.press(getByText('Presurvei'));
+
+    expect(mockPush).toHaveBeenCalledWith('/(app)/presurvei');
+  });
+
+  it('mitra tidak pernah melihat Presurvei walau punya m_presurvei', () => {
+    const { queryByText } = renderMenu({ isMitra: true, features: [AppFeature.PRESURVEI] });
+
+    expect(queryByText('Presurvei')).toBeNull();
+  });
+
+  it('menuIds membatasi menu cepat pada id yang diminta', () => {
+    const { getByText, queryByText } = renderMenu({
+      isMitra: false,
+      features: [AppFeature.CHAT, AppFeature.IZIN, AppFeature.WORK_ORDER, AppFeature.LEMBUR, AppFeature.PRESURVEI],
+      menuIds: ['chat', 'izin'],
+    });
+
+    expect(getByText('Chat')).toBeTruthy();
+    expect(getByText('Izin & Cuti')).toBeTruthy();
+    expect(queryByText('Request WO')).toBeNull();
+    expect(queryByText('Lembur')).toBeNull();
+    expect(queryByText('Presurvei')).toBeNull();
+  });
+
+  it('mitra tetap tidak melihat Izin & Cuti dan Lembur', () => {
+    // Dulu disaring lewat judul (QuickMenu.tsx:147); kini lewat id.
+    const { queryByText } = renderMenu({ isMitra: true, features: [] });
+
+    expect(queryByText('Izin & Cuti')).toBeNull();
+    expect(queryByText('Lembur')).toBeNull();
+  });
+
+  it('menuIds tidak melewati pemeriksaan izin', () => {
+    const { Alert } = require('react-native');
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const { getByText } = renderMenu({ isMitra: false, features: [], menuIds: ['chat'] });
+
+    fireEvent.press(getByText('Chat'));
+
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledWith('Akses Terbatas', expect.any(String), expect.any(Array));
+    alert.mockRestore();
   });
 });

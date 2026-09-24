@@ -4,6 +4,7 @@ import {
   Banknote,
   Calendar,
   CalendarDays,
+  ClipboardCheck,
   ClipboardPlus,
   Clock,
   Lock,
@@ -17,14 +18,30 @@ import React, { useCallback, useMemo } from "react";
 import { Alert, Text, TouchableOpacity, View } from "react-native";
 import tw from "twrnc";
 
+/** Id stabil tiap menu cepat; dipakai `menuIds` dan sebagai `key`. */
+export type IdMenuCepat =
+  | 'request-wo'
+  | 'topology'
+  | 'barang-keluar'
+  | 'izin'
+  | 'lembur'
+  | 'chat'
+  | 'holidays'
+  | 'canvasing'
+  | 'isolir'
+  | 'presurvei';
+
 interface QuickMenuProps {
   features?: string[];
   isSales?: boolean;
   role?: string;
   isMitra?: boolean;
+  /** Bila diisi, hanya menu ini yang tampil (izin tetap diperiksa). */
+  menuIds?: readonly IdMenuCepat[];
 }
 
 interface MenuItem {
+  id: IdMenuCepat;
   title: string;
   subtitle: string;
   icon: LucideIcon;
@@ -35,10 +52,16 @@ interface MenuItem {
   requiresSales?: boolean;
   /** Menu khusus karyawan internal; tidak ditampilkan sama sekali ke mitra. */
   internalOnly?: boolean;
+  /** Sembunyikan (bukan kunci) bila tidak berizin. */
+  hideWhenLocked?: boolean;
 }
+
+/** Menu karyawan yang tidak berlaku bagi mitra (mitra tanpa absensi/cuti). */
+const MENU_BUKAN_UNTUK_MITRA: readonly IdMenuCepat[] = ['izin', 'lembur'];
 
 const MENU_ITEMS: MenuItem[] = [
   {
+    id: 'request-wo',
     title: "Request WO",
     subtitle: "Ajukan Tiket",
     icon: ClipboardPlus,
@@ -48,6 +71,7 @@ const MENU_ITEMS: MenuItem[] = [
     requiredFeatures: [AppFeature.WORK_ORDER], // Permission validated: m_work_order
   },
   {
+    id: 'topology',
     title: "Topology Map",
     subtitle: "Peta Jaringan",
     icon: Map,
@@ -57,6 +81,7 @@ const MENU_ITEMS: MenuItem[] = [
     requiredFeatures: [AppFeature.TOPOLOGY],
   },
   {
+    id: 'barang-keluar',
     title: "Barang Keluar",
     subtitle: "Ambil stok",
     icon: PackageMinus,
@@ -66,6 +91,7 @@ const MENU_ITEMS: MenuItem[] = [
     requiredFeatures: [AppFeature.BARANG_KELUAR],
   },
   {
+    id: 'izin',
     title: "Izin & Cuti",
     subtitle: "Sakit, Cuti",
     icon: Calendar,
@@ -76,6 +102,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
 
   {
+    id: 'lembur',
     title: "Lembur",
     subtitle: "Ajukan Lembur",
     icon: Clock,
@@ -85,6 +112,7 @@ const MENU_ITEMS: MenuItem[] = [
     requiredFeatures: [AppFeature.LEMBUR],
   },
   {
+    id: 'chat',
     title: "Chat",
     subtitle: "Pesan & Diskusi",
     icon: MessageCircle,
@@ -94,6 +122,7 @@ const MENU_ITEMS: MenuItem[] = [
     requiredFeatures: [AppFeature.CHAT],
   },
   {
+    id: 'holidays',
     title: "Kalender Libur",
     subtitle: "Hari Libur",
     icon: CalendarDays,
@@ -103,6 +132,7 @@ const MENU_ITEMS: MenuItem[] = [
     requiredFeatures: [AppFeature.HOLIDAYS],
   },
   {
+    id: 'canvasing',
     title: "Canvasing",
     subtitle: "Marketing",
     icon: Banknote,
@@ -113,6 +143,20 @@ const MENU_ITEMS: MenuItem[] = [
     requiresSales: true,
   },
   {
+    id: 'presurvei',
+    title: "Presurvei",
+    subtitle: "Kunjungan & Prospek",
+    icon: ClipboardCheck,
+    color: "bg-emerald-50",
+    iconColor: "#059669",
+    route: "/(app)/presurvei",
+    requiredFeatures: [AppFeature.PRESURVEI],
+    // Presurvei untuk teknisi hanya lewat izin role; mitra tidak memakainya.
+    internalOnly: true,
+    hideWhenLocked: true,
+  },
+  {
+    id: 'isolir',
     title: "Isolir",
     subtitle: "Pelanggan",
     icon: WifiOff,
@@ -130,6 +174,7 @@ const QuickMenuComponent = ({
   isSales = false,
   role,
   isMitra = false,
+  menuIds,
 }: QuickMenuProps) => {
   const router = useRouter();
 
@@ -141,18 +186,18 @@ const QuickMenuComponent = ({
     return requiredFeatures.some((f) => features.includes(f));
   }, [role, features, isMitra]);
 
-  const processedMenuItems = useMemo(() => {
-    const visibleItems = isMitra
-      ? MENU_ITEMS.filter(
-        item => !item.internalOnly && item.title !== 'Izin & Cuti' && item.title !== 'Lembur',
-      )
-      : MENU_ITEMS;
-
-    return visibleItems.map((item) => {
-      const enabled = hasFeature(item.requiredFeatures) && (!item.requiresSales || isSales);
-      return { ...item, enabled };
-    });
-  }, [hasFeature, isSales, isMitra]);
+  const processedMenuItems = useMemo(
+    () =>
+      MENU_ITEMS
+        .filter((item) => !isMitra || (!item.internalOnly && !MENU_BUKAN_UNTUK_MITRA.includes(item.id)))
+        .filter((item) => menuIds === undefined || menuIds.includes(item.id))
+        .map((item) => ({
+          ...item,
+          enabled: hasFeature(item.requiredFeatures) && (!item.requiresSales || isSales),
+        }))
+        .filter((item) => item.enabled || !item.hideWhenLocked),
+    [hasFeature, isSales, isMitra, menuIds],
+  );
 
   const handleMenuPress = useCallback((item: MenuItem & { enabled: boolean }) => {
     if (item.enabled) {
@@ -173,9 +218,9 @@ const QuickMenuComponent = ({
         Menu Cepat
       </Text>
       <View style={tw`flex-row flex-wrap justify-between`}>
-        {processedMenuItems.map((item, index) => (
+        {processedMenuItems.map((item) => (
           <TouchableOpacity
-            key={index}
+            key={item.id}
             onPress={() => handleMenuPress(item)}
             style={tw`w-[31%] mb-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm items-center ${!item.enabled ? "opacity-50" : ""}`}
           >
