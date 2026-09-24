@@ -110,6 +110,20 @@ describe('BagianPresurveiBeranda', () => {
     expect(getByText('Menunggu kirim: 2')).toBeTruthy();
   });
 
+  // Review akhir M5: item "Gagal terkirim" tidak lagi menunggu kirim.
+  it('menunggu kirim tidak menghitung item antrean FAILED', () => {
+    mockUseAntrean.mockReturnValue({
+      data: [
+        { idAntrean: 1, status: 'PENDING' },
+        { idAntrean: 2, status: 'RETRY' },
+        { idAntrean: 3, status: 'FAILED' },
+      ],
+    });
+    const { getByText } = render(<BagianPresurveiBeranda isPresurveiAktif />);
+
+    expect(getByText('Menunggu kirim: 2')).toBeTruthy();
+  });
+
   it('antrean belum termuat dihitung nol', () => {
     mockUseAntrean.mockReturnValue({ data: undefined });
     const { getByText } = render(<BagianPresurveiBeranda isPresurveiAktif />);

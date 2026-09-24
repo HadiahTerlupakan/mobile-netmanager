@@ -39,7 +39,7 @@ export function BagianPresurveiBeranda({ isPresurveiAktif }: BagianPresurveiBera
     <View>
       <KartuKegiatanHariIni
         rekap={rekapKegiatanHariIni(ringkasan.data.kegiatanHariIni)}
-        jumlahMenunggu={antrean.data?.length ?? 0}
+        jumlahMenunggu={antrean.data?.filter((kegiatan) => kegiatan.status !== 'FAILED').length ?? 0}
       />
       <KartuTargetBulanIni target={ringkasan.data.target} />
       <DaftarPerluFollowUp prospek={ringkasan.data.perluFollowUp} onBuka={(id) => router.push(ruteRincianProspek(id))} />

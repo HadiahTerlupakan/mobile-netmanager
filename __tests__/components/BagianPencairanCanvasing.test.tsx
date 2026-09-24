@@ -32,4 +32,25 @@ describe('BagianPencairanCanvasing', () => {
     expect(mockPropsKartu.statistik).toEqual({ unclaimedCanvasing: 12, canvasingTarget: 10, targetSchema: 'ACCUMULATED' });
     expect(mockRefetch).toHaveBeenCalledWith();
   });
+
+  // Review akhir M2: tanpa data, kartu menebak skema BULANAN "0/30" lalu
+  // berganti — atau permanen bila offline tanpa cache.
+  it('statistik belum termuat: indikator memuat, kartu (dan skema tebakannya) belum dirender', () => {
+    mockUseStatistik.mockReturnValue({ data: undefined, isPending: true, refetch: mockRefetch });
+
+    const { getByTestId } = render(<BagianPencairanCanvasing />);
+
+    expect(getByTestId('pencairan-canvasing-memuat')).toBeTruthy();
+    expect(mockPropsKartu).toEqual({});
+  });
+
+  it('statistik gagal dimuat tanpa cache: tidak ada kartu dan tidak ada indikator', () => {
+    mockUseStatistik.mockReturnValue({ data: undefined, isPending: false, refetch: mockRefetch });
+
+    const { queryByTestId, toJSON } = render(<BagianPencairanCanvasing />);
+
+    expect(queryByTestId('pencairan-canvasing-memuat')).toBeNull();
+    expect(toJSON()).toBeNull();
+    expect(mockPropsKartu).toEqual({});
+  });
 });
