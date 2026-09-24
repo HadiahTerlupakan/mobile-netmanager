@@ -9,6 +9,7 @@ import { WorkOrderCard } from '@/components/organisms/dashboard/WorkOrderCard';
 import { useAuth } from '@/context/AuthContext';
 import { useOfflineQuery } from '@/hooks/queries';
 import { useProfileSync } from '@/hooks/useProfileSync';
+import { useStatistikBeranda } from '@/hooks/useStatistikBeranda';
 import { queryKeys } from '@/lib/queryClient';
 import { TenantService } from '@/services/TenantService';
 import { presentInfoMessage } from '@/utils/errorPresenter';
@@ -19,22 +20,6 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, Text, useWindowDimensions, View, ViewToken } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-
-interface DashboardStats {
-    workOrdersAssigned: number;
-    workOrdersPending: number;
-    woCompletedToday: number;
-    woCompletedWeek: number;
-    woCompletedMonth: number;
-    barangKeluarToday: number;
-    barangMasukToday: number;
-    targetHarian?: number;
-    suksesClosingMonth?: number;
-    saldoKomisi?: number;
-    canvasingTarget?: number;
-    unclaimedCanvasing?: number;
-    targetSchema?: 'MONTHLY_RESET' | 'ACCUMULATED';
-}
 
 interface CanvasingSummary {
     total: number;
@@ -62,13 +47,7 @@ export function KaryawanTeknisiDashboardScreen() {
 
     const { profileData, hasFeature, refetch: refetchProfile, isPending: loadingProfile } = useProfileSync();
 
-    // Fetch dashboard stats
-    const { data: statsData, isPending: loadingStats, refetch: refetchStats } = useOfflineQuery<DashboardStats>({
-        queryKey: queryKeys.dashboard.stats(),
-        endpoint: '/api/mobile/dashboard',
-        select: (data: any) => data?.data || data,
-        enabled: !!token
-    });
+    const { data: statsData, isPending: loadingStats, refetch: refetchStats } = useStatistikBeranda();
 
     // Fetch canvasing summary
     const { data: canvasingSummary, isPending: loadingCanvasing, refetch: refetchCanvasing } = useOfflineQuery<CanvasingSummary>({

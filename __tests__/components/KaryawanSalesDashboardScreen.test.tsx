@@ -27,15 +27,30 @@ jest.mock('@/components/organisms/dashboard/QuickMenu', () => ({
     return null;
   },
 }));
-jest.mock('@/components/organisms/dashboard/BagianPresurveiBeranda', () => ({
-  BagianPresurveiBeranda: (props: { isPresurveiAktif: boolean }) => {
-    mockPropsPresurvei = props;
-    return null;
-  },
-}));
+jest.mock('@/components/organisms/dashboard/BagianPresurveiBeranda', () => {
+  const { Text } = require('react-native');
+  return {
+    BagianPresurveiBeranda: (props: { isPresurveiAktif: boolean }) => {
+      mockPropsPresurvei = props;
+      return <Text>bagian-presurvei</Text>;
+    },
+  };
+});
 jest.mock('@/components/organisms/dashboard/KartuAbsenHariIni', () => {
   const { Text } = require('react-native');
   return { KartuAbsenHariIni: () => <Text>kartu-absen</Text> };
+});
+jest.mock('@/components/organisms/dashboard/BagianPencairanCanvasing', () => {
+  const { Text } = require('react-native');
+  return { BagianPencairanCanvasing: () => <Text>kartu-pencairan</Text> };
+});
+jest.mock('@/components/organisms/dashboard/BerandaModeCuti', () => {
+  const { Text } = require('react-native');
+  return {
+    BerandaModeCuti: (props: { userName: string; userImage: string | null }) => (
+      <Text>{`mode-cuti:${props.userName}:${props.userImage}`}</Text>
+    ),
+  };
 });
 jest.mock('@/components/organisms/dashboard/DashboardHeader', () => ({
   DashboardHeader: (props: typeof mockPropsHeader) => {
@@ -50,8 +65,9 @@ jest.mock('twrnc', () => () => ({}));
 
 import { KaryawanSalesDashboardScreen } from '@/components/screens/KaryawanSalesDashboardScreen';
 
-const sales = (features: string[]) => ({
+const sales = (features: string[], tambahan: Record<string, unknown> = {}) => ({
   user: {
+    ...tambahan,
     id: 'u-1',
     name: 'Sari',
     image: 'uploads/sari.jpg',
@@ -130,9 +146,42 @@ describe('KaryawanSalesDashboardScreen', () => {
       await refreshControl.props.onRefresh();
     });
 
-    expect(mockInvalidate).toHaveBeenCalledTimes(2);
+    expect(mockInvalidate).toHaveBeenCalledTimes(3);
     expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['presurvei'] });
     expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['attendance'] });
+    expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['dashboard'] });
     expect(mockRefetchProfile).toHaveBeenCalledWith();
+  });
+
+  it('kartu pencairan bonus canvasing tampil setelah presurvei bila boleh canvasing (fix C1)', () => {
+    mockUseAuth.mockReturnValue(sales(['m_canvasing', 'm_presurvei']));
+    const { getAllByText } = render(<KaryawanSalesDashboardScreen />);
+
+    const urutan = getAllByText(/^(bagian-presurvei|kartu-pencairan)$/).map((node) => node.props.children);
+    expect(urutan).toEqual(['bagian-presurvei', 'kartu-pencairan']);
+  });
+
+  it('tanpa m_canvasing tidak ada kartu pencairan bonus (fix C1)', () => {
+    mockUseAuth.mockReturnValue(sales(['m_presurvei']));
+
+    expect(render(<KaryawanSalesDashboardScreen />).queryByText('kartu-pencairan')).toBeNull();
+  });
+
+  it('sales cuti melihat Beranda mode cuti yang sama dengan teknisi (fix C2)', () => {
+    mockUseAuth.mockReturnValue(sales(['m_presurvei', 'm_canvasing', 'm_absensi'], { isOnLeave: true }));
+    const { getByText, queryByText } = render(<KaryawanSalesDashboardScreen />);
+
+    expect(getByText('mode-cuti:Sari:uploads/sari.jpg')).toBeTruthy();
+    expect(queryByText('kartu-absen')).toBeNull();
+    expect(queryByText('kartu-pencairan')).toBeNull();
+    expect(mockPropsPresurvei).toEqual({});
+    expect(mockPropsMenu).toEqual({});
+  });
+
+  it('sales tidak cuti tidak melihat mode cuti (fix C2)', () => {
+    mockUseAuth.mockReturnValue(sales(['m_presurvei'], { isOnLeave: false }));
+
+    expect(render(<KaryawanSalesDashboardScreen />).queryByText(/mode-cuti/)).toBeNull();
+    expect(mockPropsPresurvei.isPresurveiAktif).toBe(true);
   });
 });
