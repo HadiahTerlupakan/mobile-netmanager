@@ -55,6 +55,7 @@ const RUTE_PRESURVEI_TERSEMBUNYI = [
   'presurvei/index',
   'presurvei/kegiatan/catat',
   'presurvei/prospek/[id]/index',
+  'presurvei/prospek/[id]/jadikan-canvasing',
 ];
 
 const TEKNISI = {
