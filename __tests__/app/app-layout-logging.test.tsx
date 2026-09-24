@@ -46,6 +46,10 @@ jest.mock('@/components/organisms/navigation/MitraTeknisiTabBar', () => ({
   MitraTeknisiTabBar: () => null,
 }));
 
+jest.mock('@/components/organisms/navigation/KaryawanSalesTabBar', () => ({
+  KaryawanSalesTabBar: () => null,
+}));
+
 jest.mock('@/constants/features', () => ({
   AppFeature: {
     DASHBOARD: 'dashboard',

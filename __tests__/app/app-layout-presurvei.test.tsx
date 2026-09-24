@@ -45,8 +45,15 @@ jest.mock('@/components/organisms/FaceVerificationModal', () => ({ FaceVerificat
 jest.mock('@/components/providers/LocationDisclosureProvider', () => ({
   LocationDisclosureProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-jest.mock('@/components/organisms/navigation/MitraSalesTabBar', () => ({ MitraSalesTabBar: () => null }));
+const mockMitraSalesTabBar = jest.fn((_props: unknown) => null);
+jest.mock('@/components/organisms/navigation/MitraSalesTabBar', () => ({
+  MitraSalesTabBar: (props: unknown) => mockMitraSalesTabBar(props),
+}));
 jest.mock('@/components/organisms/navigation/MitraTeknisiTabBar', () => ({ MitraTeknisiTabBar: () => null }));
+const mockKaryawanSalesTabBar = jest.fn((_props: unknown) => null);
+jest.mock('@/components/organisms/navigation/KaryawanSalesTabBar', () => ({
+  KaryawanSalesTabBar: (props: unknown) => mockKaryawanSalesTabBar(props),
+}));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 jest.mock('twrnc', () => () => ({}));
 
@@ -214,6 +221,44 @@ describe('layout aplikasi — route presurvei', () => {
       .map((rute) => rute.nama);
 
     expect(layarPenuh).toEqual(expect.arrayContaining(RUTE_PRESURVEI_TERSEMBUNYI.filter((nama) => nama !== 'presurvei/index')));
+  });
+
+  /** Props tab bar tiruan; harus diteruskan utuh ke tab bar persona. */
+  const PROPS_TAB_BAR = Object.freeze({ state: { index: 0, routes: [] } });
+
+  const renderTabBar = () => {
+    const tabBar = mockPropsTabs.tabBar as ((props: unknown) => React.ReactElement) | undefined;
+    if (tabBar) render(tabBar(PROPS_TAB_BAR));
+  };
+
+  it('sales karyawan memakai KaryawanSalesTabBar', () => {
+    renderLayout({ ...TEKNISI, isSales: true });
+
+    renderTabBar();
+
+    expect(mockKaryawanSalesTabBar).toHaveBeenCalledWith({ state: { index: 0, routes: [] } });
+    expect(mockMitraSalesTabBar).not.toHaveBeenCalled();
+  });
+
+  it('sales karyawan tanpa m_presurvei: tab Presurvei ditolak saat ditekan (terkunci, bukan hilang)', () => {
+    const { Alert } = require('react-native');
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const preventDefault = jest.fn();
+    renderLayout({ ...TEKNISI, role: 'SALES', isSales: true, features: ['m_dashboard', 'm_canvasing'] });
+
+    layar('presurvei/index')?.listeners?.tabPress?.({ preventDefault });
+
+    expect(preventDefault).toHaveBeenCalledWith();
+    expect(alert).toHaveBeenCalledWith('Akses Terbatas', expect.any(String), expect.any(Array));
+  });
+
+  it('mitra sales tetap memakai MitraSalesTabBar', () => {
+    renderLayout({ ...TEKNISI, employeeType: 'MITRA_SALES', isSales: true });
+
+    renderTabBar();
+
+    expect(mockMitraSalesTabBar).toHaveBeenCalledWith({ state: { index: 0, routes: [] } });
+    expect(mockKaryawanSalesTabBar).not.toHaveBeenCalled();
   });
 
   it('tab Presurvei memakai judul Presurvei dan terkunci tanpa m_presurvei', () => {

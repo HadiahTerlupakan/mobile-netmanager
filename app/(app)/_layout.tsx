@@ -9,7 +9,7 @@ import {
   User,
   Wallet,
 } from "lucide-react-native";
-import { Fragment, useEffect, useState } from "react";
+import React, { Fragment, useEffect, useState } from "react";
 import { Alert } from "react-native";
 import tw from "twrnc";
 
@@ -17,6 +17,9 @@ import { FaceVerificationModal } from '@/components/organisms/FaceVerificationMo
 import { LocationDisclosureProvider } from '@/components/providers/LocationDisclosureProvider';
 import { MitraSalesTabBar } from '@/components/organisms/navigation/MitraSalesTabBar';
 import { MitraTeknisiTabBar } from '@/components/organisms/navigation/MitraTeknisiTabBar';
+import { KaryawanSalesTabBar } from '@/components/organisms/navigation/KaryawanSalesTabBar';
+import { isPersonaMitra, punyaFitur, tentukanPersona, type Persona } from '@/utils/persona';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { AppFeature } from "@/constants/features";
 import { RUTE_LAYAR_TERSEMBUNYI } from "@/constants/ruteLayarTersembunyi";
 import { useAuth } from "@/context/AuthContext";
@@ -31,6 +34,14 @@ const APP_DASHBOARD_ROUTE = "/(app)/dashboard";
 const OPSI_TERSEMBUNYI = { href: null } as const;
 /** Opsi route tersembunyi layar penuh: tab bar ikut disembunyikan. */
 const OPSI_LAYAR_PENUH = { href: null, tabBarStyle: { display: "none" } } as const;
+
+/** Tab bar per persona; `undefined` = tab bar bawaan (teknisi karyawan, tidak berubah). */
+const TAB_BAR_PER_PERSONA: Record<Persona, ((props: BottomTabBarProps) => React.ReactNode) | undefined> = {
+  KARYAWAN_SALES: (props) => <KaryawanSalesTabBar {...props} />,
+  KARYAWAN_TEKNISI: undefined,
+  MITRA_SALES: (props) => <MitraSalesTabBar {...props} />,
+  MITRA_TEKNISI: (props) => <MitraTeknisiTabBar {...props} />,
+};
 
 export default function AppLayout() {
   const router = useRouter();
@@ -61,14 +72,10 @@ export default function AppLayout() {
     }
   }, [user?.employeeType, user?.isSales]);
 
-  const isMitra = user?.employeeType === 'MITRA_TEKNISI' || user?.employeeType === 'MITRA_SALES';
+  const persona = tentukanPersona(user);
+  const isMitra = isPersonaMitra(persona);
 
-  // Helper to check features
-  const hasFeature = (feature: AppFeature | string) => {
-    if (!user) return false;
-    if (user.role === "SUPER_ADMIN") return true; // Safety fallback
-    return user.features?.includes(feature) ?? false;
-  };
+  const hasFeature = (feature: AppFeature | string) => punyaFitur(user, feature);
 
   // Enforce leave restrictions globally
   useEffect(() => {
@@ -135,13 +142,7 @@ export default function AppLayout() {
         />
 
       <Tabs
-        tabBar={
-          user?.employeeType === 'MITRA_SALES'
-            ? (props) => <MitraSalesTabBar {...props} />
-            : user?.employeeType === 'MITRA_TEKNISI'
-              ? (props) => <MitraTeknisiTabBar {...props} />
-              : undefined
-        }
+        tabBar={TAB_BAR_PER_PERSONA[persona]}
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
@@ -167,7 +168,7 @@ export default function AppLayout() {
             tabPress: (e) => handleTabPress(e, AppFeature.DASHBOARD),
           }}
         />
-        {/* Presurvei — tampil hanya di KaryawanSalesTabBar (Task 17); teknisi membukanya dari menu cepat. */}
+        {/* Presurvei — tampil hanya di KaryawanSalesTabBar; teknisi membukanya dari menu cepat. */}
         <Tabs.Screen
           name="presurvei/index"
           options={{
