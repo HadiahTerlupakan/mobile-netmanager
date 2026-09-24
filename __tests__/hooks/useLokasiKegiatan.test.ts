@@ -137,4 +137,18 @@ describe('useLokasiKegiatan', () => {
 
     expect(result.current.status).toBe('mencari');
   });
+
+  // Fix round 1 (review Important): getForegroundPermissionsAsync() bisa
+  // reject (dipanggil di dalam .then(async...) yang di-void tanpa .catch).
+  // Tanpa try/catch, status macet permanen di 'mencari' (unhandled rejection).
+  it('pemeriksaan izin yang reject tetap jatuh ke status gagal, bukan macet di mencari', async () => {
+    mockAmbil.mockResolvedValue({ ...SIAP, latitude: '', longitude: '' });
+    mockIzinSaatIni.mockRejectedValue(new Error('native call gagal'));
+    const { result } = renderHook(() => useLokasiKegiatan());
+
+    act(() => result.current.cari());
+
+    await waitFor(() => expect(result.current.status).toBe('gagal'));
+    expect(result.current.titik).toBeNull();
+  });
 });

@@ -44,9 +44,16 @@ export function useLokasiKegiatan(): LokasiKegiatan {
       }
       // Kegagalan tanpa koordinat bisa berarti izin ditolak, bukan cuma GPS
       // lambat/mati — cek status izin (tanpa memicu dialog OS) untuk membedakan.
-      const izin = await Location.getForegroundPermissionsAsync();
-      if (nomor !== nomorPencarian.current) return;
-      setKeadaan(izin.status === Location.PermissionStatus.GRANTED ? keadaanBaru : KEADAAN_LOKASI_IZIN_DITOLAK);
+      // Pemeriksaan ini sendiri bisa reject (native call); bila begitu, jatuh
+      // ke kegagalan GPS biasa alih-alih macet permanen di status 'mencari'.
+      try {
+        const izin = await Location.getForegroundPermissionsAsync();
+        if (nomor !== nomorPencarian.current) return;
+        setKeadaan(izin.status === Location.PermissionStatus.GRANTED ? keadaanBaru : KEADAAN_LOKASI_IZIN_DITOLAK);
+      } catch {
+        if (nomor !== nomorPencarian.current) return;
+        setKeadaan(keadaanBaru);
+      }
     });
   }, [getLocationWithTimeout]);
 
