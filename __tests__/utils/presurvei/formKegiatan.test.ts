@@ -1,4 +1,5 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
+import * as Crypto from 'expo-crypto';
 
 import {
   keMuatanKegiatan,
@@ -248,9 +249,28 @@ describe('variabel catat', () => {
     expect('meta' in bangunVariabelCatat(MUATAN, [])).toBe(false);
   });
 
-  it('badan request tidak pernah membawa meta', () => {
-    const badan = badanCatatKegiatan(bangunVariabelCatat(MUATAN, ['file:///cache/a.jpg']));
-    expect(badan).toEqual({ ...MUATAN });
+  it('badan request tidak pernah membawa meta, tetapi membawa requestId', () => {
+    const variabel = bangunVariabelCatat(MUATAN, ['file:///cache/a.jpg']);
+    const badan = badanCatatKegiatan(variabel);
+    expect(badan).toEqual({ ...MUATAN, requestId: variabel.requestId });
+  });
+
+  // Task 11b: requestId sekali per upaya simpan — dipakai header
+  // Idempotency-Key di jalur online dan replay antrean.
+  it('membuat requestId berawalan presurvei dari UUID', () => {
+    jest.mocked(Crypto.randomUUID).mockReturnValueOnce('uuid-satu');
+
+    expect(bangunVariabelCatat(MUATAN, []).requestId).toBe('presurvei-uuid-satu');
+  });
+
+  it('dua upaya simpan terpisah mendapat requestId berbeda', () => {
+    jest.mocked(Crypto.randomUUID).mockReturnValueOnce('uuid-satu').mockReturnValueOnce('uuid-dua');
+
+    const pertama = bangunVariabelCatat(MUATAN, []);
+    const kedua = bangunVariabelCatat(MUATAN, ['file:///cache/a.jpg']);
+
+    expect(pertama.requestId).toBe('presurvei-uuid-satu');
+    expect(kedua.requestId).toBe('presurvei-uuid-dua');
   });
 
   // Ruling Task 13 (progress.md): fotoUrls hanya dikirim bila

@@ -27,7 +27,10 @@ jest.mock('@/utils/persistPhoto', () => ({
   persistPhotoForOffline: async (uri: string) => uri.replace('file:///cache/', 'file:///dokumen/offline-photos/'),
 }));
 jest.mock('@/utils/attendanceIdempotency', () => ({
-  buildAttendanceIdempotencyHeaders: jest.fn(() => ({})),
+  // Asli: header Idempotency-Key dari requestId adalah yang diuji (Task 11b).
+  buildAttendanceIdempotencyHeaders: jest.requireActual<typeof import('@/utils/attendanceIdempotency')>(
+    '@/utils/attendanceIdempotency',
+  ).buildAttendanceIdempotencyHeaders,
   ensureAttendanceRequestId: jest.fn((payload: unknown) => payload),
   isAttendanceEndpoint: jest.fn(() => false),
 }));
@@ -52,6 +55,9 @@ const VARIABEL = bangunVariabelCatat(
   ),
   ['file:///cache/a.jpg'],
 );
+// Literal terpisah, bukan `VARIABEL.requestId`: mock expo-crypto memberi UUID
+// tetap (`__mocks__/expo-crypto.js`), jadi nilai ini bisa dituliskan apa adanya.
+const ID_PERMINTAAN = 'presurvei-mocked-uuid-1234-5678';
 
 describe('useCatatKegiatan', () => {
   beforeEach(() => {
@@ -84,11 +90,13 @@ describe('useCatatKegiatan', () => {
         latitude: -6.2,
         longitude: 106.8,
         alamatDikunjungi: 'Jl. Melati 9',
+        requestId: ID_PERMINTAAN,
       },
       {
         photos: ['file:///dokumen/offline-photos/a.jpg'],
         targetField: 'fotoUrls',
         photoType: 'presurvei',
+        requestId: ID_PERMINTAAN,
       },
     );
     expect(onTersimpan).toHaveBeenCalledWith({ isAntre: true });
@@ -118,6 +126,9 @@ describe('useCatatKegiatan', () => {
     );
     expect(mockRequest).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.not.objectContaining({ meta: expect.anything() }) }),
+    );
+    expect(mockRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ headers: { 'Idempotency-Key': ID_PERMINTAAN } }),
     );
     expect(onTersimpan).toHaveBeenCalledWith({ isAntre: false });
     expect(invalidasi).toHaveBeenCalledWith({ queryKey: ['presurvei'] });

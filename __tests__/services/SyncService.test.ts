@@ -309,6 +309,38 @@ describe('SyncService', () => {
       }));
     });
 
+    it('replay kegiatan presurvei memakai requestId antrean sebagai Idempotency-Key', async () => {
+      // Task 11b: bentuk item sama dengan yang diantrekan useCatatKegiatan
+      // (__tests__/hooks/useCatatKegiatan.test.tsx) — requestId di badan dan
+      // meta, foto lokal di meta.photos menuju fotoUrls.
+      const mockItem: SyncQueueItem = {
+        id: 3,
+        url: '/api/presurvei/kegiatan',
+        method: 'POST' as const,
+        body: JSON.stringify({ jenis: 'KUNJUNGAN', hasil: 'TERTARIK', requestId: 'presurvei-uuid-antre' }),
+        status: 'PENDING' as const,
+        meta: JSON.stringify({
+          photos: ['file:///dokumen/offline-photos/a.jpg'],
+          targetField: 'fotoUrls',
+          photoType: 'presurvei',
+          requestId: 'presurvei-uuid-antre',
+        }),
+        createdAt: new Date().toISOString(),
+      };
+
+      mockDatabaseGetPendingQueue.mockResolvedValue([mockItem]);
+      mockSecureStoreGetItemAsync.mockResolvedValue('test-token');
+      mockApiRequest.mockResolvedValue({ status: 201, data: { success: true } });
+
+      await SyncService.processQueue();
+
+      expect(mockApiRequest).toHaveBeenCalledWith(expect.objectContaining({
+        url: '/api/presurvei/kegiatan',
+        headers: expect.objectContaining({ 'Idempotency-Key': 'presurvei-uuid-antre' }),
+        data: expect.objectContaining({ requestId: 'presurvei-uuid-antre', fotoUrls: ['https://example.com/photo.jpg'] }),
+      }));
+    });
+
     it('should mark as retry on failure', async () => {
       jest.useFakeTimers();
 
