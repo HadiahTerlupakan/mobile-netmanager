@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { User } from '@/context/AuthContext';
-import { isPersonaMitra, punyaFitur, tentukanPersona, type Persona } from '@/utils/persona';
+import { bolehCanvasing, isPersonaMitra, punyaFitur, tentukanPersona, type Persona } from '@/utils/persona';
 
 /** employeeType × isSales → persona; tupel bertipe agar `it.each` lolos tsc (TS2345 bila `as const`). */
 const KASUS_PERSONA: [User['employeeType'], boolean | undefined, Persona][] = [
@@ -47,5 +47,20 @@ describe('punyaFitur', () => {
     expect(punyaFitur({ role: 'SUPER_ADMIN', features: [] }, 'm_presurvei')).toBe(true);
     expect(punyaFitur(null, 'm_presurvei')).toBe(false);
     expect(punyaFitur({ role: 'SALES' }, 'm_presurvei')).toBe(false);
+  });
+});
+
+describe('bolehCanvasing', () => {
+  it('butuh izin m_canvasing dan user sales sekaligus (spec §3 aturan 4)', () => {
+    expect(bolehCanvasing({ role: 'SALES', features: ['m_canvasing'], isSales: true })).toBe(true);
+    expect(bolehCanvasing({ role: 'SALES', features: ['m_canvasing'], isSales: false })).toBe(false);
+    expect(bolehCanvasing({ role: 'SALES', features: ['m_canvasing'] })).toBe(false);
+    expect(bolehCanvasing({ role: 'SALES', features: ['m_presurvei'], isSales: true })).toBe(false);
+  });
+
+  it('SUPER_ADMIN tetap harus sales; tanpa pengguna tidak boleh', () => {
+    expect(bolehCanvasing({ role: 'SUPER_ADMIN', features: [], isSales: true })).toBe(true);
+    expect(bolehCanvasing({ role: 'SUPER_ADMIN', features: [], isSales: false })).toBe(false);
+    expect(bolehCanvasing(null)).toBe(false);
   });
 });

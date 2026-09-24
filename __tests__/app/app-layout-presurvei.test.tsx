@@ -274,4 +274,15 @@ describe('layout aplikasi — route presurvei', () => {
     expect(alert).toHaveBeenCalledWith('Akses Terbatas', expect.any(String), expect.any(Array));
     alert.mockRestore();
   });
+  // m3 Task 17 → Task 19: gerbang tab Canvasing lewat `bolehCanvasing` (izin + sales).
+  it.each([
+    [{ employeeType: 'MITRA_SALES', isSales: true, features: ['m_canvasing'] }, '/marketing/canvasing'],
+    [{ employeeType: 'MITRA_SALES', isSales: false, features: ['m_canvasing'] }, null],
+    [{ employeeType: 'KARYAWAN', isSales: false, features: ['m_canvasing'] }, null],
+    [{ employeeType: 'MITRA_SALES', isSales: true, features: [] }, null],
+  ])('tab Canvasing %j → href %s', (tambahan, hrefHarapan) => {
+    renderLayout({ ...TEKNISI, ...tambahan });
+
+    expect(layar('marketing/canvasing/index')?.options?.href).toBe(hrefHarapan);
+  });
 });

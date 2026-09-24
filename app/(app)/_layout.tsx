@@ -18,7 +18,7 @@ import { LocationDisclosureProvider } from '@/components/providers/LocationDiscl
 import { MitraSalesTabBar } from '@/components/organisms/navigation/MitraSalesTabBar';
 import { MitraTeknisiTabBar } from '@/components/organisms/navigation/MitraTeknisiTabBar';
 import { KaryawanSalesTabBar } from '@/components/organisms/navigation/KaryawanSalesTabBar';
-import { isPersonaMitra, punyaFitur, tentukanPersona, type Persona } from '@/utils/persona';
+import { bolehCanvasing, isPersonaMitra, punyaFitur, tentukanPersona, type Persona } from '@/utils/persona';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { AppFeature } from "@/constants/features";
 import { RUTE_LAYAR_TERSEMBUNYI } from "@/constants/ruteLayarTersembunyi";
@@ -199,10 +199,7 @@ export default function AppLayout() {
           name="marketing/canvasing/index"
           options={{
             title: "Canvasing",
-            href:
-              hasFeature(AppFeature.CANVASING) && user?.isSales
-                ? "/marketing/canvasing"
-                : null,
+            href: bolehCanvasing(user) ? "/marketing/canvasing" : null,
             tabBarIcon: ({ color }) => (
               <DollarSign
                 size={24}

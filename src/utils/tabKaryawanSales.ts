@@ -2,7 +2,7 @@ import type { BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
 
 import { AppFeature } from '@/constants/features';
 import type { User } from '@/context/AuthContext';
-import { punyaFitur } from './persona';
+import { bolehCanvasing, punyaFitur } from './persona';
 
 /** Urutan tab sales karyawan. Work Order dan Barang sengaja tidak ada. */
 export const RUTE_TAB_KARYAWAN_SALES = [
@@ -31,8 +31,7 @@ type PenggunaTab = Pick<User, 'role' | 'features' | 'isSales'>;
 const ATURAN_TAB: Record<RuteTabSales, (user: PenggunaTab | null) => boolean | null> = {
   dashboard: (user) => !punyaFitur(user, AppFeature.DASHBOARD),
   'presurvei/index': (user) => !punyaFitur(user, AppFeature.PRESURVEI),
-  'marketing/canvasing/index': (user) =>
-    punyaFitur(user, AppFeature.CANVASING) && user?.isSales === true ? false : null,
+  'marketing/canvasing/index': (user) => (bolehCanvasing(user) ? false : null),
   absensi: (user) => (punyaFitur(user, AppFeature.ABSENSI) ? false : null),
   profile: () => false,
 };

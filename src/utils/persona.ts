@@ -1,3 +1,4 @@
+import { AppFeature } from '@/constants/features';
 import type { User } from '@/context/AuthContext';
 
 /**
@@ -37,4 +38,12 @@ export function punyaFitur(user: Pick<User, 'role' | 'features'> | null | undefi
   if (!user) return false;
   if (user.role === PERAN_SUPER_ADMIN) return true;
   return user.features?.includes(fitur) ?? false;
+}
+
+/**
+ * Apakah Canvasing boleh tampil: izin `m_canvasing` dan user sales sekaligus
+ * (spec §3 aturan 4). Dipakai tab bar bawaan dan tab bar sales karyawan.
+ */
+export function bolehCanvasing(user: Pick<User, 'role' | 'features' | 'isSales'> | null | undefined): boolean {
+  return punyaFitur(user, AppFeature.CANVASING) && user?.isSales === true;
 }
