@@ -15,10 +15,12 @@ import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 
 /** Rincian prospek: kontak, status, riwayat kegiatan, dan aksinya. */
 export default function RincianProspekScreen() {
-  useFeatureGuard(AppFeature.PRESURVEI);
+  const isDiizinkan = useFeatureGuard(AppFeature.PRESURVEI);
   const { id = '' } = useLocalSearchParams<{ id?: string }>();
-  const layar = useLayarRincianProspek(id);
+  const layar = useLayarRincianProspek(id, isDiizinkan);
 
+  // Guard fitur yang mengalihkan; jangan muat atau tampilkan apa pun sebelum diizinkan.
+  if (!isDiizinkan) return null;
   if (layar.isPending) return <ActivityIndicator style={tw`mt-10`} />;
   // Amandemen preflight (S4): hanya `!layar.prospek`, BUKAN `isError ||
   // !prospek` — data cache tidak boleh disembunyikan hanya karena refetch

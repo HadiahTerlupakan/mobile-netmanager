@@ -38,11 +38,15 @@ export function useDaftarProspek(filter: FilterDaftarProspek) {
   });
 }
 
-/** Rincian satu prospek. */
-export function useRincianProspek(id: string) {
+/**
+ * Rincian satu prospek. `isAktif` = hasil guard fitur: selama false tidak ada
+ * GET, supaya deep link tanpa izin tidak memicu 403 dan toast global
+ * berbarengan dengan Alert "Akses Terbatas" (review akhir M6).
+ */
+export function useRincianProspek(id: string, isAktif = true) {
   return useQuery({
     queryKey: queryKeys.presurvei.prospekDetail(id),
     queryFn: () => PresurveiService.rincianProspek(id),
-    enabled: id !== '',
+    enabled: isAktif && id !== '',
   });
 }

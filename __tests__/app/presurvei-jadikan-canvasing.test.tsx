@@ -10,14 +10,19 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
   useLocalSearchParams: () => ({ id: 'p-1', statusAsal: 'DEAL' }),
 }));
-jest.mock('@/hooks/useFeatureGuard', () => ({ useFeatureGuard: jest.fn() }));
+const mockUseFeatureGuard = jest.fn<(...args: unknown[]) => boolean>();
+const mockUseRincianProspek = jest.fn<(...args: unknown[]) => void>();
+jest.mock('@/hooks/useFeatureGuard', () => ({ useFeatureGuard: (...a: unknown[]) => mockUseFeatureGuard(...a) }));
 jest.mock('@/hooks/queries/usePresurveiProspek', () => ({
-  useRincianProspek: () => ({
-    data: { id: 'p-1', nama: 'Budi Santoso', status: 'NEGOSIASI', canvasingId: null },
-    isPending: false,
-    isError: false,
-    refetch: jest.fn(),
-  }),
+  useRincianProspek: (...a: unknown[]) => {
+    mockUseRincianProspek(...a);
+    return {
+      data: { id: 'p-1', nama: 'Budi Santoso', status: 'NEGOSIASI', canvasingId: null },
+      isPending: false,
+      isError: false,
+      refetch: jest.fn(),
+    };
+  },
 }));
 jest.mock('@/hooks/useIsOnline', () => ({ useIsOnline: () => mockIsOnline }));
 jest.mock('@/hooks/presurvei/useJadikanCanvasing', () => ({
@@ -57,6 +62,7 @@ describe('Jadikan Canvasing', () => {
     jest.clearAllMocks();
     mockIsOnline = true;
     mockKameraProps = null;
+    mockUseFeatureGuard.mockReturnValue(true);
   });
 
   it('memberi tahu bahwa prospek akan dipindah ke Deal lebih dulu', () => {
@@ -124,5 +130,23 @@ describe('Jadikan Canvasing', () => {
     fireEvent.press(tombol);
 
     expect(mockJadikan).toHaveBeenCalledTimes(1);
+  });
+  describe('guard fitur sebelum memuat data (review akhir M6)', () => {
+    it('tanpa izin presurvei: rincian tidak dimuat dan layar tidak dirender', () => {
+      mockUseFeatureGuard.mockReturnValue(false);
+
+      const { toJSON } = renderLayar();
+
+      expect(mockUseFeatureGuard).toHaveBeenCalledWith('m_presurvei');
+      expect(mockUseRincianProspek).toHaveBeenCalledWith('p-1', false);
+      expect(mockUseRincianProspek).not.toHaveBeenCalledWith('p-1', true);
+      expect(toJSON()).toBeNull();
+    });
+
+    it('dengan izin: rincian dimuat', () => {
+      renderLayar();
+
+      expect(mockUseRincianProspek).toHaveBeenCalledWith('p-1', true);
+    });
   });
 });

@@ -17,10 +17,12 @@ const TEKS_BUTUH_ONLINE_KONVERSI = 'Butuh koneksi internet untuk menjadikan canv
 
 /** Form Jadikan Canvasing: No. KTP, paket, kabel opsional, dan foto KTP wajib. */
 export default function JadikanCanvasingScreen() {
-  useFeatureGuard(AppFeature.PRESURVEI);
+  const isDiizinkan = useFeatureGuard(AppFeature.PRESURVEI);
   const { id = '' } = useLocalSearchParams<{ id?: string }>();
-  const layar = useLayarJadikanCanvasing(id);
+  const layar = useLayarJadikanCanvasing(id, isDiizinkan);
 
+  // Guard fitur yang mengalihkan; jangan muat atau tampilkan apa pun sebelum diizinkan.
+  if (!isDiizinkan) return null;
   if (layar.isKameraTerbuka) {
     return <KameraBukti onAmbil={layar.ambilFotoKtp} onTutup={layar.tutupKamera} />;
   }

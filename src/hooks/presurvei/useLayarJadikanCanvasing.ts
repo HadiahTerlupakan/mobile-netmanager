@@ -13,11 +13,12 @@ import { useJadikanCanvasing } from './useJadikanCanvasing';
  * (`app/(app)/presurvei/prospek/[id]/jadikan-canvasing.tsx`) hanya
  * merender apa yang dikembalikan di sini — pola sama dengan
  * `useLayarRincianProspek` (Task 15), diwajibkan preflight-scan.md G10
- * untuk Task 16 juga ("`pilihAksi`/`kirim` di dalam layar").
+ * untuk Task 16 juga ("`pilihAksi`/`kirim` di dalam layar"). `isAktif` =
+ * hasil guard fitur; selama false rincian tidak dimuat.
  */
-export function useLayarJadikanCanvasing(id: string) {
+export function useLayarJadikanCanvasing(id: string, isAktif: boolean) {
   const router = useRouter();
-  const rincian = useRincianProspek(id);
+  const rincian = useRincianProspek(id, isAktif);
   const form = useFormKonversi();
   const isOnline = useIsOnline();
   const konversi = useJadikanCanvasing(() => router.back());

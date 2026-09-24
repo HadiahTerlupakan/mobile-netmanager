@@ -15,14 +15,14 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn() }),
   useLocalSearchParams: () => ({ id: 'p-1' }),
 }));
-jest.mock('@/hooks/useFeatureGuard', () => ({ useFeatureGuard: jest.fn() }));
+const mockUseFeatureGuard = jest.fn<(...args: unknown[]) => boolean>();
+const mockUseRincianProspek = jest.fn<(...args: unknown[]) => void>();
+jest.mock('@/hooks/useFeatureGuard', () => ({ useFeatureGuard: (...a: unknown[]) => mockUseFeatureGuard(...a) }));
 jest.mock('@/hooks/queries/usePresurveiProspek', () => ({
-  useRincianProspek: () => ({
-    data: mockProspek,
-    isPending: false,
-    isError: mockIsErrorRincian,
-    refetch: mockRefetch,
-  }),
+  useRincianProspek: (...a: unknown[]) => {
+    mockUseRincianProspek(...a);
+    return { data: mockProspek, isPending: false, isError: mockIsErrorRincian, refetch: mockRefetch };
+  },
 }));
 jest.mock('@/hooks/useIsOnline', () => ({ useIsOnline: () => mockIsOnline }));
 jest.mock('@/hooks/presurvei/useUbahStatusProspek', () => ({
@@ -72,6 +72,7 @@ describe('Rincian prospek', () => {
     mockProspek = prospek({});
     mockIsOnline = true;
     mockIsErrorRincian = false;
+    mockUseFeatureGuard.mockReturnValue(true);
   });
 
   it('Ubah Status hanya menawarkan transisi sah', () => {
@@ -166,5 +167,23 @@ describe('Rincian prospek', () => {
 
     expect(getByText('Budi Santoso')).toBeTruthy();
     expect(queryByText('Rincian prospek gagal dimuat.')).toBeNull();
+  });
+  describe('guard fitur sebelum memuat data (review akhir M6)', () => {
+    it('tanpa izin presurvei: rincian tidak dimuat dan layar tidak dirender', () => {
+      mockUseFeatureGuard.mockReturnValue(false);
+
+      const { toJSON } = renderLayar();
+
+      expect(mockUseFeatureGuard).toHaveBeenCalledWith('m_presurvei');
+      expect(mockUseRincianProspek).toHaveBeenCalledWith('p-1', false);
+      expect(mockUseRincianProspek).not.toHaveBeenCalledWith('p-1', true);
+      expect(toJSON()).toBeNull();
+    });
+
+    it('dengan izin: rincian dimuat', () => {
+      renderLayar();
+
+      expect(mockUseRincianProspek).toHaveBeenCalledWith('p-1', true);
+    });
   });
 });

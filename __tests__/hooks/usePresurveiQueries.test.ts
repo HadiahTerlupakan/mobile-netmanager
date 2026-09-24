@@ -151,6 +151,14 @@ describe('hook prospek presurvei', () => {
     renderHook(() => useRincianProspek(''));
     expect(opsiTerakhir(mockUseQuery).enabled).toBe(false);
   });
+
+  it('rincian prospek nonaktif selama guard fitur belum mengizinkan (review akhir M6)', () => {
+    renderHook(() => useRincianProspek('p-2', false));
+    expect(opsiTerakhir(mockUseQuery).enabled).toBe(false);
+
+    renderHook(() => useRincianProspek('p-2', true));
+    expect(opsiTerakhir(mockUseQuery).enabled).toBe(true);
+  });
 });
 
 describe('hook ringkasan presurvei', () => {

@@ -12,11 +12,11 @@ import { useUbahStatusProspek } from './useUbahStatusProspek';
  * Status, dan keputusan navigasi vs mutasi saat sales memilih status tujuan.
  * Layar (`app/(app)/presurvei/prospek/[id]/index.tsx`) hanya merender apa
  * yang dikembalikan di sini (preflight-scan.md G10: logika keluar dari
- * komponen layar).
+ * komponen layar). `isAktif` = hasil guard fitur; selama false rincian tidak dimuat.
  */
-export function useLayarRincianProspek(id: string) {
+export function useLayarRincianProspek(id: string, isAktif: boolean) {
   const router = useRouter();
-  const rincian = useRincianProspek(id);
+  const rincian = useRincianProspek(id, isAktif);
   const isOnline = useIsOnline();
   const ubahStatus = useUbahStatusProspek(id);
   const [isPilihStatusTerbuka, setIsPilihStatusTerbuka] = useState(false);
