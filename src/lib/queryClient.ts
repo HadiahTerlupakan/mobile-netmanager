@@ -231,4 +231,19 @@ export const queryKeys = {
     all: ["profile"] as const,
     detail: () => [...queryKeys.profile.all, "detail"] as const,
   },
+
+  // Presurvei
+  presurvei: {
+    all: ["presurvei"] as const,
+    kegiatanHarian: (rentang: { dariTanggal: string; sampaiTanggal: string }) =>
+      [...queryKeys.presurvei.all, "kegiatan", rentang] as const,
+    kegiatanProspek: (prospekId: string) =>
+      [...queryKeys.presurvei.all, "kegiatan", { prospekId }] as const,
+    antrean: () => [...queryKeys.presurvei.all, "antrean"] as const,
+    prospekList: (filter: { status?: string; search?: string }) =>
+      [...queryKeys.presurvei.all, "prospek", "list", filter] as const,
+    prospekDetail: (id: string) =>
+      [...queryKeys.presurvei.all, "prospek", "detail", id] as const,
+    ringkasan: () => [...queryKeys.presurvei.all, "ringkasan"] as const,
+  },
 };
