@@ -43,7 +43,14 @@ export default function CatatKegiatanScreen() {
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
       <View style={tw`flex-row items-center px-4 py-3 bg-white border-b border-gray-100`}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Kembali" onPress={() => router.back()}>
+        {/* Nonaktif selama menyimpan: hasilnya menutup layar ini (review akhir M4). */}
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Kembali"
+          accessibilityState={{ disabled: layar.isMenyimpan }}
+          disabled={layar.isMenyimpan}
+          onPress={() => router.back()}
+        >
           <ChevronLeft size={UKURAN_IKON_KEMBALI} color={WARNA_IKON_KEMBALI} />
         </TouchableOpacity>
         <Text style={tw`ml-2 text-lg font-bold text-gray-900`}>Catat Kegiatan</Text>

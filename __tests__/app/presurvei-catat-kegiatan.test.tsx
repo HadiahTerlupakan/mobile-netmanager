@@ -30,6 +30,7 @@ let mockOnTersimpan: ((hasil: { isAntre: boolean }) => void) | null = null;
 let mockLokasi: KeadaanLokasiUji = { status: 'gagal', titik: null, alamatTerdeteksi: '' };
 let mockKameraProps: { onAmbil: (uri: string) => void; onTutup: () => void } | null = null;
 let mockPilihProps: PropsPilihProspekUji | null = null;
+let mockIsPending = false;
 
 let mockNomorUuid = 0;
 jest.mock('expo-crypto', () => ({
@@ -62,7 +63,7 @@ jest.mock('@/hooks/presurvei/useLokasiKegiatan', () => ({
 jest.mock('@/hooks/presurvei/useCatatKegiatan', () => ({
   useCatatKegiatan: (onTersimpan: (hasil: { isAntre: boolean }) => void) => {
     mockOnTersimpan = onTersimpan;
-    return { mutate: mockMutate, isPending: false };
+    return { mutate: mockMutate, isPending: mockIsPending };
   },
 }));
 jest.mock('@/components/organisms/presurvei/KameraBukti', () => ({
@@ -149,6 +150,7 @@ describe('Catat Kegiatan', () => {
     mockOnTersimpan = null;
     mockEfekFokus = null;
     mockUseFeatureGuard.mockReturnValue(true);
+    mockIsPending = false;
   });
 
   afterEach(() => {
@@ -549,5 +551,65 @@ describe('Catat Kegiatan', () => {
     expect(mockPresentInfo).not.toHaveBeenCalled();
     expect(mockBack).not.toHaveBeenCalled();
     expect(panggilanMutate(1).variabel.requestId).not.toBe(panggilanMutate(0).variabel.requestId);
+  });
+  describe('hasil simpan yang terlambat (review akhir M4)', () => {
+    const simpanTelepon = ({ getByText }: KueriLayar) => {
+      fireEvent.press(getByText('Telepon'));
+      fireEvent.press(getByText('Tidak minat'));
+      fireEvent.press(getByText('Simpan Kegiatan'));
+    };
+
+    it('sukses upaya lama setelah layar dibuka lagi tidak menutup form baru', () => {
+      const utilitas = renderLayar();
+      simpanTelepon(utilitas);
+
+      fokusUlang();
+      fireEvent.changeText(utilitas.getByLabelText('Catatan'), 'Isian kegiatan berikutnya');
+      act(() => {
+        mockOnTersimpan?.({ isAntre: false });
+        panggilanMutate(0).opsi.onSuccess?.();
+        panggilanMutate(0).opsi.onSettled?.();
+      });
+
+      expect(mockBack).not.toHaveBeenCalled();
+      expect(utilitas.getByLabelText('Catatan').props.value).toBe('Isian kegiatan berikutnya');
+    });
+
+    it('KEY_REUSED upaya lama setelah layar dibuka lagi tidak menutup form baru', () => {
+      const utilitas = renderLayar();
+      simpanTelepon(utilitas);
+      gagalkanMutate(0);
+      fireEvent.press(utilitas.getByText('Simpan Kegiatan'));
+
+      fokusUlang();
+      gagalkanMutate(1, bangunGalatKunciDipakaiUlang());
+
+      expect(mockBack).not.toHaveBeenCalled();
+      expect(mockPresentInfo).not.toHaveBeenCalled();
+    });
+
+    it('galat upaya lama setelah layar dibuka lagi tidak diingat untuk form baru', () => {
+      const utilitas = renderLayar();
+      simpanTelepon(utilitas);
+
+      fokusUlang();
+      gagalkanMutate(0);
+      simpanTelepon(utilitas);
+
+      const lama = panggilanMutate(0).variabel;
+      const baru = panggilanMutate(1).variabel;
+      expect(typeof baru.requestId).toBe('string');
+      expect(baru.requestId).not.toBe(lama.requestId);
+    });
+
+    it('selama menyimpan tombol Kembali di kepala layar nonaktif', () => {
+      mockIsPending = true;
+      const { getByLabelText } = renderLayar();
+
+      fireEvent.press(getByLabelText('Kembali'));
+
+      expect(getByLabelText('Kembali').props.accessibilityState).toEqual({ disabled: true });
+      expect(mockBack).not.toHaveBeenCalled();
+    });
   });
 });

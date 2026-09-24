@@ -54,6 +54,8 @@ interface UpayaSimpan {
   variabel: VariabelCatatKegiatan;
   isPakaiUlang: boolean;
   ingatGagal: () => void;
+  /** Masih milik form yang sedang tampil (layar belum difokuskan ulang sejak upaya dimulai). */
+  isMasihBerlaku: () => boolean;
 }
 
 /**
@@ -77,13 +79,20 @@ function sidikNiat(muatan: MuatanCatatKegiatan, fotoLokal: readonly string[], is
  * dari gateway dilempar walau server mungkin sudah mencatat
  * (`useApiMutation.ts:304-308`), dan kunci yang sama membuat server
  * men-dedupe. Isian yang berubah adalah niat baru, sehingga
- * `bangunVariabelCatat` dipanggil lagi. `lupakan` menutup niat: dipanggil
- * setelah sukses dan setiap kali layar difokuskan (kegiatan baru).
+ * `bangunVariabelCatat` dipanggil lagi. `lupakan` menutup niat setelah
+ * sukses; `mulaiNiatBaru` dipanggil setiap kali layar difokuskan (kegiatan
+ * baru) dan menaikkan generasi, sehingga hasil upaya generasi lama yang tiba
+ * terlambat tidak menyentuh form baru (review akhir M4).
  */
 function useVariabelPerNiat() {
   const upayaGagal = useRef<UpayaGagal | null>(null);
+  const generasi = useRef(0);
   const lupakan = useCallback(() => {
     upayaGagal.current = null;
+  }, []);
+  const mulaiNiatBaru = useCallback(() => {
+    upayaGagal.current = null;
+    generasi.current += 1;
   }, []);
   const siapkan = (
     muatan: MuatanCatatKegiatan,
@@ -97,9 +106,11 @@ function useVariabelPerNiat() {
     const ingatGagal = () => {
       upayaGagal.current = { sidik, variabel };
     };
-    return { variabel, isPakaiUlang, ingatGagal };
+    const generasiUpaya = generasi.current;
+    const isMasihBerlaku = () => generasiUpaya === generasi.current;
+    return { variabel, isPakaiUlang, ingatGagal, isMasihBerlaku };
   };
-  return { siapkan, lupakan };
+  return { siapkan, lupakan, mulaiNiatBaru };
 }
 
 type NiatSimpan = ReturnType<typeof useVariabelPerNiat>;
@@ -139,18 +150,29 @@ interface OpsiPengirimKegiatan {
  * dirender ulang, dan dilepas di `onSettled` apa pun hasilnya. Galat tidak
  * mengosongkan form; layar hanya ditutup lewat `onSelesai` setelah sukses
  * (terkirim atau masuk antrean) atau setelah dipastikan sudah tercatat.
+ * Hasil upaya yang tiba setelah layar difokuskan ulang (mis. unggah lambat,
+ * sales kembali lalu membuka Catat lagi) diabaikan: tidak menutup form baru
+ * dan tidak diingat sebagai niatnya.
  */
 function usePengirimKegiatan({ form, titik, niat, isAlamatOtomatis, onSelesai }: OpsiPengirimKegiatan) {
-  const catat = useCatatKegiatan(() => onSelesai());
+  const upayaBerjalan = useRef<UpayaSimpan | null>(null);
+  const catat = useCatatKegiatan(() => {
+    if (upayaBerjalan.current?.isMasihBerlaku() === true) onSelesai();
+  });
   const isMengirim = useRef(false);
   const simpan = () => {
     if (isMengirim.current || !form.periksa(titik)) return;
     isMengirim.current = true;
     const muatan = keMuatanKegiatan(form.nilai, { titik, waktuMulai: new Date() });
     const upaya = niat.siapkan(muatan, form.fotoLokal, isAlamatOtomatis(form.nilai.alamat));
+    upayaBerjalan.current = upaya;
     catat.mutate(upaya.variabel, {
+      // Tanpa penjaga generasi: upaya baru baru bisa dimulai setelah upaya ini
+      // selesai (`isMengirim`), jadi saat ini tidak ada ingatan niat baru.
       onSuccess: niat.lupakan,
-      onError: (galat) => tanganiGalatSimpan(galat, upaya, onSelesai),
+      onError: (galat) => {
+        if (upaya.isMasihBerlaku()) tanganiGalatSimpan(galat, upaya, onSelesai);
+      },
       onSettled: () => {
         isMengirim.current = false;
       },
@@ -226,7 +248,7 @@ export function useLayarCatatKegiatan(param: ParamCatatKegiatan, onSelesai: () =
   // langsung terhapus oleh reset pada commit yang sama.
   useMulaiSaatFokus(
     param,
-    { reset: form.reset, setNamaProspek: prospek.setNama, cariLokasi: lokasi.cari, mulaiNiatBaru: niat.lupakan },
+    { reset: form.reset, setNamaProspek: prospek.setNama, cariLokasi: lokasi.cari, mulaiNiatBaru: niat.mulaiNiatBaru },
     isAktif,
   );
   const isAlamatOtomatis = useIsiAlamatOtomatis(lokasi.alamatTerdeteksi, form.nilai.alamat, form.ubah);
