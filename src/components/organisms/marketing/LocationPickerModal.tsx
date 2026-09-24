@@ -1,3 +1,4 @@
+import { GAYA_PETA_OSM } from '@/constants/gayaPetaOsm';
 import { getMapLibre, isMapLibreAvailable, isWeb } from '@/utils/maplibre';
 import { logger } from '@/utils/logger';
 import { requestForegroundLocationWithDisclosure } from '@/utils/locationDisclosure';
@@ -70,27 +71,6 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
     // Memoize settings to prevent re-renders from "resetting" the map
     // We only want to set the center ONCE when the map becomes visible/initialized.
     // Subsequent moves (drag or search) are imperative or update 'center' state only for UI.
-    const mapStyle = React.useMemo(() => ({
-        version: 8,
-        sources: {
-            osm: {
-                type: 'raster',
-                tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                tileSize: 256,
-                attribution: '© OpenStreetMap contributors',
-            },
-        },
-        layers: [
-            {
-                id: 'osm-tiles',
-                type: 'raster',
-                source: 'osm',
-                minzoom: 0,
-                maxzoom: 19,
-            },
-        ],
-    }), []);
-
     const cameraSettings = React.useMemo(() => ({
         centerCoordinate: center,
         zoomLevel: 15,
@@ -319,7 +299,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                     ) : (
                         <MapLibreGL.MapView
                             style={tw`flex-1`}
-                            mapStyle={mapStyle}
+                            mapStyle={GAYA_PETA_OSM}
                             logoEnabled={false}
                             attributionEnabled={false}
                             onRegionDidChange={onRegionDidChange}

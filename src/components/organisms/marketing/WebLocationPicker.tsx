@@ -4,6 +4,7 @@
 
 import { ActivityIndicator, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
+import { GAYA_PETA_OSM } from '@/constants/gayaPetaOsm';
 import { logger } from '@/utils/logger';
 import * as Location from 'expo-location';
 import { Crosshair, MapPin, Search } from 'lucide-react-native';
@@ -69,26 +70,11 @@ export function WebLocationPicker({
 
     map.current = new maplibregl!.Map({
       container: mapContainer.current,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '© OpenStreetMap contributors',
-          },
-        },
-        layers: [
-          {
-            id: 'osm-tiles',
-            type: 'raster',
-            source: 'osm',
-            minzoom: 0,
-            maxzoom: 19,
-          },
-        ],
-      },
+      // `GAYA_PETA_OSM` sengaja tanpa anotasi `StyleSpecification`
+      // (lihat komentar di `constants/gayaPetaOsm.ts`), jadi literalnya
+      // melebar ke `string` generik di sini; `as any` menghindari itu
+      // tanpa memberi anotasi tipe pada nilai bersama.
+      style: GAYA_PETA_OSM as any,
       center: initialCenter,
       zoom: 15,
     }) as any;
