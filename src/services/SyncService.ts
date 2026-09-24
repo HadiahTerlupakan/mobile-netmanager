@@ -14,6 +14,7 @@ import api from './api';
 import { extractApiErrorMessage } from '@/utils/errorHandling';
 import { cleanupOfflinePhotos } from '@/utils/persistPhoto';
 import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
+import { isGalatIdempotensiSedangDiproses } from '@/utils/galatIdempotensi';
 import { TelemetryService } from './TelemetryService';
 import { RefreshTokenService } from './RefreshTokenService';
 import {
@@ -483,6 +484,16 @@ export const SyncService = {
                     // coba lagi (atau hit retry budget cap di awal
                     // processQueueItem).
                     logger.warn(`[SyncService] Token refresh failed for item ${item.id}, marking retry`);
+                    await DatabaseService.markAsRetry(item.id);
+                    return;
+                }
+
+                // 409 IDEMPOTENCY_IN_PROGRESS: server masih memegang kunci yang
+                // sama (permintaan pertama belum selesai, atau kunci yatim
+                // menunggu TTL pendek di server). Bukan kegagalan permanen —
+                // item tetap antre dan dikirim ulang dengan Idempotency-Key sama.
+                if (isGalatIdempotensiSedangDiproses(error)) {
+                    logger.sync(`Item ${item.id} masih diproses server (409 in-progress). Marking for retry.`);
                     await DatabaseService.markAsRetry(item.id);
                     return;
                 }

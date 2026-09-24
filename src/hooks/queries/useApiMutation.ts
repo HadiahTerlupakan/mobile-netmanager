@@ -21,6 +21,7 @@ import {
   isAttendanceEndpoint,
 } from "@/utils/attendanceIdempotency";
 import { extractApiErrorMessage } from "@/utils/errorHandling";
+import { isGalatIdempotensiSedangDiproses } from "@/utils/galatIdempotensi";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import {
   adaFotoLokalHilang,
@@ -309,8 +310,15 @@ export function useApiMutation<
             !error.response);
         const isExplicitOffline =
           error instanceof Error && error.message === OFFLINE_ERROR_MESSAGE;
+        // POST ber-requestId yang kena 409 in-progress diantre dengan
+        // requestId yang sama, supaya pengguna tidak mengetik ulang dengan
+        // id baru (yang akan tercatat ganda saat permintaan pertama selesai).
+        const isSedangDiprosesServer =
+          method === "POST" &&
+          requestId !== undefined &&
+          isGalatIdempotensiSedangDiproses(error);
 
-        if (isExplicitOffline || isNetworkError) {
+        if (isExplicitOffline || isNetworkError || isSedangDiprosesServer) {
           logger.info(
             `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${resolvedEndpoint}`,
           );

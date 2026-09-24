@@ -507,4 +507,53 @@ describe('SyncService', () => {
       expect(DatabaseService.markAsRetry).toHaveBeenCalledWith(8);
     });
   });
+  describe('409 idempotensi saat replay (Task 11c)', () => {
+    const REQUEST_ID = 'presurvei-uuid-11c';
+
+    const itemKegiatan = (id: number): SyncQueueItem => ({
+      id,
+      url: '/api/presurvei/kegiatan',
+      method: 'POST' as const,
+      body: JSON.stringify({ jenis: 'TELEPON', hasil: 'TIDAK_MINAT', requestId: REQUEST_ID }),
+      status: 'PENDING' as const,
+      meta: JSON.stringify({ requestId: REQUEST_ID }),
+      createdAt: new Date().toISOString(),
+    });
+
+    const tolak409 = (code: string) =>
+      mockApiRequest.mockRejectedValue({
+        isAxiosError: true,
+        response: { status: 409, data: { success: false, error: 'Galat idempotensi', code } },
+      });
+
+    it('409 IDEMPOTENCY_IN_PROGRESS: item tetap di antrean (markAsRetry), bukan dibuang', async () => {
+      tolak409('IDEMPOTENCY_IN_PROGRESS');
+
+      await SyncService.processQueueItem(itemKegiatan(21), 'test-token');
+
+      expect(DatabaseService.markAsRetry).toHaveBeenCalledWith(21);
+      expect(DatabaseService.removeFromQueue).not.toHaveBeenCalled();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ headers: expect.objectContaining({ 'Idempotency-Key': 'presurvei-uuid-11c' }) }),
+      );
+    });
+
+    it('regresi: 409 IDEMPOTENCY_KEY_REUSED tetap permanen, item dibuang', async () => {
+      tolak409('IDEMPOTENCY_KEY_REUSED');
+
+      await SyncService.processQueueItem(itemKegiatan(22), 'test-token');
+
+      expect(DatabaseService.removeFromQueue).toHaveBeenCalledWith(22);
+      expect(DatabaseService.markAsRetry).not.toHaveBeenCalled();
+    });
+
+    it('regresi: 409 biasa (BUSINESS_LOGIC_ERROR) tetap permanen, item dibuang', async () => {
+      tolak409('BUSINESS_LOGIC_ERROR');
+
+      await SyncService.processQueueItem(itemKegiatan(23), 'test-token');
+
+      expect(DatabaseService.removeFromQueue).toHaveBeenCalledWith(23);
+      expect(DatabaseService.markAsRetry).not.toHaveBeenCalled();
+    });
+  });
 });

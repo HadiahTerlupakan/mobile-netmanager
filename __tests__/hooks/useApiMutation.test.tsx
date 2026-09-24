@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import { presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
+import { presentAppError, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 
 jest.mock('@/utils/errorPresenter', () => ({
   presentAppError: jest.fn(),
@@ -93,6 +93,8 @@ jest.mock('@/utils/logger', () => ({
     error: jest.fn(),
   },
 }));
+
+type HttpMethodUji = 'POST' | 'PATCH';
 
 describe('useApiMutation', () => {
   beforeEach(() => {
@@ -663,6 +665,109 @@ describe('useApiMutation', () => {
           { requestId: 'r-1' },
         );
       });
+    });
+  });
+  describe('409 IDEMPOTENCY_IN_PROGRESS di jalur online (Task 11c)', () => {
+    const ENDPOINT_KEGIATAN = '/api/presurvei/kegiatan';
+    const REQUEST_ID = 'presurvei-uuid-11c';
+
+    // `response` dipasang setelah konstruksi: build axios di Jest tidak
+    // mengisinya dari argumen konstruktor ke-5.
+    const bangunGalat409 = (code: string) => {
+      const { AxiosError } = require('axios');
+      return Object.assign(new AxiosError('Request failed with status code 409', 'ERR_BAD_REQUEST'), {
+        response: {
+          status: 409,
+          statusText: 'Conflict',
+          headers: {},
+          config: {},
+          data: { success: false, error: 'Galat idempotensi', code },
+        },
+      });
+    };
+
+    const kirimOnline = async (method: HttpMethodUji, variables: Record<string, unknown>) => {
+      mockIsOnline.mockResolvedValue(true as never);
+      const client = buatClient();
+      const { useApiMutation } = require('@/hooks/queries/useApiMutation');
+      const { result, unmount } = renderHook(
+        () => useApiMutation({ endpoint: ENDPOINT_KEGIATAN, method }),
+        { wrapper: createWrapper(client) },
+      );
+      let hasil: unknown;
+      let galat: unknown;
+      await act(async () => {
+        try {
+          hasil = await result.current.mutateAsync(variables);
+        } catch (error) {
+          galat = error;
+        }
+      });
+      unmount();
+      client.clear();
+      return { hasil, galat };
+    };
+
+    it('POST ber-requestId diantre dengan payload dan requestId yang sama, tidak dilempar', async () => {
+      mockRequest.mockRejectedValue(bangunGalat409('IDEMPOTENCY_IN_PROGRESS'));
+
+      const { hasil, galat } = await kirimOnline('POST', {
+        jenis: 'TELEPON',
+        hasil: 'TIDAK_MINAT',
+        requestId: REQUEST_ID,
+      });
+
+      expect(galat).toBeUndefined();
+      expect(hasil).toEqual(
+        expect.objectContaining({ kind: 'offline-queued', endpoint: ENDPOINT_KEGIATAN, method: 'POST' }),
+      );
+      expect(mockAddToQueue).toHaveBeenCalledWith(
+        ENDPOINT_KEGIATAN,
+        'POST',
+        { jenis: 'TELEPON', hasil: 'TIDAK_MINAT', requestId: 'presurvei-uuid-11c' },
+        { requestId: 'presurvei-uuid-11c' },
+      );
+      expect(presentAppError).not.toHaveBeenCalled();
+    });
+
+    it('regresi: 409 IDEMPOTENCY_KEY_REUSED tetap dilempar, tidak diantre', async () => {
+      const galatServer = bangunGalat409('IDEMPOTENCY_KEY_REUSED');
+      mockRequest.mockRejectedValue(galatServer);
+
+      const { galat } = await kirimOnline('POST', { jenis: 'TELEPON', requestId: REQUEST_ID });
+
+      expect(galat).toBe(galatServer);
+      expect(mockAddToQueue).not.toHaveBeenCalled();
+    });
+
+    it('regresi: 409 biasa (BUSINESS_LOGIC_ERROR) tetap dilempar, tidak diantre', async () => {
+      const galatServer = bangunGalat409('BUSINESS_LOGIC_ERROR');
+      mockRequest.mockRejectedValue(galatServer);
+
+      const { galat } = await kirimOnline('POST', { jenis: 'TELEPON', requestId: REQUEST_ID });
+
+      expect(galat).toBe(galatServer);
+      expect(mockAddToQueue).not.toHaveBeenCalled();
+    });
+
+    it('409 IDEMPOTENCY_IN_PROGRESS tanpa requestId dilempar: tak ada kunci untuk replay', async () => {
+      const galatServer = bangunGalat409('IDEMPOTENCY_IN_PROGRESS');
+      mockRequest.mockRejectedValue(galatServer);
+
+      const { galat } = await kirimOnline('POST', { jenis: 'TELEPON' });
+
+      expect(galat).toBe(galatServer);
+      expect(mockAddToQueue).not.toHaveBeenCalled();
+    });
+
+    it('409 IDEMPOTENCY_IN_PROGRESS pada PATCH dilempar: hanya POST yang diantre', async () => {
+      const galatServer = bangunGalat409('IDEMPOTENCY_IN_PROGRESS');
+      mockRequest.mockRejectedValue(galatServer);
+
+      const { galat } = await kirimOnline('PATCH', { status: 'DEAL', requestId: REQUEST_ID });
+
+      expect(galat).toBe(galatServer);
+      expect(mockAddToQueue).not.toHaveBeenCalled();
     });
   });
 });
