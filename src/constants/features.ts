@@ -7,6 +7,7 @@ export enum AppFeature {
   DASHBOARD = 'm_dashboard',
   WORK_ORDER = 'm_work_order',
   CANVASING = 'm_canvasing',
+  PRESURVEI = 'm_presurvei',
 
   // Inventory
   BARANG = 'm_barang',
