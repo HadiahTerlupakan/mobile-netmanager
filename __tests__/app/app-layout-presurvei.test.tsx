@@ -51,7 +51,7 @@ jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }))
 jest.mock('twrnc', () => () => ({}));
 
 /** Route presurvei yang tidak boleh muncul sebagai tab di tab bar bawaan. */
-const RUTE_PRESURVEI_TERSEMBUNYI = ['presurvei/kegiatan/catat'];
+const RUTE_PRESURVEI_TERSEMBUNYI = ['presurvei/index', 'presurvei/kegiatan/catat'];
 
 const TEKNISI = {
   id: 'u-1',
@@ -76,6 +76,12 @@ describe('layout aplikasi — route presurvei', () => {
     jest.clearAllMocks();
   });
 
+  // Amandemen preflight: spy `Alert.alert` bisa bocor ke test lain bila
+  // assertion di dalam test gagal sebelum sempat `mockRestore()`.
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it.each(RUTE_PRESURVEI_TERSEMBUNYI)('mendaftarkan %s tanpa tab', (nama) => {
     renderLayout(TEKNISI);
 
@@ -92,5 +98,19 @@ describe('layout aplikasi — route presurvei', () => {
 
     expect(terlihat).toEqual(['dashboard', 'work-order', 'barang', 'absensi', 'profile']);
     expect(mockPropsTabs.tabBar).toBeUndefined();
+  });
+
+  it('tab Presurvei memakai judul Presurvei dan terkunci tanpa m_presurvei', () => {
+    const { Alert } = require('react-native');
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const preventDefault = jest.fn();
+    renderLayout({ ...TEKNISI, features: ['m_dashboard'] });
+
+    layar('presurvei/index')?.listeners?.tabPress?.({ preventDefault });
+
+    expect(layar('presurvei/index')?.options?.title).toBe('Presurvei');
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(alert).toHaveBeenCalledWith('Akses Terbatas', expect.any(String), expect.any(Array));
+    alert.mockRestore();
   });
 });

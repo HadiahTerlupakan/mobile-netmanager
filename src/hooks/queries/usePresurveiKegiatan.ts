@@ -47,21 +47,32 @@ export function useKegiatanProspek(prospekId: string) {
 }
 
 /**
- * Kegiatan yang masih di antrean offline ("Menunggu kirim").
+ * Kegiatan yang masih di antrean offline: PENDING/RETRY ("Menunggu kirim")
+ * maupun FAILED ("Gagal terkirim").
  *
- * Hanya mencakup status PENDING/RETRY (`DatabaseService.getPendingQueue()`
- * tidak mengembalikan FAILED). Keputusan Task 8: item FAILED sengaja TIDAK
- * ikut tampil di sini, karena FAILED sudah berhenti dicoba ulang — melabeli
- * kegiatan begitu "Menunggu kirim" akan menyesatkan sales (kegiatan itu
- * sebenarnya tidak akan terkirim sendiri lagi). Item FAILED tetap tersimpan
- * di SQLite (tidak hilang), hanya belum punya permukaan UI "Gagal terkirim"
- * — dicatat sebagai utang eksplisit di laporan Task 8, bukan dibiarkan
- * hilang diam-diam.
+ * Task 8 sempat memakai `DatabaseService.getPendingQueue()` (hanya
+ * PENDING/RETRY) dan sengaja menyembunyikan FAILED. Ruling Task 14
+ * membalik keputusan itu: kegiatan FAILED sudah berhenti dicoba ulang
+ * tapi TIDAK boleh hilang dari pandangan sales, jadi dibaca lewat
+ * `getAllQueueItems()` dan dibedakan lewat `KegiatanMenunggu.status` →
+ * `BarisKegiatan.isGagal` (`daftarKegiatan.ts`).
+ *
+ * `getAllQueueItems()` melempar bila database antrean belum siap (dipakai
+ * di tempat lain untuk membedakan "kosong" dari "tak tersedia"); di sini
+ * kegagalan itu diredam jadi `[]`, sama seperti perilaku `getPendingQueue()`
+ * sebelumnya — layar daftar kegiatan tidak boleh dianggap gagal-memuat
+ * hanya karena antrean lokal belum siap.
  */
 export function useKegiatanMenungguKirim() {
   return useQuery({
     queryKey: queryKeys.presurvei.antrean(),
-    queryFn: async () => ambilKegiatanMenunggu(await DatabaseService.getPendingQueue()),
+    queryFn: async () => {
+      try {
+        return ambilKegiatanMenunggu(await DatabaseService.getAllQueueItems());
+      } catch {
+        return [];
+      }
+    },
     staleTime: TANPA_STALE_TIME_MS,
   });
 }

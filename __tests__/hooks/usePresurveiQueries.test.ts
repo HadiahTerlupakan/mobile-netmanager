@@ -28,9 +28,9 @@ jest.mock('@/services/PresurveiService', () => ({
   },
 }));
 
-const mockGetPendingQueue = jest.fn<() => Promise<unknown[]>>();
+const mockGetAllQueueItems = jest.fn<() => Promise<unknown[]>>();
 jest.mock('@/services/DatabaseService', () => ({
-  DatabaseService: { getPendingQueue: () => mockGetPendingQueue() },
+  DatabaseService: { getAllQueueItems: () => mockGetAllQueueItems() },
 }));
 
 import { useKegiatanHarian, useKegiatanMenungguKirim, useKegiatanProspek } from '@/hooks/queries/usePresurveiKegiatan';
@@ -75,8 +75,8 @@ describe('hook kegiatan presurvei', () => {
     expect(opsiTerakhir(mockUseQuery).enabled).toBe(false);
   });
 
-  it('antrean membaca kegiatan presurvei dari antrean offline', async () => {
-    mockGetPendingQueue.mockResolvedValue([
+  it('antrean membaca kegiatan presurvei dari SEMUA status antrean (termasuk FAILED)', async () => {
+    mockGetAllQueueItems.mockResolvedValue([
       {
         id: 4,
         url: '/api/presurvei/kegiatan',
@@ -86,14 +86,34 @@ describe('hook kegiatan presurvei', () => {
         createdAt: '2026-09-24T01:00:01.000Z',
         meta: '{}',
       },
+      {
+        id: 5,
+        url: '/api/presurvei/kegiatan',
+        method: 'POST',
+        body: JSON.stringify({ jenis: 'KUNJUNGAN', hasil: 'TIDAK_MINAT', waktuMulai: '2026-09-24T02:00:00.000Z' }),
+        status: 'FAILED',
+        createdAt: '2026-09-24T02:00:01.000Z',
+        meta: '{}',
+      },
     ]);
     renderHook(() => useKegiatanMenungguKirim());
     const opsi = opsiTerakhir(mockUseQuery);
 
-    const hasil = (await opsi.queryFn()) as { idAntrean: number }[];
+    const hasil = (await opsi.queryFn()) as { idAntrean: number; status: string }[];
 
     expect(opsi.queryKey).toEqual(['presurvei', 'antrean']);
-    expect(hasil.map((kegiatan) => kegiatan.idAntrean)).toEqual([4]);
+    expect(hasil.map((kegiatan) => [kegiatan.idAntrean, kegiatan.status])).toEqual([
+      [4, 'PENDING'],
+      [5, 'FAILED'],
+    ]);
+  });
+
+  it('antrean tidak gagal-memuat bila database antrean melempar (belum siap)', async () => {
+    mockGetAllQueueItems.mockRejectedValue(new Error('Database antrean tidak tersedia'));
+    renderHook(() => useKegiatanMenungguKirim());
+    const opsi = opsiTerakhir(mockUseQuery);
+
+    await expect(opsi.queryFn()).resolves.toEqual([]);
   });
 });
 

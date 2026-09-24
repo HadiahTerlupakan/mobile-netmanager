@@ -16,6 +16,13 @@ export interface KegiatanMenunggu {
   alamatDikunjungi: string | null;
   ditemuiNama: string | null;
   jumlahFoto: number;
+  /**
+   * Status item di antrean. PENDING/RETRY masih akan dicoba ulang
+   * ("Menunggu kirim"); FAILED sudah berhenti dicoba ulang tapi tetap
+   * ditampilkan ("Gagal terkirim") — Task 14, ruling: kegiatan FAILED
+   * tidak boleh hilang dari pandangan sales.
+   */
+  status: SyncQueueItem['status'];
 }
 
 const METODE_CATAT = 'POST';
@@ -57,6 +64,7 @@ function keKegiatanMenunggu(item: SyncQueueItem, badan: BadanAntrean): KegiatanM
     alamatDikunjungi: teksAtauNull(badan.alamatDikunjungi),
     ditemuiNama: teksAtauNull(badan.ditemuiNama),
     jumlahFoto: jumlahFotoMeta(item),
+    status: item.status,
   };
 }
 

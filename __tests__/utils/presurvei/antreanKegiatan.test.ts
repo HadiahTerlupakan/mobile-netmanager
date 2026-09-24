@@ -31,8 +31,13 @@ describe('ambilKegiatanMenunggu', () => {
         alamatDikunjungi: 'Jl. Melati 9',
         ditemuiNama: 'Bu Sari',
         jumlahFoto: 2,
+        status: 'PENDING',
       },
     ]);
+  });
+
+  it('membawa status FAILED apa adanya (Task 14: tetap tampil sebagai "Gagal terkirim")', () => {
+    expect(ambilKegiatanMenunggu([item({ status: 'FAILED' })])[0].status).toBe('FAILED');
   });
 
   it('mengabaikan antrean endpoint lain dan metode lain', () => {

@@ -1,5 +1,6 @@
 import { Tabs, usePathname, useRouter } from "expo-router";
 import {
+  ClipboardCheck,
   ClipboardList,
   DollarSign,
   Home,
@@ -158,6 +159,20 @@ export default function AppLayout() {
           }}
           listeners={{
             tabPress: (e) => handleTabPress(e, AppFeature.DASHBOARD),
+          }}
+        />
+        {/* Presurvei — tampil hanya di KaryawanSalesTabBar (Task 17); teknisi membukanya dari menu cepat. */}
+        <Tabs.Screen
+          name="presurvei/index"
+          options={{
+            title: "Presurvei",
+            href: null,
+            tabBarIcon: ({ color }) => (
+              <ClipboardCheck size={24} color={getIconColor(color, AppFeature.PRESURVEI)} />
+            ),
+          }}
+          listeners={{
+            tabPress: (e) => handleTabPress(e, AppFeature.PRESURVEI),
           }}
         />
         <Tabs.Screen
