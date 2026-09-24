@@ -393,6 +393,15 @@ export default function AppLayout() {
           }}
         />
 
+        {/* Presurvei - layar di luar tab bar */}
+        <Tabs.Screen
+          name="presurvei/kegiatan/catat"
+          options={{
+            href: null,
+            tabBarStyle: { display: "none" },
+          }}
+        />
+
         {/* WO Request Screen - Hidden from tab bar, accessed via WO list */}
         <Tabs.Screen
           name="request-work-order"

@@ -75,3 +75,6 @@ export const TIPE_UNGGAH_FOTO_KEGIATAN = 'presurvei';
 
 /** Foto KTP ikut ke data canvasing, jadi disimpan di folder marketing. */
 export const TIPE_UNGGAH_FOTO_KTP = 'marketing';
+
+/** Jeda debounce pencarian prospek. */
+export const JEDA_CARI_PROSPEK_MS = 400;
