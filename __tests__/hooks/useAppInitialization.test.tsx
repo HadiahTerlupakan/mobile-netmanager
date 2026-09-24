@@ -63,4 +63,17 @@ describe('useAppInitialization', () => {
     expect(mockSapu).not.toHaveBeenCalled();
     unmount();
   });
+  // Review akhir M8: janji sweep tidak boleh menjadi unhandled rejection.
+  it('sweep yang gagal dicatat sebagai peringatan dan inisialisasi tetap berlanjut', async () => {
+    const galat = new Error('berkas terkunci');
+    mockSapu.mockRejectedValue(galat);
+    const { logger } = require('@/utils/logger');
+    const { ensureForegroundNotificationChannel } = require('@/services/ForegroundNotificationService');
+
+    const { unmount } = renderHook(() => useAppInitialization(true));
+
+    await waitFor(() => expect(logger.warn).toHaveBeenCalledWith('[Init] Sweep foto gagal', galat));
+    expect(ensureForegroundNotificationChannel).toHaveBeenCalledWith();
+    unmount();
+  });
 });

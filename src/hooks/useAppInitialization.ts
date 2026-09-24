@@ -36,7 +36,7 @@ export function useAppInitialization(isLoading: boolean) {
         networkStateService.initialize();
         await DatabaseService.initDatabase();
         // Tanpa ditunggu: sweep hanya reclaim disk dan tidak boleh menahan startup.
-        void sapuFotoOfflineYatim();
+        sapuFotoOfflineYatim().catch((error) => logger.warn('[Init] Sweep foto gagal', error));
         await ensureForegroundNotificationChannel();
 
         logger.info('[Init] Phase 2: Starting sync monitoring');
