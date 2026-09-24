@@ -120,10 +120,11 @@ describe('Rincian prospek', () => {
     expect(getByText('Ubah Status dan Jadikan Canvasing butuh koneksi internet.')).toBeTruthy();
   });
 
-  // Amandemen preflight (S6): tombol Jadikan Canvasing juga wajib nonaktif
-  // saat offline (`AksiProspek` sudah menerapkan `isAktif={isOnline}`), tapi
+  // Amandemen preflight: tombol Jadikan Canvasing juga wajib nonaktif saat
+  // offline (`AksiProspek` sudah menerapkan `isAktif={isOnline}`), tapi
   // belum ada test yang membuktikannya — mutasi "isAktif Jadikan Canvasing →
-  // true" lolos tanpa test ini (preflight-scan.md baris 99).
+  // true" lolos tanpa test ini (preflight-scan.md baris 99, tabel per-task
+  // Task 15 — bukan S6, yang bertag Task 16).
   it('offline menonaktifkan Jadikan Canvasing', () => {
     mockIsOnline = false;
     mockProspek = prospek({ status: 'DEAL' });
