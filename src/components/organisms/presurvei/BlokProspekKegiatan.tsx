@@ -60,10 +60,31 @@ export function BlokProspekKegiatan(props: BlokProspekKegiatanProps) {
           </View>
           {nilai.isBuatProspekBaru ? (
             <View>
-              <IsianTeks label="Nama calon pelanggan" nilai={baru.nama} kesalahan={kesalahan.prospekBaruNama} onUbah={(isian) => onUbahProspekBaru({ nama: isian })} />
-              <IsianTeks label="No. HP" nilai={baru.noTelp} kesalahan={kesalahan.prospekBaruNoTelp} keyboardType="phone-pad" onUbah={(isian) => onUbahProspekBaru({ noTelp: isian })} />
-              <IsianTeks label="Alamat pemasangan" nilai={baru.alamat} kesalahan={kesalahan.prospekBaruAlamat} onUbah={(isian) => onUbahProspekBaru({ alamat: isian })} />
-              <IsianTeks label="Paket diminati" nilai={baru.paketDiminati} kesalahan={kesalahan.prospekBaruPaket} onUbah={(isian) => onUbahProspekBaru({ paketDiminati: isian })} />
+              <IsianTeks
+                label="Nama calon pelanggan"
+                nilai={baru.nama}
+                kesalahan={kesalahan.prospekBaruNama}
+                onUbah={(isian) => onUbahProspekBaru({ nama: isian })}
+              />
+              <IsianTeks
+                label="No. HP"
+                nilai={baru.noTelp}
+                kesalahan={kesalahan.prospekBaruNoTelp}
+                keyboardType="phone-pad"
+                onUbah={(isian) => onUbahProspekBaru({ noTelp: isian })}
+              />
+              <IsianTeks
+                label="Alamat pemasangan"
+                nilai={baru.alamat}
+                kesalahan={kesalahan.prospekBaruAlamat}
+                onUbah={(isian) => onUbahProspekBaru({ alamat: isian })}
+              />
+              <IsianTeks
+                label="Paket diminati"
+                nilai={baru.paketDiminati}
+                kesalahan={kesalahan.prospekBaruPaket}
+                onUbah={(isian) => onUbahProspekBaru({ paketDiminati: isian })}
+              />
             </View>
           ) : null}
         </View>

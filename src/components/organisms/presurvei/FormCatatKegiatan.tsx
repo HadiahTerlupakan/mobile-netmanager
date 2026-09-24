@@ -38,22 +38,58 @@ export function FormCatatKegiatan(props: FormCatatKegiatanProps) {
   return (
     <View>
       <Text style={tw`font-bold text-gray-900 mb-2`}>Jenis kegiatan</Text>
-      <PilihanChip opsi={OPSI_JENIS} terpilih={nilai.jenis} onPilih={(jenis) => ubah({ jenis })} />
+      <PilihanChip
+        opsi={OPSI_JENIS}
+        terpilih={nilai.jenis}
+        onPilih={(jenis) => ubah({ jenis })}
+      />
       <TeksKesalahan pesan={kesalahan.jenis} />
       <View style={tw`h-4`} />
       {isLapangan ? (
         <View>
-          <BlokLokasiGps status={lokasi.status} titik={lokasi.titik} kesalahan={kesalahan.lokasi} onCobaLagi={lokasi.cari} />
-          <BlokFotoBukti fotoLokal={form.fotoLokal} kesalahan={kesalahan.foto} onTambah={onBukaKamera} onHapus={form.hapusFoto} />
+          <BlokLokasiGps
+            status={lokasi.status}
+            titik={lokasi.titik}
+            kesalahan={kesalahan.lokasi}
+            onCobaLagi={lokasi.cari}
+          />
+          <BlokFotoBukti
+            fotoLokal={form.fotoLokal}
+            kesalahan={kesalahan.foto}
+            onTambah={onBukaKamera}
+            onHapus={form.hapusFoto}
+          />
         </View>
       ) : null}
       <Text style={tw`font-bold text-gray-900 mb-2`}>Hasil</Text>
-      <PilihanChip opsi={OPSI_HASIL} terpilih={nilai.hasil} onPilih={(hasil) => ubah({ hasil })} />
+      <PilihanChip
+        opsi={OPSI_HASIL}
+        terpilih={nilai.hasil}
+        onPilih={(hasil) => ubah({ hasil })}
+      />
       <TeksKesalahan pesan={kesalahan.hasil} />
       <View style={tw`h-4`} />
-      <IsianTeks label={isLapangan ? 'Yang ditemui' : 'Yang dihubungi'} nilai={nilai.ditemuiNama} kesalahan={kesalahan.ditemuiNama} onUbah={(isian) => ubah({ ditemuiNama: isian })} />
-      {isLapangan ? <IsianTeks label="Alamat" nilai={nilai.alamat} kesalahan={kesalahan.alamat} onUbah={(isian) => ubah({ alamat: isian })} /> : null}
-      <IsianTeks label="Catatan" nilai={nilai.catatan} kesalahan={kesalahan.catatan} multiline onUbah={(isian) => ubah({ catatan: isian })} />
+      <IsianTeks
+        label={isLapangan ? 'Yang ditemui' : 'Yang dihubungi'}
+        nilai={nilai.ditemuiNama}
+        kesalahan={kesalahan.ditemuiNama}
+        onUbah={(isian) => ubah({ ditemuiNama: isian })}
+      />
+      {isLapangan ? (
+        <IsianTeks
+          label="Alamat"
+          nilai={nilai.alamat}
+          kesalahan={kesalahan.alamat}
+          onUbah={(isian) => ubah({ alamat: isian })}
+        />
+      ) : null}
+      <IsianTeks
+        label="Catatan"
+        nilai={nilai.catatan}
+        kesalahan={kesalahan.catatan}
+        multiline
+        onUbah={(isian) => ubah({ catatan: isian })}
+      />
       {isSurvei ? <IsianDataTeknis nilai={nilai} kesalahan={kesalahan} onUbah={ubah} /> : null}
       <BlokProspekKegiatan
         nilai={nilai}

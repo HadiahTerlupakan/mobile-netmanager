@@ -1,15 +1,15 @@
-import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react-native';
 
 type KeadaanLokasiUji = {
-  status: 'belum' | 'mencari' | 'siap' | 'gagal';
+  status: 'belum' | 'mencari' | 'siap' | 'gagal' | 'izin_ditolak';
   titik: { latitude: number; longitude: number; akurasiMeter: number | null } | null;
   alamatTerdeteksi: string;
 };
 type OpsiMutasiUji = {
   onSuccess?: () => void;
-  onError?: (galat: Error) => void;
+  onError?: (galat: unknown) => void;
   onSettled?: () => void;
 };
 type VariabelUji = Record<string, unknown>;
@@ -22,7 +22,10 @@ const mockBack = jest.fn();
 const mockParam = jest.fn<() => Record<string, string | undefined>>();
 const mockCari = jest.fn();
 const mockMutate = jest.fn<(variabel: VariabelUji, opsi: OpsiMutasiUji) => void>();
-const mockUseFeatureGuard = jest.fn();
+const mockUseFeatureGuard = jest.fn<(...args: unknown[]) => boolean>();
+const mockPresentInfo = jest.fn();
+const mockPresentAppError = jest.fn();
+let mockEfekFokus: (() => void) | null = null;
 let mockOnTersimpan: ((hasil: { isAntre: boolean }) => void) | null = null;
 let mockLokasi: KeadaanLokasiUji = { status: 'gagal', titik: null, alamatTerdeteksi: '' };
 let mockKameraProps: { onAmbil: (uri: string) => void; onTutup: () => void } | null = null;
@@ -40,9 +43,16 @@ jest.mock('expo-router', () => {
   return {
     useRouter: () => ({ back: mockBack, push: jest.fn() }),
     useLocalSearchParams: () => mockParam(),
-    useFocusEffect: (efek: () => void) => React.useEffect(() => efek(), [efek]),
+    useFocusEffect: (efek: () => void) => {
+      mockEfekFokus = efek;
+      React.useEffect(() => efek(), [efek]);
+    },
   };
 });
+jest.mock('@/utils/errorPresenter', () => ({
+  presentInfoMessage: (...args: unknown[]) => mockPresentInfo(...args),
+  presentAppError: (...args: unknown[]) => mockPresentAppError(...args),
+}));
 jest.mock('@/hooks/useFeatureGuard', () => ({
   useFeatureGuard: (...args: unknown[]) => mockUseFeatureGuard(...args),
 }));
@@ -81,7 +91,27 @@ const PROSPEK_DIPILIH = { id: 'p-9', nama: 'Sari Wulandari' };
 
 const renderLayar = () => {
   const Layar = require('../../app/(app)/presurvei/kegiatan/catat').default;
-  return render(<Layar />);
+  const utilitas = render(<Layar />);
+  return { ...utilitas, renderUlang: () => utilitas.rerender(<Layar />) };
+};
+
+/** Simulasi layar difokuskan lagi (Tabs mempertahankan instance layar). */
+const fokusUlang = () => {
+  act(() => mockEfekFokus?.());
+};
+
+/** 409 dari server untuk kunci idempotensi yang dipakai dengan badan berbeda. */
+const bangunGalatKunciDipakaiUlang = () => {
+  const { AxiosError } = require('axios');
+  return Object.assign(new AxiosError('Request failed with status code 409', 'ERR_BAD_REQUEST'), {
+    response: {
+      status: 409,
+      statusText: 'Conflict',
+      headers: {},
+      config: {},
+      data: { success: false, error: 'Idempotency key reused', code: 'IDEMPOTENCY_KEY_REUSED' },
+    },
+  });
 };
 
 /** Variabel dan opsi panggilan mutate ke-`indeks`. */
@@ -91,10 +121,10 @@ const panggilanMutate = (indeks: number) => {
 };
 
 /** Tuntaskan panggilan mutate ke-`indeks` sebagai galat server (tidak diantre). */
-const gagalkanMutate = (indeks: number) => {
+const gagalkanMutate = (indeks: number, galat: unknown = new Error('Server galat 500')) => {
   const { opsi } = panggilanMutate(indeks);
   act(() => {
-    opsi.onError?.(new Error('Server galat 500'));
+    opsi.onError?.(galat);
     opsi.onSettled?.();
   });
 };
@@ -117,6 +147,12 @@ describe('Catat Kegiatan', () => {
     mockKameraProps = null;
     mockPilihProps = null;
     mockOnTersimpan = null;
+    mockEfekFokus = null;
+    mockUseFeatureGuard.mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('mencari GPS saat layar dibuka, dijaga fitur presurvei, dan tidak menawarkan jenis Iklan', () => {
@@ -389,5 +425,129 @@ describe('Catat Kegiatan', () => {
     expect(queryByText('Budi Santoso')).toBeNull();
     expect(getByText('Pilih prospek (follow-up)')).toBeTruthy();
     expect(panggilanMutate(0).variabel.prospekId).toBeNull();
+  });
+
+  it('izin lokasi ditolak: kunjungan tidak tersimpan dan sales diarahkan ke pengaturan', () => {
+    mockLokasi = { status: 'izin_ditolak', titik: null, alamatTerdeteksi: '' };
+    const { getByText } = renderLayar();
+
+    fireEvent.press(getByText('Kunjungan'));
+    fireEvent.press(getByText('Tertarik'));
+    fireEvent.press(getByText('Simpan Kegiatan'));
+
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(getByText('Lokasi GPS belum didapat')).toBeTruthy();
+    expect(getByText('Buka Pengaturan')).toBeTruthy();
+  });
+
+  it('tanpa fitur presurvei: GPS tidak dicari (tanpa prompt izin) dan form tidak dirender', () => {
+    mockUseFeatureGuard.mockReturnValue(false);
+    mockParam.mockReturnValue({ prospekId: 'p-7', prospekNama: 'Budi Santoso' });
+    const { queryByText } = renderLayar();
+
+    expect(mockCari).not.toHaveBeenCalled();
+    expect(queryByText('Simpan Kegiatan')).toBeNull();
+    expect(queryByText('Budi Santoso')).toBeNull();
+  });
+
+  it('GPS baru dicari setelah guard fitur mengizinkan (auth selesai dimuat)', () => {
+    mockUseFeatureGuard.mockReturnValue(false);
+    const { renderUlang, getByText } = renderLayar();
+    expect(mockCari).not.toHaveBeenCalled();
+
+    mockUseFeatureGuard.mockReturnValue(true);
+    renderUlang();
+
+    expect(mockCari.mock.calls).toEqual([[]]);
+    expect(getByText('Simpan Kegiatan')).toBeTruthy();
+  });
+
+  it('gagal lalu layar dibuka lagi dengan isian identik: niat baru, requestId dan waktuMulai baru', () => {
+    jest.useFakeTimers({ now: new Date('2026-09-24T02:00:00.000Z') });
+    const { getByText } = renderLayar();
+    fireEvent.press(getByText('Telepon'));
+    fireEvent.press(getByText('Tidak minat'));
+    fireEvent.press(getByText('Simpan Kegiatan'));
+    gagalkanMutate(0);
+
+    jest.setSystemTime(new Date('2026-09-24T05:30:00.000Z'));
+    fokusUlang();
+    fireEvent.press(getByText('Telepon'));
+    fireEvent.press(getByText('Tidak minat'));
+    fireEvent.press(getByText('Simpan Kegiatan'));
+
+    const pertama = panggilanMutate(0).variabel;
+    const kedua = panggilanMutate(1).variabel;
+    expect(pertama.waktuMulai).toBe('2026-09-24T02:00:00.000Z');
+    expect(kedua.waktuMulai).toBe('2026-09-24T05:30:00.000Z');
+    expect(typeof kedua.requestId).toBe('string');
+    expect(kedua.requestId).not.toBe(pertama.requestId);
+  });
+
+  it('alamat hasil isi otomatis dan GPS yang diperbarui di antara dua simpan tetap satu niat', () => {
+    mockLokasi = { status: 'siap', titik: TITIK, alamatTerdeteksi: '' };
+    const utilitas = renderLayar();
+    isiKunjunganTertarik(utilitas);
+    fireEvent.press(utilitas.getByText('Simpan Kegiatan'));
+    gagalkanMutate(0);
+
+    mockLokasi = { status: 'siap', titik: { latitude: -6.21, longitude: 106.81, akurasiMeter: 8 }, alamatTerdeteksi: 'Jl. Melati 9' };
+    utilitas.renderUlang();
+    expect(utilitas.getByLabelText('Alamat').props.value).toBe('Jl. Melati 9');
+    fireEvent.press(utilitas.getByText('Simpan Kegiatan'));
+
+    const pertama = panggilanMutate(0).variabel;
+    const kedua = panggilanMutate(1).variabel;
+    expect(kedua.requestId).toBe(pertama.requestId);
+    expect(kedua).toEqual(expect.objectContaining({ latitude: -6.2, longitude: 106.8, alamatDikunjungi: null }));
+  });
+
+  it('alamat yang diketik sales di antara dua simpan adalah niat baru', () => {
+    mockLokasi = { status: 'siap', titik: TITIK, alamatTerdeteksi: 'Jl. Melati 9' };
+    const utilitas = renderLayar();
+    isiKunjunganTertarik(utilitas);
+    fireEvent.press(utilitas.getByText('Simpan Kegiatan'));
+    gagalkanMutate(0);
+
+    fireEvent.changeText(utilitas.getByLabelText('Alamat'), 'Jl. Melati 9 RT 02');
+    fireEvent.press(utilitas.getByText('Simpan Kegiatan'));
+
+    const pertama = panggilanMutate(0).variabel;
+    const kedua = panggilanMutate(1).variabel;
+    expect(pertama).toEqual(expect.objectContaining({ alamatDikunjungi: 'Jl. Melati 9' }));
+    expect(kedua).toEqual(expect.objectContaining({ alamatDikunjungi: 'Jl. Melati 9 RT 02' }));
+    expect(kedua.requestId).not.toBe(pertama.requestId);
+  });
+
+  it('simpan ulang ditolak KEY_REUSED: dianggap sudah tercatat, pesan jujur, layar ditutup', () => {
+    const { getByText } = renderLayar();
+    fireEvent.press(getByText('Telepon'));
+    fireEvent.press(getByText('Tidak minat'));
+    fireEvent.press(getByText('Simpan Kegiatan'));
+    gagalkanMutate(0);
+    fireEvent.press(getByText('Simpan Kegiatan'));
+    expect(panggilanMutate(1).variabel.requestId).toBe(panggilanMutate(0).variabel.requestId);
+
+    gagalkanMutate(1, bangunGalatKunciDipakaiUlang());
+
+    expect(mockPresentInfo).toHaveBeenCalledWith('Kegiatan ini sudah tercatat sebelumnya.');
+    expect(mockPresentAppError).not.toHaveBeenCalled();
+    expect(mockBack).toHaveBeenCalledWith();
+  });
+
+  it('KEY_REUSED pada upaya pertama (bukan pakai ulang) tetap galat, layar tetap terbuka, simpan berikutnya kunci baru', () => {
+    const { getByText } = renderLayar();
+    fireEvent.press(getByText('Telepon'));
+    fireEvent.press(getByText('Tidak minat'));
+    fireEvent.press(getByText('Simpan Kegiatan'));
+    const galat = bangunGalatKunciDipakaiUlang();
+
+    gagalkanMutate(0, galat);
+    fireEvent.press(getByText('Simpan Kegiatan'));
+
+    expect(mockPresentAppError).toHaveBeenCalledWith(galat, expect.objectContaining({ source: 'mutation' }));
+    expect(mockPresentInfo).not.toHaveBeenCalled();
+    expect(mockBack).not.toHaveBeenCalled();
+    expect(panggilanMutate(1).variabel.requestId).not.toBe(panggilanMutate(0).variabel.requestId);
   });
 });

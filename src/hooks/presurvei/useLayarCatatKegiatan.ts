@@ -1,7 +1,10 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { ENDPOINT_KEGIATAN_PRESURVEI } from '@/constants/presurvei';
 import type { MuatanCatatKegiatan, ProspekListItem } from '@/types/presurvei';
+import { presentAppError, presentInfoMessage } from '@/utils/errorPresenter';
+import { isGalatIdempotensiKunciDipakaiUlang } from '@/utils/galatIdempotensi';
 import { keMuatanKegiatan } from '@/utils/presurvei/formKegiatan';
 import type { TitikGps } from '@/utils/presurvei/lokasiGps';
 import { bangunVariabelCatat, type VariabelCatatKegiatan } from '@/utils/presurvei/variabelCatat';
@@ -37,62 +40,117 @@ function useProspekTertaut(ubah: FormKegiatan['ubah']) {
   return { nama, setNama, pilih, lepas };
 }
 
+/** Pesan saat simpan ulang ditolak karena upaya sebelumnya ternyata sudah tercatat. */
+const PESAN_SUDAH_TERCATAT = 'Kegiatan ini sudah tercatat sebelumnya.';
+
 /** Upaya simpan yang gagal di server, disimpan agar simpan ulang memakai kunci yang sama. */
 interface UpayaGagal {
   sidik: string;
   variabel: VariabelCatatKegiatan;
 }
 
-/** Sidik isi yang akan dikirim, tanpa `waktuMulai` yang selalu baru tiap tekan. */
-function sidikUpaya(muatan: MuatanCatatKegiatan, fotoLokal: readonly string[]): string {
-  const { waktuMulai: _waktuMulai, ...isi } = muatan;
-  return JSON.stringify({ isi, fotoLokal });
+/** Satu upaya simpan beserta cara mencatat hasilnya ke ingatan niat. */
+interface UpayaSimpan {
+  variabel: VariabelCatatKegiatan;
+  isPakaiUlang: boolean;
+  ingatGagal: () => void;
+}
+
+/**
+ * Sidik niat simpan: hanya yang diisi sales, ditambah foto. `waktuMulai`
+ * (baru tiap tekan), titik GPS (bisa disegarkan), dan alamat hasil isi
+ * otomatis (reverse geocode bisa tiba setelah simpan pertama gagal) sengaja
+ * dikeluarkan. Perubahan pada bagian-bagian itu bukan niat baru, sehingga
+ * variabel lama, termasuk titik lamanya, tetap dipakai ulang. Alamat yang
+ * diketik sales tetap ikut sidik.
+ */
+function sidikNiat(muatan: MuatanCatatKegiatan, fotoLokal: readonly string[], isAlamatOtomatis: boolean): string {
+  const { waktuMulai: _waktu, latitude: _lat, longitude: _lng, alamatDikunjungi, ...isi } = muatan;
+  const alamatKetikan = isAlamatOtomatis ? null : (alamatDikunjungi ?? null);
+  return JSON.stringify({ isi, alamatKetikan, fotoLokal });
 }
 
 /**
  * Satu niat simpan = satu `requestId`. Bila simpan gagal di server lalu
- * ditekan ulang tanpa isian berubah, variabel lama (requestId dan
- * `waktuMulai` yang sama) dipakai ulang: galat seperti 504 dari gateway bisa
- * datang setelah server sempat mencatat, dan kunci yang sama membuat server
- * men-dedupe alih-alih mencatat ganda. Isian yang berubah = niat baru, jadi
- * `bangunVariabelCatat` dipanggil sekali lagi untuk requestId baru.
+ * ditekan ulang tanpa isian berubah (menurut `sidikNiat`), variabel lama
+ * (requestId dan `waktuMulai` yang sama) dipakai ulang: galat seperti 504
+ * dari gateway dilempar walau server mungkin sudah mencatat
+ * (`useApiMutation.ts:304-308`), dan kunci yang sama membuat server
+ * men-dedupe. Isian yang berubah adalah niat baru, sehingga
+ * `bangunVariabelCatat` dipanggil lagi. `lupakan` menutup niat: dipanggil
+ * setelah sukses dan setiap kali layar difokuskan (kegiatan baru).
  */
 function useVariabelPerNiat() {
   const upayaGagal = useRef<UpayaGagal | null>(null);
-  return (muatan: MuatanCatatKegiatan, fotoLokal: readonly string[]) => {
-    const sidik = sidikUpaya(muatan, fotoLokal);
+  const lupakan = useCallback(() => {
+    upayaGagal.current = null;
+  }, []);
+  const siapkan = (
+    muatan: MuatanCatatKegiatan,
+    fotoLokal: readonly string[],
+    isAlamatOtomatis: boolean,
+  ): UpayaSimpan => {
+    const sidik = sidikNiat(muatan, fotoLokal, isAlamatOtomatis);
     const lama = upayaGagal.current;
-    const variabel = lama !== null && lama.sidik === sidik ? lama.variabel : bangunVariabelCatat(muatan, fotoLokal);
-    return {
-      variabel,
-      ingatGagal: () => {
-        upayaGagal.current = { sidik, variabel };
-      },
-      lupakan: () => {
-        upayaGagal.current = null;
-      },
+    const isPakaiUlang = lama !== null && lama.sidik === sidik;
+    const variabel = isPakaiUlang ? lama.variabel : bangunVariabelCatat(muatan, fotoLokal);
+    const ingatGagal = () => {
+      upayaGagal.current = { sidik, variabel };
     };
+    return { variabel, isPakaiUlang, ingatGagal };
   };
+  return { siapkan, lupakan };
+}
+
+type NiatSimpan = ReturnType<typeof useVariabelPerNiat>;
+
+/**
+ * Galat simpan. 409 `IDEMPOTENCY_KEY_REUSED` pada variabel yang dipakai ulang
+ * berarti upaya sebelumnya sudah tercatat di server (lalu foto yang diunggah
+ * ulang mengubah badan), jadi niat itu selesai dan layar ditutup; ingatan
+ * niat dilupakan saat layar difokuskan lagi. Pada upaya pertama kasus itu
+ * tidak semestinya terjadi; ia tampil sebagai galat biasa dan tidak diingat,
+ * sehingga simpan berikutnya memakai kunci baru. Galat lain diingat untuk
+ * simpan ulang (`useCatatKegiatan` yang menampilkan pesannya).
+ */
+function tanganiGalatSimpan(galat: unknown, upaya: UpayaSimpan, onSelesai: () => void) {
+  if (!isGalatIdempotensiKunciDipakaiUlang(galat)) {
+    upaya.ingatGagal();
+    return;
+  }
+  if (!upaya.isPakaiUlang) {
+    presentAppError(galat, { source: 'mutation', route: ENDPOINT_KEGIATAN_PRESURVEI, report: false });
+    return;
+  }
+  presentInfoMessage(PESAN_SUDAH_TERCATAT);
+  onSelesai();
+}
+
+interface OpsiPengirimKegiatan {
+  form: FormKegiatan;
+  titik: TitikGps | null;
+  niat: NiatSimpan;
+  isAlamatOtomatis: (alamat: string) => boolean;
+  onSelesai: () => void;
 }
 
 /**
  * Kirim sekali: ref menahan tekan beruntun sebelum `isPending` sempat
  * dirender ulang, dan dilepas di `onSettled` apa pun hasilnya. Galat tidak
  * mengosongkan form; layar hanya ditutup lewat `onSelesai` setelah sukses
- * (terkirim atau masuk antrean).
+ * (terkirim atau masuk antrean) atau setelah dipastikan sudah tercatat.
  */
-function usePengirimKegiatan(form: FormKegiatan, titik: TitikGps | null, onSelesai: () => void) {
+function usePengirimKegiatan({ form, titik, niat, isAlamatOtomatis, onSelesai }: OpsiPengirimKegiatan) {
   const catat = useCatatKegiatan(() => onSelesai());
-  const siapkanVariabel = useVariabelPerNiat();
   const isMengirim = useRef(false);
   const simpan = () => {
     if (isMengirim.current || !form.periksa(titik)) return;
     isMengirim.current = true;
     const muatan = keMuatanKegiatan(form.nilai, { titik, waktuMulai: new Date() });
-    const upaya = siapkanVariabel(muatan, form.fotoLokal);
+    const upaya = niat.siapkan(muatan, form.fotoLokal, isAlamatOtomatis(form.nilai.alamat));
     catat.mutate(upaya.variabel, {
-      onSuccess: upaya.lupakan,
-      onError: upaya.ingatGagal,
+      onSuccess: niat.lupakan,
+      onError: (galat) => tanganiGalatSimpan(galat, upaya, onSelesai),
       onSettled: () => {
         isMengirim.current = false;
       },
@@ -105,9 +163,14 @@ function usePengirimKegiatan(form: FormKegiatan, titik: TitikGps | null, onSeles
  * Isi alamat dari reverse geocode sekali per pencarian, tanpa menimpa ketikan.
  * Pencarian baru mengosongkan `alamatTerdeteksi`; saat itu penanda direset
  * supaya alamat yang sama di kunjungan berikutnya tetap terisi.
+ *
+ * Mengembalikan `isAlamatOtomatis(alamat)`: benar bila alamat kosong atau
+ * persis sama dengan nilai yang terakhir diisikan otomatis. Begitu sales
+ * mengetik, nilainya berbeda dan dianggap isian sales.
  */
 function useIsiAlamatOtomatis(alamatTerdeteksi: string, alamat: string, ubah: FormKegiatan['ubah']) {
   const alamatTerakhir = useRef('');
+  const alamatTerisiOtomatis = useRef('');
   useEffect(() => {
     if (alamatTerdeteksi === '') {
       alamatTerakhir.current = '';
@@ -115,40 +178,59 @@ function useIsiAlamatOtomatis(alamatTerdeteksi: string, alamat: string, ubah: Fo
     }
     if (alamatTerdeteksi === alamatTerakhir.current) return;
     alamatTerakhir.current = alamatTerdeteksi;
-    if (alamat === '') ubah({ alamat: alamatTerdeteksi });
+    if (alamat !== '') return;
+    alamatTerisiOtomatis.current = alamatTerdeteksi;
+    ubah({ alamat: alamatTerdeteksi });
   }, [alamatTerdeteksi, alamat, ubah]);
+  return (isian: string) => isian.trim() === '' || isian === alamatTerisiOtomatis.current;
 }
 
 interface AksiMulaiLayar {
   reset: FormKegiatan['reset'];
   setNamaProspek: (nama: string | null) => void;
   cariLokasi: () => void;
+  mulaiNiatBaru: () => void;
 }
 
 /**
- * Setiap kali layar difokuskan, form di-reset (Tabs mempertahankan instance
- * layar) dan GPS dicari ulang. Semua aksi harus stabil antar-render; bila
- * tidak, efek fokus berjalan ulang dan menghapus isian.
+ * Setiap kali layar difokuskan, niat simpan lama dilupakan, form di-reset
+ * (Tabs mempertahankan instance layar), dan GPS dicari ulang. Semua aksi harus
+ * stabil antar-render; bila tidak, efek fokus berjalan ulang dan menghapus
+ * isian. Tidak berjalan sebelum guard fitur mengizinkan (`isAktif`), supaya
+ * prompt izin lokasi tidak muncul untuk pengguna yang akan dialihkan.
  */
-function useMulaiSaatFokus(param: ParamCatatKegiatan, aksi: AksiMulaiLayar) {
-  const { reset, setNamaProspek, cariLokasi } = aksi;
+function useMulaiSaatFokus(param: ParamCatatKegiatan, aksi: AksiMulaiLayar, isAktif: boolean) {
+  const { reset, setNamaProspek, cariLokasi, mulaiNiatBaru } = aksi;
   const { prospekId, prospekNama } = param;
   useFocusEffect(useCallback(() => {
+    if (!isAktif) return;
+    mulaiNiatBaru();
     reset({ prospekId: teksParamAtauNull(prospekId) });
     setNamaProspek(teksParamAtauNull(prospekNama));
     cariLokasi();
-  }, [reset, setNamaProspek, cariLokasi, prospekId, prospekNama]));
+  }, [isAktif, mulaiNiatBaru, reset, setNamaProspek, cariLokasi, prospekId, prospekNama]));
 }
 
-/** Logika layar catat kegiatan: form, GPS, tautan prospek, dan simpan sekali. */
-export function useLayarCatatKegiatan(param: ParamCatatKegiatan, onSelesai: () => void) {
+/**
+ * Logika layar catat kegiatan: form, GPS, tautan prospek, dan simpan sekali.
+ * `isAktif` = hasil guard fitur; selama false tidak ada efek samping.
+ */
+export function useLayarCatatKegiatan(param: ParamCatatKegiatan, onSelesai: () => void, isAktif: boolean) {
   const form = useFormKegiatan();
   const lokasi = useLokasiKegiatan();
   const prospek = useProspekTertaut(form.ubah);
-  const pengirim = usePengirimKegiatan(form, lokasi.titik, onSelesai);
+  const niat = useVariabelPerNiat();
 
-  useMulaiSaatFokus(param, { reset: form.reset, setNamaProspek: prospek.setNama, cariLokasi: lokasi.cari });
-  useIsiAlamatOtomatis(lokasi.alamatTerdeteksi, form.nilai.alamat, form.ubah);
+  // Urutan penting: efek fokus (reset) harus terdaftar sebelum isi alamat
+  // otomatis, supaya alamat yang sudah terdeteksi saat layar dibuka tidak
+  // langsung terhapus oleh reset pada commit yang sama.
+  useMulaiSaatFokus(
+    param,
+    { reset: form.reset, setNamaProspek: prospek.setNama, cariLokasi: lokasi.cari, mulaiNiatBaru: niat.lupakan },
+    isAktif,
+  );
+  const isAlamatOtomatis = useIsiAlamatOtomatis(lokasi.alamatTerdeteksi, form.nilai.alamat, form.ubah);
+  const pengirim = usePengirimKegiatan({ form, titik: lokasi.titik, niat, isAlamatOtomatis, onSelesai });
 
   return {
     form,

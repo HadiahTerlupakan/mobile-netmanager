@@ -18,12 +18,15 @@ const WARNA_IKON_KEMBALI = '#111827';
 
 /** Layar catat kegiatan presurvei (form satu halaman). */
 export default function CatatKegiatanScreen() {
-  useFeatureGuard(AppFeature.PRESURVEI);
+  const isDiizinkan = useFeatureGuard(AppFeature.PRESURVEI);
   const router = useRouter();
   const param = useLocalSearchParams<ParamCatatKegiatan>();
-  const layar = useLayarCatatKegiatan(param, () => router.back());
+  const layar = useLayarCatatKegiatan(param, () => router.back(), isDiizinkan);
   const [isKameraTerbuka, setIsKameraTerbuka] = useState(false);
   const [isPilihProspekTerbuka, setIsPilihProspekTerbuka] = useState(false);
+
+  // Guard fitur yang mengalihkan; jangan tampilkan form sebelum diizinkan.
+  if (!isDiizinkan) return null;
 
   if (isKameraTerbuka) {
     return (

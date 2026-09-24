@@ -9,8 +9,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
  * yang sudah disalin ke penyimpanan tetap.
  */
 
+const mockPresentAppError = jest.fn();
 jest.mock('@/utils/errorPresenter', () => ({
-  presentAppError: jest.fn(),
+  presentAppError: (...args: unknown[]) => mockPresentAppError(...args),
   presentInfoMessage: jest.fn(),
   presentSuccessMessage: jest.fn(),
 }));
@@ -134,5 +135,57 @@ describe('useCatatKegiatan', () => {
     expect(invalidasi).toHaveBeenCalledWith({ queryKey: ['presurvei'] });
     unmount();
     client.clear();
+  });
+
+  describe('galat server', () => {
+    const bangunGalatServer = (status: number, code: string) => {
+      const { AxiosError } = require('axios');
+      return Object.assign(new AxiosError(`Request failed with status code ${status}`, 'ERR_BAD_REQUEST'), {
+        response: { status, statusText: '', headers: {}, config: {}, data: { success: false, error: 'Galat', code } },
+      });
+    };
+
+    const kirimDenganGalat = async (galatServer: unknown) => {
+      mockIsOnline.mockResolvedValue(true);
+      mockRequest.mockRejectedValue(galatServer);
+      const client = buatClient();
+      const invalidasi = jest.spyOn(client, 'invalidateQueries');
+      const onTersimpan = jest.fn();
+      const { result, unmount } = renderHook(() => useCatatKegiatan(onTersimpan), { wrapper: bungkus(client) });
+      let galat: unknown = null;
+      await act(async () => {
+        try {
+          await result.current.mutateAsync(VARIABEL);
+        } catch (error) {
+          galat = error;
+        }
+      });
+      unmount();
+      client.clear();
+      return { galat, invalidasi, onTersimpan };
+    };
+
+    it('galat server biasa ditampilkan lewat presentAppError', async () => {
+      const galatServer = bangunGalatServer(500, 'INTERNAL_ERROR');
+
+      const { galat, onTersimpan } = await kirimDenganGalat(galatServer);
+
+      expect(galat).toBe(galatServer);
+      expect(mockPresentAppError).toHaveBeenCalledWith(
+        galatServer,
+        expect.objectContaining({ source: 'mutation', route: '/api/presurvei/kegiatan' }),
+      );
+      expect(onTersimpan).not.toHaveBeenCalled();
+    });
+
+    it('409 IDEMPOTENCY_KEY_REUSED tidak memunculkan pesan teknis; layar yang memutuskan', async () => {
+      const galatServer = bangunGalatServer(409, 'IDEMPOTENCY_KEY_REUSED');
+
+      const { galat, invalidasi } = await kirimDenganGalat(galatServer);
+
+      expect(galat).toBe(galatServer);
+      expect(mockPresentAppError).not.toHaveBeenCalled();
+      expect(invalidasi).toHaveBeenCalledWith({ queryKey: ['presurvei'] });
+    });
   });
 });

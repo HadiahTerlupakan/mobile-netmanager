@@ -129,4 +129,58 @@ describe('useFeatureGuard', () => {
       expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
     });
   });
+
+  describe('nilai kembalian (apakah layar boleh berjalan)', () => {
+    const MITRA = {
+      id: 'mitra-1',
+      tenantId: 'tenant-1',
+      name: 'Mitra Teknisi',
+      email: 'mitra@example.com',
+      role: 'MITRA',
+      employeeType: 'MITRA_TEKNISI',
+    } as const;
+
+    it('true bila fitur dimiliki', () => {
+      mockUseAuth.mockReturnValue(createAuthState({ ...MITRA, features: [AppFeature.BARANG] }));
+
+      const { result } = renderHook(() => useFeatureGuard(AppFeature.BARANG, false));
+
+      expect(result.current).toBe(true);
+    });
+
+    it('true untuk super admin tanpa fitur', () => {
+      mockUseAuth.mockReturnValue(createAuthState({ ...MITRA, role: 'SUPER_ADMIN', features: [] }));
+
+      const { result } = renderHook(() => useFeatureGuard(AppFeature.BARANG, false));
+
+      expect(result.current).toBe(true);
+    });
+
+    it('false bila fitur tidak dimiliki', () => {
+      mockUseAuth.mockReturnValue(createAuthState({ ...MITRA, features: [AppFeature.WORK_ORDER] }));
+
+      const { result } = renderHook(() => useFeatureGuard(AppFeature.BARANG, false));
+
+      expect(result.current).toBe(false);
+    });
+
+    it('false selama status auth masih dimuat, walau fitur dimiliki', () => {
+      mockUseAuth.mockReturnValue({
+        ...createAuthState({ ...MITRA, features: [AppFeature.BARANG] }),
+        isLoading: true,
+      });
+
+      const { result } = renderHook(() => useFeatureGuard(AppFeature.BARANG, false));
+
+      expect(result.current).toBe(false);
+    });
+
+    it('false bila belum login', () => {
+      mockUseAuth.mockReturnValue(createAuthState(null));
+
+      const { result } = renderHook(() => useFeatureGuard(AppFeature.BARANG, false));
+
+      expect(result.current).toBe(false);
+    });
+  });
 });

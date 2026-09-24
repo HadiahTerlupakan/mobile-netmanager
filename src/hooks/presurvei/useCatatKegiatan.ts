@@ -4,6 +4,8 @@ import { ENDPOINT_KEGIATAN_PRESURVEI } from '@/constants/presurvei';
 import { isOfflineMutationQueuedResult, useApiMutation } from '@/hooks/queries/useApiMutation';
 import { queryKeys } from '@/lib/queryClient';
 import type { HasilCatatKegiatan } from '@/types/presurvei';
+import { presentAppError } from '@/utils/errorPresenter';
+import { isGalatIdempotensiKunciDipakaiUlang } from '@/utils/galatIdempotensi';
 import { badanCatatKegiatan, type VariabelCatatKegiatan } from '@/utils/presurvei/variabelCatat';
 
 const PESAN_TERCATAT = 'Kegiatan tercatat';
@@ -21,6 +23,12 @@ interface AmplopCatatKegiatan {
 /**
  * Mutasi catat kegiatan presurvei. Offline → antrean SQLite beserta foto
  * (Task 9); daftar "Menunggu kirim" disegarkan saat itu juga.
+ *
+ * Galat server ditampilkan di sini, kecuali 409 `IDEMPOTENCY_KEY_REUSED`:
+ * artinya hanya layar yang tahu (apakah variabel itu hasil pakai ulang dari
+ * upaya yang mungkin sudah tercatat), jadi pesan untuk kasus itu diserahkan
+ * ke layar. Data presurvei tetap disegarkan karena kegiatan itu bisa jadi
+ * sudah ada di server.
  */
 export function useCatatKegiatan(onTersimpan: (hasil: HasilSimpanKegiatan) => void) {
   const queryClient = useQueryClient();
@@ -30,10 +38,18 @@ export function useCatatKegiatan(onTersimpan: (hasil: HasilSimpanKegiatan) => vo
     buildPayload: badanCatatKegiatan,
     invalidateKeys: [queryKeys.presurvei.all],
     successMessage: PESAN_TERCATAT,
+    showErrorAlert: false,
     onSuccess: (data) => {
       const isAntre = isOfflineMutationQueuedResult(data);
       if (isAntre) void queryClient.invalidateQueries({ queryKey: queryKeys.presurvei.antrean() });
       onTersimpan({ isAntre });
+    },
+    onError: (error) => {
+      if (!isGalatIdempotensiKunciDipakaiUlang(error)) {
+        presentAppError(error, { source: 'mutation', route: ENDPOINT_KEGIATAN_PRESURVEI, report: false });
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.presurvei.all });
     },
   });
 }
