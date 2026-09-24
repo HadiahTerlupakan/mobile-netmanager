@@ -39,15 +39,25 @@ const bungkus = (client: QueryClient) =>
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   };
 
+/**
+ * TanStack menjadwalkan notifikasi batch lewat `setTimeout(fn, 0)`
+ * (`notifyManager.ts`), BUKAN dalam rantai promise yang ditunggu
+ * `mutateAsync`. Tanpa ini, `act(async () => { await mutateAsync(...) })`
+ * keluar sebelum notifikasi itu sempat berjalan, membuat React memperbarui
+ * state di luar `act(...)` (peringatan `act` + "Jest did not exit").
+ */
+const tungguNotifikasiBatch = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 describe('useUbahStatusProspek', () => {
   it('mengirim status untuk prospek itu lalu menyegarkan data presurvei', async () => {
     mockUbahStatus.mockResolvedValue({ id: 'p-1', status: 'NEGOSIASI' });
-    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
     const invalidasi = jest.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useUbahStatusProspek('p-1'), { wrapper: bungkus(client) });
 
     await act(async () => {
       await result.current.mutateAsync('NEGOSIASI');
+      await tungguNotifikasiBatch();
     });
 
     expect(mockUbahStatus).toHaveBeenCalledWith('p-1', 'NEGOSIASI');
@@ -65,12 +75,13 @@ describe('useUbahStatusProspek', () => {
   it('409 INVALID_STATE memuat ulang rincian prospek dan memberi tahu sales', async () => {
     const galat = { isAxiosError: true, response: { status: 409, data: { code: 'INVALID_STATE' } } };
     mockUbahStatus.mockRejectedValue(galat);
-    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
     const invalidasi = jest.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useUbahStatusProspek('p-1'), { wrapper: bungkus(client) });
 
     await act(async () => {
       await result.current.mutateAsync('DEAL').catch(() => undefined);
+      await tungguNotifikasiBatch();
     });
 
     expect(invalidasi).toHaveBeenCalledWith({
@@ -85,12 +96,13 @@ describe('useUbahStatusProspek', () => {
   it('galat lain (bukan INVALID_STATE) menampilkan galat generik dan tidak memuat ulang apa pun', async () => {
     const galat = { isAxiosError: true, response: { status: 409 } };
     mockUbahStatus.mockRejectedValue(galat);
-    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
     const invalidasi = jest.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useUbahStatusProspek('p-1'), { wrapper: bungkus(client) });
 
     await act(async () => {
       await result.current.mutateAsync('DEAL').catch(() => undefined);
+      await tungguNotifikasiBatch();
     });
 
     expect(mockGalat).toHaveBeenCalledWith(galat, expect.objectContaining({ screen: 'RincianProspek' }));
@@ -106,7 +118,7 @@ describe('useUbahStatusProspek', () => {
   // global tetap menggandakan toast di atas pesan spesifik hook ini.
   it('meneruskan meta.skipGlobalErrorToast ke useMutation', () => {
     mockPanggilanUseMutation.length = 0;
-    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
     renderHook(() => useUbahStatusProspek('p-1'), { wrapper: bungkus(client) });
 
     expect(mockPanggilanUseMutation).toContainEqual(
@@ -121,11 +133,12 @@ describe('useUbahStatusProspek', () => {
     // bukan konfigurasi test. Produksi memakai `mutations.retry: 1` (queryClient.ts), yang
     // tanpa `retry: false` eksplisit akan mengirim ulang PATCH dan bisa menampilkan 409
     // "setengah jalan" untuk transisi yang sudah tidak sah (preflight P47).
-    const client = new QueryClient();
+    const client = new QueryClient({ defaultOptions: { mutations: { gcTime: 0 } } });
     const { result } = renderHook(() => useUbahStatusProspek('p-1'), { wrapper: bungkus(client) });
 
     await act(async () => {
       await result.current.mutateAsync('DEAL').catch(() => undefined);
+      await tungguNotifikasiBatch();
     });
 
     expect(mockUbahStatus).toHaveBeenCalledTimes(1);
