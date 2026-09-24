@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { TIPE_UNGGAH_FOTO_KTP, type ProspekStatus } from '@/constants/presurvei';
 import { queryKeys } from '@/lib/queryClient';
+import { getHttpStatus } from '@/lib/queryErrorReporting';
 import { PresurveiService } from '@/services/PresurveiService';
 import { uploadService, type UploadType } from '@/services/UploadService';
 import type { HasilJadikanCanvasing, MuatanJadikanCanvasing } from '@/types/presurvei';
@@ -84,6 +85,47 @@ export function unggahDenganCacheKtp(
   };
 }
 
+const BATAS_BAWAH_STATUS_4XX = 400;
+const BATAS_ATAS_STATUS_4XX = 499;
+
+/**
+ * Apakah galat `jadikan-canvasing` berarti URL foto KTP yang sudah
+ * diunggah itu sendiri yang ditolak server (validasi 4xx) — BUKAN 409
+ * `INVALID_STATE` (itu berarti prospek sudah dikonversi pihak lain, URL
+ * fotonya tidak ada hubungannya, jalur ini sudah ditangani terpisah di
+ * `onError`). Galat jaringan atau 5xx TIDAK termasuk: URL yang sudah
+ * berhasil diunggah masih sah, servernya saja yang bermasalah sesaat,
+ * jadi tidak perlu unggah ulang (fix round 2 Task 16 — ruling pengontrol).
+ */
+function isGalatUrlKtpDitolak(error: unknown): boolean {
+  const status = getHttpStatus(error);
+  if (status === undefined) return false;
+  if (status < BATAS_BAWAH_STATUS_4XX || status > BATAS_ATAS_STATUS_4XX) return false;
+  return !isGalatStatusTidakSah(error);
+}
+
+/**
+ * Bungkus `jadikan` supaya entri cache unggah KTP (`unggahDenganCacheKtp`)
+ * dibersihkan saat server menolak URL foto yang sudah diunggah (4xx selain
+ * "sudah dikonversi"), mis. validasi URL — tanpa ini, simpan ulang dengan
+ * foto yang sama akan terus memakai URL buruk yang sama dan gagal tanpa
+ * jalan keluar (fix round 2 Task 16). Galat lain (jaringan/5xx) TIDAK
+ * membersihkan cache: URL-nya masih sah.
+ */
+export function jadikanDenganPembersihCacheKtp(
+  jadikan: DependensiKonversi['jadikan'],
+  cache: { current: UnggahKtpTersimpan | null },
+): DependensiKonversi['jadikan'] {
+  return async (id, muatan) => {
+    try {
+      return await jadikan(id, muatan);
+    } catch (error) {
+      if (isGalatUrlKtpDitolak(error)) cache.current = null;
+      throw error;
+    }
+  };
+}
+
 async function kirimKonversi(masukan: MasukanKonversi, muatan: MuatanJadikanCanvasing, deps: DependensiKonversi) {
   try {
     return await deps.jadikan(masukan.prospekId, muatan);
@@ -140,6 +182,7 @@ export function useJadikanCanvasing(kembaliKeRincian: () => void) {
       jalankanKonversi(masukan, {
         ...DEPENDENSI_BAWAAN,
         unggah: unggahDenganCacheKtp(DEPENDENSI_BAWAAN.unggah, cacheUnggahKtp),
+        jadikan: jadikanDenganPembersihCacheKtp(DEPENDENSI_BAWAAN.jadikan, cacheUnggahKtp),
       }),
     retry: false,
     meta: { skipGlobalErrorToast: true },

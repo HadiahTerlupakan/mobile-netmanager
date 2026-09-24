@@ -22,6 +22,7 @@ jest.mock('@/utils/errorPresenter', () => ({
 }));
 
 import {
+  jadikanDenganPembersihCacheKtp,
   jalankanKonversi,
   KonversiSetengahJalanError,
   PESAN_SETENGAH_JALAN,
@@ -124,6 +125,71 @@ describe('unggahDenganCacheKtp', () => {
     await unggah('file:///ktp-2.jpg', 'marketing');
 
     expect(unggahAsli).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('jadikanDenganPembersihCacheKtp', () => {
+  const bangunCache = () => ({ current: { uri: 'file:///ktp.jpg', url: 'https://cdn.test/ktp.webp' } });
+
+  it('400 (URL ditolak validasi) membersihkan cache', async () => {
+    const jadikanAsli = jest.fn<DependensiKonversi['jadikan']>(async () => {
+      throw { isAxiosError: true, response: { status: 400, data: { code: 'VALIDATION' } } };
+    });
+    const cache = bangunCache();
+    const jadikan = jadikanDenganPembersihCacheKtp(jadikanAsli, cache);
+
+    await expect(jadikan('p-1', {} as never)).rejects.toBeTruthy();
+
+    expect(cache.current).toBeNull();
+  });
+
+  it('409 INVALID_STATE (sudah dikonversi) TIDAK membersihkan cache', async () => {
+    const jadikanAsli = jest.fn<DependensiKonversi['jadikan']>(async () => {
+      throw { isAxiosError: true, response: { status: 409, data: { code: 'INVALID_STATE' } } };
+    });
+    const cache = bangunCache();
+    const jadikan = jadikanDenganPembersihCacheKtp(jadikanAsli, cache);
+
+    await expect(jadikan('p-1', {} as never)).rejects.toBeTruthy();
+
+    expect(cache.current).toEqual({ uri: 'file:///ktp.jpg', url: 'https://cdn.test/ktp.webp' });
+  });
+
+  it('500 TIDAK membersihkan cache (URL masih sah, server saja bermasalah)', async () => {
+    const jadikanAsli = jest.fn<DependensiKonversi['jadikan']>(async () => {
+      throw { isAxiosError: true, response: { status: 500 } };
+    });
+    const cache = bangunCache();
+    const jadikan = jadikanDenganPembersihCacheKtp(jadikanAsli, cache);
+
+    await expect(jadikan('p-1', {} as never)).rejects.toBeTruthy();
+
+    expect(cache.current).toEqual({ uri: 'file:///ktp.jpg', url: 'https://cdn.test/ktp.webp' });
+  });
+
+  it('galat jaringan (tanpa response) TIDAK membersihkan cache', async () => {
+    const jadikanAsli = jest.fn<DependensiKonversi['jadikan']>(async () => {
+      throw new Error('Network request failed');
+    });
+    const cache = bangunCache();
+    const jadikan = jadikanDenganPembersihCacheKtp(jadikanAsli, cache);
+
+    await expect(jadikan('p-1', {} as never)).rejects.toThrow('Network request failed');
+
+    expect(cache.current).toEqual({ uri: 'file:///ktp.jpg', url: 'https://cdn.test/ktp.webp' });
+  });
+
+  it('sukses tidak menyentuh cache', async () => {
+    const jadikanAsli = jest.fn<DependensiKonversi['jadikan']>(async () => ({
+      prospek: {} as never,
+      canvasingId: 'cv-1',
+    }));
+    const cache = bangunCache();
+    const jadikan = jadikanDenganPembersihCacheKtp(jadikanAsli, cache);
+
+    await jadikan('p-1', {} as never);
+
+    expect(cache.current).toEqual({ uri: 'file:///ktp.jpg', url: 'https://cdn.test/ktp.webp' });
   });
 });
 
@@ -298,6 +364,58 @@ describe('useJadikanCanvasing', () => {
       expect.objectContaining({ queryKey: ['presurvei', 'prospek', 'detail', 'p-1'] }),
     );
     expect(kembaliKeRincian).not.toHaveBeenCalled();
+    client.clear();
+  });
+
+  // Fix round 2: cache unggah KTP (fix round 1) tidak pernah dibersihkan
+  // saat `jadikan` menolak URL hasil unggah (mis. 400 validasi), jadi
+  // simpan ulang dengan foto yang sama terus memakai URL buruk yang sama
+  // dan gagal tanpa jalan keluar. Ruling pengontrol: bersihkan cache untuk
+  // 4xx apa pun KECUALI 409 INVALID_STATE (jalur "sudah dikonversi" sendiri);
+  // galat jaringan/5xx tetap mempertahankan cache karena URL-nya masih sah.
+  it('POST ditolak 400, lalu simpan ulang dengan foto sama: unggah dipanggil lagi', async () => {
+    mockUpload.mockResolvedValue('https://cdn.test/ktp.webp');
+    mockJadikan
+      .mockRejectedValueOnce({ isAxiosError: true, response: { status: 400, data: { code: 'VALIDATION' } } })
+      .mockResolvedValueOnce({ prospek: {} as never, canvasingId: 'cv-1' });
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useJadikanCanvasing(jest.fn()), { wrapper });
+    const masukan = { prospekId: 'p-1', statusAsal: 'DEAL' as const, nilai: NILAI, fotoKtpLokal: 'file:///k.jpg' };
+
+    await act(async () => {
+      await result.current.mutateAsync(masukan).catch(() => undefined);
+      await tungguNotifikasiBatch();
+    });
+    await act(async () => {
+      await result.current.mutateAsync(masukan);
+      await tungguNotifikasiBatch();
+    });
+
+    expect(mockUpload).toHaveBeenCalledTimes(2);
+    client.clear();
+  });
+
+  it('POST gagal karena jaringan, lalu simpan ulang: unggah tidak dipanggil lagi', async () => {
+    mockUpload.mockResolvedValue('https://cdn.test/ktp.webp');
+    mockJadikan
+      .mockRejectedValueOnce(new Error('Network request failed'))
+      .mockResolvedValueOnce({ prospek: {} as never, canvasingId: 'cv-1' });
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false, gcTime: 0 } } });
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useJadikanCanvasing(jest.fn()), { wrapper });
+    const masukan = { prospekId: 'p-1', statusAsal: 'DEAL' as const, nilai: NILAI, fotoKtpLokal: 'file:///k.jpg' };
+
+    await act(async () => {
+      await result.current.mutateAsync(masukan).catch(() => undefined);
+      await tungguNotifikasiBatch();
+    });
+    await act(async () => {
+      await result.current.mutateAsync(masukan);
+      await tungguNotifikasiBatch();
+    });
+
+    expect(mockUpload).toHaveBeenCalledTimes(1);
     client.clear();
   });
 });
