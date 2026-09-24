@@ -189,6 +189,11 @@ describe('queryClient toast peredam per mutasi (meta.skipGlobalErrorToast)', () 
     const mutation = queryClient.getMutationCache().build(queryClient, {
       mutationFn: () => Promise.reject(galat),
       retry: false,
+      // Ruling fix round Task 15 (#2, re-review): tanpa ini, tiap Mutation
+      // menjadwalkan GC 5 menit (default TanStack) yang tidak dibatalkan
+      // `queryClient.clear()` di `afterAll`, membuat proses Jest menggantung
+      // saat berkas ini dijalankan sendirian.
+      gcTime: 0,
       meta,
     });
     return mutation.execute(undefined);
