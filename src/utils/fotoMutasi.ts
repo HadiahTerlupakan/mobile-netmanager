@@ -140,17 +140,22 @@ export function isGalatResponsServer(error: unknown): boolean {
   return error.message.startsWith(AWALAN_GALAT_STATUS_UNGGAH) || error.message === PESAN_RESPONS_UNGGAH_TIDAK_SAH;
 }
 
+/** Mengapa mutasi masuk antrean: perangkat offline, atau server tidak/terlambat menjawab. */
+export type AlasanAntre = 'offline' | 'server-belum-merespons';
+
 /**
- * Apakah galat unggah layak diantre: habis waktu, galat transport (server
- * tidak menjawab), atau NetInfo sudah offline. Galat respons server selagi
- * online hanya akan ditolak lagi saat sinkron.
+ * Alasan galat unggah layak diantre, atau `null` bila tidak layak. Habis
+ * waktu dan galat transport (server tidak menjawab) → `server-belum-merespons`;
+ * galat respons server saat NetInfo offline → `offline`. Galat respons server
+ * selagi online hanya akan ditolak lagi saat sinkron, jadi tidak diantre.
  */
-export async function isGagalUnggahLayakAntre(
+export async function tentukanAlasanAntreUnggah(
   error: unknown,
   // `null` = keterjangkauan internet belum diketahui (NetInfo); diperlakukan offline.
   cekOnline: () => Promise<boolean | null>,
-): Promise<boolean> {
-  return isUnggahHabisWaktu(error) || !isGalatResponsServer(error) || !(await cekOnline());
+): Promise<AlasanAntre | null> {
+  if (isUnggahHabisWaktu(error) || !isGalatResponsServer(error)) return 'server-belum-merespons';
+  return (await cekOnline()) ? null : 'offline';
 }
 
 /** Apakah ada foto lokal `meta.photos` yang berkasnya sudah tidak ada. */

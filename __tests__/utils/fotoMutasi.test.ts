@@ -13,6 +13,7 @@ import {
   isGalatResponsServer,
   isUnggahHabisWaktu,
   salinFotoMetaUntukAntrean,
+  tentukanAlasanAntreUnggah,
   unggahFotoMeta,
   unggahPetaFoto,
 } from '@/utils/fotoMutasi';
@@ -193,5 +194,28 @@ describe('isUnggahHabisWaktu', () => {
     expect(isUnggahHabisWaktu(galat)).toBe(true);
     expect(isUnggahHabisWaktu(new Error('Upload failed with status 413'))).toBe(false);
     expect(isUnggahHabisWaktu('UploadTimeoutError')).toBe(false);
+  });
+});
+
+describe('tentukanAlasanAntreUnggah (review akhir I4)', () => {
+  const online = async () => true;
+  const offline = async () => false;
+
+  it('habis waktu dan galat transport: server belum merespons, tanpa bertanya NetInfo', async () => {
+    const habisWaktu = new Error('Upload melebihi batas waktu');
+    habisWaktu.name = 'UploadTimeoutError';
+    const cekOnline = jest.fn(online);
+
+    expect(await tentukanAlasanAntreUnggah(habisWaktu, cekOnline)).toBe('server-belum-merespons');
+    expect(await tentukanAlasanAntreUnggah(new Error('Network request failed'), cekOnline)).toBe('server-belum-merespons');
+    expect(cekOnline).not.toHaveBeenCalled();
+  });
+
+  it('galat respons server: offline bila NetInfo offline (atau belum tahu), selain itu tidak layak antre', async () => {
+    const galat413 = new Error('Upload failed with status 413: terlalu besar');
+
+    expect(await tentukanAlasanAntreUnggah(galat413, offline)).toBe('offline');
+    expect(await tentukanAlasanAntreUnggah(galat413, async () => null)).toBe('offline');
+    expect(await tentukanAlasanAntreUnggah(galat413, online)).toBeNull();
   });
 });

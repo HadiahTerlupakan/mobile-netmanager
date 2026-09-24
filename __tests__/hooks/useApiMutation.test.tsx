@@ -23,9 +23,11 @@ jest.mock('@/services/api', () => ({
 }));
 
 const mockIsOnline = jest.fn<() => Promise<boolean>>();
+const mockScheduleQueueDrain = jest.fn<(jedaMs?: number) => void>();
 jest.mock('@/services/SyncService', () => ({
   SyncService: {
     isOnline: mockIsOnline,
+    scheduleQueueDrain: (...args: [number?]) => mockScheduleQueueDrain(...args),
   },
 }));
 
@@ -768,6 +770,99 @@ describe('useApiMutation', () => {
 
       expect(galat).toBe(galatServer);
       expect(mockAddToQueue).not.toHaveBeenCalled();
+    });
+  });
+  describe('alasan antre dan drain dari jalur online (review akhir I4)', () => {
+    const ENDPOINT = '/api/presurvei/kegiatan';
+    const PESAN_SERVER_BELUM_MERESPONS = 'Server belum merespons. Data disimpan dan akan dikirim ulang otomatis.';
+
+    const bangunGalatAxios = (code: string, response?: unknown) => {
+      const { AxiosError } = require('axios');
+      return Object.assign(new AxiosError('timeout of 30000ms exceeded', code), { response });
+    };
+
+    const kirim = async (variables: Record<string, unknown>, opsi: Record<string, unknown> = {}) => {
+      const client = buatClient();
+      const { useApiMutation } = require('@/hooks/queries/useApiMutation');
+      const { result, unmount } = renderHook(
+        () => useApiMutation({ endpoint: ENDPOINT, method: 'POST', successMessage: 'Kegiatan tercatat', ...opsi }),
+        { wrapper: createWrapper(client) },
+      );
+      let hasil: unknown;
+      await act(async () => {
+        hasil = await result.current.mutateAsync(variables);
+      });
+      unmount();
+      client.clear();
+      return hasil;
+    };
+
+    it('NetInfo offline: alasan offline, pesan koneksi, tanpa drain (NetInfo yang memicu saat pulih)', async () => {
+      mockIsOnline.mockResolvedValue(false as never);
+
+      const hasil = await kirim({ jenis: 'TELEPON', requestId: 'r-offline' });
+
+      expect(hasil).toEqual(expect.objectContaining({ kind: 'offline-queued', alasan: 'offline' }));
+      expect(presentInfoMessage).toHaveBeenCalledWith(
+        'Koneksi tidak tersedia. Data disimpan offline dan akan dikirim otomatis saat internet kembali.',
+        'Offline',
+      );
+      expect(mockScheduleQueueDrain).not.toHaveBeenCalled();
+    });
+
+    it('POST timeout saat online: alasan server-belum-merespons, pesan jujur, drain dengan jeda bawaan', async () => {
+      mockIsOnline.mockResolvedValue(true as never);
+      mockRequest.mockRejectedValue(bangunGalatAxios('ECONNABORTED'));
+
+      const hasil = await kirim({ jenis: 'TELEPON', requestId: 'r-timeout' });
+
+      expect(hasil).toEqual(expect.objectContaining({ kind: 'offline-queued', alasan: 'server-belum-merespons' }));
+      expect(presentInfoMessage).toHaveBeenCalledWith(PESAN_SERVER_BELUM_MERESPONS, 'Menunggu Server');
+      expect(presentInfoMessage).not.toHaveBeenCalledWith(expect.stringContaining('Koneksi tidak tersedia'), expect.anything());
+      expect(mockScheduleQueueDrain.mock.calls).toEqual([[]]);
+    });
+
+    it('409 IDEMPOTENCY_IN_PROGRESS: drain dijadwalkan setelah Retry-After server (30 detik)', async () => {
+      mockIsOnline.mockResolvedValue(true as never);
+      mockRequest.mockRejectedValue(
+        bangunGalatAxios('ERR_BAD_REQUEST', {
+          status: 409,
+          statusText: 'Conflict',
+          headers: {},
+          config: {},
+          data: { success: false, error: 'Permintaan masih diproses', code: 'IDEMPOTENCY_IN_PROGRESS' },
+        }),
+      );
+
+      const hasil = await kirim({ jenis: 'TELEPON', requestId: 'r-in-progress' });
+
+      expect(hasil).toEqual(expect.objectContaining({ alasan: 'server-belum-merespons' }));
+      expect(mockScheduleQueueDrain.mock.calls).toEqual([[30_000]]);
+    });
+
+    it('unggah foto habis waktu saat online: alasan server-belum-merespons dan drain', async () => {
+      mockIsOnline.mockResolvedValue(true as never);
+      const habisWaktu = new Error('Upload melebihi batas waktu 60 detik.');
+      habisWaktu.name = 'UploadTimeoutError';
+      mockUploadFile.mockRejectedValue(habisWaktu);
+
+      const hasil = await kirim(
+        { jenis: 'KUNJUNGAN', meta: { photos: ['file:///cache/a.jpg'], targetField: 'fotoUrls', photoType: 'presurvei' } },
+        { buildPayload: ({ meta: _meta, ...isi }: Record<string, unknown>) => isi },
+      );
+
+      expect(hasil).toEqual(expect.objectContaining({ alasan: 'server-belum-merespons' }));
+      expect(mockRequest).not.toHaveBeenCalled();
+      expect(mockScheduleQueueDrain.mock.calls).toEqual([[]]);
+    });
+
+    it('tanpa successMessage: pesan antre mengikuti alasan juga', async () => {
+      mockIsOnline.mockResolvedValue(true as never);
+      mockRequest.mockRejectedValue(bangunGalatAxios('ECONNABORTED'));
+
+      await kirim({ jenis: 'TELEPON' }, { successMessage: undefined });
+
+      expect(presentInfoMessage).toHaveBeenCalledWith(PESAN_SERVER_BELUM_MERESPONS, 'Menunggu Server');
     });
   });
 });

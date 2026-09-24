@@ -21,13 +21,14 @@ import {
   isAttendanceEndpoint,
 } from "@/utils/attendanceIdempotency";
 import { extractApiErrorMessage } from "@/utils/errorHandling";
-import { isGalatIdempotensiSedangDiproses } from "@/utils/galatIdempotensi";
+import { isGalatIdempotensiSedangDiproses, JEDA_ULANG_SEDANG_DIPROSES_MS } from "@/utils/galatIdempotensi";
 import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
 import {
   adaFotoLokalHilang,
-  isGagalUnggahLayakAntre,
+  type AlasanAntre,
   PESAN_FOTO_LOKAL_HILANG,
   salinFotoMetaUntukAntrean,
+  tentukanAlasanAntreUnggah,
   unggahFotoMeta,
   unggahFotoTanpaUlang,
   unggahPetaFoto,
@@ -50,6 +51,17 @@ type HttpMethod = "POST" | "PUT" | "PATCH" | "DELETE";
  * juga diantre (perilaku lama, dipertahankan).
  */
 const OFFLINE_ERROR_MESSAGE = "Offline";
+
+/**
+ * Pesan galat internal untuk unggah foto yang habis waktu / tak dijawab
+ * server selagi NetInfo online: mutasi diantre dengan alasan
+ * `server-belum-merespons` (bukan "Koneksi tidak tersedia").
+ */
+const SERVER_BELUM_MERESPONS_ERROR_MESSAGE = "ServerBelumMerespons";
+
+/** Pesan (dan judul) toast saat mutasi diantre karena server belum menjawab. */
+const PESAN_ANTRE_SERVER_BELUM_MERESPONS = "Server belum merespons. Data disimpan dan akan dikirim ulang otomatis.";
+const JUDUL_ANTRE_SERVER_BELUM_MERESPONS = "Menunggu Server";
 
 export interface MutationMeta {
   latitude?: number | null;
@@ -81,6 +93,8 @@ export interface OfflineQueuedMutationResult {
   endpoint: string;
   method: HttpMethod;
   queuedAt: string;
+  /** `offline` bila NetInfo offline; selain itu server tidak/terlambat menjawab. */
+  alasan: AlasanAntre;
 }
 
 export type ApiMutationResult<TData> = TData | OfflineQueuedMutationResult;
@@ -197,10 +211,33 @@ async function unggahFotoMetaAtauAntre(
   try {
     return await unggahFotoMeta(meta, payload, unggahFotoTanpaUlang);
   } catch (error) {
-    if (!(await isGagalUnggahLayakAntre(error, SyncService.isOnline))) throw error;
+    const alasan = await tentukanAlasanAntreUnggah(error, SyncService.isOnline);
+    if (alasan === null) throw error;
     if (await adaFotoLokalHilang(meta)) throw new Error(PESAN_FOTO_LOKAL_HILANG);
-    throw new Error(OFFLINE_ERROR_MESSAGE);
+    throw new Error(alasan === "offline" ? OFFLINE_ERROR_MESSAGE : SERVER_BELUM_MERESPONS_ERROR_MESSAGE);
   }
+}
+
+/**
+ * Item yang diantre selagi NetInfo online tidak akan memicu event jaringan,
+ * jadi drain dijadwalkan di sini: setelah `Retry-After` server untuk 409
+ * in-progress, selain itu dengan jeda bawaan SyncService.
+ */
+function jadwalkanDrainAntreOnline(isSedangDiprosesServer: boolean): void {
+  if (isSedangDiprosesServer) {
+    SyncService.scheduleQueueDrain(JEDA_ULANG_SEDANG_DIPROSES_MS);
+    return;
+  }
+  SyncService.scheduleQueueDrain();
+}
+
+/** Tampilkan info antre sesuai alasannya; `pesanOffline` = pesan lama per jalur. */
+function tampilkanInfoAntre(alasan: AlasanAntre, pesanOffline: string): void {
+  if (alasan === "offline") {
+    presentInfoMessage(pesanOffline, "Offline");
+    return;
+  }
+  presentInfoMessage(PESAN_ANTRE_SERVER_BELUM_MERESPONS, JUDUL_ANTRE_SERVER_BELUM_MERESPONS);
 }
 
 /**
@@ -310,6 +347,8 @@ export function useApiMutation<
             !error.response);
         const isExplicitOffline =
           error instanceof Error && error.message === OFFLINE_ERROR_MESSAGE;
+        const isUnggahServerBelumMerespons =
+          error instanceof Error && error.message === SERVER_BELUM_MERESPONS_ERROR_MESSAGE;
         // POST ber-requestId yang kena 409 in-progress diantre dengan
         // requestId yang sama, supaya pengguna tidak mengetik ulang dengan
         // id baru (yang akan tercatat ganda saat permintaan pertama selesai).
@@ -318,7 +357,7 @@ export function useApiMutation<
           requestId !== undefined &&
           isGalatIdempotensiSedangDiproses(error);
 
-        if (isExplicitOffline || isNetworkError || isSedangDiprosesServer) {
+        if (isExplicitOffline || isNetworkError || isSedangDiprosesServer || isUnggahServerBelumMerespons) {
           logger.info(
             `[useApiMutation] Offline/Network error detected. Queuing mutation: ${method} ${resolvedEndpoint}`,
           );
@@ -339,12 +378,16 @@ export function useApiMutation<
             queueMeta,
           );
 
+          const alasan: AlasanAntre = isExplicitOffline ? "offline" : "server-belum-merespons";
+          if (alasan !== "offline") jadwalkanDrainAntreOnline(isSedangDiprosesServer);
+
           return {
             __offline_queued__: true,
             kind: "offline-queued",
             endpoint: resolvedEndpoint,
             method,
             queuedAt: new Date().toISOString(),
+            alasan,
           } satisfies OfflineQueuedMutationResult;
         }
 
@@ -371,18 +414,15 @@ export function useApiMutation<
 
       if (successMessage) {
         if (isOffline) {
-          presentInfoMessage(
+          tampilkanInfoAntre(
+            data.alasan,
             "Koneksi tidak tersedia. Data disimpan offline dan akan dikirim otomatis saat internet kembali.",
-            "Offline",
           );
         } else {
           presentSuccessMessage(successMessage);
         }
       } else if (isOffline && showErrorAlert) {
-        presentInfoMessage(
-          "Koneksi tidak tersedia. Perubahan Anda disimpan secara lokal.",
-          "Offline",
-        );
+        tampilkanInfoAntre(data.alasan, "Koneksi tidak tersedia. Perubahan Anda disimpan secara lokal.");
       }
 
       onSuccess?.(data, variables, onMutateResult, context);
