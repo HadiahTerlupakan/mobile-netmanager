@@ -29,11 +29,11 @@ describe('useKameraBukti', () => {
     mockPermissionSekarang = { granted: true };
   });
 
-  it('izinDiberikan mengikuti status permission, dan mintaIzin memicu permintaan', () => {
+  it('isIzinDiberikan mengikuti status permission, dan mintaIzin memicu permintaan', () => {
     mockPermissionSekarang = { granted: false };
     const { result } = renderHook(() => useKameraBukti(jest.fn()));
 
-    expect(result.current.izinDiberikan).toBe(false);
+    expect(result.current.isIzinDiberikan).toBe(false);
 
     act(() => result.current.mintaIzin());
 

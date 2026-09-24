@@ -16,9 +16,9 @@ interface KameraBuktiProps {
  * G10 — komponen hanya merender).
  */
 export function KameraBukti({ onAmbil, onTutup }: KameraBuktiProps) {
-  const { kamera, izinDiberikan, isMemotret, mintaIzin, potret } = useKameraBukti(onAmbil);
+  const { kamera, isIzinDiberikan, isMemotret, mintaIzin, potret } = useKameraBukti(onAmbil);
 
-  if (!izinDiberikan) {
+  if (!isIzinDiberikan) {
     return (
       <View style={tw`flex-1 items-center justify-center bg-black p-6`}>
         <Text style={tw`text-white text-center mb-4`}>Aplikasi butuh izin kamera untuk foto bukti.</Text>

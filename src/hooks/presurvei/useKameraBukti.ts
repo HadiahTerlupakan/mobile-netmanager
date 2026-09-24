@@ -11,7 +11,7 @@ import { KUALITAS_FOTO_BUKTI, perkecilFoto } from '@/utils/presurvei/fotoBukti';
  */
 export interface KameraBuktiState {
   kamera: React.RefObject<CameraView | null>;
-  izinDiberikan: boolean;
+  isIzinDiberikan: boolean;
   isMemotret: boolean;
   mintaIzin: () => void;
   potret: () => Promise<void>;
@@ -40,5 +40,5 @@ export function useKameraBukti(onAmbil: (uri: string) => void): KameraBuktiState
     }
   }, [isMemotret, onAmbil]);
 
-  return { kamera, izinDiberikan: izin?.granted ?? false, isMemotret, mintaIzin, potret };
+  return { kamera, isIzinDiberikan: izin?.granted ?? false, isMemotret, mintaIzin, potret };
 }
