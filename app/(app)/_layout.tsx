@@ -416,6 +416,13 @@ export default function AppLayout() {
             tabBarStyle: { display: "none" },
           }}
         />
+        <Tabs.Screen
+          name="presurvei/prospek/[id]/index"
+          options={{
+            href: null,
+            tabBarStyle: { display: "none" },
+          }}
+        />
 
         {/* WO Request Screen - Hidden from tab bar, accessed via WO list */}
         <Tabs.Screen

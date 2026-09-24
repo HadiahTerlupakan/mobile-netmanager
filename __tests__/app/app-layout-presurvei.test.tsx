@@ -51,7 +51,11 @@ jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }))
 jest.mock('twrnc', () => () => ({}));
 
 /** Route presurvei yang tidak boleh muncul sebagai tab di tab bar bawaan. */
-const RUTE_PRESURVEI_TERSEMBUNYI = ['presurvei/index', 'presurvei/kegiatan/catat'];
+const RUTE_PRESURVEI_TERSEMBUNYI = [
+  'presurvei/index',
+  'presurvei/kegiatan/catat',
+  'presurvei/prospek/[id]/index',
+];
 
 const TEKNISI = {
   id: 'u-1',
