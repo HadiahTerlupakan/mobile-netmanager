@@ -1,0 +1,56 @@
+name: Promosikan ke Production
+
+# Memindahkan build yang sudah diuji di track internal Play Store ke track
+# production. Hanya bisa dijalankan manusia (workflow_dispatch) — build tidak
+# pernah sampai ke semua pengguna tanpa keputusan eksplisit.
+#
+# Latar: build AAB mengarahkan OTA ke runtime build baru, tetapi build itu hanya
+# masuk track internal. Selama belum dipromosikan, pengguna production tidak
+# menerima OTA apa pun tanpa error (kejadian 15–25 September 2026: build 47
+# tertahan di internal, 15 pengguna versi 46 tidak mendapat update 10 hari).
+# Karena itu yang boleh dipromosikan hanya build target OTA (native-build.json);
+# `scripts/play-internal.js promote` menolak versionCode lain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      catatan_rilis:
+        description: Catatan rilis (Bahasa Indonesia) yang tampil di Play Store.
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: play-production
+  cancel-in-progress: false
+
+jobs:
+  promosikan:
+    name: Promosikan build target OTA ke production
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Pasang Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      - name: Promosikan ke production
+        env:
+          PLAY_SA_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+          CATATAN_RILIS: ${{ inputs.catatan_rilis }}
+        run: |
+          set -euo pipefail
+          # Dipisah dari `export` supaya base64 yang rusak menggagalkan langkah.
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON="$(printf '%s' "${PLAY_SA_BASE64}" | base64 -d)"
+          export GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+          TARGET="$(node -p 'require("./native-build.json").versionCode')"
+          echo "Build target OTA (native-build.json): versionCode ${TARGET}"
+          node scripts/play-internal.js promote "${TARGET}" "${TARGET}" "${CATATAN_RILIS}"

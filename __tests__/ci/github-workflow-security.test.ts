@@ -37,7 +37,7 @@ type Workflow = {
 
 const ROOT = join(__dirname, '../..');
 const DIR = join(ROOT, '.github/workflows');
-const WORKFLOW_DIKENAL = ['build-android.yml', 'ci.yml', 'ota.yml'];
+const WORKFLOW_DIKENAL = ['build-android.yml', 'ci.yml', 'ota.yml', 'promote-production.yml'];
 
 // Setiap versi di sini berjalan di Node 24. Menambah action baru berarti
 // memeriksa runtime-nya lebih dulu, lalu menambahkannya ke daftar ini.
@@ -218,5 +218,34 @@ describe('runner dan action', () => {
         }
       }
     }
+  });
+});
+
+describe('promosi ke production', () => {
+  it('hanya bisa dijalankan manusia, lewat environment production', () => {
+    const teks = bacaTeks('promote-production.yml');
+    const pemicu = teks.slice(teks.indexOf('\non:'), teks.indexOf('\npermissions:'));
+
+    expect(pemicu).toContain('workflow_dispatch:');
+    expect(pemicu).not.toMatch(/\bpush:|pull_request|schedule:|workflow_run:/);
+    expect(teks).toContain('environment: production');
+  });
+
+  it('hanya mempromosikan build target OTA dari native-build.json', () => {
+    const teks = bacaTeks('promote-production.yml');
+
+    expect(teks).toContain(`TARGET="$(node -p 'require("./native-build.json").versionCode')"`);
+    expect(teks).toContain('node scripts/play-internal.js promote "${TARGET}" "${TARGET}" "${CATATAN_RILIS}"');
+    // Masukan manusia masuk lewat env, tidak diinterpolasi langsung ke shell.
+    expect(teks).toContain('CATATAN_RILIS: ${{ inputs.catatan_rilis }}');
+    expect(teks).not.toMatch(/run:[^\n]*\$\{\{\s*inputs\./);
+  });
+
+  it('workflow OTA memperingatkan bila build target belum di production', () => {
+    const teks = bacaTeks('ota.yml');
+    const langkah = teks.slice(teks.indexOf('- name: Periksa build target OTA sudah di production'));
+
+    expect(langkah).toContain('node scripts/play-internal.js status-production');
+    expect(langkah).toContain('continue-on-error: true');
   });
 });

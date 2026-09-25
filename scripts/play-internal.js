@@ -2,9 +2,10 @@
 /**
  * Klien Google Play Developer API untuk build Android di GitHub Actions.
  *
- * Hanya dua hal: menentukan versionCode berikutnya, dan mengunggah AAB ke track
- * internal. Promosi ke produksi sengaja tidak ada di sini — dilakukan manual
- * lewat Play Console setelah build diuji di perangkat.
+ * Tiga hal: menentukan versionCode berikutnya, mengunggah AAB ke track
+ * internal, dan mempromosikan build yang sudah ada di track internal ke
+ * production. Promosi tidak pernah otomatis: hanya dijalankan manusia lewat
+ * workflow `promote-production.yml` setelah build diuji di perangkat.
  *
  * Kredensial dibaca dari GOOGLE_PLAY_SERVICE_ACCOUNT_JSON (isi JSON service
  * account, bukan path) supaya tidak ada berkas kunci yang tertinggal di runner.
@@ -12,6 +13,8 @@
  * Pemakaian:
  *   node scripts/play-internal.js next-version-code [override]
  *   node scripts/play-internal.js upload <aab> <versionCode> <releaseName>
+ *   node scripts/play-internal.js promote <versionCode> <targetOtaVersionCode> <catatanRilis>
+ *   node scripts/play-internal.js status-production <targetOtaVersionCode>
  */
 
 const crypto = require("crypto");
@@ -54,6 +57,56 @@ function buildInternalTrack({ versionCode, releaseName }) {
     track: "internal",
     releases: [{ name: releaseName, versionCodes: [String(versionCode)], status: "completed" }],
   };
+}
+
+/**
+ * Syarat promosi ke production. Build harus sudah ada di track internal (sudah
+ * diuji), dan harus build yang menjadi target OTA (versionCode di
+ * native-build.json). Mempromosikan build lain membuat pengguna production
+ * memakai runtime yang tidak lagi menerima OTA.
+ */
+function validasiPromosi({ versionCode, kodeInternal, versionCodeTargetOta }) {
+  const kode = String(versionCode ?? "").trim();
+  if (!/^\d+$/.test(kode)) {
+    throw new Error(`versionCode harus bilangan bulat, menerima "${kode}"`);
+  }
+  if (!kodeInternal.map(String).includes(kode)) {
+    throw new Error(
+      `versionCode ${kode} tidak ada di track internal (${kodeInternal.join(", ") || "kosong"}); uji dulu di internal`,
+    );
+  }
+  if (kode !== String(versionCodeTargetOta)) {
+    throw new Error(
+      `versionCode ${kode} bukan target OTA (native-build.json: ${versionCodeTargetOta}); pengguna production akan berhenti menerima OTA`,
+    );
+  }
+  return kode;
+}
+
+/**
+ * Pesan peringatan bila build target OTA belum dirilis penuh di production,
+ * atau null bila sudah. Pengguna production hanya menerima OTA untuk runtime
+ * build yang terpasang di HP mereka.
+ */
+function peringatanProduction({ versionCodeTargetOta, rilisProduction }) {
+  const target = String(versionCodeTargetOta);
+  const selesai = rilisProduction.some(
+    (rilis) => rilis.status === "completed" && (rilis.versionCodes || []).map(String).includes(target),
+  );
+  if (selesai) return null;
+  const ada = rilisProduction.map((rilis) => `${(rilis.versionCodes || []).join(",")} (${rilis.status})`).join("; ");
+  return (
+    `Build target OTA (versionCode ${target}) belum dirilis penuh di production ` +
+    `(production: ${ada || "kosong"}). Pengguna Play Store tidak menerima OTA ini sampai ` +
+    `build ${target} dipromosikan — jalankan workflow "Promosikan ke Production".`
+  );
+}
+
+/** Isi tracks.update untuk merilis satu versionCode ke track production. */
+function buildProductionTrack({ versionCode, releaseName, catatanRilis }) {
+  const rilis = { name: releaseName, versionCodes: [String(versionCode)], status: "completed" };
+  if (catatanRilis) rilis.releaseNotes = [{ language: "id", text: catatanRilis }];
+  return { track: "production", releases: [rilis] };
 }
 
 /** JWT bertanda tangan RS256 untuk ditukar dengan access token OAuth. */
@@ -168,11 +221,50 @@ async function perintahUpload(jalurAab, versionCode, releaseName) {
   process.stdout.write(`versionCode ${versionCode} terbit di track internal\n`);
 }
 
+async function perintahPromote(versionCode, versionCodeTargetOta, catatanRilis) {
+  const header = await aksesToken(bacaServiceAccount());
+
+  await denganEdit(header, async (editId) => {
+    const internal = await mintaJson(`${API}/edits/${editId}/tracks/internal`, { headers: header });
+    const rilisInternal = (internal.releases || []).find((rilis) =>
+      (rilis.versionCodes || []).map(String).includes(String(versionCode)),
+    );
+    const kodeInternal = (internal.releases || []).flatMap((rilis) => rilis.versionCodes || []);
+    const kode = validasiPromosi({ versionCode, kodeInternal, versionCodeTargetOta });
+
+    await mintaJson(`${API}/edits/${editId}/tracks/production`, {
+      method: "PUT",
+      headers: { ...header, "content-type": "application/json" },
+      body: JSON.stringify(
+        buildProductionTrack({ versionCode: kode, releaseName: rilisInternal.name, catatanRilis }),
+      ),
+    });
+    await mintaJson(`${API}/edits/${editId}:commit`, { method: "POST", headers: header });
+  });
+
+  process.stdout.write(`versionCode ${versionCode} dikirim ke production; pantau status review di Play Console\n`);
+}
+
+async function perintahStatusProduction(versionCodeTargetOta) {
+  const header = await aksesToken(bacaServiceAccount());
+  const production = await denganEdit(header, async (editId) => {
+    const hasil = await mintaJson(`${API}/edits/${editId}/tracks/production`, { headers: header });
+    await fetch(`${API}/edits/${editId}`, { method: "DELETE", headers: header });
+    return hasil;
+  });
+  const pesan = peringatanProduction({ versionCodeTargetOta, rilisProduction: production.releases || [] });
+  process.stdout.write(pesan ? `::warning::${pesan}\n` : `Build ${versionCodeTargetOta} sudah di production.\n`);
+}
+
 async function main() {
   const [perintah, ...arg] = process.argv.slice(2);
   if (perintah === "next-version-code") return perintahNextVersionCode(arg[0]);
   if (perintah === "upload") return perintahUpload(arg[0], arg[1], arg[2]);
-  throw new Error("Perintah: next-version-code [override] | upload <aab> <versionCode> <releaseName>");
+  if (perintah === "promote") return perintahPromote(arg[0], arg[1], arg[2]);
+  if (perintah === "status-production") return perintahStatusProduction(arg[0]);
+  throw new Error(
+    "Perintah: next-version-code [override] | upload <aab> <versionCode> <releaseName> | promote <versionCode> <targetOta> <catatan>",
+  );
 }
 
 if (require.main === module) {
@@ -182,4 +274,12 @@ if (require.main === module) {
   });
 }
 
-module.exports = { PACKAGE_NAME, nextVersionCode, buildInternalTrack, buildServiceAccountJwt };
+module.exports = {
+  PACKAGE_NAME,
+  nextVersionCode,
+  buildInternalTrack,
+  buildProductionTrack,
+  validasiPromosi,
+  peringatanProduction,
+  buildServiceAccountJwt,
+};

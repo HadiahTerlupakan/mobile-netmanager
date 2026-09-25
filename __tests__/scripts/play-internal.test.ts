@@ -4,6 +4,9 @@ import { generateKeyPairSync, verify } from 'node:crypto';
 const {
   nextVersionCode,
   buildInternalTrack,
+  buildProductionTrack,
+  validasiPromosi,
+  peringatanProduction,
   buildServiceAccountJwt,
 } = require('../../scripts/play-internal.js');
 
@@ -69,5 +72,63 @@ describe('JWT service account', () => {
     expect(
       verify('RSA-SHA256', Buffer.from(`${kepala}.${isi}`), publicKey, Buffer.from(tanda, 'base64url'))
     ).toBe(true);
+  });
+});
+
+describe('promosi ke production', () => {
+  it('hanya menerima build target OTA yang sudah ada di track internal', () => {
+    expect(validasiPromosi({ versionCode: '47', kodeInternal: ['47'], versionCodeTargetOta: 47 })).toBe('47');
+  });
+
+  it('menolak build yang belum diuji di track internal', () => {
+    expect(() => validasiPromosi({ versionCode: '48', kodeInternal: ['47'], versionCodeTargetOta: 48 })).toThrow(
+      /tidak ada di track internal/,
+    );
+  });
+
+  it('menolak build yang bukan target OTA, karena pengguna production akan kehilangan OTA', () => {
+    expect(() => validasiPromosi({ versionCode: '46', kodeInternal: ['46', '47'], versionCodeTargetOta: 47 })).toThrow(
+      /bukan target OTA/,
+    );
+  });
+
+  it('menolak versionCode yang bukan bilangan bulat', () => {
+    expect(() => validasiPromosi({ versionCode: '47; rm', kodeInternal: ['47'], versionCodeTargetOta: 47 })).toThrow(
+      /bilangan bulat/,
+    );
+  });
+
+  it('merilis penuh ke track production dengan catatan berbahasa Indonesia', () => {
+    expect(buildProductionTrack({ versionCode: 47, releaseName: '1.0.9 (47)', catatanRilis: 'Perbaikan' })).toEqual({
+      track: 'production',
+      releases: [
+        {
+          name: '1.0.9 (47)',
+          versionCodes: ['47'],
+          status: 'completed',
+          releaseNotes: [{ language: 'id', text: 'Perbaikan' }],
+        },
+      ],
+    });
+  });
+});
+
+describe('peringatan build target OTA belum di production', () => {
+  it('diam bila build target sudah dirilis penuh', () => {
+    expect(
+      peringatanProduction({ versionCodeTargetOta: 47, rilisProduction: [{ versionCodes: ['47'], status: 'completed' }] }),
+    ).toBeNull();
+  });
+
+  it('memperingatkan bila production masih build lama (kejadian 15-25 Sep 2026)', () => {
+    expect(
+      peringatanProduction({ versionCodeTargetOta: 47, rilisProduction: [{ versionCodes: ['46'], status: 'completed' }] }),
+    ).toMatch(/versionCode 47\) belum dirilis penuh di production/);
+  });
+
+  it('memperingatkan bila build target baru rollout sebagian', () => {
+    expect(
+      peringatanProduction({ versionCodeTargetOta: 47, rilisProduction: [{ versionCodes: ['47'], status: 'inProgress' }] }),
+    ).not.toBeNull();
   });
 });
