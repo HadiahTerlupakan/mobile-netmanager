@@ -48,8 +48,15 @@ describe('workflow build Android', () => {
     }
     // Catatan build yang di-commit balik tidak boleh memicu build lagi.
     expect(blokPush).not.toContain('native-build.json');
-    // Perubahan pipeline langsung diuji oleh build sungguhan.
-    expect(blokPush).toContain('.github/workflows/build-android.yml');
+
+    // Daftar pemicu harus PERSIS NATIVE_PATHS. Berkas pipeline yang ikut
+    // memicu build sungguhan menggeser runtimeVersion (fingerprint berbeda
+    // antar mesin) dan memutus OTA ke HP pengguna; pipeline diuji lewat
+    // mode_uji.
+    const pemicu = [...blokPush.matchAll(/^\s+- "([^"]+)"$/gm)].map((cocok) =>
+      cocok[1].replace(/\/\*\*$/, ''),
+    );
+    expect([...pemicu].sort()).toEqual([...NATIVE_PATHS].sort());
   });
 
   it('memeriksa kredensial keystore sebelum membangun apa pun', () => {

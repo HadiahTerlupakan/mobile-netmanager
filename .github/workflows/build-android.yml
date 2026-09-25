@@ -25,11 +25,17 @@ name: Build Android AAB
 # `production` (hanya boleh dari branch main).
 
 on:
-  # Otomatis hanya ketika sesuatu yang tidak bisa dikirim lewat OTA berubah.
-  # Daftar ini sama dengan NATIVE_PATHS di scripts/native-state.js (dijaga tes),
-  # ditambah berkas pipeline ini sendiri supaya perubahan pipeline langsung
-  # diuji oleh build sungguhan. native-build.json — catatan yang di-commit balik
-  # oleh workflow ini — sengaja tidak ada di sini supaya tidak memicu dirinya.
+  # Otomatis HANYA ketika sesuatu yang tidak bisa dikirim lewat OTA berubah.
+  # Daftar ini persis NATIVE_PATHS di scripts/native-state.js (dijaga tes).
+  #
+  # Berkas pipeline (workflow ini, native-state.js, play-internal.js) sengaja
+  # tidak memicu build. runtimeVersion adalah fingerprint yang berbeda antar
+  # mesin build untuk kode native yang sama (a96b2225 di runner GitHub vs
+  # 6fb4906a di HP pengguna, run 36099338043). Build yang dipicu perubahan
+  # pipeline akan mencatat runtime baru dan memutus OTA ke semua HP tanpa APK
+  # baru yang disebar. Uji perubahan pipeline lewat workflow_dispatch dengan
+  # mode_uji. native-build.json — catatan yang di-commit balik — juga tidak ada
+  # di sini supaya tidak memicu dirinya.
   push:
     branches: [main]
     paths:
@@ -43,9 +49,6 @@ on:
       - "assets/images/**"
       - "assets/sounds/**"
       - "assets/expo-updates/**"
-      - ".github/workflows/build-android.yml"
-      - "scripts/play-internal.js"
-      - "scripts/native-state.js"
   workflow_dispatch:
     inputs:
       version_code_override:
