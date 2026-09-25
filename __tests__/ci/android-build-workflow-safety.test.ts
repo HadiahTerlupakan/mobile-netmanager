@@ -156,7 +156,7 @@ describe('workflow build Android', () => {
     expect(workflow).toMatch(/:web:/);
   });
 
-  it('menyetel heap Gradle sendiri setelah prebuild, cukup untuk R8 dan muat di 7 GB', () => {
+  it('menyetel heap Gradle sendiri setelah prebuild, cukup untuk R8 dan muat di 16 GB', () => {
     // Run #16 gagal di menit ke-107: `minifyReleaseWithR8` OutOfMemoryError
     // dengan heap 2 GiB. app.json meminta 4 GB lewat
     // expo-build-properties.gradleProperties, tetapi plugin itu tidak mengenal
@@ -176,14 +176,13 @@ describe('workflow build Android', () => {
     const megabyte = Number(heap![1]) * (heap![2] === 'g' ? 1024 : 1);
     expect(megabyte).toBeGreaterThanOrEqual(4096);
 
-    // Runner GitHub-hosted private hanya 7 GB. Heap + metaspace daemon Gradle
-    // harus menyisakan ruang untuk OS, Metro, dan dua proses clang. Anggaran
-    // lama (5 GB + 1 GB) hanya muat di container 9 GB runner android-ci.
+    // Runner GitHub-hosted repo publik 16 GB / 4 vCPU. Heap + metaspace daemon
+    // Gradle harus menyisakan ruang untuk OS, Metro, dan empat proses clang.
     const metaspace = workflow.match(/org\.gradle\.jvmargs=[^\n']*-XX:MaxMetaspaceSize=(\d+)([mg])/);
     expect(metaspace).not.toBeNull();
     const metaspaceMb = Number(metaspace![1]) * (metaspace![2] === 'g' ? 1024 : 1);
-    expect(megabyte + metaspaceMb).toBeLessThanOrEqual(5 * 1024);
-    expect(workflow).toContain('--max-workers=2');
+    expect(megabyte + metaspaceMb).toBeLessThanOrEqual(6 * 1024);
+    expect(workflow).toContain('--max-workers=4');
   });
 
   it('memakai toolchain yang sama dengan image android-ci lama', () => {
@@ -276,5 +275,36 @@ describe('workflow build Android', () => {
     expect(penahan).toMatch(/if \[ "\$status_target" = 3 \]; then\n[^\n]*\n\s*exit 0/);
     expect(workflow).toContain('APP_UPDATE_PUBLISH_TOKEN');
     expect(workflow).toContain('git diff --quiet');
+  });
+
+  it('mode uji membangun AAB tanpa efek samping apa pun', () => {
+    // Build di mesin baru bisa menghasilkan runtimeVersion lain. Mode uji
+    // membuktikan pipeline dan menampilkan perbedaan itu tanpa mengunggah ke
+    // Play, mencatat native-build.json, atau menerbitkan OTA.
+    const workflow = bacaWorkflow();
+    const penjaga = 'if: ${{ !inputs.mode_uji }}';
+
+    expect(workflow).toMatch(/mode_uji:\n\s+description:/);
+    for (const langkah of [
+      '- name: Unggah ke Play Store (track internal)',
+      '- name: Catat build native ke main',
+      '- name: Susulkan OTA ke runtime baru',
+    ]) {
+      const mulai = workflow.indexOf(langkah);
+      expect(mulai).toBeGreaterThan(-1);
+      const langkahBerikut = workflow.indexOf('\n      - name:', mulai + langkah.length);
+      expect(workflow.slice(mulai, langkahBerikut)).toContain(penjaga);
+    }
+  });
+
+  it('selalu membandingkan runtimeVersion hasil build dengan build terakhir', () => {
+    const workflow = bacaWorkflow();
+    const baca = workflow.indexOf('- name: Baca runtimeVersion dari AAB');
+    const banding = workflow.indexOf('- name: Bandingkan runtimeVersion dengan build terakhir');
+    const unggah = workflow.indexOf('- name: Unggah ke Play Store (track internal)');
+
+    expect(banding).toBeGreaterThan(baca);
+    expect(unggah).toBeGreaterThan(banding);
+    expect(workflow).toContain('require("./native-build.json").runtimeVersion');
   });
 });

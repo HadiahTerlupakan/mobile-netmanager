@@ -54,6 +54,14 @@ on:
           tertinggi di Play Store + 1.
         type: string
         required: false
+      mode_uji:
+        description: >-
+          Build, tanda tangani, dan verifikasi AAB SAJA — tanpa unggah ke Play
+          Store, tanpa mencatat native-build.json, tanpa susulan OTA. Dipakai
+          untuk membuktikan pipeline dan membandingkan runtimeVersion hasil
+          build dengan build terakhir tanpa efek samping apa pun.
+        type: boolean
+        default: false
 
 # Izin bawaan hanya baca. Satu-satunya job di bawah menaikkannya ke
 # `contents: write` karena ia meng-commit balik native-build.json ke main.
@@ -282,12 +290,10 @@ jobs:
           # tidak mengenal opsi tersebut dan mengabaikannya diam-diam. EAS tidak
           # pernah terkena karena mesin build-nya menyetel memori sendiri.
           #
-          # Anggaran mesin 7 GB (runner GitHub-hosted private, 2 vCPU). Runner
-          # android-ci lama memakai heap 5 GB + metaspace 1 GB dari 9 GB; angka
-          # itu di sini hanya menyisakan 1 GB untuk OS, Metro, dan dua proses
-          # clang, jadi diturunkan ke heap 4 GB + metaspace 768 MB. 4 GB adalah
-          # batas bawah: R8 sudah terbukti OOM di 2 GiB. Sisanya (~2 GB, ditambah
-          # swap) untuk kompilasi C++ dua worker. Kotlin dikompilasi di dalam
+          # Anggaran mesin 16 GB (runner GitHub-hosted repo publik, 4 vCPU).
+          # Heap 5 GB + metaspace 1 GB sama dengan runner android-ci lama; R8
+          # sudah terbukti OOM di 2 GiB. Sisanya (~9 GB, ditambah swap) untuk
+          # OS, Metro, dan kompilasi C++ empat worker. Kotlin dikompilasi di dalam
           # proses Gradle supaya tidak ada JVM kedua yang meminta heap sendiri
           # di luar anggaran itu.
           sed -i '/^org\.gradle\.jvmargs=/d; /^kotlin\.daemon\.jvmargs=/d; /^kotlin\.compiler\.execution\.strategy=/d' android/gradle.properties
@@ -296,13 +302,13 @@ jobs:
           # (android.extraMavenRepos) — heap tidak terbaca dan repositori
           # JitPack ikut rusak.
           printf '\n%s\n%s\n' \
-            'org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=768m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8' \
+            'org.gradle.jvmargs=-Xmx5g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8' \
             'kotlin.compiler.execution.strategy=in-process' \
             >> android/gradle.properties
 
           # Dibuktikan, bukan diasumsikan: tepat satu baris jvmargs yang benar,
           # dan baris extraMavenRepos masih utuh.
-          [ "$(grep -c '^org\.gradle\.jvmargs=-Xmx4g ' android/gradle.properties)" = 1 ] || {
+          [ "$(grep -c '^org\.gradle\.jvmargs=-Xmx5g ' android/gradle.properties)" = 1 ] || {
             echo "::error::org.gradle.jvmargs tidak tertulis sebagai satu baris utuh di gradle.properties" >&2
             cat android/gradle.properties >&2
             exit 1
@@ -382,11 +388,11 @@ jobs:
           # --no-daemon: satu build per job, daemon yang menetap tidak memberi
           # apa-apa selain proses JVM tambahan di akhir job.
           #
-          # --max-workers=2: sama dengan jumlah vCPU, dan tiap worker menjalankan
+          # --max-workers=4: sama dengan jumlah vCPU, dan tiap worker menjalankan
           # kompilasi C++ New Architecture sendiri-sendiri. Lebih banyak worker
-          # di atas heap Gradle 4 GB menembus 7 GB dan dibunuh OOM — gagal
-          # yang tampil sebagai "exit 137" tanpa satu pun pesan kompilasi.
-          ./gradlew :app:bundleRelease -x lint -x lintVitalRelease --no-daemon --max-workers=2
+          # di atas heap Gradle 5 GB berisiko menembus 16 GB dan dibunuh OOM —
+          # gagal yang tampil sebagai "exit 137" tanpa satu pun pesan kompilasi.
+          ./gradlew :app:bundleRelease -x lint -x lintVitalRelease --no-daemon --max-workers=4
 
       # Langkah inilah yang menutup jebakan debug-signing. Build di atas tetap
       # "berhasil" tanpa kredensial yang benar; yang membedakan hanya siapa
@@ -462,9 +468,28 @@ jobs:
           echo "RADPRO_FINGERPRINT=${RUNTIME}" >> "$GITHUB_ENV"
           echo "runtimeVersion tertanam di AAB: ${RUNTIME}"
 
+      # runtimeVersion adalah fingerprint yang dihitung di mesin build. Mesin
+      # berbeda bisa menghasilkan fingerprint berbeda untuk kode native yang
+      # sama; bila itu tercatat, OTA berikutnya menyasar runtime baru dan HP
+      # yang masih memakai APK lama berhenti menerima update. Perbedaan ini
+      # selalu ditampilkan agar bisa diputuskan sebelum APK disebar.
+      - name: Bandingkan runtimeVersion dengan build terakhir
+        run: |
+          set -euo pipefail
+          TERCATAT="$(node -p 'require("./native-build.json").runtimeVersion')"
+          echo "runtimeVersion build ini   : ${RADPRO_FINGERPRINT}"
+          echo "runtimeVersion tercatat    : ${TERCATAT}"
+          if [ "${RADPRO_FINGERPRINT}" = "${TERCATAT}" ]; then
+            echo "SAMA — OTA tetap menyasar HP pengguna yang ada."
+          else
+            echo "::warning::runtimeVersion BERBEDA dari build terakhir (${TERCATAT}). Bila build ini dicatat, OTA berikutnya hanya diterima HP yang sudah memasang APK baru."
+          fi
+
       # Track internal saja. Promosi ke produksi sengaja manual lewat Play
       # Console, setelah build diuji di perangkat.
       - name: Unggah ke Play Store (track internal)
+        # Dilewati pada mode uji: tidak boleh ada efek samping.
+        if: ${{ !inputs.mode_uji }}
         env:
           PLAY_SA_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
         run: |
@@ -492,6 +517,8 @@ jobs:
       # hasilnya. Ia dioper lewat env, bukan disisipkan ke skrip, supaya tidak
       # ikut menjadi teks perintah.
       - name: Catat build native ke main
+        # Dilewati pada mode uji: tidak boleh ada efek samping.
+        if: ${{ !inputs.mode_uji }}
         env:
           PUSH_TOKEN: ${{ github.token }}
         run: |
@@ -538,6 +565,8 @@ jobs:
       # di Play Console (App bundle explorer), dan artefak bertanda tangan rilis
       # tidak perlu tersebar ke setiap pemegang akses baca repo.
       - name: Susulkan OTA ke runtime baru
+        # Dilewati pada mode uji: tidak boleh ada efek samping.
+        if: ${{ !inputs.mode_uji }}
         env:
           APP_UPDATE_PUBLISH_TOKEN: ${{ secrets.APP_UPDATE_PUBLISH_TOKEN }}
         run: |
