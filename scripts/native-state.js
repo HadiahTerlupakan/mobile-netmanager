@@ -58,7 +58,7 @@ function readBuildState(repoRoot = process.cwd()) {
 /**
  * Tentukan runtime tujuan OTA dari catatan build native terakhir.
  *
- * - Belum ada build Gitea: `runtimeVersion: null`, pemanggil memakai jalur lama.
+ * - Belum ada build CI: `runtimeVersion: null`, pemanggil memakai jalur lama.
  * - Bagian native HEAD sama dengan build terakhir: terbitkan ke runtime build itu.
  * - Berbeda: tahan. APK dengan bagian native baru belum ada, dan mengirim JS
  *   baru ke APK lama bisa membuatnya crash.

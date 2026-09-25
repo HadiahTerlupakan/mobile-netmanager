@@ -1,8 +1,8 @@
 name: Build Android AAB
 
-# Build native pindah dari EAS cloud ke runner Gitea sendiri karena kuota build
-# akun gratis. Yang ikut pindah bukan hanya perintahnya: dua tanggung jawab yang
-# dulu dipegang EAS sekarang milik workflow ini.
+# Build native tidak lagi memakai EAS cloud karena kuota build akun gratis.
+# Yang ikut pindah bukan hanya perintahnya: dua tanggung jawab yang dulu
+# dipegang EAS sekarang milik workflow ini.
 #
 # 1. Menandatangani artefak. `plugins/withReleaseSigningConfig.js` menulis
 #    `signingConfig hasReleaseConfig ? release : debug` — build tanpa kredensial
@@ -15,10 +15,14 @@ name: Build Android AAB
 # Keduanya baru terlihat saat unggah ke Play Store, setelah satu build panjang
 # terbuang. Karena itu keduanya diperiksa di sini, sedini mungkin.
 #
-# Catatan sumber daya: runner ini 4 core / 11 GB dan `capacity: 1`, dipakai juga
-# oleh deploy produksi netmanager. Proyek ini memakai New Architecture, jadi
-# build mengompilasi C++ untuk empat ABI. Build di sini jauh lebih lama daripada
+# Catatan sumber daya: runner GitHub-hosted `ubuntu-24.04` untuk repo private
+# hanya 2 vCPU / 7 GB. Proyek ini memakai New Architecture, jadi build
+# mengompilasi C++ untuk empat ABI. Build di sini jauh lebih lama daripada
 # ~21 menit di EAS cloud — itu harga yang ditukar dengan kuota.
+#
+# Workflow ini memakai secret signing dan publish, jadi tidak pernah dipicu
+# `pull_request` atau `pull_request_target`, dan job-nya memakai environment
+# `production` (hanya boleh dari branch main).
 
 on:
   # Otomatis hanya ketika sesuatu yang tidak bisa dikirim lewat OTA berubah.
@@ -39,7 +43,7 @@ on:
       - "assets/images/**"
       - "assets/sounds/**"
       - "assets/expo-updates/**"
-      - ".gitea/workflows/build-android.yml"
+      - ".github/workflows/build-android.yml"
       - "scripts/play-internal.js"
       - "scripts/native-state.js"
   workflow_dispatch:
@@ -51,20 +55,37 @@ on:
         type: string
         required: false
 
-# Dua build native bersamaan akan berebut 11 GB RAM dan menjatuhkan keduanya.
+# Izin bawaan hanya baca. Satu-satunya job di bawah menaikkannya ke
+# `contents: write` karena ia meng-commit balik native-build.json ke main.
+permissions:
+  contents: read
+
+# Dua build native bersamaan akan mencatat native-build.json saling tindih, dan
+# versionCode keduanya dihitung dari Play Store pada saat yang sama.
 concurrency:
   group: build-android
   cancel-in-progress: false
 
 env:
-  REPO_CLONE_URL: http://gitea:3000/${{ github.repository }}.git
   AAB_PATH: android/app/build/outputs/bundle/release/app-release.aab
   KEYSTORE_NAMA: release.jks
 
 jobs:
   build:
     name: Build & sign AAB
-    runs-on: android-ci
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      contents: write
+    env:
+      # Versi dipatok persis, sama dengan image runner `android-ci` lama dan
+      # dengan `expo-build-properties` di app.json. Android SDK yang bergerak
+      # sendiri akan mengubah hasil build tanpa satu baris kode pun berubah.
+      JAVA_VERSION: "17"
+      ANDROID_PLATFORM: "36"
+      ANDROID_BUILD_TOOLS: "36.0.0"
+      ANDROID_NDK_VERSION: "27.1.12297006"
+      ANDROID_CMAKE_VERSION: "3.22.1"
     steps:
       # Kredensial diperiksa sebelum apa pun dipasang atau dibangun. Tanpa ini
       # secret yang hilang baru terasa di akhir — dan Gradle tidak berhenti, ia
@@ -112,29 +133,33 @@ jobs:
 
           echo "Kredensial signing lengkap."
 
-      - name: Ambil kode dari Gitea
-        run: |
-          set -euo pipefail
-          git init -q .
-          git remote add origin "${REPO_CLONE_URL}"
-          git config --local http.extraheader \
-            "Authorization: basic $(printf 'x-access-token:%s' '${{ github.token }}' | base64 -w0)"
-          git fetch -q --depth=1 origin "${GITHUB_SHA}"
-          git checkout -q FETCH_HEAD
-          git config --local --unset-all http.extraheader
+      # Token checkout tidak disimpan di .git/config. Job ini memang punya
+      # `contents: write`, tetapi yang membutuhkannya hanya langkah pencatatan
+      # di akhir; `npm ci` dan Gradle menjalankan kode pihak ketiga yang tidak
+      # boleh bisa membaca token itu. Langkah pencatatan memasang token sendiri
+      # dan mencabutnya lagi.
+      - name: Ambil kode
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Pasang Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+
+      # JDK sama dengan image `android-ci` lama (eclipse-temurin:17). AGP 8.x
+      # menuntut JDK 17, dan JDK 21 belum didukung penuh toolchain React
+      # Native 0.81.
+      - name: Pasang JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
 
       - name: Pasang dependensi
-        run: |
-          set -euo pipefail
-          npm config set fetch-retries 5
-          npm config set fetch-retry-mintimeout 20000
-          npm config set fetch-retry-maxtimeout 120000
-          for percobaan in 1 2 3; do
-            if npm ci --no-audit --prefer-offline; then break; fi
-            if [ "$percobaan" = 3 ]; then echo "npm ci gagal setelah 3 percobaan" >&2; exit 1; fi
-            echo "npm ci gagal (percobaan $percobaan), mengulang dalam 15 detik" >&2
-            sleep 15
-          done
+        run: npm ci --no-audit
 
       # Gerbang mutu dijalankan sebelum build panjangnya, bukan sesudah: satu
       # kesalahan tipe tidak pantas menghabiskan satu jam waktu runner.
@@ -149,18 +174,89 @@ jobs:
 
       # Play sendiri yang menegakkan aturan "lebih besar dari setiap bundle yang
       # pernah diunggah", jadi angkanya dihitung dari daftar bundle di sana.
-      # Nomor run Gitea tidak bisa dipakai: dihitung per repo, bukan per
-      # workflow, sehingga melompat setiap kali CI atau OTA berjalan.
+      # Nomor run CI tidak dipakai: ia tidak tahu apa yang sudah pernah
+      # diunggah (termasuk build EAS dan Gitea sebelumnya), dan berulang dari
+      # nol bila workflow dipindah atau diganti nama.
       - name: Tentukan versionCode
         env:
           OVERRIDE: ${{ inputs.version_code_override }}
           PLAY_SA_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
         run: |
           set -euo pipefail
-          export GOOGLE_PLAY_SERVICE_ACCOUNT_JSON="$(printf '%s' "${PLAY_SA_BASE64}" | base64 -d)"
+          # Dipisah dari `export` supaya base64 yang rusak menggagalkan langkah.
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON="$(printf '%s' "${PLAY_SA_BASE64}" | base64 -d)"
+          export GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
           VERSION_CODE="$(node scripts/play-internal.js next-version-code "${OVERRIDE:-}")"
           echo "versionCode: ${VERSION_CODE}"
           echo "RADPRO_VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
+
+      # Runner GitHub-hosted sudah membawa Android SDK, tetapi NDK dan CMake yang
+      # tersedia di sana ikut bergeser tiap pembaruan image. Versi yang dipakai
+      # build dipasang eksplisit, lalu dibuktikan lewat source.properties —
+      # berkas yang dibaca Gradle untuk mengenali paket.
+      - name: Pasang komponen Android SDK
+        run: |
+          set -euo pipefail
+          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "${SDKMANAGER}" ] || { echo "::error::sdkmanager tidak ada di ${SDKMANAGER}" >&2; exit 1; }
+
+          "${SDKMANAGER}" --sdk_root="${ANDROID_HOME}" --install \
+            "platforms;android-${ANDROID_PLATFORM}" \
+            "build-tools;${ANDROID_BUILD_TOOLS}" \
+            "ndk;${ANDROID_NDK_VERSION}" \
+            "cmake;${ANDROID_CMAKE_VERSION}" > /dev/null
+
+          periksa() {
+            berkas="${ANDROID_HOME}/$1/source.properties"
+            grep -qE "$2" "${berkas}" 2>/dev/null \
+              || { echo "::error::$1 tidak dikenali: ${berkas} tidak memuat $2" >&2; exit 1; }
+            echo "  ok $1"
+          }
+          periksa "platforms/android-${ANDROID_PLATFORM}" "AndroidVersion.ApiLevel *= *${ANDROID_PLATFORM}"
+          periksa "build-tools/${ANDROID_BUILD_TOOLS}" "Pkg.Revision *= *${ANDROID_BUILD_TOOLS}"
+          periksa "ndk/${ANDROID_NDK_VERSION}" "Pkg.Revision *= *${ANDROID_NDK_VERSION}"
+          periksa "cmake/${ANDROID_CMAKE_VERSION}" "Pkg.Revision *= *${ANDROID_CMAKE_VERSION}"
+
+          # Image runner menunjuk NDK bawaannya lewat variabel ini; arahkan ke
+          # versi yang dipatok supaya alat apa pun yang membacanya sepakat.
+          {
+            echo "ANDROID_NDK_HOME=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
+            echo "ANDROID_NDK_ROOT=${ANDROID_HOME}/ndk/${ANDROID_NDK_VERSION}"
+          } >> "$GITHUB_ENV"
+
+      # Tanpa cache yang bertahan antar-run, setiap build mengunduh ulang seluruh
+      # dependensi Maven. actions/cache dipakai langsung, bukan
+      # gradle/actions/setup-gradle: sejak v6 caching di sana adalah komponen
+      # proprietary dengan syarat lisensi tersendiri.
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json', 'app.json', 'plugins/**') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      # Kompilasi C++ New Architecture ditambah R8 bisa melewati 7 GB. Swap
+      # membuat build melambat alih-alih dibunuh OOM ("exit 137" tanpa pesan).
+      # Image GitHub biasanya sudah membawa swap; kalau tidak, dibuat di sini.
+      # Ruang disk ikut dilapangkan: NDK, cache Gradle, dan keluaran build empat
+      # ABI butuh belasan GB.
+      - name: Siapkan swap dan ruang disk
+        run: |
+          set -euo pipefail
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          SWAP_AKTIF="$(swapon --show --noheadings)"
+          if [ -z "${SWAP_AKTIF}" ]; then
+            sudo fallocate -l 4G /mnt/swap-build
+            sudo chmod 600 /mnt/swap-build
+            sudo mkswap /mnt/swap-build > /dev/null
+            sudo swapon /mnt/swap-build
+          fi
+          swapon --show
+          free -h
+          df -h /
 
       - name: Pasang google-services.json
         env:
@@ -186,23 +282,27 @@ jobs:
           # tidak mengenal opsi tersebut dan mengabaikannya diam-diam. EAS tidak
           # pernah terkena karena mesin build-nya menyetel memori sendiri.
           #
-          # Anggaran container 9 GB: heap 5 GB + metaspace 1 GB untuk daemon
-          # Gradle (R8 berjalan di dalamnya), sisanya untuk kompilasi C++ dua
-          # worker. Kotlin dikompilasi di dalam proses Gradle supaya tidak ada
-          # JVM kedua yang meminta heap sendiri di luar anggaran itu.
+          # Anggaran mesin 7 GB (runner GitHub-hosted private, 2 vCPU). Runner
+          # android-ci lama memakai heap 5 GB + metaspace 1 GB dari 9 GB; angka
+          # itu di sini hanya menyisakan 1 GB untuk OS, Metro, dan dua proses
+          # clang, jadi diturunkan ke heap 4 GB + metaspace 768 MB. 4 GB adalah
+          # batas bawah: R8 sudah terbukti OOM di 2 GiB. Sisanya (~2 GB, ditambah
+          # swap) untuk kompilasi C++ dua worker. Kotlin dikompilasi di dalam
+          # proses Gradle supaya tidak ada JVM kedua yang meminta heap sendiri
+          # di luar anggaran itu.
           sed -i '/^org\.gradle\.jvmargs=/d; /^kotlin\.daemon\.jvmargs=/d; /^kotlin\.compiler\.execution\.strategy=/d' android/gradle.properties
           # Diawali baris baru: gradle.properties hasil prebuild tidak diakhiri
           # newline, dan tanpa ini pengaturan heap menempel ke baris terakhir
           # (android.extraMavenRepos) — heap tidak terbaca dan repositori
           # JitPack ikut rusak.
           printf '\n%s\n%s\n' \
-            'org.gradle.jvmargs=-Xmx5g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8' \
+            'org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=768m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8' \
             'kotlin.compiler.execution.strategy=in-process' \
             >> android/gradle.properties
 
           # Dibuktikan, bukan diasumsikan: tepat satu baris jvmargs yang benar,
           # dan baris extraMavenRepos masih utuh.
-          [ "$(grep -c '^org\.gradle\.jvmargs=-Xmx5g ' android/gradle.properties)" = 1 ] || {
+          [ "$(grep -c '^org\.gradle\.jvmargs=-Xmx4g ' android/gradle.properties)" = 1 ] || {
             echo "::error::org.gradle.jvmargs tidak tertulis sebagai satu baris utuh di gradle.properties" >&2
             cat android/gradle.properties >&2
             exit 1
@@ -248,7 +348,7 @@ jobs:
           echo "Sidik jari kunci (SHA-256): ${SIDIK}"
 
           if [ -z "${SIDIK_DIHARAPKAN:-}" ]; then
-            echo "::warning::Variabel RADPRO_UPLOAD_CERT_SHA256 belum diset. Bandingkan sidik jari di atas dengan sertifikat kunci upload di Play Console, lalu simpan sebagai variabel repo supaya pergantian kunci tertangkap otomatis."
+            echo "::warning::Variabel RADPRO_UPLOAD_CERT_SHA256 belum diset. Bandingkan sidik jari di atas dengan sertifikat kunci upload di Play Console, lalu simpan sebagai variabel environment production (scripts/siapkan-secret-github.sh) supaya pergantian kunci tertangkap otomatis."
           elif [ "${SIDIK}" != "${SIDIK_DIHARAPKAN}" ]; then
             echo "::error::Sidik jari kunci tidak cocok dengan RADPRO_UPLOAD_CERT_SHA256. Play Store akan menolak artefak ini." >&2
             exit 1
@@ -279,12 +379,12 @@ jobs:
         run: |
           set -euo pipefail
           cd android
-          # --no-daemon: daemon yang menetap menahan 4 GB heap di runner yang
-          # juga melayani deploy produksi.
+          # --no-daemon: satu build per job, daemon yang menetap tidak memberi
+          # apa-apa selain proses JVM tambahan di akhir job.
           #
-          # --max-workers=2: tiap worker menjalankan kompilasi C++ New
-          # Architecture sendiri-sendiri. Empat worker paralel di atas heap
-          # Gradle 4 GB menembus batas 9 GB container dan dibunuh OOM — gagal
+          # --max-workers=2: sama dengan jumlah vCPU, dan tiap worker menjalankan
+          # kompilasi C++ New Architecture sendiri-sendiri. Lebih banyak worker
+          # di atas heap Gradle 4 GB menembus 7 GB dan dibunuh OOM — gagal
           # yang tampil sebagai "exit 137" tanpa satu pun pesan kompilasi.
           ./gradlew :app:bundleRelease -x lint -x lintVitalRelease --no-daemon --max-workers=2
 
@@ -369,7 +469,9 @@ jobs:
           PLAY_SA_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
         run: |
           set -euo pipefail
-          export GOOGLE_PLAY_SERVICE_ACCOUNT_JSON="$(printf '%s' "${PLAY_SA_BASE64}" | base64 -d)"
+          # Dipisah dari `export` supaya base64 yang rusak menggagalkan langkah.
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON="$(printf '%s' "${PLAY_SA_BASE64}" | base64 -d)"
+          export GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
           VERSION_NAME="$(node -p 'require("./app.json").expo.version')"
           node scripts/play-internal.js upload "${AAB_PATH}" "${RADPRO_VERSION_CODE}" "${VERSION_NAME} (${RADPRO_VERSION_CODE})"
           echo "::notice::versionCode ${RADPRO_VERSION_CODE} terbit di track internal. Uji di perangkat, lalu promosikan ke produksi lewat Play Console."
@@ -381,18 +483,28 @@ jobs:
       #
       # Hash native dihitung di commit yang dibangun, lalu berkasnya diletakkan
       # di atas main terbaru: main bisa sudah maju selama build berjalan.
-      # Commit ini tidak memakai [skip ci] supaya OTA menyusul menerbitkan JS
-      # HEAD ke runtime baru.
+      #
+      # Commit ini tidak memakai [skip ci], sama seperti di Gitea. Push dengan
+      # GITHUB_TOKEN memang tidak memicu run baru (jadi tidak ada loop), dan
+      # karena itu OTA untuk JS HEAD disusulkan oleh langkah berikutnya.
+      #
+      # Token dipasang hanya selama langkah ini dan dicabut lewat trap, apa pun
+      # hasilnya. Ia dioper lewat env, bukan disisipkan ke skrip, supaya tidak
+      # ikut menjadi teks perintah.
       - name: Catat build native ke main
+        env:
+          PUSH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           node scripts/native-state.js record "${RADPRO_FINGERPRINT}" "${RADPRO_VERSION_CODE}"
           cp native-build.json /tmp/native-build.json
 
-          git config --local user.name "gitea-actions"
-          git config --local user.email "actions@gitea.local"
-          git config --local http.extraheader \
-            "Authorization: basic $(printf 'x-access-token:%s' '${{ github.token }}' | base64 -w0)"
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          trap 'git config --local --unset-all http.https://github.com/.extraheader || true' EXIT
+          AUTH_BASIC="$(printf 'x-access-token:%s' "${PUSH_TOKEN}" | base64 -w0)"
+          echo "::add-mask::${AUTH_BASIC}"
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${AUTH_BASIC}"
 
           for percobaan in 1 2 3; do
             git fetch -q --depth=1 origin main
@@ -412,9 +524,8 @@ jobs:
             echo "main bergerak, mengulang pencatatan (percobaan $percobaan)" >&2
             sleep 5
           done
-          git config --local --unset-all http.extraheader
 
-      # Push dengan token Actions tidak memicu workflow lain, jadi commit
+      # Push dengan GITHUB_TOKEN tidak memicu workflow lain, jadi commit
       # pencatatan di atas tidak akan menjalankan ota.yml. JS yang masuk ke main
       # selama build berjalan tidak ada di AAB ini; tanpa susulan, ia baru
       # terkirim di push berikutnya.
@@ -423,9 +534,9 @@ jobs:
       # penahan native yang sama dengan ota.yml: bila berkas native ikut berubah,
       # build berikutnya sudah terpicu dan OTA ditahan sampai ia tercatat.
       #
-      # Langkah "Unggah artefak" (upload-artifact@v4) dihapus: Gitea menolaknya
-      # dengan GHESNotSupportedError dan membuat run #20 merah padahal AAB sudah
-      # terbit. AAB bisa diunduh dari App bundle explorer di Play Console.
+      # AAB sengaja tidak diunggah sebagai artefak Actions: salinannya sudah ada
+      # di Play Console (App bundle explorer), dan artefak bertanda tangan rilis
+      # tidak perlu tersebar ke setiap pemegang akses baca repo.
       - name: Susulkan OTA ke runtime baru
         env:
           APP_UPDATE_PUBLISH_TOKEN: ${{ secrets.APP_UPDATE_PUBLISH_TOKEN }}
@@ -457,8 +568,10 @@ jobs:
           RUNTIME_VERSION_OVERRIDE="${target}" ./scripts/publish-update.sh production \
             "$(git rev-parse --short HEAD) - susulan setelah build versionCode ${RADPRO_VERSION_CODE}"
 
-      # Runner ini menetap antar-run dan melayani repo lain. Keystore yang
-      # tertinggal akan terbawa ke job berikutnya.
+      # Runner GitHub-hosted memang dibuang setelah job, tetapi keystore tetap
+      # dihapus sedini mungkin: tidak ada alasan ia hidup lebih lama dari
+      # build-nya, dan jaminan ini tetap berlaku bila job dipindah ke runner
+      # self-hosted.
       - name: Hapus keystore
         if: always()
         run: rm -f "android/app/${KEYSTORE_NAMA}" /tmp/uji-keystore /tmp/bundle-aab google-services.json

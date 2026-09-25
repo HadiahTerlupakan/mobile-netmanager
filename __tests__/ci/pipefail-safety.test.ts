@@ -20,9 +20,11 @@ import { join } from 'node:path';
 const ROOT = join(__dirname, '../..');
 
 function berkasSkrip(): { jalur: string; isi: string }[] {
+  // Direktori yang tidak ada bukan berarti aman: readdirSync melempar, dan
+  // tes ini gagal alih-alih lolos tanpa memeriksa apa pun.
   const daftar: string[] = [];
-  for (const nama of readdirSync(join(ROOT, '.gitea/workflows'))) {
-    if (nama.endsWith('.yml')) daftar.push(join('.gitea/workflows', nama));
+  for (const nama of readdirSync(join(ROOT, '.github/workflows'))) {
+    if (nama.endsWith('.yml')) daftar.push(join('.github/workflows', nama));
   }
   for (const nama of readdirSync(join(ROOT, 'scripts'))) {
     if (nama.endsWith('.sh')) daftar.push(join('scripts', nama));

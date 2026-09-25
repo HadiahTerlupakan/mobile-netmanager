@@ -106,8 +106,8 @@ describe('keputusan target OTA', () => {
     expect(hasil.reason).toMatch(/native/);
   });
 
-  it('menyerahkan ke jalur lama bila belum ada build Gitea', () => {
-    // Sebelum build pertama di Gitea terbit, runtime masih diambil dari EAS.
+  it('menyerahkan ke jalur lama bila belum ada build CI', () => {
+    // Sebelum build pertama di CI sendiri terbit, runtime masih diambil dari EAS.
     expect(decideOtaTarget(null, 'apa-saja')).toEqual({ publish: true, runtimeVersion: null });
   });
 

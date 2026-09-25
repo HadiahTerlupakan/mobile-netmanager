@@ -92,9 +92,9 @@ Setelah submit ke Play Store:
 
 ## OTA Pipeline (JS only)
 
-Perubahan JS/TS saja (tidak ada native change) cukup **push ke `main`** — workflow OTA Gitea otomatis:
+Perubahan JS/TS saja (tidak ada native change) cukup **push ke `main`** — workflow OTA GitHub Actions otomatis:
 
-1. `push main` → trigger `.gitea/workflows/ota.yml`
+1. `push main` → trigger `.github/workflows/ota.yml` (lint, typecheck, tes, lalu `native-state.js ota-target`)
 2. `get-eas-fingerprint.js` ambil fingerprint dari EAS build terbaru (atau file `eas-production-fingerprint.txt`)
 3. `publish-update.sh` publish OTA dengan fingerprint yang match APK Play Store
 4. User buka app → `expo-updates` cek manifest → OTA ter-apply otomatis
@@ -167,11 +167,18 @@ Pakai `eas build --local` (lihat command di atas). Tidak antri, gratis.
 
 ---
 
-## Build Android Otomatis (Gitea Actions)
+## Build Android Otomatis (GitHub Actions)
 
 Build native tidak lagi memakai EAS cloud (kuota akun gratis). Workflow
-`.gitea/workflows/build-android.yml` berjalan di runner `android-ci` milik
-sendiri.
+`.github/workflows/build-android.yml` berjalan di runner GitHub-hosted
+`ubuntu-24.04` (2 vCPU / 7 GB untuk repo private) dengan JDK 17 Temurin, NDK
+`27.1.12297006`, platform/build-tools 36 — versi yang sama dengan image runner
+`android-ci` Gitea sebelumnya. Heap Gradle 4 GB + metaspace 768 MB,
+`--max-workers=2`.
+
+CI/CD pindah dari Gitea ke GitHub Actions pada 2026-09-25; server Gitea
+dimatikan. Hanya boleh ada satu sistem CI — workflow `.gitea/workflows` yang
+muncul kembali akan menerbitkan OTA ganda, dan dijaga tes di `__tests__/ci/`.
 
 **Kapan terpicu:** push ke `main` yang mengubah berkas native — `app.json`,
 `app.config.ts`, `eas.json`, `package.json`, `package-lock.json`, `plugins/`,
@@ -207,15 +214,23 @@ produksi yang masih di versi lama tidak menerima OTA berikutnya sampai versi
 internal dipromosikan ke produksi — jangan biarkan versi internal menggantung
 lama.
 
-AAB tidak disimpan sebagai artefak Gitea (`upload-artifact@v4` ditolak Gitea);
-unduh dari Play Console → *App bundle explorer* bila diperlukan.
+AAB tidak disimpan sebagai artefak Actions (salinan bertanda tangan rilis tidak
+perlu tersebar ke semua pemegang akses baca repo); unduh dari Play Console →
+*App bundle explorer* bila diperlukan.
 
-**Durasi:** build pertama setelah cache kosong 1,5–2 jam (Google Maven dari
-jaringan VPS lambat); berikutnya jauh lebih cepat karena cache Gradle bertahan
-di volume `act-gradle-cache`.
+**Durasi:** build pertama setelah cache kosong paling lama; berikutnya lebih
+cepat karena `~/.gradle/caches` disimpan lewat `actions/cache`.
 
-**Secret yang dibutuhkan** (siapkan dengan `./scripts/siapkan-secret-gitea.sh`):
+**Keamanan workflow** (dijaga `__tests__/ci/github-workflow-security.test.ts`):
+izin token bawaan `contents: read`, hanya job build yang `contents: write`
+(commit balik `native-build.json`); job ber-secret memakai
+`environment: production` (kebijakan branch `main`); `ota.yml` dan
+`build-android.yml` tidak pernah dipicu `pull_request`/`pull_request_target`.
+
+**Secret di environment `production`** (siapkan/rotasi dengan
+`./scripts/siapkan-secret-github.sh`, memakai `gh secret set --env production`):
 `RADPRO_RELEASE_KEYSTORE_BASE64`, `RADPRO_RELEASE_STORE_PASSWORD`,
 `RADPRO_RELEASE_KEY_ALIAS`, `RADPRO_RELEASE_KEY_PASSWORD`,
-`GOOGLE_SERVICES_JSON_BASE64`, `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64`.
-Variabel: `RADPRO_UPLOAD_CERT_SHA256`.
+`GOOGLE_SERVICES_JSON_BASE64`, `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64`,
+`APP_UPDATE_PUBLISH_TOKEN`, `EXPO_TOKEN`.
+Variabel (environment `production`): `RADPRO_UPLOAD_CERT_SHA256`.

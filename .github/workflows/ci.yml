@@ -1,0 +1,51 @@
+name: Mobile CI
+
+# Lint, typecheck, dan tes untuk setiap push ke branch utama dan setiap PR.
+#
+# Workflow ini sengaja tidak memakai secret apa pun, dan karena itu boleh
+# dipicu `pull_request`: repo ini private dan tidak menerima PR dari fork.
+# Workflow yang memakai secret (ota.yml, build-android.yml) tidak boleh
+# dipicu `pull_request` maupun `pull_request_target` — dijaga tes di
+# __tests__/ci/github-workflow-security.test.ts.
+
+on:
+  push:
+    branches: [main, staging, develop]
+  pull_request:
+    branches: [main, staging, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint & Typecheck
+    runs-on: ubuntu-24.04
+    steps:
+      # Token checkout tidak disimpan di .git/config: tidak ada langkah di job
+      # ini yang perlu menulis ke repo, dan `npm ci` menjalankan skrip pihak
+      # ketiga yang bisa membacanya.
+      - name: Ambil kode
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Pasang Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Pasang dependensi
+        run: npm ci --no-audit
+
+      - name: Lint
+        # Tanpa argumen, `expo lint` hanya memeriksa src/, app/, dan components/,
+        # sehingga index.js, scripts/, dan plugins/ tidak pernah dilint.
+        run: npx expo lint .
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Tes unit
+        run: npx jest --ci

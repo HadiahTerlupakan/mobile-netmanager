@@ -49,7 +49,7 @@
 # TODO — Perbaikan Warning Codebase (2026-09-17)
 
 > Batas aman: JANGAN sentuh `package.json`, `package-lock.json`, `app.config.ts`, `app.json`, `plugins/`, `.gitignore`,
-> `.gitea/workflows/build-android.yml` — memicu build native (NATIVE_PATHS) dan/atau menggeser fingerprint OTA.
+> `.github/workflows/build-android.yml` (dulu `.gitea/…`) — memicu build native (NATIVE_PATHS) dan/atau menggeser fingerprint OTA.
 > Baseline fingerprint Android: `53b6043015f8f441208f09a2d4084a24e06dc95c` → harus identik di akhir.
 
 - [x] 1. topology-map: watcher GPS terikat fokus + guard pembatalan → `src/hooks/useUserLocationWatcher.ts` (TDD)

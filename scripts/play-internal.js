@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Klien Google Play Developer API untuk build Android di Gitea Actions.
+ * Klien Google Play Developer API untuk build Android di GitHub Actions.
  *
  * Hanya dua hal: menentukan versionCode berikutnya, dan mengunggah AAB ke track
  * internal. Promosi ke produksi sengaja tidak ada di sini — dilakukan manual

@@ -11,7 +11,7 @@ import { join } from 'node:path';
  */
 describe('workflow publish OTA', () => {
   const workflow = readFileSync(
-    join(__dirname, '../../.gitea/workflows/ota.yml'),
+    join(__dirname, '../../.github/workflows/ota.yml'),
     'utf8'
   );
 
@@ -54,36 +54,55 @@ describe('workflow publish OTA', () => {
     // JS yang memanggil modul native yang belum ada di APK membuat aplikasi
     // crash. native-state.js membandingkan hash berkas native HEAD dengan
     // catatan build terakhir sebelum publish.
-    const indeksPenjaga = workflow.indexOf('native-state.js ota-target');
-    const indeksPublish = workflow.indexOf('./scripts/publish-update.sh');
+    // Pemanggilan sungguhan, bukan penyebutan di komentar atau pesan galat.
+    const indeksPenjaga = workflow.indexOf('target="$(node scripts/native-state.js ota-target)"');
+    const indeksPublish = workflow.indexOf('./scripts/publish-update.sh production');
 
     expect(indeksPenjaga).toBeGreaterThan(-1);
     expect(indeksPublish).toBeGreaterThan(indeksPenjaga);
-    expect(workflow).toContain('RUNTIME_VERSION_OVERRIDE');
+    const penahan = workflow.slice(indeksPenjaga, indeksPublish);
+    // Exit 3 berarti "tahan": berhenti tanpa publish, bukan gagal.
+    expect(penahan).toMatch(/if \[ "\$status_target" = 3 \]; then\n[^\n]*\n\s*exit 0/);
+    // Kode keluar lain selain 0 menggagalkan job.
+    expect(penahan).toContain('[ "$status_target" = 0 ] || {');
+    expect(penahan).toContain('export RUNTIME_VERSION_OVERRIDE="${target}"');
   });
 
   it('hanya terpicu dari branch main', () => {
     expect(workflow).toContain('branches: [main]');
   });
+
+  it('mempertahankan paths-ignore yang sama dengan versi Gitea', () => {
+    // Daftar ini menentukan commit mana yang menerbitkan OTA. Melebarkannya
+    // menahan JS yang seharusnya terbit; menyempitkannya menerbitkan ulang
+    // bundle yang sama untuk commit dokumentasi.
+    const blok = workflow.slice(workflow.indexOf('paths-ignore:'), workflow.indexOf('  workflow_dispatch:'));
+    const daftar = [...blok.matchAll(/- "([^"]+)"/g)].map((m) => m[1]);
+
+    expect(daftar).toEqual(['docs/**', '**/*.md', '.github/**']);
+  });
+
+  it('tidak menjalankan dua publish OTA bersamaan', () => {
+    expect(workflow).toContain('group: publish-ota');
+    expect(workflow).toContain('cancel-in-progress: false');
+  });
 });
 
 /**
- * CI/CD proyek ini tinggal di Gitea. Workflow GitHub dihapus karena keduanya
+ * CI/CD proyek ini tinggal di GitHub Actions; server Gitea dimatikan. Hanya
+ * satu sistem CI yang boleh ada: kalau workflow Gitea muncul kembali, keduanya
  * terpicu pada push ke `main` — satu commit yang didorong ke dua remote akan
  * menerbitkan OTA dua kali ke pengguna yang sama.
  */
 describe('rumah CI/CD', () => {
-  it('tidak menyisakan workflow GitHub yang ikut menerbitkan OTA', () => {
-    expect(existsSync(join(__dirname, '../../.github/workflows'))).toBe(false);
+  it('tidak menyisakan workflow Gitea yang ikut menerbitkan OTA', () => {
+    expect(existsSync(join(__dirname, '../../.gitea/workflows'))).toBe(false);
   });
 
-  it('menyimpan workflow di .gitea/workflows', () => {
-    expect(
-      existsSync(join(__dirname, '../../.gitea/workflows/ota.yml'))
-    ).toBe(true);
-    expect(existsSync(join(__dirname, '../../.gitea/workflows/ci.yml'))).toBe(
-      true
-    );
+  it('menyimpan workflow di .github/workflows', () => {
+    for (const nama of ['ci.yml', 'ota.yml', 'build-android.yml']) {
+      expect(existsSync(join(__dirname, '../../.github/workflows', nama))).toBe(true);
+    }
   });
 });
 

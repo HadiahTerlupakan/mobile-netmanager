@@ -1,17 +1,18 @@
 name: Publish OTA
 
-# Menggantikan Jenkinsfile.ota, yang sudah dihapus bersama Jenkins.
-#
-# `actions/checkout` dan `actions/setup-node` tidak dipakai: keduanya diunduh
-# dari github.com setiap job, dan dari mesin Gitea ini egress github.com sering
-# i/o timeout. Kode diambil langsung dari Gitea, dan Node 20 sudah tersedia
-# karena label `ubuntu-latest` memetakan ke image `node:20-bullseye`.
+# Satu-satunya pemicu OTA biasa. Tidak boleh ada sistem CI lain (Gitea,
+# Jenkins) yang ikut menerbitkan OTA dari commit yang sama: satu commit akan
+# terbit dua kali ke pengguna yang sama. Selain workflow ini, hanya langkah
+# "Susulkan OTA" di build-android.yml yang boleh memanggil skrip publish.
 #
 # OTA hanya mengirim bundle JavaScript. Perangkat menerima update hanya bila
 # `runtimeVersion`-nya sama persis dengan binary terpasang, dan di proyek ini
 # runtimeVersion dihitung dari fingerprint native. Karena itu publish yang
 # fingerprint-nya bergeser tidak "gagal" — ia berhasil lalu tidak sampai ke
 # siapa pun. Job ini menolaknya lebih dulu supaya kegagalannya terlihat.
+#
+# Workflow ini memakai secret, jadi tidak pernah dipicu `pull_request` atau
+# `pull_request_target`.
 
 on:
   push:
@@ -31,6 +32,9 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 concurrency:
   group: publish-ota
   cancel-in-progress: false
@@ -38,29 +42,26 @@ concurrency:
 jobs:
   publish:
     name: Fingerprint guard & publish
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # Secret publish tinggal di environment `production`, yang hanya boleh
+    # dipakai dari branch main.
+    environment: production
     steps:
-      - name: Ambil kode dari Gitea
-        run: |
-          set -euo pipefail
-          git init -q .
-          git remote add origin "http://gitea:3000/${{ github.repository }}.git"
-          git config --local http.extraheader \
-            "Authorization: basic $(printf 'x-access-token:%s' '${{ github.token }}' | base64 -w0)"
-          # Riwayat penuh diperlukan: pesan commit dipakai sebagai catatan rilis.
-          git fetch -q --depth=1 origin "${GITHUB_SHA}"
-          git checkout -q FETCH_HEAD
-          git config --local --unset-all http.extraheader
+      # Token checkout tidak disimpan di .git/config: job ini tidak menulis ke
+      # repo, dan `npm ci` menjalankan skrip pihak ketiga.
+      - name: Ambil kode
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Pasang Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+          cache: npm
 
       - name: Pasang dependensi
-        run: |
-          set -euo pipefail
-          npm config set fetch-retries 5
-          for percobaan in 1 2 3; do
-            if npm ci --no-audit --prefer-offline; then break; fi
-            if [ "$percobaan" = 3 ]; then echo "npm ci gagal setelah 3 percobaan" >&2; exit 1; fi
-            sleep 15
-          done
+        run: npm ci --no-audit
 
       # Gate mutu: OTA mengirim JS langsung ke pengguna tanpa melewati review
       # toko, jadi tidak ada jaring pengaman lain di belakangnya.
@@ -73,10 +74,10 @@ jobs:
       - name: Tes unit
         run: npx jest --ci
 
-      # Publish lewat `scripts/publish-update.sh`, skrip yang sama dengan yang
-      # dipakai sebelumnya. OTA proyek ini TIDAK memakai EAS Update: `app.config.ts`
-      # mengarahkan `updates.url` ke `/api/mobile/app-update/manifest` milik
-      # netmanager, jadi bundle diekspor lalu diunggah ke server sendiri.
+      # Publish lewat `scripts/publish-update.sh`. OTA proyek ini TIDAK memakai
+      # EAS Update: `app.config.ts` mengarahkan `updates.url` ke
+      # `/api/mobile/app-update/manifest` milik netmanager, jadi bundle diekspor
+      # lalu diunggah ke server sendiri.
       #
       # Skrip itu juga sudah menyelesaikan soal runtimeVersion: ia mengambil
       # fingerprint dari EAS build, bukan menghitungnya lokal — hash lokal bisa
@@ -90,7 +91,7 @@ jobs:
           set -euo pipefail
 
           if [ -z "${APP_UPDATE_PUBLISH_TOKEN:-}" ]; then
-            echo "::error::Secret APP_UPDATE_PUBLISH_TOKEN belum diset di repo ini."
+            echo "::error::Secret APP_UPDATE_PUBLISH_TOKEN belum diset di environment production."
             exit 1
           fi
 

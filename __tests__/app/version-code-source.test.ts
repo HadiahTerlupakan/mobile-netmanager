@@ -3,8 +3,8 @@ import { resolveVersionCode } from '../../app.config';
 
 /**
  * `eas.json` memakai `appVersionSource: "remote"`, artinya EAS yang memegang
- * versionCode dan menaikkannya tiap build. Begitu build native pindah ke Gitea
- * Actions, EAS tidak lagi ikut dalam alur — dan tanpa pengganti, `expo
+ * versionCode dan menaikkannya tiap build. Begitu build native pindah ke CI
+ * sendiri (kini GitHub Actions), EAS tidak lagi ikut dalam alur — dan tanpa pengganti, `expo
  * prebuild` akan menulis `versionCode 1` ke build.gradle.
  *
  * versionCode 1 tidak gagal saat build. Ia gagal saat unggah ke Play Store,

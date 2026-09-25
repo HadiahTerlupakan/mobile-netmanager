@@ -22,7 +22,7 @@
 - Maksimal 20 baris per fungsi, 3 parameter (lebih dari itu pakai object), nesting maksimal 2 level, 300 baris per berkas, satu komponen per berkas, props interface eksplisit (bukan `any`).
 - Query key mengikuti konvensi `[domain, action, params]`.
 - FlashList v2: jangan memakai `estimatedItemSize` atau `inverted` (tidak dibaca v2).
-- **Jangan menyentuh** `package.json`, `package-lock.json`, `app.config.ts`, `app.json`, `plugins/`, `.gitignore`, atau `.gitea/workflows/build-android.yml` — memicu build native dan menggeser fingerprint OTA.
+- **Jangan menyentuh** `package.json`, `package-lock.json`, `app.config.ts`, `app.json`, `plugins/`, `.gitignore`, atau `.github/workflows/build-android.yml` (dulu `.gitea/…`) — memicu build native dan menggeser fingerprint OTA.
 - Tes: Jest, lokasi `__tests__/`, pola `require()` untuk memuat layar setelah `jest.mock` (lihat `__tests__/app/topology-map-readonly-boundary.test.tsx`).
 - Commit: `<type>(<scope>): <judul>` dan diakhiri `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`.
 
