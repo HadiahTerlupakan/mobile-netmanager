@@ -38,6 +38,12 @@ export const RUTE_LAYAR_TERSEMBUNYI: readonly RuteLayarTersembunyi[] = [
   { nama: 'presurvei/kegiatan/catat', isLayarPenuh: true },
   { nama: 'presurvei/prospek/[id]/index', isLayarPenuh: true },
   { nama: 'presurvei/prospek/[id]/jadikan-canvasing', isLayarPenuh: true },
+  { nama: 'presurvei/prospek/baru', isLayarPenuh: true },
+  { nama: 'presurvei/rencana/buat', isLayarPenuh: true },
+  { nama: 'presurvei/rencana/tugaskan', isLayarPenuh: true },
+  { nama: 'presurvei/rencana/[id]/index', isLayarPenuh: true },
+  { nama: 'presurvei/rencana/[id]/ubah', isLayarPenuh: true },
+  { nama: 'presurvei/penilaian', isLayarPenuh: true },
   // Permintaan WO — dibuka dari daftar WO
   { nama: 'request-work-order', isLayarPenuh: false },
 ];

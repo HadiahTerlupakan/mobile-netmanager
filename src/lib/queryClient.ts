@@ -295,5 +295,7 @@ export const queryKeys = {
       [...queryKeys.presurvei.all, "rencana", "sales-tersedia"] as const,
     rencanaRekap: (rentang: { dari: string; sampai: string }) =>
       [...queryKeys.presurvei.all, "rencana", "rekap", rentang] as const,
+    penilaian: (periode: { tahun: number; bulan: number }) =>
+      [...queryKeys.presurvei.all, "penilaian", periode] as const,
   },
 };

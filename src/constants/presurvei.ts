@@ -149,6 +149,9 @@ export const ENDPOINT_SALES_TERSEDIA_RENCANA = `${ENDPOINT_RENCANA_PRESURVEI}/sa
 /** Rekap rencana vs realisasi per sales dalam lingkup pemanggil. */
 export const ENDPOINT_REKAP_RENCANA = `${ENDPOINT_RENCANA_PRESURVEI}/rekap`;
 
+/** Penilaian kinerja sales/kepala sales dalam lingkup pemanggil (`?tahun=&bulan=`). */
+export const ENDPOINT_PENILAIAN_PRESURVEI = '/api/presurvei/penilaian';
+
 /**
  * Lingkup rencana dari profil (`GET /api/mobile/profile` `lingkupRencana`,
  * netmanager `jenisLingkupDariIzin`): SENDIRI = sales biasa, TIM = kepala

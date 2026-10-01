@@ -1,6 +1,7 @@
 import type { Href } from 'expo-router';
 
 import type { ProspekListItem, Rencana } from '@/types/presurvei';
+import type { TabPenilaian } from '@/utils/presurvei/tampilanPenilaian';
 
 /** Layar catat kegiatan (`app/(app)/presurvei/kegiatan/catat.tsx`). */
 export const RUTE_CATAT_KEGIATAN = '/(app)/presurvei/kegiatan/catat';
@@ -24,6 +25,18 @@ export function ruteCatatFollowUp(prospek: Pick<ProspekListItem, 'id' | 'nama'>)
 /** Form Jadikan Canvasing untuk satu prospek. */
 export function ruteJadikanCanvasing(id: string): Href {
   return { pathname: '/(app)/presurvei/prospek/[id]/jadikan-canvasing', params: { id } } as Href;
+}
+
+/** Layar penilaian kinerja (sales: dirinya; kepala sales: dirinya + tim). */
+export const RUTE_PENILAIAN_KINERJA = '/(app)/presurvei/penilaian';
+
+/**
+ * Layar penilaian langsung di satu tab (mis. "Kepala sales" dari kartu
+ * Beranda lingkup SEMUA). `diminta` membedakan tiap ketukan supaya layar yang
+ * instansinya dipertahankan tetap menerapkan permintaan yang sama.
+ */
+export function rutePenilaianTab(tab: TabPenilaian, diminta: number): Href {
+  return { pathname: RUTE_PENILAIAN_KINERJA, params: { tab, diminta: String(diminta) } } as Href;
 }
 
 /** Layar buat rencana kunjungan. */

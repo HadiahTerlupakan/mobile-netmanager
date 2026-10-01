@@ -1,4 +1,5 @@
 import { DashboardSkeleton } from '@/components/molecules/DashboardSkeleton';
+import { BagianKinerjaBeranda } from '@/components/organisms/dashboard/BagianKinerjaBeranda';
 import { BerandaModeCuti } from '@/components/organisms/dashboard/BerandaModeCuti';
 import { CanvasingCard } from '@/components/organisms/dashboard/CanvasingCard';
 import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
@@ -61,6 +62,8 @@ export function KaryawanTeknisiDashboardScreen() {
     const hasCanvasing = hasFeature('m_canvasing');
     // Teknisi hanya bisa mencairkan bila role-nya diberi izin cashout (opsional per role).
     const bisaCairkanBonus = profileData?.canCashoutCanvasing ?? user?.isSales === true;
+    // Admin/manajer non-sales (lingkup TIM/SEMUA) tetap bisa memantau penilaian kinerja tim sales.
+    const bisaLihatPenilaian = isPemberiTugas(profileData?.lingkupRencana);
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -263,6 +266,12 @@ export function KaryawanTeknisiDashboardScreen() {
                             <KartuPencairanCanvasing statistik={statsData} onBerhasilCair={refetchStats} />
                         )}
                     </>
+                )}
+
+                {bisaLihatPenilaian && (
+                    <View style={tw`px-4`}>
+                        <BagianKinerjaBeranda isPresurveiAktif />
+                    </View>
                 )}
 
                 <QuickMenu

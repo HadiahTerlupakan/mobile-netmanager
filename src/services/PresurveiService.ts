@@ -1,6 +1,7 @@
 import api from './api';
 import {
   ENDPOINT_KEGIATAN_PRESURVEI,
+  ENDPOINT_PENILAIAN_PRESURVEI,
   ENDPOINT_PROSPEK_PRESURVEI,
   ENDPOINT_REKAP_RENCANA,
   ENDPOINT_RENCANA_PRESURVEI,
@@ -28,6 +29,7 @@ import type {
   RingkasanPresurvei,
   SalesRencana,
 } from '@/types/presurvei';
+import type { HasilPenilaian, PeriodePenilaian } from '@/types/penilaian';
 
 /** Filter `GET /api/presurvei/kegiatan`; nama sama persis dengan route (baris 20-31). */
 export interface FilterKegiatanPresurvei {
@@ -207,6 +209,15 @@ export const PresurveiService = {
   /** Rekap rencana vs realisasi per sales pada rentang "YYYY-MM-DD" (server: maks 92 hari). */
   async rekapRencana(rentang: { dari: string; sampai: string }): Promise<RekapRencana> {
     const respons = await api.get<AmplopTunggal<RekapRencana>>(ENDPOINT_REKAP_RENCANA, { params: rentang });
+    return respons.data.data;
+  },
+
+  /**
+   * Penilaian kinerja satu periode dalam lingkup pemanggil: sales biasa hanya
+   * dirinya; kepala sales dirinya (kepala) + anggota timnya (sales).
+   */
+  async penilaian(periode: PeriodePenilaian): Promise<HasilPenilaian> {
+    const respons = await api.get<AmplopTunggal<HasilPenilaian>>(ENDPOINT_PENILAIAN_PRESURVEI, { params: periode });
     return respons.data.data;
   },
 };

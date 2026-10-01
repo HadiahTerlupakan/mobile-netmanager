@@ -63,6 +63,12 @@ const RUTE_PRESURVEI_TERSEMBUNYI = [
   'presurvei/kegiatan/catat',
   'presurvei/prospek/[id]/index',
   'presurvei/prospek/[id]/jadikan-canvasing',
+  'presurvei/prospek/baru',
+  'presurvei/rencana/buat',
+  'presurvei/rencana/tugaskan',
+  'presurvei/rencana/[id]/index',
+  'presurvei/rencana/[id]/ubah',
+  'presurvei/penilaian',
 ];
 
 const TEKNISI = {
@@ -119,6 +125,12 @@ const SIDIK_TERSEMBUNYI = [
   ['presurvei/kegiatan/catat', null, 'none'],
   ['presurvei/prospek/[id]/index', null, 'none'],
   ['presurvei/prospek/[id]/jadikan-canvasing', null, 'none'],
+  ['presurvei/prospek/baru', null, 'none'],
+  ['presurvei/rencana/buat', null, 'none'],
+  ['presurvei/rencana/tugaskan', null, 'none'],
+  ['presurvei/rencana/[id]/index', null, 'none'],
+  ['presurvei/rencana/[id]/ubah', null, 'none'],
+  ['presurvei/penilaian', null, 'none'],
   ['request-work-order', null, null],
 ];
 

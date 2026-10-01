@@ -81,6 +81,10 @@ jest.mock('@/components/organisms/dashboard/PerformanceStats', () => {
     ),
   };
 });
+jest.mock('@/components/organisms/dashboard/BagianKinerjaBeranda', () => {
+  const { Text: T } = require('react-native');
+  return { BagianKinerjaBeranda: () => <T>kartu-kinerja</T> };
+});
 jest.mock('@/components/organisms/dashboard/WorkOrderCard', () => {
   const { Text: T } = require('react-native');
   return {
@@ -191,7 +195,27 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     expect(queryByText(/kartu-wo/)).toBeNull();
   });
 
-  it('kartu canvasing ditekan teknisi: ditolak dengan pesan akses terbatas', () => {
+  it('kartu penilaian kinerja hanya untuk pemberi tugas (lingkup TIM/SEMUA)', () => {
+    expect(renderBeranda(TEKNISI).queryByText('kartu-kinerja')).toBeNull();
+
+    mockProfil = {
+      profileData: profilDengan(['m_work_order'], { lingkupRencana: 'SEMUA' }),
+      isPending: false,
+    };
+    expect(renderBeranda(TEKNISI).getByText('kartu-kinerja')).toBeTruthy();
+  });
+
+  it('teknisi yang role-nya diberi izin cashout melihat kartu pencairan', () => {
+    mockProfil = {
+      profileData: profilDengan(['m_canvasing'], { canCashoutCanvasing: true }),
+      isPending: false,
+    };
+    const { getByText } = renderBeranda(TEKNISI);
+
+    expect(getByText('Target & Pencairan')).toBeTruthy();
+  });
+
+  it('kartu canvasing ditekan teknisi berizin: membuka canvasing tanpa jadi sales', () => {
     mockProfil = { profileData: profilDengan(['m_canvasing']), isPending: false };
     const { getByText } = renderBeranda(TEKNISI);
 

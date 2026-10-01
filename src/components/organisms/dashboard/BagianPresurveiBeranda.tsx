@@ -12,6 +12,7 @@ import { useRingkasanPresurvei } from '@/hooks/queries/useRingkasanPresurvei';
 import { keadaanRingkasan, rekapKegiatanHariIni } from '@/utils/presurvei/berandaSales';
 import { FILTER_RENCANA_TERLEWAT, filterRencanaHarian } from '@/utils/presurvei/rencana';
 import { filterMilikSendiri } from '@/utils/presurvei/timRencana';
+import { BagianKinerjaBeranda } from './BagianKinerjaBeranda';
 import { BagianTimHariIni } from './BagianTimHariIni';
 import { DaftarPerluFollowUp } from './DaftarPerluFollowUp';
 import { KartuKegiatanHariIni } from './KartuKegiatanHariIni';
@@ -56,6 +57,7 @@ export function BagianPresurveiBeranda({ isPresurveiAktif }: BagianPresurveiBera
         onBuat={() => router.push(RUTE_BUAT_RENCANA)}
       />
       {lingkup.isPemberiTugas ? <BagianTimHariIni /> : null}
+      <BagianKinerjaBeranda isPresurveiAktif={isPresurveiAktif} />
       <KartuKegiatanHariIni
         rekap={rekapKegiatanHariIni(ringkasan.data.kegiatanHariIni)}
         jumlahMenunggu={antrean.data?.filter((kegiatan) => kegiatan.status !== 'FAILED').length ?? 0}

@@ -1,5 +1,6 @@
 import type { KegiatanJenis } from '@/constants/presurvei';
 import type { BarisPencapaian, TargetBulanIni } from '@/types/presurvei';
+import type { PencapaianPenilaian } from '@/types/penilaian';
 import type { AttendanceUiStatus } from '@/utils/attendanceStatus';
 import { isAksesDitolak } from '@/utils/httpStatus';
 
@@ -35,8 +36,10 @@ const baris = (label: string, pencapaian: BarisPencapaian): BarisTargetBeranda =
   persen: pencapaian.persen,
 });
 
-/** Baris target, atau null bila target belum ditetapkan. */
-export function barisTargetBeranda(target: TargetBulanIni | null): BarisTargetBeranda[] | null {
+/** Baris target, atau null bila target belum ditetapkan (juga dipakai pencapaian penilaian). */
+export function barisTargetBeranda(
+  target: TargetBulanIni | PencapaianPenilaian | null,
+): BarisTargetBeranda[] | null {
   if (target === null) return null;
   return [
     baris('Kunjungan', target.kunjungan),
