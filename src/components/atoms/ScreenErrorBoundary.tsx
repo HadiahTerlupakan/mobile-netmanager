@@ -6,9 +6,25 @@ import { errorReportingService } from '@/services/ErrorReportingService';
 import { router } from 'expo-router';
 import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
+
 interface Props {
   children: ReactNode;
   screenName?: string;
+}
+
+/** Tombol coba lagi berwarna tema persona (class component tidak bisa memanggil hook). */
+function TombolCobaLagi({ onPress }: { onPress: () => void }) {
+  const { tw: twTema } = useTemaPersona();
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={twTema`flex-1 flex-row items-center justify-center bg-utama-kuat py-3 rounded-xl`}
+    >
+      <RefreshCcw size={18} color="white" style={twTema`mr-2`} />
+      <Text style={twTema`text-white font-bold`}>Coba Lagi</Text>
+    </TouchableOpacity>
+  );
 }
 
 interface State {
@@ -111,13 +127,7 @@ export class ScreenErrorBoundary extends Component<Props, State> {
                 <Text style={tw`text-gray-700 font-bold`}>Kembali</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={this.resetError}
-                style={tw`flex-1 flex-row items-center justify-center bg-blue-600 py-3 rounded-xl`}
-              >
-                <RefreshCcw size={18} color="white" style={tw`mr-2`} />
-                <Text style={tw`text-white font-bold`}>Coba Lagi</Text>
-              </TouchableOpacity>
+              <TombolCobaLagi onPress={this.resetError} />
             </View>
           </View>
         </View>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import type { PilihanDuplikat } from '@/hooks/presurvei/useFormTambahProspek';
 
 interface PanelDuplikatProspekProps {
@@ -14,6 +14,7 @@ interface PanelDuplikatProspekProps {
  * sendiri), tetap simpan sebagai baru, atau batal. Menggantikan tombol simpan.
  */
 export function PanelDuplikatProspek({ duplikat, isMenyimpan }: PanelDuplikatProspekProps) {
+  const { tw } = useTemaPersona();
   const isSibuk = isMenyimpan || duplikat.isMemuat;
   return (
     <View testID="panel-duplikat-prospek">
@@ -27,7 +28,7 @@ export function PanelDuplikatProspek({ duplikat, isMenyimpan }: PanelDuplikatPro
           accessibilityState={{ disabled: isSibuk, busy: duplikat.isMemuat }}
           disabled={isSibuk}
           onPress={duplikat.pakaiYangAda}
-          style={tw`rounded-xl min-h-12 py-3 mb-2 items-center justify-center ${isSibuk ? 'bg-gray-400' : 'bg-blue-600'}`}
+          style={tw`rounded-xl min-h-12 py-3 mb-2 items-center justify-center ${isSibuk ? 'bg-gray-400' : 'bg-utama-kuat'}`}
         >
           {duplikat.isMemuat ? <ActivityIndicator color="white" /> : <Text style={tw`text-white text-base font-bold`}>Pakai yang sudah ada</Text>}
         </TouchableOpacity>
@@ -37,9 +38,9 @@ export function PanelDuplikatProspek({ duplikat, isMenyimpan }: PanelDuplikatPro
         accessibilityState={{ disabled: isSibuk }}
         disabled={isSibuk}
         onPress={duplikat.tetapSimpanBaru}
-        style={tw`rounded-xl min-h-12 py-3 mb-2 items-center justify-center border-2 ${isSibuk ? 'border-gray-300' : 'border-blue-600'}`}
+        style={tw`rounded-xl min-h-12 py-3 mb-2 items-center justify-center border-2 ${isSibuk ? 'border-gray-300' : 'border-utama'}`}
       >
-        <Text style={tw`text-base font-bold ${isSibuk ? 'text-gray-400' : 'text-blue-700'}`}>
+        <Text style={tw`text-base font-bold ${isSibuk ? 'text-gray-400' : 'text-utama-gelap'}`}>
           {isMenyimpan ? 'Menyimpan…' : 'Tetap simpan sebagai baru'}
         </Text>
       </TouchableOpacity>

@@ -3,7 +3,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { render } from '@testing-library/react-native';
 
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { KartuKegiatan } from '@/components/organisms/presurvei/KartuKegiatan';
 import { RingkasanLaporanRencana } from '@/components/organisms/presurvei/RingkasanLaporanRencana';

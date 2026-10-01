@@ -91,7 +91,7 @@ jest.mock('lucide-react-native', () => ({
   CheckCircle: 'CheckCircle',
   X: 'X',
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 describe('complete work order route boundary', () => {
   beforeEach(() => {

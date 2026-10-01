@@ -6,7 +6,7 @@ import { ArrowLeft, Image as ImageIcon, Send, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 import { AppFeature } from '@/constants/features';
 import { Skeleton } from '@/components/atoms/Skeleton';
@@ -49,6 +49,7 @@ interface ChatStopTypingPayload {
 
 
 export default function ConversationScreen() {
+    const { tw, warna } = useTemaPersona();
     useFeatureGuard(AppFeature.CHAT);
 
     const router = useRouter();
@@ -375,7 +376,7 @@ export default function ConversationScreen() {
                     ListFooterComponent={
                         isFetchingNextPage ? (
                             <View style={tw`py-4 items-center`}>
-                                <ActivityIndicator size="small" color="#2563eb" />
+                                <ActivityIndicator size="small" color={warna.utamaKuat} />
                             </View>
                         ) : null
                     }

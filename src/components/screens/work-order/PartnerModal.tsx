@@ -4,7 +4,7 @@ import { FlashList } from '@shopify/flash-list';
 import { X } from 'lucide-react-native';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 interface PartnerModalProps {
   visible: boolean;
@@ -20,6 +20,7 @@ export const PartnerModal = React.memo(function PartnerModal({
   workOrderId,
   onRefresh,
 }: PartnerModalProps) {
+  const { tw, warna } = useTemaPersona();
   const {
     setIsPartnerModalVisible,
     availablePartners,
@@ -70,7 +71,7 @@ export const PartnerModal = React.memo(function PartnerModal({
           />
 
           {partnerLoading ? (
-            <ActivityIndicator size="large" color="#2563eb" style={tw`mt-10`} />
+            <ActivityIndicator size="large" color={warna.utamaKuat} style={tw`mt-10`} />
           ) : (
             <View style={tw`flex-1`}>
               <FlashList
@@ -79,7 +80,7 @@ export const PartnerModal = React.memo(function PartnerModal({
                 renderItem={({ item }: { item: UserSummary }) => (
                   <TouchableOpacity
                     onPress={() => handleAdd(item.id)}
-                    style={tw`flex-row items-center p-3 border-b border-gray-100 active:bg-blue-50`}
+                    style={tw`flex-row items-center p-3 border-b border-gray-100 active:bg-utama-sangat-muda`}
                   >
                     <View style={tw`w-10 h-10 bg-gray-200 rounded-full items-center justify-center mr-3`}>
                       <Text style={tw`font-bold text-gray-600`}>
@@ -101,7 +102,7 @@ export const PartnerModal = React.memo(function PartnerModal({
                 onEndReachedThreshold={0.5}
                 ListFooterComponent={
                   isFetchingMorePartners ? (
-                    <ActivityIndicator size="small" color="#2563eb" style={tw`py-4`} />
+                    <ActivityIndicator size="small" color={warna.utamaKuat} style={tw`py-4`} />
                   ) : null
                 }
                 ListEmptyComponent={

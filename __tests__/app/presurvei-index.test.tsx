@@ -25,7 +25,7 @@ jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const sekarangIso = () => new Date().toISOString();
 

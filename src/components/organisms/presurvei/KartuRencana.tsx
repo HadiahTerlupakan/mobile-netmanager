@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { LABEL_JENIS_KEGIATAN, type RencanaStatusTampil } from '@/constants/presurvei';
 import type { Rencana } from '@/types/presurvei';
 import { formatDate } from '@/utils/date';
@@ -35,6 +35,7 @@ interface KartuRencanaProps {
 
 /** Kolom waktu kiri: jam (atau "Bebas") dan tanggal bila diminta, dengan garis warna status. */
 function KolomWaktu({ rencana, isTampilTanggal }: { rencana: Rencana; isTampilTanggal: boolean }) {
+  const { tw } = useTemaPersona();
   return (
     <View style={tw`flex-row mr-3`}>
       <View style={tw`w-1 rounded-full mr-2 ${WARNA_GARIS_STATUS[rencana.statusTampil]}`} />
@@ -52,10 +53,11 @@ function KolomWaktu({ rencana, isTampilTanggal }: { rencana: Rencana; isTampilTa
 
 /** Nama sales berawatar inisial untuk tampilan Tim. */
 function BarisSales({ nama }: { nama: string | null }) {
+  const { tw } = useTemaPersona();
   return (
     <View style={tw`flex-row items-center mb-1.5`}>
-      <View style={tw`w-5 h-5 rounded-full bg-blue-50 items-center justify-center mr-1.5`}>
-        <Text style={tw`text-[10px] font-bold text-blue-600`}>{hurufAwalNama(nama)}</Text>
+      <View style={tw`w-5 h-5 rounded-full bg-utama-sangat-muda items-center justify-center mr-1.5`}>
+        <Text style={tw`text-[10px] font-bold text-utama-kuat`}>{hurufAwalNama(nama)}</Text>
       </View>
       <Text style={tw`text-xs font-semibold text-gray-700 flex-1`} numberOfLines={1}>
         {nama ?? NAMA_SALES_KOSONG}
@@ -66,6 +68,7 @@ function BarisSales({ nama }: { nama: string | null }) {
 
 /** Satu rencana di agenda: waktu, (sales,) tujuan, jenis, prospek, alamat, status, dan pemberi tugas. */
 export function KartuRencana(props: KartuRencanaProps) {
+  const { tw } = useTemaPersona();
   const { rencana, isMenungguKirim, isTampilTanggal = false, isTampilSales = false, onBuka } = props;
   const Ikon = IKON_JENIS_RENCANA[rencana.jenis];
   const jenis = LABEL_JENIS_KEGIATAN[rencana.jenis];

@@ -30,7 +30,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import tw from "twrnc";
+import { useTemaPersona } from "@/theme";
 
 interface Notification {
   id: string;
@@ -57,6 +57,7 @@ interface NotificationsResponse {
 
 // Memoized Notification Item
 const NotificationItem = React.memo(({ item, onPress }: { item: Notification, onPress: (notif: Notification) => void }) => {
+  const { tw } = useTemaPersona();
   const getIcon = (sourceType?: string) => {
     switch (sourceType) {
       case "WORK_ORDER":
@@ -83,7 +84,7 @@ const NotificationItem = React.memo(({ item, onPress }: { item: Notification, on
   return (
     <TouchableOpacity
       onPress={() => onPress(item)}
-      style={tw`flex-row p-4 border-b border-gray-100 ${!item.isRead ? "bg-blue-50" : "bg-white"}`}
+      style={tw`flex-row p-4 border-b border-gray-100 ${!item.isRead ? "bg-utama-sangat-muda" : "bg-white"}`}
     >
       <View style={tw`w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3`}>
         {getIcon(item.sourceType)}
@@ -94,7 +95,7 @@ const NotificationItem = React.memo(({ item, onPress }: { item: Notification, on
             {item.title}
           </Text>
           {!item.isRead && (
-            <View style={tw`w-2 h-2 rounded-full bg-blue-500 ml-2`} />
+            <View style={tw`w-2 h-2 rounded-full bg-utama-terang ml-2`} />
           )}
         </View>
         <Text style={tw`text-gray-600 text-sm mb-1`} numberOfLines={2}>
@@ -110,6 +111,7 @@ const NotificationItem = React.memo(({ item, onPress }: { item: Notification, on
 NotificationItem.displayName = 'NotificationItem';
 
 export default function NotificationsScreen() {
+  const { tw, warna } = useTemaPersona();
   const { token } = useAuth();
   const router = useRouter();
   const isFocused = useIsFocused();
@@ -247,7 +249,7 @@ export default function NotificationsScreen() {
   if (isPending && notifications.length === 0) {
     return (
       <SafeAreaView style={tw`flex-1 bg-gray-50`}>
-        <View style={tw`bg-blue-600 px-4 py-4 flex-row items-center`}>
+        <View style={tw`bg-utama-kuat px-4 py-4 flex-row items-center`}>
           <TouchableOpacity onPress={() => router.back()} style={tw`p-2 -ml-2`}>
             <ArrowLeft size={24} color="white" />
           </TouchableOpacity>
@@ -260,7 +262,7 @@ export default function NotificationsScreen() {
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
-      <View style={tw`bg-blue-600 px-4 py-4 flex-row items-center justify-between`}>
+      <View style={tw`bg-utama-kuat px-4 py-4 flex-row items-center justify-between`}>
         <View style={tw`flex-row items-center`}>
           <TouchableOpacity onPress={() => router.back()} style={tw`p-2 -ml-2`}>
             <ArrowLeft size={24} color="white" />
@@ -274,7 +276,7 @@ export default function NotificationsScreen() {
         </View>
         {unreadCount > 0 && (
           <TouchableOpacity onPress={markAllAsRead}>
-            <Text style={tw`text-blue-100 text-sm font-medium`}>Tandai Dibaca</Text>
+            <Text style={tw`text-utama-muda text-sm font-medium`}>Tandai Dibaca</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -288,12 +290,12 @@ export default function NotificationsScreen() {
           onEndReached={onLoadMore}
           onEndReachedThreshold={0.5}
           refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#2563eb" />
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={warna.utamaKuat} />
           }
           ListFooterComponent={
             isFetchingNextPage ? (
               <View style={tw`py-4`}>
-                <ActivityIndicator size="small" color="#2563eb" />
+                <ActivityIndicator size="small" color={warna.utamaKuat} />
               </View>
             ) : null
           }
@@ -310,7 +312,7 @@ export default function NotificationsScreen() {
                   </Text>
                   <TouchableOpacity
                     onPress={() => refetch()}
-                    style={tw`bg-blue-600 px-6 py-2 rounded-full`}
+                    style={tw`bg-utama-kuat px-6 py-2 rounded-full`}
                   >
                     <Text style={tw`text-white font-bold`}>Coba Lagi</Text>
                   </TouchableOpacity>

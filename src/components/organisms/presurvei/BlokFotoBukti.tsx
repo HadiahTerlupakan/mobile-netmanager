@@ -1,8 +1,8 @@
 import { X } from 'lucide-react-native';
 import React from 'react';
 import { Image, Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { KartuFormulir } from '@/components/atoms/KartuFormulir';
 import { TeksKesalahan } from '@/components/atoms/TeksKesalahan';
 import { JUMLAH_FOTO_KEGIATAN_MAKS } from '@/constants/presurvei';
@@ -20,6 +20,7 @@ interface BlokFotoBuktiProps {
 
 /** Foto bukti kegiatan lapangan: minimal satu, maksimal enam, dari kamera. */
 export function BlokFotoBukti({ fotoLokal, kesalahan, onTambah, onHapus }: BlokFotoBuktiProps) {
+  const { tw } = useTemaPersona();
   const isPenuh = fotoLokal.length >= JUMLAH_FOTO_KEGIATAN_MAKS;
   return (
     <KartuFormulir>
@@ -45,9 +46,9 @@ export function BlokFotoBukti({ fotoLokal, kesalahan, onTambah, onHapus }: BlokF
         <TouchableOpacity
           accessibilityRole="button"
           onPress={onTambah}
-          style={tw`mt-1 border border-dashed border-blue-400 rounded-xl py-3 items-center`}
+          style={tw`mt-1 border border-dashed border-utama-lembut rounded-xl py-3 items-center`}
         >
-          <Text style={tw`text-blue-600 font-semibold`}>Ambil Foto</Text>
+          <Text style={tw`text-utama-kuat font-semibold`}>Ambil Foto</Text>
         </TouchableOpacity>
       ) : null}
       <TeksKesalahan pesan={kesalahan} />

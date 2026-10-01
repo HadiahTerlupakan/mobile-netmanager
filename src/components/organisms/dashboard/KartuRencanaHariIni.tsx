@@ -1,7 +1,7 @@
 import { CalendarCheck, ChevronRight } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 import { LABEL_JENIS_KEGIATAN } from '@/constants/presurvei';
 import type { Rencana } from '@/types/presurvei';
@@ -18,6 +18,7 @@ interface KartuRencanaHariIniProps {
 
 /** Rencana kunjungan hari ini di Beranda: selesai vs belum, tiga berikutnya, dan jumlah terlewat. */
 export function KartuRencanaHariIni({ rencanaHariIni, jumlahTerlewat, onBuka, onBuat }: KartuRencanaHariIniProps) {
+  const { tw } = useTemaPersona();
   const rekap = rekapRencanaHariIni(rencanaHariIni);
   const berikutnya = rekap.tertunda.slice(0, JUMLAH_RENCANA_BERIKUTNYA);
   return (
@@ -37,7 +38,7 @@ export function KartuRencanaHariIni({ rencanaHariIni, jumlahTerlewat, onBuka, on
         <View style={tw`flex-row items-center justify-between rounded-xl bg-gray-50 px-3 py-3 mt-1`}>
           <Text style={tw`text-sm text-gray-600`}>Belum ada rencana hari ini</Text>
           <TouchableOpacity accessibilityRole="button" onPress={onBuat}>
-            <Text style={tw`text-sm font-semibold text-blue-600`}>Buat Rencana</Text>
+            <Text style={tw`text-sm font-semibold text-utama-kuat`}>Buat Rencana</Text>
           </TouchableOpacity>
         </View>
       ) : (

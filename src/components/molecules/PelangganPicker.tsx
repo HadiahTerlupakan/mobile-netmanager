@@ -9,6 +9,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePelangganList } from "@/hooks/queries/usePelangganList";
 import { MobilePelanggan } from "@/services/PelangganService";
 import { resolvePelangganListMessage } from "@/utils/pelangganListMessage";
+import { useTemaPersona } from '@/theme';
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -20,6 +21,7 @@ interface PelangganPickerProps {
 
 /** Modal pencarian pelanggan terdaftar untuk ditautkan ke work order. */
 export function PelangganPicker({ visible, onClose, onSelect }: PelangganPickerProps) {
+  const { warna } = useTemaPersona();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
   // Tanpa filter status: pelanggan aktif maupun isolir boleh dipilih.
@@ -75,7 +77,7 @@ export function PelangganPicker({ visible, onClose, onSelect }: PelangganPickerP
           ListEmptyComponent={
             isFetching ? (
               <View style={tw`items-center justify-center py-10`}>
-                <ActivityIndicator size="large" color="#2563eb" />
+                <ActivityIndicator size="large" color={warna.utamaKuat} />
               </View>
             ) : (
               <Text style={tw`text-gray-400 text-center py-10`}>{emptyMessage}</Text>

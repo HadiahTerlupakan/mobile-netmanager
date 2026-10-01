@@ -95,7 +95,7 @@ jest.mock('lucide-react-native', () => ({
   FileText: 'FileText',
   Inbox: 'Inbox',
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 describe('mobile work order list realtime boundary', () => {
   beforeEach(() => {

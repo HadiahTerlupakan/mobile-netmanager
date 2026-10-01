@@ -22,7 +22,7 @@ jest.mock('@shopify/flash-list', () => {
   };
 });
 jest.mock('lucide-react-native', () => ({ Search: () => null, X: () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const pelanggan = {
   id: 'plg-1',

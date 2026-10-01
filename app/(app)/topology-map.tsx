@@ -49,7 +49,7 @@ import {
 } from "@/components/organisms/topology/DeviceDetailModal";
 import { TopologyErrorBoundary } from "@/components/organisms/topology/TopologyErrorBoundary";
 import { WebMapView } from "@/components/organisms/topology/WebMapView";
-import tw from "twrnc";
+import { useTemaPersona } from '@/theme';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
 // Helper & tipe murni layar topology diekstrak ke modul topology.
@@ -127,6 +127,7 @@ const AnimatedConnectionLines = React.memo(
 AnimatedConnectionLines.displayName = 'AnimatedConnectionLines';
 
 export default function TopologyMapScreen() {
+  const { tw, warna } = useTemaPersona();
   useFeatureGuard(AppFeature.TOPOLOGY);
 
   const router = useRouter();
@@ -829,7 +830,7 @@ export default function TopologyMapScreen() {
       return (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => fetchData()}>
+          <TouchableOpacity style={[styles.retryButton, { backgroundColor: warna.utamaKuat }]} onPress={() => fetchData()}>
             <RefreshCw size={20} color="#fff" />
             <Text style={styles.retryButtonText}>Coba Lagi</Text>
           </TouchableOpacity>
@@ -855,7 +856,7 @@ export default function TopologyMapScreen() {
               accessibilityRole="button"
               accessibilityLabel="Daftar perangkat"
             >
-              <List size={24} color={showDeviceList ? "#3b82f6" : "#6b7280"} />
+              <List size={24} color={showDeviceList ? warna.utamaTerang : "#6b7280"} />
             </TouchableOpacity>
           </View>
 
@@ -914,7 +915,7 @@ export default function TopologyMapScreen() {
           </Text>
           <TouchableOpacity
             onPress={() => router.back()}
-            style={tw`mt-8 bg-blue-600 px-8 py-4 rounded-xl`}
+            style={tw`mt-8 bg-utama-kuat px-8 py-4 rounded-xl`}
           >
             <Text style={tw`text-white font-bold`}>Kembali</Text>
           </TouchableOpacity>
@@ -931,7 +932,7 @@ export default function TopologyMapScreen() {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => fetchData()}>
+        <TouchableOpacity style={[styles.retryButton, { backgroundColor: warna.utamaKuat }]} onPress={() => fetchData()}>
           <RefreshCw size={20} color="#fff" />
           <Text style={styles.retryButtonText}>Coba Lagi</Text>
         </TouchableOpacity>
@@ -957,7 +958,7 @@ export default function TopologyMapScreen() {
             accessibilityRole="button"
             accessibilityLabel="Daftar perangkat"
           >
-            <List size={24} color={showDeviceList ? "#3b82f6" : "#6b7280"} />
+            <List size={24} color={showDeviceList ? warna.utamaTerang : "#6b7280"} />
           </TouchableOpacity>
         </View>
 
@@ -1041,7 +1042,7 @@ export default function TopologyMapScreen() {
           </MapLibreGL.MapView>
           ) : (
             <View style={styles.mapLoading}>
-              <ActivityIndicator size="large" color="#3b82f6" />
+              <ActivityIndicator size="large" color={warna.utamaTerang} />
               <Text style={styles.mapLoadingText}>Memuat peta perangkat...</Text>
             </View>
           )}
@@ -1070,7 +1071,7 @@ export default function TopologyMapScreen() {
           {/* KMZ Loading Indicator */}
           {loadingKmz && (
             <View style={styles.kmzLoading}>
-              <ActivityIndicator size="small" color="#3b82f6" />
+              <ActivityIndicator size="small" color={warna.utamaTerang} />
               <Text style={styles.kmzLoadingText}>Memuat KMZ...</Text>
             </View>
           )}
@@ -1085,7 +1086,7 @@ export default function TopologyMapScreen() {
             accessibilityRole="button"
             accessibilityLabel="Ke lokasi saya"
           >
-            <LocateFixed size={22} color={userLocation ? "#2563eb" : "#9ca3af"} />
+            <LocateFixed size={22} color={userLocation ? warna.utama : "#9ca3af"} />
           </TouchableOpacity>
         </View>
 
@@ -1265,7 +1266,6 @@ const styles = StyleSheet.create({
   retryButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#3b82f6",
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,

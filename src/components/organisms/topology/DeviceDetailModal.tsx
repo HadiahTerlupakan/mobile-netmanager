@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import api from "@/services/api";
+import { useTemaPersona } from "@/theme";
 
 export type DeviceType =
   | "otb"
@@ -105,6 +106,8 @@ const DEVICE_LABELS: Record<DeviceType, string> = {
 export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
   ({ visible, onClose, device, deviceType }: DeviceDetailModalProps) => {
     const insets = useSafeAreaInsets();
+    const { warna } = useTemaPersona();
+    const gayaJudulBagian = [styles.sectionTitle, { borderLeftColor: warna.utamaTerang }];
 
     if (!device || !deviceType) return null;
 
@@ -260,7 +263,7 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               {/* Slot Usage Section (ODC/ODP) */}
               {(deviceType === "odc" || deviceType === "odp") && (device.capacity || device.usedSlots !== undefined) && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Slot Usage</Text>
+                  <Text style={gayaJudulBagian}>Slot Usage</Text>
                   <View style={styles.card}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                       <Text style={styles.label}>Usage</Text>
@@ -293,7 +296,7 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               {/* Optical Info Section */}
               {(deviceType === "odc" || deviceType === "odp") && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Optical Info</Text>
+                  <Text style={gayaJudulBagian}>Optical Info</Text>
                   <View style={styles.card}>
                     <View style={styles.row}>
                       <View style={{ flex: 1 }}>
@@ -338,7 +341,7 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               {/* General Info (Splitter, PPPoE, Serial) */}
               {(device.splitter || device.pppoe || device.serialNumber) && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Device Info</Text>
+                  <Text style={gayaJudulBagian}>Device Info</Text>
                   <View style={styles.card}>
                     {device.splitter && (
                       <View style={styles.row}>
@@ -365,7 +368,7 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               {/* Parent Information (Connected From) */}
               {device.parent && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Terhubung Dari</Text>
+                  <Text style={gayaJudulBagian}>Terhubung Dari</Text>
                   <View style={styles.card}>
                     <View style={styles.row}>
                       <Text style={styles.label}>
@@ -388,7 +391,7 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               {/* OTB Information (for ODC) */}
               {deviceType === "odc" && device.otbCore?.otb && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Terhubung ke OTB</Text>
+                  <Text style={gayaJudulBagian}>Terhubung ke OTB</Text>
                   <View style={styles.card}>
                     <View style={styles.row}>
                       <Text style={styles.label}>OTB:</Text>
@@ -437,7 +440,7 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               {/* ODC Information (for ODP) */}
               {deviceType === "odp" && device.odcOutput?.odc && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Terhubung ke ODC</Text>
+                  <Text style={gayaJudulBagian}>Terhubung ke ODC</Text>
                   <View style={styles.card}>
                     <View style={styles.row}>
                       <Text style={styles.label}>ODC:</Text>
@@ -486,7 +489,7 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
               {/* ODP Information (for Pelanggan) */}
               {deviceType === "pelanggan" && device.odp && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Terhubung ke ODP</Text>
+                  <Text style={gayaJudulBagian}>Terhubung ke ODP</Text>
                   <View style={styles.card}>
                     <View style={styles.row}>
                       <Text style={styles.label}>ODP:</Text>
@@ -513,7 +516,7 @@ export const DeviceDetailModal = React.memo<DeviceDetailModalProps>(
 
               {/* Foto Fisik & Upload */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Foto Fisik</Text>
+                <Text style={gayaJudulBagian}>Foto Fisik</Text>
                 {(device.images && device.images.length > 0) || device.photo ? (
                   <ScrollView
                     horizontal
@@ -683,7 +686,6 @@ const styles = StyleSheet.create({
     color: "#374151",
     marginBottom: 8,
     borderLeftWidth: 3,
-    borderLeftColor: "#3b82f6",
     paddingLeft: 8,
   },
   card: {

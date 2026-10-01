@@ -192,7 +192,7 @@ jest.mock('lucide-react-native', () => ({
   X: 'X',
 }));
 
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 describe('absensi offline queue boundary', () => {
   const actualUseState = React.useState;

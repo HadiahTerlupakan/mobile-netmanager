@@ -3,7 +3,7 @@ import NotificationBell from '@/components/molecules/NotificationBell';
 import { TenantService } from '@/services/TenantService';
 import React, { memo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 interface DashboardHeaderProps {
     userName: string;
@@ -14,6 +14,7 @@ interface DashboardHeaderProps {
 }
 
 export const DashboardHeader = memo(({ userName, userImage, onProfilePress }: DashboardHeaderProps) => {
+    const { tw } = useTemaPersona();
     const initial = userName ? userName.charAt(0).toUpperCase() : 'K';
 
     const getImageUrl = (path: string | null | undefined) => {
@@ -38,7 +39,7 @@ export const DashboardHeader = memo(({ userName, userImage, onProfilePress }: Da
                         transition={1000}
                     />
                 ) : (
-                    <View style={tw`h-10 w-10 bg-blue-600 rounded-full items-center justify-center`}>
+                    <View style={tw`h-10 w-10 bg-utama-kuat rounded-full items-center justify-center`}>
                         <Text style={tw`text-white font-bold text-lg`}>{initial}</Text>
                     </View>
                 )}

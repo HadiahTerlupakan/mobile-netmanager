@@ -50,7 +50,7 @@ import {
 import NetInfo from "@react-native-community/netinfo";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
-import tw from "twrnc";
+import { useTemaPersona } from "@/theme";
 import { AppFeature } from '@/constants/features';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import * as Haptics from "expo-haptics";
@@ -71,6 +71,7 @@ type AttendanceUiStatus = "idle" | "checked-in" | "checked-out" | "loading";
 // --- Memoized Sub-components ---
 
 const DigitalClock = React.memo(() => {
+  const { tw } = useTemaPersona();
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -83,7 +84,7 @@ const DigitalClock = React.memo(() => {
       <Text style={tw`text-white font-bold text-5xl`}>
         {formatDate(time, "HH:mm")}
       </Text>
-      <Text style={tw`text-blue-100 font-medium text-sm mt-1`}>
+      <Text style={tw`text-utama-muda font-medium text-sm mt-1`}>
         {formatDate(time, "EEEE, d MMMM yyyy")}
       </Text>
     </View>
@@ -99,8 +100,9 @@ interface AttendanceHeaderProps {
 }
 
 const AttendanceHeader = React.memo(({ todayHoliday, isTukarLiburWorkDay, isTukarLiburLeaveDay, isOffDay }: AttendanceHeaderProps) => {
+  const { tw } = useTemaPersona();
   const isDisplayHoliday = todayHoliday.isHoliday;
-  const bgColor = isDisplayHoliday ? "bg-red-600" : "bg-blue-600";
+  const bgColor = isDisplayHoliday ? "bg-red-600" : "bg-utama-kuat";
 
   return (
     <View style={tw`${bgColor} px-6 pt-6 pb-12 rounded-b-[40px]`}>
@@ -146,10 +148,12 @@ interface LocationCardProps {
   onRefresh: () => void;
 }
 
-const LocationCard = React.memo(({ locationName, onRefresh }: LocationCardProps) => (
+const LocationCard = React.memo(({ locationName, onRefresh }: LocationCardProps) => {
+  const { tw, warna } = useTemaPersona();
+  return (
   <View style={tw`flex-row items-center bg-gray-50 p-3 rounded-xl mb-4`}>
-    <View style={tw`bg-blue-100 p-2 rounded-full mr-3`}>
-      <MapPin size={20} color="#2563eb" />
+    <View style={tw`bg-utama-muda p-2 rounded-full mr-3`}>
+      <MapPin size={20} color={warna.utama} />
     </View>
     <View style={tw`flex-1`}>
       <Text style={tw`text-xs text-gray-400 font-medium`}>Lokasi Saat Ini</Text>
@@ -159,7 +163,8 @@ const LocationCard = React.memo(({ locationName, onRefresh }: LocationCardProps)
       <RefreshCw size={16} color="#9ca3af" />
     </TouchableOpacity>
   </View>
-));
+  );
+});
 LocationCard.displayName = 'LocationCard';
 
 interface AttendanceStatusInfoProps {
@@ -167,7 +172,9 @@ interface AttendanceStatusInfoProps {
   checkOutTime: string | null;
 }
 
-const AttendanceStatusInfo = React.memo(({ checkInTime, checkOutTime }: AttendanceStatusInfoProps) => (
+const AttendanceStatusInfo = React.memo(({ checkInTime, checkOutTime }: AttendanceStatusInfoProps) => {
+  const { tw } = useTemaPersona();
+  return (
   <View style={tw`flex-row justify-between mb-6`}>
     <View style={tw`items-center flex-1 border-r border-gray-100`}>
       <Text style={tw`text-xs text-gray-400 mb-1`}>Masuk</Text>
@@ -178,7 +185,8 @@ const AttendanceStatusInfo = React.memo(({ checkInTime, checkOutTime }: Attendan
       <Text style={tw`text-lg font-bold text-gray-800`}>{checkOutTime || "--:--"}</Text>
     </View>
   </View>
-));
+  );
+});
 AttendanceStatusInfo.displayName = 'AttendanceStatusInfo';
 
 interface AttendanceWarningProps {
@@ -186,6 +194,7 @@ interface AttendanceWarningProps {
 }
 
 const AttendanceWarning = React.memo(({ message }: AttendanceWarningProps) => {
+  const { tw } = useTemaPersona();
   if (!message) {
     return null;
   }
@@ -209,7 +218,9 @@ interface GeofenceWarningProps {
   loading: boolean;
 }
 
-const GeofenceWarning = React.memo(({ visible, onCancel, onContinue, geofenceStatus, loading }: GeofenceWarningProps) => (
+const GeofenceWarning = React.memo(({ visible, onCancel, onContinue, geofenceStatus, loading }: GeofenceWarningProps) => {
+  const { tw } = useTemaPersona();
+  return (
   <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={onCancel}>
     <View style={tw`flex-1 bg-black/50 justify-center items-center px-6`}>
       <View style={tw`bg-white rounded-2xl p-6 w-full max-w-sm`}>
@@ -243,7 +254,8 @@ const GeofenceWarning = React.memo(({ visible, onCancel, onContinue, geofenceSta
       </View>
     </View>
   </Modal>
-));
+  );
+});
 GeofenceWarning.displayName = 'GeofenceWarning';
 
 interface CheckoutWarningModalProps {
@@ -252,7 +264,9 @@ interface CheckoutWarningModalProps {
   warningMessage: string | null;
 }
 
-const CheckoutWarningModal = React.memo(({ visible, onClose, warningMessage }: CheckoutWarningModalProps) => (
+const CheckoutWarningModal = React.memo(({ visible, onClose, warningMessage }: CheckoutWarningModalProps) => {
+  const { tw } = useTemaPersona();
+  return (
   <Modal visible={visible} transparent={true} animationType="fade" onRequestClose={onClose}>
     <View style={tw`flex-1 bg-black/50 justify-center items-center px-6`}>
       <View style={tw`bg-white rounded-2xl p-6 w-full max-w-sm`}>
@@ -277,10 +291,12 @@ const CheckoutWarningModal = React.memo(({ visible, onClose, warningMessage }: C
       </View>
     </View>
   </Modal>
-));
+  );
+});
 CheckoutWarningModal.displayName = 'CheckoutWarningModal';
 
 export default function AbsensiScreen() {
+  const { tw, warna } = useTemaPersona();
   useFeatureGuard(AppFeature.ABSENSI);
   const { user, token } = useAuth();
   const attendanceStatusQueryKey = queryKeys.attendance.status(user?.id);
@@ -767,7 +783,7 @@ export default function AbsensiScreen() {
       return (
         <View style={tw`flex-1 justify-center items-center`}>
           <Text>Aplikasi butuh izin kamera</Text>
-          <TouchableOpacity onPress={requestPermission} style={tw`bg-blue-600 p-2 rounded mt-2`}>
+          <TouchableOpacity onPress={requestPermission} style={tw`bg-utama-kuat p-2 rounded mt-2`}>
             <Text style={tw`text-white`}>Izinkan</Text>
           </TouchableOpacity>
         </View>
@@ -872,7 +888,7 @@ export default function AbsensiScreen() {
                   <TouchableOpacity
                     onPress={handleSubmit}
                     disabled={!photo || !location || !isOnline || isProcessing || loading}
-                    style={tw`flex-1 ${!photo || !location || !isOnline || isProcessing || loading ? "bg-blue-300" : "bg-blue-600"} py-3 rounded-xl items-center`}
+                    style={tw`flex-1 ${!photo || !location || !isOnline || isProcessing || loading ? "bg-utama-pucat" : "bg-utama-kuat"} py-3 rounded-xl items-center`}
                   >
                     <Text style={tw`font-bold text-white`}>
                       {!isOnline ? "Butuh Internet" : loading || isProcessing ? "Menyimpan..." : "Kirim Absensi"}
@@ -893,7 +909,7 @@ export default function AbsensiScreen() {
                   !captureState.hasActiveSession && todayHoliday.isHoliday && !isTukarLiburWorkDay ? "bg-red-50 border-red-200" :
                     isTukarLiburLeaveDay ? "bg-purple-50 border-purple-200" :
                       !captureState.hasActiveSession && isOffDay && !isTukarLiburWorkDay ? "bg-amber-50 border-amber-200" :
-                        "bg-blue-50 border-blue-200"
+                        "bg-utama-sangat-muda border-utama-garis"
                   } border-2 border-dashed rounded-2xl h-32 items-center justify-center mb-2`}
               >
                 {!captureState.hasActiveSession && todayHoliday.isHoliday && !isTukarLiburWorkDay ? (
@@ -901,7 +917,7 @@ export default function AbsensiScreen() {
                 ) : status === "checked-out" ? (
                   <View style={tw`items-center`}><Text style={tw`text-gray-500 font-bold text-lg`}>🎉 Absensi Selesai</Text><Text style={tw`text-gray-400 text-sm mt-1`}>Terima kasih untuk hari ini</Text></View>
                 ) : (
-                  <View style={tw`items-center`}><LucideCamera size={32} color="#2563eb" /><Text style={tw`text-blue-600 font-bold mt-2`}>{status === "idle" ? "Ambil Foto Masuk" : "Ambil Foto Keluar"}</Text></View>
+                  <View style={tw`items-center`}><LucideCamera size={32} color={warna.utama} /><Text style={tw`text-utama-kuat font-bold mt-2`}>{status === "idle" ? "Ambil Foto Masuk" : "Ambil Foto Keluar"}</Text></View>
                 )}
               </TouchableOpacity>
             )}

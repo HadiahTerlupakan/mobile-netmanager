@@ -32,7 +32,7 @@ jest.mock('@/components/organisms/presurvei/FormTambahProspek', () => ({
   },
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 48, bottom: 24, left: 0, right: 0 }),
 }));

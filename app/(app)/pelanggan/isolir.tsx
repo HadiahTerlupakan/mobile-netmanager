@@ -4,7 +4,7 @@ import { AlertTriangle, CloudOff, Search, X } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import tw from "twrnc";
+import { useTemaPersona } from "@/theme";
 
 import { PelangganCard } from "@/components/molecules/PelangganCard";
 import { AppFeature } from "@/constants/features";
@@ -17,6 +17,7 @@ import { resolvePelangganListMessage } from "@/utils/pelangganListMessage";
 const SEARCH_DEBOUNCE_MS = 400;
 
 export default function PelangganIsolirScreen() {
+  const { tw, warna } = useTemaPersona();
   useFeatureGuard(AppFeature.PELANGGAN);
 
   const router = useRouter();
@@ -81,12 +82,12 @@ export default function PelangganIsolirScreen() {
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#2563eb" />
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={warna.utamaKuat} />
         }
         ListEmptyComponent={
           isFetching ? (
             <View style={tw`items-center justify-center py-20 px-8`}>
-              <ActivityIndicator size="large" color="#2563eb" />
+              <ActivityIndicator size="large" color={warna.utamaKuat} />
             </View>
           ) : (
             <View style={tw`items-center justify-center py-20 px-8`}>

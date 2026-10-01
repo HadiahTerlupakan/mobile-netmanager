@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { KartuFormulir } from '@/components/atoms/KartuFormulir';
 import { IsianTeks } from '@/components/molecules/IsianTeks';
 import { JudulIsian } from '@/components/molecules/JudulIsian';
@@ -47,6 +47,7 @@ function judulIsianMenurutJenis(isPerantaraTerpilih: boolean) {
  * induknya: isian bergulir, tombol simpan besar tetap di bawah.
  */
 export function FormTambahProspek({ onBerhasil }: FormTambahProspekProps) {
+  const { tw } = useTemaPersona();
   const form = useFormTambahProspek(onBerhasil);
   const { nilai, kesalahan, ubah } = form;
   const isBolehSimpan = form.isOnline && !form.isMenyimpan;
@@ -148,7 +149,7 @@ export function FormTambahProspek({ onBerhasil }: FormTambahProspekProps) {
               accessibilityState={{ disabled: !isBolehSimpan }}
               disabled={!isBolehSimpan}
               onPress={form.simpan}
-              style={tw`rounded-xl min-h-12 py-4 items-center justify-center ${isBolehSimpan ? 'bg-blue-600' : 'bg-gray-400'}`}
+              style={tw`rounded-xl min-h-12 py-4 items-center justify-center ${isBolehSimpan ? 'bg-utama-kuat' : 'bg-gray-400'}`}
             >
               <Text style={tw`text-white text-base font-bold`}>
                 {form.isMenyimpan ? 'Menyimpan…' : 'Simpan Prospek'}

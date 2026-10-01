@@ -2,15 +2,16 @@ import React from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Skeleton } from '@/components/atoms/Skeleton';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 export const AttendanceSkeleton = () => {
+  const { tw } = useTemaPersona();
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
       {/* Header Skeleton */}
-      <View style={tw`bg-blue-600 px-6 pt-6 pb-12 rounded-b-[40px] items-center`}>
-        <Skeleton width={120} height={40} style={tw`bg-blue-500 mb-2`} />
-        <Skeleton width={180} height={16} style={tw`bg-blue-500`} />
+      <View style={tw`bg-utama-kuat px-6 pt-6 pb-12 rounded-b-[40px] items-center`}>
+        <Skeleton width={120} height={40} style={tw`bg-utama-terang mb-2`} />
+        <Skeleton width={180} height={16} style={tw`bg-utama-terang`} />
       </View>
 
       <View style={tw`px-4 -mt-8`}>

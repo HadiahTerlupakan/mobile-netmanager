@@ -1,8 +1,8 @@
 import { CalendarDays, Clock } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { KartuFormulir } from '@/components/atoms/KartuFormulir';
 import { TeksKesalahan } from '@/components/atoms/TeksKesalahan';
 import CustomDatePickerModal from '@/components/molecules/CustomDatePickerModal';
@@ -33,7 +33,6 @@ const OPSI_TANGGAL: { nilai: PilihanTanggal; label: string }[] = [
 ];
 const OPSI_TANPA_JAM: { nilai: PilihanJam; label: string } = { nilai: 'TANPA_JAM', label: 'Tanpa jam' };
 const UKURAN_IKON_RINGKASAN = 22;
-const WARNA_IKON_RINGKASAN = '#1d4ed8';
 /** Panjang "YYYY-MM-DD" di awal string ISO. */
 const PANJANG_TANGGAL_ISO = 10;
 
@@ -52,6 +51,7 @@ interface FormRencanaProps {
 
 /** Isi form rencana: tanggal (hari ini ke depan), jam opsional, jenis, tujuan, prospek & alamat opsional. */
 export function FormRencana({ form, hariIni, onBukaPilihProspek }: FormRencanaProps) {
+  const { tw, warna } = useTemaPersona();
   const { nilai, kesalahan, ubah } = form;
   const [isKalenderTerbuka, setIsKalenderTerbuka] = useState(false);
   const [isJamTerbuka, setIsJamTerbuka] = useState(false);
@@ -77,14 +77,14 @@ export function FormRencana({ form, hariIni, onBukaPilihProspek }: FormRencanaPr
           accessibilityRole="button"
           accessibilityLabel={`Tanggal terpilih ${teksTanggalLengkap(nilai.tanggal)}. Ketuk untuk ganti tanggal`}
           onPress={() => setIsKalenderTerbuka(true)}
-          style={tw`mt-3 flex-row items-center bg-blue-50 border border-blue-200 rounded-xl p-3`}
+          style={tw`mt-3 flex-row items-center bg-utama-sangat-muda border border-utama-garis rounded-xl p-3`}
         >
-          <CalendarDays size={UKURAN_IKON_RINGKASAN} color={WARNA_IKON_RINGKASAN} />
+          <CalendarDays size={UKURAN_IKON_RINGKASAN} color={warna.utamaGelap} />
           <View style={tw`ml-3 flex-1`}>
             <Text style={tw`text-xs text-gray-600`}>Kunjungan pada</Text>
             <Text style={tw`text-base font-bold text-gray-900`}>{teksTanggalLengkap(nilai.tanggal)}</Text>
           </View>
-          <Text style={tw`text-sm font-semibold text-blue-700`}>Ganti</Text>
+          <Text style={tw`text-sm font-semibold text-utama-gelap`}>Ganti</Text>
         </TouchableOpacity>
         <TeksKesalahan pesan={kesalahan.tanggal} />
       </KartuFormulir>
@@ -97,7 +97,7 @@ export function FormRencana({ form, hariIni, onBukaPilihProspek }: FormRencanaPr
           onPilih={pilihJamOpsi}
         />
         <View style={tw`mt-3 flex-row items-center bg-gray-50 border border-gray-200 rounded-xl p-3`}>
-          <Clock size={UKURAN_IKON_RINGKASAN} color={WARNA_IKON_RINGKASAN} />
+          <Clock size={UKURAN_IKON_RINGKASAN} color={warna.utamaGelap} />
           <Text style={tw`ml-3 flex-1 text-sm text-gray-800`}>{teksJamRingkas(nilai.jam)}</Text>
         </View>
       </KartuFormulir>

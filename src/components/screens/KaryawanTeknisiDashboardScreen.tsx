@@ -13,6 +13,7 @@ import { useProfileSync } from '@/hooks/useProfileSync';
 import { useStatistikBeranda } from '@/hooks/useStatistikBeranda';
 import { queryKeys } from '@/lib/queryClient';
 import { TenantService } from '@/services/TenantService';
+import { useTemaPersona } from '@/theme';
 import { isPersonaMitra, tentukanPersona } from '@/utils/persona';
 import { isPemberiTugas } from '@/utils/presurvei/timRencana';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
@@ -20,7 +21,6 @@ import { Href, useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, Text, useWindowDimensions, View, ViewToken } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
 
 interface CanvasingSummary {
     total: number;
@@ -40,6 +40,7 @@ type CarouselItem =
 
 /** Beranda teknisi karyawan (dan bawaan saat user belum dimuat): karusel WO/canvasing, statistik, menu cepat. */
 export function KaryawanTeknisiDashboardScreen() {
+    const { tw } = useTemaPersona();
     const { user, token } = useAuth();
     const router = useRouter();
     const { width } = useWindowDimensions();
@@ -136,7 +137,7 @@ export function KaryawanTeknisiDashboardScreen() {
         }
 
         return <View style={containerStyle}>{content}</View>;
-    }, [width, handleWorkOrderPress, handleCanvasingPress]);
+    }, [width, handleWorkOrderPress, handleCanvasingPress, tw]);
 
     const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
         if (viewableItems.length > 0) {
@@ -235,7 +236,7 @@ export function KaryawanTeknisiDashboardScreen() {
                                 <View
                                     key={carouselItem.type}
                                     style={tw`h-2 rounded-full ${index === activeIndex
-                                        ? 'bg-blue-600 w-6'
+                                        ? 'bg-utama w-6'
                                         : 'bg-gray-300 w-2'
                                         }`}
                                     accessibilityLabel={`Halaman ${index + 1}`}

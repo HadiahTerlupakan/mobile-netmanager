@@ -18,7 +18,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
 
@@ -30,6 +30,7 @@ interface Holiday {
 }
 
 export default function HolidaysScreen() {
+  const { tw } = useTemaPersona();
   useFeatureGuard(AppFeature.HOLIDAYS);
 
     const router = useRouter();
@@ -89,8 +90,8 @@ export default function HolidaysScreen() {
                 <Text style={tw`flex-1 text-lg font-bold text-gray-900 ml-2`}>
                     Kalender Libur
                 </Text>
-                <TouchableOpacity onPress={goToToday} style={tw`px-3 py-1 bg-blue-50 rounded-lg`}>
-                    <Text style={tw`text-blue-600 font-medium text-sm`}>Hari Ini</Text>
+                <TouchableOpacity onPress={goToToday} style={tw`px-3 py-1 bg-utama-sangat-muda rounded-lg`}>
+                    <Text style={tw`text-utama-kuat font-medium text-sm`}>Hari Ini</Text>
                 </TouchableOpacity>
             </View>
 
@@ -131,7 +132,7 @@ export default function HolidaysScreen() {
                         </Text>
                         <TouchableOpacity
                             onPress={() => refetch()}
-                            style={tw`bg-blue-600 px-6 py-2 rounded-full`}
+                            style={tw`bg-utama-kuat px-6 py-2 rounded-full`}
                         >
                             <Text style={tw`text-white font-bold`}>Coba Lagi</Text>
                         </TouchableOpacity>

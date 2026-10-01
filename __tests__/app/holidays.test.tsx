@@ -75,9 +75,7 @@ jest.mock('lucide-react-native', () => {
   };
 });
 
-jest.mock('twrnc', () => {
-  return () => ({});
-});
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 describe('HolidaysScreen', () => {
   beforeEach(() => {

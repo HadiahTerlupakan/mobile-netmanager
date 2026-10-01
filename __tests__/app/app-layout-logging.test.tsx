@@ -72,7 +72,7 @@ jest.mock('lucide-react-native', () => ({
   Wallet: 'Wallet',
 }));
 
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 jest.mock('expo-router', () => {
   const React = require('react');

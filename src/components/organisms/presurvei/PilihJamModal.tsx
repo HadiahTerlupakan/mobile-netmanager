@@ -2,8 +2,8 @@ import { Check } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { daftarKelompokJam, tulisJamTampil } from '@/utils/presurvei/pilihanWaktuRencana';
 
 /** Jarak isi modal dari tepi layar setelah inset sistem. */
@@ -24,6 +24,7 @@ interface PilihJamModalProps {
  * per bagian hari. Menggantikan jam analog sistem yang membingungkan.
  */
 export function PilihJamModal({ terlihat, terpilih, onPilih, onTutup }: PilihJamModalProps) {
+  const { tw } = useTemaPersona();
   // Modal layar penuh digambar sampai ke bawah status bar; inset menjaga tombol Batal tetap bisa diketuk.
   const insets = useSafeAreaInsets();
   const kelompok = useMemo(() => daftarKelompokJam(), []);
@@ -39,7 +40,7 @@ export function PilihJamModal({ terlihat, terpilih, onPilih, onTutup }: PilihJam
         <View style={tw`flex-row items-center mb-1`}>
           <Text style={tw`flex-1 text-lg font-bold text-gray-900`}>Pilih jam kunjungan</Text>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Batal" hitSlop={PERLUASAN_SENTUH} onPress={onTutup}>
-            <Text style={tw`text-blue-600 font-semibold`}>Batal</Text>
+            <Text style={tw`text-utama-kuat font-semibold`}>Batal</Text>
           </TouchableOpacity>
         </View>
         <Text style={tw`text-sm text-gray-500 mb-3`}>Ketuk salah satu jam di bawah.</Text>
@@ -62,7 +63,7 @@ export function PilihJamModal({ terlihat, terpilih, onPilih, onTutup }: PilihJam
                     >
                       <View
                         style={tw`flex-row items-center justify-center py-3 rounded-xl border-2 ${
-                          isTerpilih ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-200'
+                          isTerpilih ? 'bg-utama-kuat border-utama-kuat' : 'bg-white border-gray-200'
                         }`}
                       >
                         {isTerpilih ? <Check size={UKURAN_IKON} color="white" style={tw`mr-1`} /> : null}

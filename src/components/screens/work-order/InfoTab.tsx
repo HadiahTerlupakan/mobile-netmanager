@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import React from 'react';
 import { Linking, Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 interface InfoTabProps {
   wo: WorkOrder;
@@ -33,6 +33,7 @@ export const InfoTab = React.memo(function InfoTab({
   handleRemovePartner,
   setIsPartnerModalVisible,
 }: InfoTabProps) {
+  const { tw, warna } = useTemaPersona();
   return (
     <View>
       <View>
@@ -118,7 +119,7 @@ export const InfoTab = React.memo(function InfoTab({
         {/* Schedule & Location Card */}
         <View style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}>
           <View style={tw`flex-row mb-4`}>
-            <Clock size={20} color="#2563eb" style={tw`mt-0.5 mr-3`} />
+            <Clock size={20} color={warna.utama} style={tw`mt-0.5 mr-3`} />
             <View>
               <Text style={tw`text-xs text-gray-400 mb-0.5`}>Jadwal</Text>
               {wo.scheduledDate ? (
@@ -164,7 +165,7 @@ export const InfoTab = React.memo(function InfoTab({
             <MapPin size={20} color="#dc2626" style={tw`mt-0.5 mr-3`} />
             <View style={tw`flex-1`}>
               <Text style={tw`text-xs text-gray-400 mb-0.5`}>Lokasi</Text>
-              <Text style={tw`text-sm font-bold text-blue-600 leading-5`}>
+              <Text style={tw`text-sm font-bold text-utama-kuat leading-5`}>
                 {wo.locationAddress || wo.pelanggan?.alamat || "-"}
               </Text>
             </View>
@@ -214,10 +215,10 @@ export const InfoTab = React.memo(function InfoTab({
                 }}
                 style={tw`flex-row items-center`}
               >
-                <Phone size={18} color="#2563eb" style={tw`mr-3`} />
+                <Phone size={18} color={warna.utama} style={tw`mr-3`} />
                 <View>
                   <Text style={tw`text-xs text-gray-400`}>Telepon</Text>
-                  <Text style={tw`text-sm font-bold text-blue-600`}>
+                  <Text style={tw`text-sm font-bold text-utama-kuat`}>
                     {wo.contactPhone || wo.pelanggan?.noTelp}
                   </Text>
                 </View>
@@ -235,7 +236,7 @@ export const InfoTab = React.memo(function InfoTab({
               </Text>
               {wo.status !== "COMPLETED" && wo.status !== "CLOSED" && !isMitraTeknisi && (
                 <TouchableOpacity onPress={() => setIsPartnerModalVisible(true)}>
-                  <Text style={tw`text-xs font-bold text-blue-600`}>
+                  <Text style={tw`text-xs font-bold text-utama-kuat`}>
                     + Tambah
                   </Text>
                 </TouchableOpacity>
@@ -244,9 +245,9 @@ export const InfoTab = React.memo(function InfoTab({
 
             {/* Primary Assigned */}
             {(wo.assignedTo || wo.assignedMitra) && (
-              <View style={tw`flex-row items-center mb-3 bg-blue-50 p-2 rounded-lg`}>
-                <View style={tw`w-8 h-8 bg-blue-200 rounded-full items-center justify-center mr-3`}>
-                  <Text style={tw`font-bold text-blue-700`}>
+              <View style={tw`flex-row items-center mb-3 bg-utama-sangat-muda p-2 rounded-lg`}>
+                <View style={tw`w-8 h-8 bg-utama-garis rounded-full items-center justify-center mr-3`}>
+                  <Text style={tw`font-bold text-utama-gelap`}>
                     {(wo.assignedTo || wo.assignedMitra)?.name?.charAt(0)}
                   </Text>
                 </View>
@@ -254,7 +255,7 @@ export const InfoTab = React.memo(function InfoTab({
                   <Text style={tw`font-bold text-gray-800 text-sm`}>
                     {(wo.assignedTo || wo.assignedMitra)?.name}
                   </Text>
-                  <Text style={tw`text-xs text-blue-600`}>
+                  <Text style={tw`text-xs text-utama-kuat`}>
                     {wo.assignedMitra ? 'Mitra Lead Teknisi' : 'Lead Teknisi'}
                   </Text>
                 </View>
@@ -270,8 +271,8 @@ export const InfoTab = React.memo(function InfoTab({
                   style={tw`flex-row items-center justify-between mb-2 pb-2 border-b border-gray-50 last:border-0`}
                 >
                   <View style={tw`flex-row items-center flex-1`}>
-                    <View style={tw`w-8 h-8 rounded-full bg-blue-100 items-center justify-center mr-3`}>
-                      <Text style={tw`font-bold text-blue-600`}>
+                    <View style={tw`w-8 h-8 rounded-full bg-utama-muda items-center justify-center mr-3`}>
+                      <Text style={tw`font-bold text-utama-kuat`}>
                         {assignment.user?.name?.charAt(0).toUpperCase()}
                       </Text>
                     </View>

@@ -17,12 +17,13 @@ import { ArrowLeft, Camera, ChevronRight, Lock, Phone, Save, User } from 'lucide
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 import { z } from 'zod';
 
 type ProfileFormData = z.infer<typeof ProfileSchema>;
 
 function EditProfileScreen() {
+    const { tw } = useTemaPersona();
     const { profileData, isPending } = useProfileSync();
     const queryClient = useQueryClient();
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -154,8 +155,8 @@ function EditProfileScreen() {
                                 transition={1000}
                             />
                         ) : (
-                            <View style={tw`w-28 h-28 rounded-full bg-blue-100 items-center justify-center`}>
-                                <Text style={tw`text-blue-600 text-4xl font-bold`}>
+                            <View style={tw`w-28 h-28 rounded-full bg-utama-muda items-center justify-center`}>
+                                <Text style={tw`text-utama-kuat text-4xl font-bold`}>
                                     {getInitials(profileData?.name)}
                                 </Text>
                             </View>
@@ -163,7 +164,7 @@ function EditProfileScreen() {
                         <TouchableOpacity
                             onPress={pickImage}
                             disabled={uploadingPhoto}
-                            style={tw`absolute bottom-0 right-0 bg-blue-600 rounded-full p-3 shadow-lg`}
+                            style={tw`absolute bottom-0 right-0 bg-utama-kuat rounded-full p-3 shadow-lg`}
                         >
                             <Camera size={20} color="#fff" />
                         </TouchableOpacity>
@@ -230,7 +231,7 @@ function EditProfileScreen() {
                 <TouchableOpacity
                     onPress={handleSave}
                     disabled={saveMutation.isPending}
-                    style={tw`bg-blue-600 rounded-xl py-4 flex-row items-center justify-center ${saveMutation.isPending ? 'opacity-50' : ''}`}
+                    style={tw`bg-utama-kuat rounded-xl py-4 flex-row items-center justify-center ${saveMutation.isPending ? 'opacity-50' : ''}`}
                 >
                     {saveMutation.isPending ? (
                         <ActivityIndicator color="#fff" />

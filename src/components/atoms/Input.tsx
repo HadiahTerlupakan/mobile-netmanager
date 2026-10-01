@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, TextInput, Text, TextInputProps, StyleProp, ViewStyle } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -19,6 +19,7 @@ export function Input({
   style,
   ...props
 }: InputProps) {
+  const { tw } = useTemaPersona();
   return (
     <View style={[tw`w-full`, containerStyle]}>
       {label && <Text style={tw`mb-2 font-medium text-gray-700`}>{label}</Text>}
@@ -26,7 +27,7 @@ export function Input({
       <View
         style={[
           tw`flex-row items-center border rounded-xl px-4 h-12 bg-gray-50`,
-          error ? tw`border-red-500` : tw`border-gray-300 focus:border-blue-500`,
+          error ? tw`border-red-500` : tw`border-gray-300 focus:border-utama-terang`,
         ]}
       >
         {leftIcon && <View style={tw`mr-3`}>{leftIcon}</View>}

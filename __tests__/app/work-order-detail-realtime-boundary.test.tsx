@@ -141,7 +141,7 @@ jest.mock('lucide-react-native', () => ({
   User: 'User',
   X: 'X',
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 describe('mobile work order detail realtime boundary', () => {
   beforeEach(() => {

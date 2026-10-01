@@ -123,7 +123,7 @@ jest.mock('lucide-react-native', () => ({
   Megaphone: 'Megaphone',
   Package: 'Package',
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 describe('mobile notifications focus boundary', () => {
   beforeEach(() => {

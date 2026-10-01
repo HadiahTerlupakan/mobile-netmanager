@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import api from "@/services/api";
+import { useTemaPersona } from "@/theme";
 
 interface DeviceCreateModalProps {
   visible: boolean;
@@ -37,6 +38,7 @@ export function DeviceCreateModal({
   initialLocation,
   onSuccess,
 }: DeviceCreateModalProps) {
+  const { warna } = useTemaPersona();
   const [loading, setLoading] = useState(false);
   const [deviceType, setDeviceType] = useState("ODP");
   const [name, setName] = useState("");
@@ -325,7 +327,7 @@ export function DeviceCreateModal({
             />
 
             <TouchableOpacity
-              style={[styles.submitButton, loading && styles.disabledButton]}
+              style={[styles.submitButton, { backgroundColor: loading ? warna.utamaPucat : warna.utamaKuat }]}
               onPress={handleSubmit}
               disabled={loading}
             >
@@ -398,14 +400,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   submitButton: {
-    backgroundColor: "#2563EB",
     padding: 16,
     borderRadius: 8,
     alignItems: "center",
     marginTop: 24,
-  },
-  disabledButton: {
-    backgroundColor: "#93C5FD",
   },
   submitText: {
     color: "white",

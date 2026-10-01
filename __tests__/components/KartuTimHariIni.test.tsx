@@ -3,7 +3,7 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { KartuTimHariIni } from '@/components/organisms/dashboard/KartuTimHariIni';
 

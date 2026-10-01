@@ -96,7 +96,7 @@ jest.mock('lucide-react-native', () => ({
   Zap: () => null,
 }));
 
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const renderScreen = () => {
   const RequestWorkOrderScreen = require('../../app/(app)/request-work-order').default;

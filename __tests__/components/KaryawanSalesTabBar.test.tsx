@@ -7,7 +7,7 @@ jest.mock('@/context/AuthContext', () => ({ useAuth: () => mockUseAuth() }));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { KaryawanSalesTabBar } from '@/components/organisms/navigation/KaryawanSalesTabBar';
 

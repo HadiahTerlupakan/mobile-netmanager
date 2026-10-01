@@ -1,6 +1,7 @@
 import React, { ErrorInfo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { errorReportingService } from '@/services/ErrorReportingService';
+import { useTemaPersona } from '@/theme';
 import { logger } from '@/utils/logger';
 
 interface Props {
@@ -11,6 +12,16 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+}
+
+/** Tombol "Coba Lagi" berwarna identitas persona (komponen fungsi agar bisa memakai hook tema). */
+function TombolCobaLagi({ onPress }: { onPress: () => void }) {
+  const { warna } = useTemaPersona();
+  return (
+    <TouchableOpacity onPress={onPress} style={[styles.button, { backgroundColor: warna.utamaKuat }]}>
+      <Text style={styles.buttonText}>Coba Lagi</Text>
+    </TouchableOpacity>
+  );
 }
 
 export class TopologyErrorBoundary extends React.Component<Props, State> {
@@ -52,12 +63,7 @@ export class TopologyErrorBoundary extends React.Component<Props, State> {
               ? this.state.error.message
               : 'Terjadi kesalahan saat memuat peta. Silakan coba lagi.'}
           </Text>
-          <TouchableOpacity
-            onPress={this.handleReset}
-            style={styles.button}
-          >
-            <Text style={styles.buttonText}>Coba Lagi</Text>
-          </TouchableOpacity>
+          <TombolCobaLagi onPress={this.handleReset} />
         </View>
       );
     }
@@ -87,7 +93,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   button: {
-    backgroundColor: '#2563eb',
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,

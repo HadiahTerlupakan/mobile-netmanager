@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent, render } from '@testing-library/react-native';
 
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const mockUseCameraPermissions = jest.fn<() => [{ granted: boolean } | null, () => void]>();
 const mockCameraView = jest.fn<(props: unknown) => void>();

@@ -32,9 +32,10 @@ import {
 import React, { useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TextInputProps, TouchableOpacity, View, } from 'react-native';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import tw from "twrnc";
+import { useTemaPersona } from '@/theme';
 
 export default function CreateCanvasingScreen() {
+  const { tw, warna } = useTemaPersona();
   useFeatureGuard(AppFeature.CANVASING);
 
   const router = useRouter();
@@ -473,7 +474,7 @@ export default function CreateCanvasingScreen() {
           {/* Section: Dokumen & Foto */}
           <FormSectionHeader
             title="Dokumen & Foto"
-            icon={<MapPin size={16} color="#2563eb" />}
+            icon={<MapPin size={16} color={warna.utama} />}
           />
           <View
             style={tw`bg-white rounded-3xl p-5 mb-8 shadow-sm border border-gray-100`}
@@ -499,7 +500,7 @@ export default function CreateCanvasingScreen() {
           {/* Section: Data Pelanggan */}
           <FormSectionHeader
             title="Informasi Pelanggan"
-            icon={<User size={16} color="#2563eb" />}
+            icon={<User size={16} color={warna.utama} />}
           />
           <View
             style={tw`bg-white rounded-3xl p-5 mb-8 shadow-sm border border-gray-100`}
@@ -559,7 +560,7 @@ export default function CreateCanvasingScreen() {
           {/* Section: Teknis & Paket */}
           <FormSectionHeader
             title="Detail Teknis & Layanan"
-            icon={<Settings size={16} color="#2563eb" />}
+            icon={<Settings size={16} color={warna.utama} />}
           />
           <View
             style={tw`bg-white rounded-3xl p-5 mb-8 shadow-sm border border-gray-100`}
@@ -642,9 +643,9 @@ export default function CreateCanvasingScreen() {
                 />
                 <TouchableOpacity
                   onPress={() => setShowMapModal(true)}
-                  style={tw`bg-blue-50 border border-blue-100 rounded-2xl px-4 items-center justify-center`}
+                  style={tw`bg-utama-sangat-muda border border-utama-muda rounded-2xl px-4 items-center justify-center`}
                 >
-                  <MapIcon size={20} color="#2563eb" />
+                  <MapIcon size={20} color={warna.utama} />
                 </TouchableOpacity>
               </View>
               <View style={tw`flex-row items-center ml-1`}>
@@ -719,6 +720,7 @@ interface FormSectionHeaderProps {
 }
 
 function FormSectionHeader({ title, icon }: FormSectionHeaderProps) {
+  const { tw } = useTemaPersona();
   return (
     <View style={tw`flex-row items-center mb-4 ml-1`}>
       <View
@@ -747,6 +749,7 @@ function InputField({
   required,
   ...props
 }: InputFieldProps) {
+  const { tw } = useTemaPersona();
   return (
     <View style={tw`mb-5`}>
       <Text
@@ -787,6 +790,7 @@ function PhotoPickerField({
   onScan,
   isScanning,
 }: PhotoPickerFieldProps) {
+  const { tw } = useTemaPersona();
   return (
     <View>
       <Text

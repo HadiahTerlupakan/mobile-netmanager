@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { NavigasiTanggal } from '@/components/molecules/NavigasiTanggal';
 import { RUTE_CATAT_KEGIATAN } from '@/constants/rutePresurvei';
 import { useKegiatanHarian, useKegiatanMenungguKirim } from '@/hooks/queries/usePresurveiKegiatan';
@@ -12,6 +12,7 @@ import { KartuKegiatan } from './KartuKegiatan';
 
 /** Sub-tab Kegiatan: daftar per tanggal, termasuk yang masih menunggu/gagal kirim. */
 export function TabKegiatan() {
+  const { tw } = useTemaPersona();
   const router = useRouter();
   const [tanggal, setTanggal] = useState(() => new Date());
   const kegiatan = useKegiatanHarian(tanggal);
@@ -28,7 +29,7 @@ export function TabKegiatan() {
       <TouchableOpacity
         accessibilityRole="button"
         onPress={() => router.push(RUTE_CATAT_KEGIATAN)}
-        style={tw`mx-4 mb-3 bg-blue-600 rounded-xl py-3 items-center`}
+        style={tw`mx-4 mb-3 bg-utama-kuat rounded-xl py-3 items-center`}
       >
         <Text style={tw`text-white font-bold`}>Catat Kegiatan</Text>
       </TouchableOpacity>

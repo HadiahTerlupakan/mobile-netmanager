@@ -4,7 +4,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { Linking } from 'react-native';
 
 jest.mock('@/components/organisms/presurvei/PetaTitik', () => ({ PetaTitik: () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { BlokLokasiGps } from '@/components/organisms/presurvei/BlokLokasiGps';
 

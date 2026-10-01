@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { KepalaLayar } from '@/components/molecules/KepalaLayar';
 
 import type { LayarFormRencana as LogikaLayarFormRencana } from '@/hooks/presurvei/useLayarFormRencana';
@@ -24,6 +24,7 @@ interface LayarFormRencanaProps {
 
 /** Kerangka layar buat/ubah/tugaskan rencana: kepala, form, pemilih prospek, dan tombol simpan (online saja). */
 export function LayarFormRencana({ judul, labelSimpan, layar, kepalaForm }: LayarFormRencanaProps) {
+  const { tw } = useTemaPersona();
   const [isPilihProspekTerbuka, setIsPilihProspekTerbuka] = useState(false);
   const isBolehSimpan = layar.isOnline && !layar.isMenyimpan;
 
@@ -41,7 +42,7 @@ export function LayarFormRencana({ judul, labelSimpan, layar, kepalaForm }: Laya
           accessibilityState={{ disabled: !isBolehSimpan }}
           disabled={!isBolehSimpan}
           onPress={layar.simpan}
-          style={tw`rounded-xl py-3 items-center ${isBolehSimpan ? 'bg-blue-600' : 'bg-gray-400'}`}
+          style={tw`rounded-xl py-3 items-center ${isBolehSimpan ? 'bg-utama-kuat' : 'bg-gray-400'}`}
         >
           <Text style={tw`text-white font-bold`}>{layar.isMenyimpan ? 'Menyimpan…' : labelSimpan}</Text>
         </TouchableOpacity>

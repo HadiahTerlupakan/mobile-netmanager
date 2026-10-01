@@ -33,7 +33,7 @@ jest.mock('@/utils/errorPresenter', () => ({
   presentErrorMessage: (...a: unknown[]) => mockPesanGalat(...a),
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { FormTambahProspek, TEKS_ADA_ISIAN_SALAH, TEKS_PROSPEK_BUTUH_ONLINE } from '@/components/organisms/presurvei/FormTambahProspek';
 import { PESAN_ISIAN_PROSPEK } from '@/utils/presurvei/isianProspek';

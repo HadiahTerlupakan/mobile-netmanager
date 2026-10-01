@@ -38,6 +38,7 @@ Pelengkap:
 | Provider (Context) | `src/context/` (AuthContext, TenantContext, RealtimeProvider) |
 | Repository-ish | Services sebagai pintu akses data (belum dipisah eksplisit) |
 | Stale-while-revalidate | TanStack Query (`useApiQuery`) |
+| Tema per persona | `src/theme/` (`useTemaPersona()` → `tw` twrnc berkelas `utama-*` + `warna` hex); dipasang `TemaPersonaPenggunaProvider` di `app/_layout.tsx` |
 
 ## 3. Status penerapan — di mana masih bolong
 
@@ -82,4 +83,5 @@ Urutan disarankan (dari aman → berdampak):
 
 - Kerja di area lama? **Jangan tiru pola bypass** — pakai hook + service sesuai layer.
 - Ekstrak logic dari screen → `src/hooks/` (stateful/query) atau `src/services/`/`src/utils/` (pure/domain).
+- Warna identitas/aksen (tombol utama, tab aktif, tautan, chip terpilih, ikon aksen) **wajib** lewat `useTemaPersona()` — `bg-utama-kuat` untuk latar bertulisan putih & teks aksen, `utama` untuk ikon/garis, `utama-muda`/`utama-sangat-muda` untuk latar lembut. Jangan hardcode `bg-blue-600`/`#2563eb` (dijaga `__tests__/theme/penjagaWarnaIdentitas.test.ts`). Warna MAKNA (merah/hijau/kuning/abu, lencana status/predikat/jenis) tetap hardcode dan tidak ikut persona. `src/constants/theme.ts` hanya warna netral terang/gelap.
 - Behavior-preserving + verifikasi `npx tsc --noEmit` (0 error) + test di tiap langkah.

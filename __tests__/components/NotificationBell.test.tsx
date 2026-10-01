@@ -22,7 +22,7 @@ jest.mock('lucide-react-native', () => ({
   Bell: 'Bell',
 }));
 
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 describe('NotificationBell', () => {
   beforeEach(() => {

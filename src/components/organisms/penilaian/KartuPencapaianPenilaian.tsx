@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import type { PencapaianPenilaian } from '@/types/penilaian';
 import { barisTargetBeranda, TEKS_TARGET_BELUM_DITETAPKAN } from '@/utils/presurvei/berandaSales';
 import { lebarBilah } from '@/utils/presurvei/penilaianKinerja';
@@ -12,6 +12,7 @@ interface KartuPencapaianPenilaianProps {
 
 /** Pencapaian target periode (tercapai / target); target kosong ditulis apa adanya. */
 export function KartuPencapaianPenilaian({ pencapaian }: KartuPencapaianPenilaianProps) {
+  const { tw } = useTemaPersona();
   const daftar = barisTargetBeranda(pencapaian);
   return (
     <View style={tw`bg-white rounded-2xl p-4 mb-3 border border-gray-100`}>
@@ -26,7 +27,7 @@ export function KartuPencapaianPenilaian({ pencapaian }: KartuPencapaianPenilaia
               <Text style={tw`text-sm font-semibold text-gray-900`}>{`${baris.teks} · ${baris.persen}%`}</Text>
             </View>
             <View style={tw`h-2 bg-gray-100 rounded-full mt-1.5 overflow-hidden`}>
-              <View style={[tw`h-2 bg-blue-600 rounded-full`, { width: `${lebarBilah(baris.persen)}%` }]} />
+              <View style={[tw`h-2 bg-utama rounded-full`, { width: `${lebarBilah(baris.persen)}%` }]} />
             </View>
           </View>
         ))

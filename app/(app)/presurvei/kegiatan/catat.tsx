@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 import { KepalaLayar } from '@/components/molecules/KepalaLayar';
 
@@ -17,6 +17,7 @@ import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 
 /** Layar catat kegiatan presurvei (form satu halaman). */
 export default function CatatKegiatanScreen() {
+  const { tw } = useTemaPersona();
   const isDiizinkan = useFeatureGuard(AppFeature.PRESURVEI);
   const router = useRouter();
   const param = useLocalSearchParams<ParamCatatKegiatan>();
@@ -45,7 +46,7 @@ export default function CatatKegiatanScreen() {
       {/* Nonaktif selama menyimpan: hasilnya menutup layar ini (review akhir M4). */}
       <KepalaLayar judul={isLaporanRencana ? 'Laporkan Kunjungan' : 'Catat Kegiatan'} isKembaliNonaktif={layar.isMenyimpan} />
       {isLaporanRencana ? (
-        <Text style={tw`px-4 py-2 bg-blue-50 text-sm text-blue-700`}>
+        <Text style={tw`px-4 py-2 bg-utama-sangat-muda text-sm text-utama-gelap`}>
           Kegiatan ini dicatat sebagai laporan rencana kunjungan Anda.
         </Text>
       ) : null}
@@ -65,7 +66,7 @@ export default function CatatKegiatanScreen() {
           accessibilityState={{ disabled: layar.isMenyimpan }}
           disabled={layar.isMenyimpan}
           onPress={layar.simpan}
-          style={tw`rounded-xl py-3 items-center ${layar.isMenyimpan ? 'bg-gray-400' : 'bg-blue-600'}`}
+          style={tw`rounded-xl py-3 items-center ${layar.isMenyimpan ? 'bg-gray-400' : 'bg-utama-kuat'}`}
         >
           <Text style={tw`text-white font-bold`}>{layar.isMenyimpan ? 'Menyimpan…' : 'Simpan Kegiatan'}</Text>
         </TouchableOpacity>

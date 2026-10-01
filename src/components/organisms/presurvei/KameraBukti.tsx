@@ -1,8 +1,8 @@
 import { CameraView } from 'expo-camera';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { useKameraBukti } from '@/hooks/presurvei/useKameraBukti';
 
 interface KameraBuktiProps {
@@ -16,13 +16,14 @@ interface KameraBuktiProps {
  * G10 — komponen hanya merender).
  */
 export function KameraBukti({ onAmbil, onTutup }: KameraBuktiProps) {
+  const { tw } = useTemaPersona();
   const { kamera, isIzinDiberikan, isMemotret, mintaIzin, potret } = useKameraBukti(onAmbil);
 
   if (!isIzinDiberikan) {
     return (
       <View style={tw`flex-1 items-center justify-center bg-black p-6`}>
         <Text style={tw`text-white text-center mb-4`}>Aplikasi butuh izin kamera untuk foto bukti.</Text>
-        <TouchableOpacity accessibilityRole="button" onPress={mintaIzin} style={tw`bg-blue-600 rounded-xl px-5 py-3 mb-3`}>
+        <TouchableOpacity accessibilityRole="button" onPress={mintaIzin} style={tw`bg-utama-kuat rounded-xl px-5 py-3 mb-3`}>
           <Text style={tw`text-white font-bold`}>Izinkan Kamera</Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" onPress={onTutup}>

@@ -152,7 +152,7 @@ jest.mock('lucide-react-native', () => ({
   Square: 'Square',
   X: 'X',
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 jest.spyOn(Alert, 'alert').mockImplementation(jest.fn());
 

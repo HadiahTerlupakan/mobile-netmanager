@@ -1,7 +1,7 @@
 import { Check } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 /** Satu tombol pilihan besar. */
 export interface OpsiTombolBesar<T extends string> {
@@ -32,6 +32,7 @@ const BARIS_LABEL_KISI = 2;
  * penuh dengan tanda centang, supaya jelas tanpa harus membaca teks.
  */
 export function TombolPilihanBesar<T extends string>({ opsi, terpilih, onPilih, jumlahKolom }: TombolPilihanBesarProps<T>) {
+  const { tw } = useTemaPersona();
   const isKisi = jumlahKolom !== undefined;
   const gayaSelKisi = isKisi ? [tw`p-1`, { width: `${PERSEN_PENUH / jumlahKolom}%` as const }] : undefined;
 
@@ -48,7 +49,7 @@ export function TombolPilihanBesar<T extends string>({ opsi, terpilih, onPilih, 
     return (
       <View style={tw`flex-shrink items-center`}>
         {label}
-        <Text style={tw`text-xs text-center mt-0.5 ${isTerpilih ? 'text-blue-100' : 'text-gray-500'}`}>{pilihan.keterangan}</Text>
+        <Text style={tw`text-xs text-center mt-0.5 ${isTerpilih ? 'text-utama-muda' : 'text-gray-500'}`}>{pilihan.keterangan}</Text>
       </View>
     );
   };
@@ -64,7 +65,7 @@ export function TombolPilihanBesar<T extends string>({ opsi, terpilih, onPilih, 
         accessibilityState={{ selected: isTerpilih }}
         onPress={() => onPilih(pilihan.nilai)}
         style={tw`${isKisi ? 'flex-grow' : 'flex-1 mx-1'} min-h-12 px-2 py-3 rounded-xl border-2 flex-row items-center justify-center ${
-          isTerpilih ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'
+          isTerpilih ? 'bg-utama-kuat border-utama-kuat' : 'bg-white border-gray-300'
         }`}
       >
         {isTerpilih ? <Check size={UKURAN_IKON_CENTANG} color="white" style={tw`mr-1`} /> : null}

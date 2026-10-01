@@ -1,8 +1,8 @@
 import { MapPin } from 'lucide-react-native';
 import React from 'react';
 import { ActivityIndicator, Text, TouchableOpacity } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { KartuFormulir } from '@/components/atoms/KartuFormulir';
 import { IsianTeks } from '@/components/molecules/IsianTeks';
 import { JudulIsian } from '@/components/molecules/JudulIsian';
@@ -10,7 +10,6 @@ import { TEKS_LOKASI_PROSPEK, type StatusLokasiProspek } from '@/hooks/presurvei
 import { PANJANG_ALAMAT_PROSPEK_MAKS } from '@/utils/presurvei/isianProspek';
 
 const UKURAN_IKON = 20;
-const WARNA_IKON = '#1d4ed8';
 const BARIS_ISIAN_ALAMAT = 3;
 
 /** Warna teks status lokasi per keadaan. */
@@ -37,6 +36,7 @@ interface BagianAlamatProspekProps {
  * cukup menulis alamatnya.
  */
 export function BagianAlamatProspek({ judul, alamat, kesalahan, statusLokasi, onUbah, onPakaiLokasi }: BagianAlamatProspekProps) {
+  const { tw, warna } = useTemaPersona();
   const isMencari = statusLokasi === 'mencari';
   const teksStatus = TEKS_LOKASI_PROSPEK[statusLokasi];
   return (
@@ -59,10 +59,10 @@ export function BagianAlamatProspek({ judul, alamat, kesalahan, statusLokasi, on
         accessibilityState={{ disabled: isMencari, busy: isMencari }}
         disabled={isMencari}
         onPress={onPakaiLokasi}
-        style={tw`flex-row items-center justify-center min-h-12 border-2 border-blue-300 bg-blue-50 rounded-xl py-3`}
+        style={tw`flex-row items-center justify-center min-h-12 border-2 border-utama-pucat bg-utama-sangat-muda rounded-xl py-3`}
       >
-        {isMencari ? <ActivityIndicator color={WARNA_IKON} /> : <MapPin size={UKURAN_IKON} color={WARNA_IKON} />}
-        <Text style={tw`ml-2 text-base font-semibold text-blue-700`}>Pakai lokasi saya sekarang</Text>
+        {isMencari ? <ActivityIndicator color={warna.utamaGelap} /> : <MapPin size={UKURAN_IKON} color={warna.utamaGelap} />}
+        <Text style={tw`ml-2 text-base font-semibold text-utama-gelap`}>Pakai lokasi saya sekarang</Text>
       </TouchableOpacity>
       {teksStatus !== '' ? (
         <Text accessibilityLiveRegion="polite" style={tw`mt-2 text-sm font-semibold ${WARNA_STATUS_LOKASI[statusLokasi]}`}>

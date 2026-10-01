@@ -9,7 +9,7 @@ import {
 } from 'lucide-react-native';
 import React from 'react';
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 interface DiscussionTimelineItem extends WorkOrderUpdate {
   isPhoto?: boolean;
@@ -45,6 +45,7 @@ export const DiscussionTab = React.memo(function DiscussionTab({
   user,
   discussionTimeline,
 }: DiscussionTabProps) {
+  const { tw } = useTemaPersona();
   return (
     <View style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}>
       {/* Readonly Banner */}
@@ -103,7 +104,7 @@ export const DiscussionTab = React.memo(function DiscussionTab({
           <TouchableOpacity
             onPress={() => canInteract && handleUpdateActivity()}
             disabled={isProcessingActivity || !canInteract}
-            style={tw`px-6 py-3 rounded-xl items-center justify-center shadow-sm ${canInteract ? "bg-blue-600" : "bg-gray-300"}`}
+            style={tw`px-6 py-3 rounded-xl items-center justify-center shadow-sm ${canInteract ? "bg-utama-kuat" : "bg-gray-300"}`}
           >
             {isProcessingActivity ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -155,7 +156,7 @@ export const DiscussionTab = React.memo(function DiscussionTab({
                   style={tw`rounded-2xl overflow-hidden ${isPhoto
                     ? ""
                     : isMe
-                      ? "bg-blue-600 rounded-tr-none px-4 py-2.5"
+                      ? "bg-utama-kuat rounded-tr-none px-4 py-2.5"
                       : "bg-gray-100 rounded-tl-none px-4 py-2.5"
                     }`}
                 >

@@ -1,30 +1,22 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Warna NETRAL mode terang/gelap (teks, latar, ikon, skeleton). Warna
+ * identitas/aksen (tombol utama, tab aktif, tautan) TIDAK di sini, melainkan
+ * di `@/theme` (`useTemaPersona`) karena berbeda per persona.
  */
 
 import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
     text: '#11181C',
     background: '#fff',
-    tint: tintColorLight,
     icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
     skeleton: '#E1E9EE',
   },
   dark: {
     text: '#ECEDEE',
     background: '#151718',
-    tint: tintColorDark,
     icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
     skeleton: '#2C2C2E',
   },
 };

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { LABEL_STATUS_PROSPEK } from '@/constants/presurvei';
 import { useCariProspek } from '@/hooks/presurvei/useCariProspek';
@@ -33,6 +33,7 @@ interface KepalaModalProps {
 
 /** Judul modal dengan tombol tutup/batal di kanan. */
 function KepalaModal({ judul, labelTutup, onTutup }: KepalaModalProps) {
+  const { tw } = useTemaPersona();
   return (
     <View style={tw`flex-row items-center justify-between mb-3 px-4`}>
       <Text style={tw`text-lg font-bold text-gray-900`}>{judul}</Text>
@@ -40,9 +41,9 @@ function KepalaModal({ judul, labelTutup, onTutup }: KepalaModalProps) {
         accessibilityRole="button"
         onPress={onTutup}
         hitSlop={PERLUASAN_SENTUH}
-        style={tw`px-3 py-1.5 bg-blue-50 rounded-full`}
+        style={tw`px-3 py-1.5 bg-utama-sangat-muda rounded-full`}
       >
-        <Text style={tw`text-blue-600 font-semibold`}>{labelTutup}</Text>
+        <Text style={tw`text-utama-kuat font-semibold`}>{labelTutup}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -50,6 +51,7 @@ function KepalaModal({ judul, labelTutup, onTutup }: KepalaModalProps) {
 
 /** Daftar prospek milik sendiri dengan pencarian; dipasang hanya selama mode daftar. */
 function DaftarPilihProspek({ onPilih }: Pick<PilihProspekModalProps, 'onPilih'>) {
+  const { tw } = useTemaPersona();
   const { cari, setCari, prospek, keadaan, muatBerikutnya, muatUlang } = useCariProspek();
   const isGagal = keadaan === 'offline' || keadaan === 'galat';
   return (
@@ -101,6 +103,7 @@ function DaftarPilihProspek({ onPilih }: Pick<PilihProspekModalProps, 'onPilih'>
  * dengan form tambah; prospek yang tersimpan langsung dipilih.
  */
 export function PilihProspekModal({ onTutup, onPilih }: PilihProspekModalProps) {
+  const { tw } = useTemaPersona();
   const [isTambahTerbuka, setIsTambahTerbuka] = useState(false);
   // Modal layar penuh digambar sampai ke bawah status bar (Android edge-to-edge):
   // tanpa inset, tombol Tutup berada di area status bar dan tidak bisa diketuk.

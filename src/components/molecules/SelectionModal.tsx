@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import React, { useMemo, useState, useCallback, memo } from 'react';
 import { ActivityIndicator, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 interface SelectionItem<T = unknown> {
     id: string;
@@ -37,30 +37,33 @@ const SelectionItemRow = memo(({
     onSelect: (item: SelectionItem<any>) => void;
     onClose: () => void;
     setSearchQuery: (q: string) => void;
-}) => (
-    <TouchableOpacity
-        style={tw`flex-row items-center p-4 border-b border-gray-100 ${isSelected ? 'bg-blue-50' : 'bg-white'}`}
-        onPress={() => {
-            onSelect(item);
-            onClose();
-            setSearchQuery('');
-        }}
-    >
-        <View style={tw`flex-1`}>
-            <Text style={tw`text-base font-medium ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
-                {item.label}
-            </Text>
-            {item.subLabel && (
-                <Text style={tw`text-sm text-gray-500 mt-0.5`}>
-                    {item.subLabel}
+}) => {
+    const { tw, warna } = useTemaPersona();
+    return (
+        <TouchableOpacity
+            style={tw`flex-row items-center p-4 border-b border-gray-100 ${isSelected ? 'bg-utama-sangat-muda' : 'bg-white'}`}
+            onPress={() => {
+                onSelect(item);
+                onClose();
+                setSearchQuery('');
+            }}
+        >
+            <View style={tw`flex-1`}>
+                <Text style={tw`text-base font-medium ${isSelected ? 'text-utama-gelap' : 'text-gray-900'}`}>
+                    {item.label}
                 </Text>
+                {item.subLabel && (
+                    <Text style={tw`text-sm text-gray-500 mt-0.5`}>
+                        {item.subLabel}
+                    </Text>
+                )}
+            </View>
+            {isSelected && (
+                <Ionicons name="checkmark-circle" size={24} color={warna.utamaTerang} />
             )}
-        </View>
-        {isSelected && (
-            <Ionicons name="checkmark-circle" size={24} color="#3B82F6" />
-        )}
-    </TouchableOpacity>
-));
+        </TouchableOpacity>
+    );
+});
 SelectionItemRow.displayName = 'SelectionItemRow';
 
 export default function SelectionModal<T = unknown>({
@@ -75,6 +78,7 @@ export default function SelectionModal<T = unknown>({
     emptyText = 'Data tidak ditemukan',
     compareBy,
 }: SelectionModalProps<T>) {
+    const { tw, warna } = useTemaPersona();
     const [searchQuery, setSearchQuery] = useState('');
 
     const filteredItems = useMemo(() => {
@@ -144,7 +148,7 @@ export default function SelectionModal<T = unknown>({
                     {/* Content */}
                     {loading ? (
                         <View style={tw`flex-1 items-center justify-center`}>
-                            <ActivityIndicator size="large" color="#3B82F6" />
+                            <ActivityIndicator size="large" color={warna.utamaTerang} />
                             <Text style={tw`mt-4 text-gray-500`}>Memuat data...</Text>
                         </View>
                     ) : filteredItems.length === 0 ? (

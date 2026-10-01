@@ -33,7 +33,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import tw from "twrnc";
+import { useTemaPersona } from '@/theme';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
 
@@ -78,6 +78,7 @@ interface WorkOrder {
 
 // Memoized List Item
 const BarangItem = React.memo(({ item, onAdd }: { item: Barang, onAdd: (barang: Barang, kondisi: "BARU" | "BEKAS" | "RUSAK") => void }) => {
+  const { tw } = useTemaPersona();
   const hasStock = item.stokBaru > 0 || item.stokBekas > 0 || item.stokRusak > 0;
 
   return (
@@ -125,6 +126,7 @@ BarangItem.displayName = 'BarangItem';
 
 // Memoized Selected Item
 const SelectedBarangItem = React.memo(({ item, onUpdate }: { item: SelectedItem, onUpdate: (delta: number) => void }) => {
+  const { tw } = useTemaPersona();
   return (
     <View style={tw`flex-row items-center justify-between p-3 border-b border-gray-50 last:border-0`}>
       <View style={tw`flex-1`}>
@@ -153,6 +155,7 @@ const SelectedBarangItem = React.memo(({ item, onUpdate }: { item: SelectedItem,
 SelectedBarangItem.displayName = 'SelectedBarangItem';
 
 export default function AmbilBarangScreen() {
+  const { tw, warna } = useTemaPersona();
   useFeatureGuard(AppFeature.BARANG);
 
   const router = useRouter();
@@ -337,7 +340,7 @@ export default function AmbilBarangScreen() {
         <Text style={tw`text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide`}>Gudang Sumber</Text>
         <TouchableOpacity onPress={() => setShowGudangModal(true)} style={tw`flex-row items-center justify-between px-4 py-3 bg-white border border-gray-300 rounded-xl`}>
           <View style={tw`flex-row items-center gap-3`}>
-            <View style={tw`w-8 h-8 rounded-full bg-blue-100 items-center justify-center`}><Package size={16} color="#2563eb" /></View>
+            <View style={tw`w-8 h-8 rounded-full bg-utama-muda items-center justify-center`}><Package size={16} color={warna.utama} /></View>
             <View>
               <Text style={tw`font-bold text-gray-900 text-sm`}>{selectedGudang ? gudangs.find((g) => g.id === selectedGudang)?.nama : "Pilih Gudang"}</Text>
               <Text style={tw`text-xs text-gray-500`}>{selectedGudang ? gudangs.find((g) => g.id === selectedGudang)?.lokasi || "Lokasi tidak tersedia" : "Ketuk untuk memilih"}</Text>
@@ -353,20 +356,20 @@ export default function AmbilBarangScreen() {
             <Search size={20} color="#9ca3af" />
             <TextInput style={tw`flex-1 ml-2 text-base h-10`} placeholder="Cari barang..." value={search} onChangeText={setSearch} />
           </View>
-          <TouchableOpacity onPress={() => setShowAllItems(!showAllItems)} style={tw`w-11 h-11 items-center justify-center rounded-xl border ${showAllItems ? "bg-blue-50 border-blue-200" : "bg-white border-gray-200"}`}><Filter size={20} color={showAllItems ? "#2563eb" : "#6b7280"} /></TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowAllItems(!showAllItems)} style={tw`w-11 h-11 items-center justify-center rounded-xl border ${showAllItems ? "bg-utama-sangat-muda border-utama-garis" : "bg-white border-gray-200"}`}><Filter size={20} color={showAllItems ? warna.utama : "#6b7280"} /></TouchableOpacity>
         </View>
       </View>
 
       {selectedItems.length > 0 && (
-        <View style={tw`mx-4 mb-4 bg-white rounded-xl border border-blue-100 shadow-sm overflow-hidden`}>
-          <View style={tw`bg-blue-50 px-4 py-3 border-b border-blue-100 flex-row justify-between items-center`}><Text style={tw`font-semibold text-blue-900`}>Keranjang ({selectedItems.length})</Text><TouchableOpacity onPress={() => setSelectedItems([])}><Text style={tw`text-xs text-red-600 font-medium`}>Hapus Semua</Text></TouchableOpacity></View>
+        <View style={tw`mx-4 mb-4 bg-white rounded-xl border border-utama-muda shadow-sm overflow-hidden`}>
+          <View style={tw`bg-utama-sangat-muda px-4 py-3 border-b border-utama-muda flex-row justify-between items-center`}><Text style={tw`font-semibold text-utama-pekat`}>Keranjang ({selectedItems.length})</Text><TouchableOpacity onPress={() => setSelectedItems([])}><Text style={tw`text-xs text-red-600 font-medium`}>Hapus Semua</Text></TouchableOpacity></View>
           <View style={tw`p-2`}>{selectedItems.map((item, idx) => (<SelectedBarangItem key={`${item.barangId}-${item.kondisi}`} item={item} onUpdate={(delta) => updateQuantity(idx, delta)} />))}</View>
         </View>
       )}
 
       <View style={tw`px-4 mb-2`}><Text style={tw`text-xs font-semibold text-gray-500 uppercase tracking-wide`}>Daftar Barang</Text></View>
     </View>
-  ), [router, selectedItems, selectedGudang, gudangs, search, showAllItems, updateQuantity]);
+  ), [router, selectedItems, selectedGudang, gudangs, search, showAllItems, updateQuantity, tw, warna.utama]);
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={["top"]}>
@@ -376,13 +379,13 @@ export default function AmbilBarangScreen() {
         keyExtractor={(item: Barang) => item.id}
         ListHeaderComponent={ListHeader}
         contentContainerStyle={tw`pb-32`}
-        refreshControl={<RefreshControl refreshing={loadingBarangNet} onRefresh={refetchBarang} tintColor="#2563eb" />}
+        refreshControl={<RefreshControl refreshing={loadingBarangNet} onRefresh={refetchBarang} tintColor={warna.utamaKuat} />}
         ListEmptyComponent={!loadingBarangNet ? (<View style={tw`py-10 items-center`}><Package size={32} color="#d1d5db" /><Text style={tw`text-sm text-gray-400 mt-2`}>Barang tidak ditemukan</Text></View>) : null}
       />
 
       {selectedItems.length > 0 && (
         <View style={tw`absolute bottom-0 left-0 right-0 bg-white p-4 border-t border-gray-200 shadow-2xl`}>
-          <TouchableOpacity onPress={handleSubmit} disabled={submitting} style={tw`bg-blue-600 rounded-xl py-3.5 flex-row items-center justify-center gap-2`}><Check size={20} color="white" /><Text style={tw`text-white font-bold text-base`}>Ambil Barang ({selectedItems.reduce((a, b) => a + b.jumlah, 0)})</Text></TouchableOpacity>
+          <TouchableOpacity onPress={handleSubmit} disabled={submitting} style={tw`bg-utama-kuat rounded-xl py-3.5 flex-row items-center justify-center gap-2`}><Check size={20} color="white" /><Text style={tw`text-white font-bold text-base`}>Ambil Barang ({selectedItems.reduce((a, b) => a + b.jumlah, 0)})</Text></TouchableOpacity>
         </View>
       )}
 
@@ -396,7 +399,7 @@ export default function AmbilBarangScreen() {
                 data={gudangs.filter((g) => g.nama.toLowerCase().includes(gudangSearch.toLowerCase()))}
                 keyExtractor={(item: Gudang) => item.id}
                 renderItem={({ item }: { item: Gudang }) => (
-                  <TouchableOpacity onPress={() => { if (selectedItems.length > 0 && selectedGudang !== item.id) { Alert.alert("Konfirmasi", "Ganti gudang akan menghapus item terpilih. Lanjutkan?", [{ text: "Batal", style: "cancel" }, { text: "Ya", onPress: () => { setSelectedItems([]); setSelectedGudang(item.id); setShowGudangModal(false); } }]); } else { setSelectedGudang(item.id); setShowGudangModal(false); } }} style={tw`flex-row items-center justify-between p-4 mb-2 rounded-xl border ${selectedGudang === item.id ? "bg-blue-50 border-blue-200" : "bg-white border-gray-100"}`}><View><Text style={tw`font-bold text-gray-900 ${selectedGudang === item.id ? "text-blue-700" : ""}`}>{item.nama}</Text><Text style={tw`text-xs text-gray-500 mt-0.5`}>{item.lokasi}</Text></View>{selectedGudang === item.id && <CheckCircle size={20} color="#2563eb" />}</TouchableOpacity>
+                  <TouchableOpacity onPress={() => { if (selectedItems.length > 0 && selectedGudang !== item.id) { Alert.alert("Konfirmasi", "Ganti gudang akan menghapus item terpilih. Lanjutkan?", [{ text: "Batal", style: "cancel" }, { text: "Ya", onPress: () => { setSelectedItems([]); setSelectedGudang(item.id); setShowGudangModal(false); } }]); } else { setSelectedGudang(item.id); setShowGudangModal(false); } }} style={tw`flex-row items-center justify-between p-4 mb-2 rounded-xl border ${selectedGudang === item.id ? "bg-utama-sangat-muda border-utama-garis" : "bg-white border-gray-100"}`}><View><Text style={tw`font-bold text-gray-900 ${selectedGudang === item.id ? "text-utama-gelap" : ""}`}>{item.nama}</Text><Text style={tw`text-xs text-gray-500 mt-0.5`}>{item.lokasi}</Text></View>{selectedGudang === item.id && <CheckCircle size={20} color={warna.utama} />}</TouchableOpacity>
                 )}
               />
             </View>

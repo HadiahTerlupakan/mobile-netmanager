@@ -29,7 +29,7 @@ jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const LAPORAN = {
   id: 'k-1', jenis: 'KUNJUNGAN', userId: 's-1', namaSales: null, peranPelaku: null, departemenPelaku: null,

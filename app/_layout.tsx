@@ -1,6 +1,7 @@
 import { EnvironmentIndicator } from "@/components/atoms/EnvironmentIndicator";
 import { ErrorBoundary } from "@/components/atoms/ErrorBoundary";
 import { UpdateAvailableModal } from "@/components/molecules/UpdateAvailableModal";
+import { TemaPersonaPenggunaProvider } from "@/components/providers/TemaPersonaPenggunaProvider";
 import { UpdateRequiredScreen } from "@/components/templates/UpdateRequiredScreen";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { RealtimeProvider } from "@/context/RealtimeProvider";
@@ -145,13 +146,15 @@ export default function RootLayout() {
     <ErrorBoundary>
       <TenantProvider>
         <AuthProvider>
-          <PersistQueryClientProvider
-            client={queryClient}
-            persistOptions={{ persister: asyncStoragePersister }}
-          >
-            <RootLayoutNav />
-            <Toast config={toastConfig} position="top" topOffset={50} />
-          </PersistQueryClientProvider>
+          <TemaPersonaPenggunaProvider>
+            <PersistQueryClientProvider
+              client={queryClient}
+              persistOptions={{ persister: asyncStoragePersister }}
+            >
+              <RootLayoutNav />
+              <Toast config={toastConfig} position="top" topOffset={50} />
+            </PersistQueryClientProvider>
+          </TemaPersonaPenggunaProvider>
         </AuthProvider>
       </TenantProvider>
     </ErrorBoundary>

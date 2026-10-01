@@ -11,13 +11,14 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
 
 type FilterType = 'all' | 'masuk' | 'keluar';
 
 export default function RiwayatBarangScreen() {
+  const { tw, warna } = useTemaPersona();
   useFeatureGuard(AppFeature.BARANG);
 
     const router = useRouter();
@@ -89,17 +90,17 @@ export default function RiwayatBarangScreen() {
         if (!isFetchingNextPage) return <View style={tw`h-6`} />;
         return (
             <View style={tw`py-4 items-center`}>
-                <ActivityIndicator size="small" color="#3B82F6" />
+                <ActivityIndicator size="small" color={warna.utamaTerang} />
             </View>
         );
-    }, [isFetchingNextPage]);
+    }, [isFetchingNextPage, tw, warna.utamaTerang]);
 
     const EmptyComponent = useMemo(() => (
         <View style={tw`py-12 items-center`}>
              <Ionicons name="document-text-outline" size={48} color="#9CA3AF" />
              <Text style={tw`text-gray-500 mt-2`}>Belum ada transaksi</Text>
         </View>
-    ), []);
+    ), [tw]);
 
     return (
         <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
@@ -122,7 +123,7 @@ export default function RiwayatBarangScreen() {
                         <TouchableOpacity
                             key={btn.value}
                             onPress={() => setFilter(btn.value)}
-                            style={tw`flex-1 py-2 px-3 rounded-lg ${filter === btn.value ? 'bg-blue-600' : 'bg-gray-100'}`}
+                            style={tw`flex-1 py-2 px-3 rounded-lg ${filter === btn.value ? 'bg-utama-kuat' : 'bg-gray-100'}`}
                         >
                             <Text style={tw`text-sm font-semibold text-center ${filter === btn.value ? 'text-white' : 'text-gray-600'}`}>
                                 {btn.label}

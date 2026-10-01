@@ -25,6 +25,7 @@ import type { BottomTabBarProps, BottomTabNavigationOptions } from '@react-navig
 import { AppFeature } from "@/constants/features";
 import { RUTE_LAYAR_TERSEMBUNYI } from "@/constants/ruteLayarTersembunyi";
 import { useAuth } from "@/context/AuthContext";
+import { useTemaPersona } from "@/theme";
 import { useProfileSync } from "@/hooks/useProfileSync";
 import { isRouteAllowedDuringLeave } from '@/utils/leaveAccess';
 import { logger } from "@/utils/logger";
@@ -37,7 +38,6 @@ const OPSI_TERSEMBUNYI = { href: null } as const;
 /** Opsi route tersembunyi layar penuh: tab bar ikut disembunyikan. */
 const OPSI_LAYAR_PENUH = { href: null, tabBarStyle: { display: "none" } } as const;
 
-/** Tab bar per persona; `undefined` = tab bar bawaan (teknisi karyawan, tidak berubah). */
 /**
  * Judul & ikon route tersembunyi yang tampil sebagai tab di tab bar kustom
  * (`TombolTabPersona` membacanya dari opsi layar). Chat = tab staff.
@@ -57,16 +57,17 @@ const OPSI_RUTE_TERSEMBUNYI = RUTE_LAYAR_TERSEMBUNYI.map(({ nama, isLayarPenuh }
 
 const tabBarStaff = (props: BottomTabBarProps) => <KaryawanStaffTabBar {...props} />;
 
+/** Tab bar per persona; `undefined` = tab bar bawaan (teknisi karyawan, tidak berubah). */
 const TAB_BAR_PER_PERSONA: Record<Persona, ((props: BottomTabBarProps) => React.ReactNode) | undefined> = {
-  KARYAWAN_SALES: (props) => <KaryawanSalesTabBar {...props} />,
   KARYAWAN_STAFF: tabBarStaff,
+  KARYAWAN_SALES: (props) => <KaryawanSalesTabBar {...props} />,
   KARYAWAN_TEKNISI: undefined,
-  MITRA_SALES: (props) => <MitraSalesTabBar {...props} />,
   // SEMENTARA: Finance & Direktur memakai tab bar Staff sampai tampilan
   // khususnya dibuat (docs/architecture/persona-pengguna-design.md §3 langkah 5).
   // Persona tetap terpisah supaya nanti cukup mengganti baris ini.
   KARYAWAN_FINANCE: tabBarStaff,
   KARYAWAN_DIREKTUR: tabBarStaff,
+  MITRA_SALES: (props) => <MitraSalesTabBar {...props} />,
   MITRA_TEKNISI: (props) => <MitraTeknisiTabBar {...props} />,
 };
 
@@ -74,6 +75,7 @@ export default function AppLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const { warna } = useTemaPersona();
 
   // This hook ensures Profile Data is background-synced on App Load/Active
   const { profileData } = useProfileSync({ enableBackgroundSync: true });
@@ -182,7 +184,7 @@ export default function AppLayout() {
             paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
             paddingTop: 10,
           },
-          tabBarActiveTintColor: "#2563eb", // blue-600
+          tabBarActiveTintColor: warna.utamaKuat,
           tabBarInactiveTintColor: "#9ca3af", // gray-400
           tabBarLabelStyle: tw`text-xs font-medium mb-1`,
         }}

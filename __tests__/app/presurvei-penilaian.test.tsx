@@ -23,7 +23,7 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { buatHasilUji, buatKepalaUji, buatSalesUji } from '../fixtures/presurvei/penilaian';
 import PenilaianKinerjaScreen from '../../app/(app)/presurvei/penilaian';

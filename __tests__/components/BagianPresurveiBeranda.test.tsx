@@ -31,7 +31,7 @@ jest.mock('@/components/organisms/dashboard/BagianKinerjaBeranda', () => {
   };
 });
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { buatRencanaUji } from '../fixtures/presurvei/rencana';
 import { BagianPresurveiBeranda, TEKS_PRESURVEI_BELUM_AKTIF } from '@/components/organisms/dashboard/BagianPresurveiBeranda';

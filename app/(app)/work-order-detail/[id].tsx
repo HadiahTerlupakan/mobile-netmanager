@@ -58,9 +58,10 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import tw from "twrnc";
+import { useTemaPersona } from "@/theme";
 
 export default function WorkOrderDetailScreen() {
+  const { tw, warna } = useTemaPersona();
   useFeatureGuard(AppFeature.WORK_ORDER);
 
   const { id } = useLocalSearchParams();
@@ -546,14 +547,14 @@ export default function WorkOrderDetailScreen() {
           <TouchableOpacity
             key={tab.key}
             onPress={() => setActiveTab(tab.key)}
-            style={tw`flex-1 flex-row items-center justify-center py-3 border-b-2 ${activeTab === tab.key ? "border-blue-600" : "border-transparent"}`}
+            style={tw`flex-1 flex-row items-center justify-center py-3 border-b-2 ${activeTab === tab.key ? "border-utama" : "border-transparent"}`}
           >
             <tab.icon
               size={16}
-              color={activeTab === tab.key ? "#2563eb" : "#6b7280"}
+              color={activeTab === tab.key ? warna.utama : "#6b7280"}
               style={tw`mr-2`}
             />
-            <Text style={tw`text-sm font-medium ${activeTab === tab.key ? "text-blue-600" : "text-gray-500"}`}>
+            <Text style={tw`text-sm font-medium ${activeTab === tab.key ? "text-utama-kuat" : "text-gray-500"}`}>
               {tab.label}
             </Text>
           </TouchableOpacity>
@@ -563,11 +564,11 @@ export default function WorkOrderDetailScreen() {
       {/* Role Indicator Banner */}
       {(isAssignedToMe || isApprovedPartner) && !isMitraTeknisi && (
         <View
-          style={tw`px-4 py-2 ${isAssignedToMe ? 'bg-blue-50 border-b border-blue-100' : 'bg-indigo-50 border-b border-indigo-100'}`}
+          style={tw`px-4 py-2 ${isAssignedToMe ? 'bg-utama-sangat-muda border-b border-utama-muda' : 'bg-indigo-50 border-b border-indigo-100'}`}
         >
           <View style={tw`flex-row items-center justify-center`}>
-            <User size={14} color={isAssignedToMe ? '#2563eb' : '#6366f1'} style={tw`mr-1.5`} />
-            <Text style={tw`text-xs font-bold ${isAssignedToMe ? 'text-blue-700' : 'text-indigo-700'}`}>
+            <User size={14} color={isAssignedToMe ? warna.utama : '#6366f1'} style={tw`mr-1.5`} />
+            <Text style={tw`text-xs font-bold ${isAssignedToMe ? 'text-utama-gelap' : 'text-indigo-700'}`}>
               {isAssignedToMe ? 'Anda adalah Lead Teknisi' : 'Anda adalah Partner'}
             </Text>
           </View>
@@ -718,7 +719,7 @@ export default function WorkOrderDetailScreen() {
               <TouchableOpacity
                 onPress={() => handleUpdateStatus("START")}
                 disabled={actionLoading || isProcessingStatus}
-                style={tw`bg-blue-600 py-3.5 rounded-xl items-center flex-row justify-center shadow-sm`}
+                style={tw`bg-utama-kuat py-3.5 rounded-xl items-center flex-row justify-center shadow-sm`}
               >
                 <Play size={20} color="white" style={tw`mr-2`} />
                 <Text style={tw`font-bold text-white`}>Mulai Pekerjaan</Text>
@@ -753,7 +754,7 @@ export default function WorkOrderDetailScreen() {
               <TouchableOpacity
                 onPress={() => handleUpdateStatus("START")}
                 disabled={actionLoading || isProcessingStatus}
-                style={tw`bg-blue-600 py-3.5 rounded-xl items-center flex-row justify-center shadow-sm`}
+                style={tw`bg-utama-kuat py-3.5 rounded-xl items-center flex-row justify-center shadow-sm`}
               >
                 <Play size={20} color="white" style={tw`mr-2`} />
                 <Text style={tw`font-bold text-white`}>Lanjutkan Pekerjaan</Text>

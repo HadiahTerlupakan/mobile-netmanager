@@ -1,7 +1,7 @@
 import { MapPin, Phone, User } from 'lucide-react-native';
 import React, { memo } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View, Linking } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 interface AvailableWorkOrderListItemProps {
     item: {
@@ -27,6 +27,7 @@ interface AvailableWorkOrderListItemProps {
 }
 
 const AvailableWorkOrderListItem = memo(({ item, onClaim, isClaiming }: AvailableWorkOrderListItemProps) => {
+    const { tw, warna } = useTemaPersona();
     const handlePhonePress = () => {
         const phone = item.contactPhone || item.pelanggan?.noTelp;
         if (phone) {
@@ -52,7 +53,7 @@ const AvailableWorkOrderListItem = memo(({ item, onClaim, isClaiming }: Availabl
     };
 
     return (
-        <View style={tw`bg-white mt-3 p-4 rounded-xl shadow-sm border border-blue-100`}>
+        <View style={tw`bg-white mt-3 p-4 rounded-xl shadow-sm border border-utama-muda`}>
             {/* Header: WO Number & Status */}
             <View style={tw`flex-row justify-between items-start mb-2`}>
                 <Text style={tw`font-bold text-gray-800`}>
@@ -89,8 +90,8 @@ const AvailableWorkOrderListItem = memo(({ item, onClaim, isClaiming }: Availabl
                     onPress={handlePhonePress}
                     style={tw`flex-row items-center mb-2`}
                 >
-                    <Phone size={14} color="#2563eb" style={tw`mr-2`} />
-                    <Text style={tw`text-sm text-blue-600 font-medium`}>
+                    <Phone size={14} color={warna.utama} style={tw`mr-2`} />
+                    <Text style={tw`text-sm text-utama-kuat font-medium`}>
                         {item.contactPhone || item.pelanggan?.noTelp}
                     </Text>
                 </TouchableOpacity>
@@ -133,7 +134,7 @@ const AvailableWorkOrderListItem = memo(({ item, onClaim, isClaiming }: Availabl
                 <TouchableOpacity
                     onPress={() => onClaim(item.id)}
                     disabled={isClaiming}
-                    style={tw`bg-blue-600 px-4 py-2 rounded-lg ${isClaiming ? "opacity-50" : ""}`}
+                    style={tw`bg-utama-kuat px-4 py-2 rounded-lg ${isClaiming ? "opacity-50" : ""}`}
                 >
                     {isClaiming ? (
                         <ActivityIndicator size="small" color="white" />

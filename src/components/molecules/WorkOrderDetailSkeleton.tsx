@@ -2,9 +2,10 @@ import React from 'react';
 import { View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Skeleton } from '@/components/atoms/Skeleton';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 export const WorkOrderDetailSkeleton = () => {
+  const { tw } = useTemaPersona();
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
       {/* Header Skeleton */}
@@ -65,7 +66,7 @@ export const WorkOrderDetailSkeleton = () => {
             <Skeleton width={100} height={12} />
             <Skeleton width={60} height={12} />
           </View>
-          <View style={tw`flex-row items-center bg-blue-50 p-2 rounded-lg`}>
+          <View style={tw`flex-row items-center bg-utama-sangat-muda p-2 rounded-lg`}>
             <Skeleton width={32} height={32} borderRadius={16} style={tw`mr-3`} />
             <View style={tw`flex-1 gap-1`}>
               <Skeleton width={120} height={14} />

@@ -2,8 +2,8 @@ import { useRouter } from 'expo-router';
 import { Plus } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { NavigasiTanggal } from '@/components/molecules/NavigasiTanggal';
 import { SegmenPilihan } from '@/components/molecules/SegmenPilihan';
 import { ruteBuatRencana, ruteRincianRencana, ruteTugaskanRencana } from '@/constants/rutePresurvei';
@@ -45,6 +45,7 @@ interface BagianTerlewatProps {
 
 /** Rencana yang tanggalnya lewat tapi belum dilaporkan, apa pun tanggal yang sedang dilihat. */
 function BagianTerlewat({ rencana, jumlah, menungguKirim, onBuka }: BagianTerlewatProps) {
+  const { tw } = useTemaPersona();
   if (jumlah === 0) return null;
   return (
     <View style={tw`mb-3`}>
@@ -79,6 +80,7 @@ interface TabRencanaProps {
  * dengan tombol Tugaskan. Sales biasa tidak melihat perbedaan apa pun.
  */
 export function TabRencana({ fokusTim = null }: TabRencanaProps) {
+  const { tw } = useTemaPersona();
   const router = useRouter();
   const [tanggal, setTanggal] = useState(() => new Date());
   const { lingkup, tampilan, ubahTampilan, salesIdTim, ubahSalesIdTim } = useTampilanRencana(fokusTim);
@@ -140,7 +142,7 @@ export function TabRencana({ fokusTim = null }: TabRencanaProps) {
           accessibilityRole="button"
           accessibilityLabel={isTim ? 'Tugaskan rencana' : 'Buat Rencana'}
           onPress={() => (isTim ? tugaskan(salesIdTim) : router.push(ruteBuatRencana(tanggalAgenda)))}
-          style={tw`flex-row items-center bg-blue-600 rounded-full pl-3 pr-4 py-2`}
+          style={tw`flex-row items-center bg-utama-kuat rounded-full pl-3 pr-4 py-2`}
         >
           <Plus size={UKURAN_IKON_TAMBAH} color={WARNA_IKON_TAMBAH} />
           <Text style={tw`text-white font-bold text-sm ml-1`}>{isTim ? 'Tugaskan' : 'Buat Rencana'}</Text>

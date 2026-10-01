@@ -2,8 +2,8 @@ import { Check, Users } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import type { SalesRencana } from '@/types/presurvei';
 import { labelAnggotaTim, saringAnggotaTim, type ProgresHarian } from '@/utils/presurvei/timRencana';
 import { AvatarAnggota } from './AvatarAnggota';
@@ -13,7 +13,6 @@ const JARAK_TEPI = 16;
 /** Perluasan area sentuh tombol Tutup — teksnya kecil untuk jari. */
 const PERLUASAN_SENTUH = { top: 12, bottom: 12, left: 12, right: 12 };
 const UKURAN_IKON = 16;
-const WARNA_TERPILIH = '#2563eb';
 const WARNA_IKON_SEMUA = '#4b5563';
 
 interface PilihAnggotaTimModalProps {
@@ -40,6 +39,7 @@ interface BarisPilihanProps {
 
 /** Satu baris pilihan bertinggi sentuh besar: avatar, nama, keterangan, tanda terpilih. */
 function BarisPilihan({ label, keterangan, isTerpilih, avatar, onPress }: BarisPilihanProps) {
+  const { tw, warna } = useTemaPersona();
   return (
     <TouchableOpacity
       accessibilityRole="button"
@@ -47,13 +47,13 @@ function BarisPilihan({ label, keterangan, isTerpilih, avatar, onPress }: BarisP
       accessibilityState={{ selected: isTerpilih }}
       onPress={onPress}
       style={tw`flex-row items-center bg-white rounded-xl px-3 py-3 mb-2 border ${
-        isTerpilih ? 'border-blue-500' : 'border-gray-100'
+        isTerpilih ? 'border-utama-terang' : 'border-gray-100'
       }`}
     >
       {avatar}
       <Text style={tw`flex-1 font-semibold text-gray-900`} numberOfLines={1}>{label}</Text>
       {keterangan !== null ? <Text style={tw`text-xs text-gray-500 ml-2`}>{keterangan}</Text> : null}
-      {isTerpilih ? <View style={tw`ml-2`}><Check size={UKURAN_IKON} color={WARNA_TERPILIH} /></View> : null}
+      {isTerpilih ? <View style={tw`ml-2`}><Check size={UKURAN_IKON} color={warna.utama} /></View> : null}
     </TouchableOpacity>
   );
 }
@@ -67,6 +67,7 @@ const keteranganProgres = (progres: ProgresHarian | undefined): string | null =>
  * puluhan sales. Dirender hanya saat dibuka.
  */
 export function PilihAnggotaTimModal(props: PilihAnggotaTimModalProps) {
+  const { tw } = useTemaPersona();
   const { judul, daftar, terpilih, penggunaId, isBolehSemua, progres, onPilih, onTutup } = props;
   const [kataKunci, setKataKunci] = useState('');
   // Modal layar penuh digambar sampai ke bawah status bar (Android edge-to-edge):
@@ -93,9 +94,9 @@ export function PilihAnggotaTimModal(props: PilihAnggotaTimModalProps) {
             accessibilityRole="button"
             onPress={onTutup}
             hitSlop={PERLUASAN_SENTUH}
-            style={tw`px-3 py-1.5 bg-blue-50 rounded-full`}
+            style={tw`px-3 py-1.5 bg-utama-sangat-muda rounded-full`}
           >
-            <Text style={tw`text-blue-600 font-semibold`}>Tutup</Text>
+            <Text style={tw`text-utama-kuat font-semibold`}>Tutup</Text>
           </TouchableOpacity>
         </View>
         <TextInput

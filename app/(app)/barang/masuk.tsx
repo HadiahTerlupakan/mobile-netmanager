@@ -24,7 +24,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
-import tw from "twrnc";
+import { useTemaPersona } from '@/theme';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
 
@@ -55,6 +55,7 @@ const KONDISI_OPTIONS = [
 ];
 
 export default function BarangMasukScreen() {
+  const { tw, warna } = useTemaPersona();
   useFeatureGuard(AppFeature.BARANG_MASUK);
 
   const router = useRouter();
@@ -441,8 +442,8 @@ export default function BarangMasukScreen() {
             </TouchableOpacity>
 
             {selectedBarangData && (
-              <View style={tw`mt-2 p-3 bg-blue-50 rounded-lg`}>
-                <Text style={tw`text-xs text-blue-700 font-medium`}>
+              <View style={tw`mt-2 p-3 bg-utama-sangat-muda rounded-lg`}>
+                <Text style={tw`text-xs text-utama-gelap font-medium`}>
                   Satuan: {selectedBarangData.satuan}
                 </Text>
               </View>
@@ -460,12 +461,12 @@ export default function BarangMasukScreen() {
                   key={k.value}
                   onPress={() => setKondisi(k.value)}
                   style={tw`flex-1 py-3 rounded-xl border items-center ${kondisi === k.value
-                      ? "bg-blue-50 border-blue-500"
+                      ? "bg-utama-sangat-muda border-utama-terang"
                       : "bg-white border-gray-200"
                     }`}
                 >
                   <Text
-                    style={tw`font-medium ${kondisi === k.value ? "text-blue-700" : "text-gray-600"
+                    style={tw`font-medium ${kondisi === k.value ? "text-utama-gelap" : "text-gray-600"
                       }`}
                   >
                     {k.label}
@@ -620,22 +621,22 @@ export default function BarangMasukScreen() {
                 style={tw`flex-1 flex-row items-center justify-center bg-white border border-gray-200 rounded-xl py-3`}
                 onPress={takePhoto}
               >
-                <Ionicons name="camera" size={20} color="#3B82F6" />
-                <Text style={tw`ml-2 text-blue-600 font-medium`}>Kamera</Text>
+                <Ionicons name="camera" size={20} color={warna.utamaTerang} />
+                <Text style={tw`ml-2 text-utama-kuat font-medium`}>Kamera</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={tw`flex-1 flex-row items-center justify-center bg-white border border-gray-200 rounded-xl py-3`}
                 onPress={pickImage}
               >
-                <Ionicons name="images" size={20} color="#3B82F6" />
-                <Text style={tw`ml-2 text-blue-600 font-medium`}>Galeri</Text>
+                <Ionicons name="images" size={20} color={warna.utamaTerang} />
+                <Text style={tw`ml-2 text-utama-kuat font-medium`}>Galeri</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           {/* Submit Button */}
           <TouchableOpacity
-            style={tw`bg-blue-600 rounded-xl py-4 items-center ${submitting || masukMutation.isPending ? "opacity-50" : ""}`}
+            style={tw`bg-utama-kuat rounded-xl py-4 items-center ${submitting || masukMutation.isPending ? "opacity-50" : ""}`}
             onPress={handleSubmit}
             disabled={submitting || masukMutation.isPending}
           >

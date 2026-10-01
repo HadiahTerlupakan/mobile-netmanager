@@ -39,7 +39,7 @@ jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: unknown }) => children,
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { KaryawanStaffDashboardScreen } from '@/components/screens/KaryawanStaffDashboardScreen';
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TouchableOpacity, ActivityIndicator, TouchableOpacityProps, StyleProp, ViewStyle, TextStyle } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 interface ButtonProps extends TouchableOpacityProps {
   title: string;
@@ -22,20 +22,21 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
+  const { tw, warna } = useTemaPersona();
   const getVariantStyle = () => {
     switch (variant) {
       case 'primary':
-        return tw`bg-blue-600 border border-blue-600`;
+        return tw`bg-utama-kuat border border-utama-kuat`;
       case 'secondary':
         return tw`bg-gray-100 border border-gray-100`;
       case 'outline':
-        return tw`bg-transparent border border-blue-600`;
+        return tw`bg-transparent border border-utama-kuat`;
       case 'ghost':
         return tw`bg-transparent border-0`;
       case 'danger':
         return tw`bg-red-600 border border-red-600`;
       default:
-        return tw`bg-blue-600 border border-blue-600`;
+        return tw`bg-utama-kuat border border-utama-kuat`;
     }
   };
 
@@ -61,7 +62,7 @@ export function Button({
         return tw`text-gray-900`;
       case 'outline':
       case 'ghost':
-        return tw`text-blue-600`;
+        return tw`text-utama-kuat`;
       default:
         return tw`text-white`;
     }
@@ -93,7 +94,7 @@ export function Button({
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? '#2563eb' : '#fff'} />
+        <ActivityIndicator color={variant === 'outline' || variant === 'ghost' ? warna.utamaKuat : warna.teksDiAtasUtama} />
       ) : (
         <>
           {icon && <React.Fragment>{icon}</React.Fragment>}

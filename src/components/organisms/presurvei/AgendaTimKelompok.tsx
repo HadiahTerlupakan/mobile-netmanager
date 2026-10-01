@@ -1,8 +1,8 @@
 import { ChevronRight, Plus } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { SectionList, Text, TouchableOpacity, View, type RefreshControlProps } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import type { Rencana, SalesRencana } from '@/types/presurvei';
 import {
   anggotaTanpaRencana,
@@ -25,7 +25,6 @@ const BATAS_TERLEWAT_TERTUTUP = 0;
 const UKURAN_IKON_CHEVRON = 18;
 const UKURAN_IKON_TUGASKAN = 12;
 const WARNA_ABU = '#9ca3af';
-const WARNA_TUGASKAN = '#2563eb';
 
 /** Daftar yang dipotong ke `batas` butir sampai pengguna meminta semuanya. */
 function useDaftarRingkas<T>(daftar: readonly T[], batas: number = BATAS_DAFTAR_RINGKAS) {
@@ -48,9 +47,10 @@ interface TombolLihatSemuaProps {
 
 /** Tombol teks "Lihat semua (n)" / "Tampilkan lebih sedikit". */
 function TombolLihatSemua({ jumlah, isTerbuka, onPress, labelTertutup }: TombolLihatSemuaProps) {
+  const { tw } = useTemaPersona();
   return (
     <TouchableOpacity accessibilityRole="button" onPress={onPress} style={tw`py-2`}>
-      <Text style={tw`text-sm font-semibold text-blue-600`}>
+      <Text style={tw`text-sm font-semibold text-utama-kuat`}>
         {isTerbuka ? 'Tampilkan lebih sedikit' : (labelTertutup ?? `Lihat semua (${jumlah})`)}
       </Text>
     </TouchableOpacity>
@@ -68,6 +68,7 @@ interface BagianTerlewatTimProps {
 
 /** Terlewat seluruh tim secara ringkas: jumlah per anggota (ketuk = fokus), lalu butir terlewat yang bisa dibuka semua. */
 function BagianTerlewatTim({ rencana, perAnggota, jumlah, menungguKirim, onBuka, onFokus }: BagianTerlewatTimProps) {
+  const { tw } = useTemaPersona();
   const ringkas = useDaftarRingkas(rencana, BATAS_TERLEWAT_TERTUTUP);
   if (jumlah === 0) return null;
   return (
@@ -114,6 +115,7 @@ function BagianTerlewatTim({ rencana, perAnggota, jumlah, menungguKirim, onBuka,
 
 /** Kepala bagian satu anggota: avatar, nama, x/y selesai, lencana terlewat; ketuk = fokus ke anggota itu. */
 function KepalaBagianAnggota({ bagian, onFokus }: { bagian: BagianAgendaTim; onFokus: (salesId: string) => void }) {
+  const { tw } = useTemaPersona();
   return (
     <TouchableOpacity
       accessibilityRole="button"
@@ -138,6 +140,7 @@ function KepalaBagianAnggota({ bagian, onFokus }: { bagian: BagianAgendaTim; onF
 
 /** Anggota tanpa rencana di hari itu, masing-masing dengan aksi Tugaskan. */
 function BagianBelumAdaRencana({ anggota, onTugaskan }: { anggota: readonly SalesRencana[]; onTugaskan: (salesId: string) => void }) {
+  const { tw, warna } = useTemaPersona();
   const ringkas = useDaftarRingkas(anggota);
   if (anggota.length === 0) return null;
   return (
@@ -153,10 +156,10 @@ function BagianBelumAdaRencana({ anggota, onTugaskan }: { anggota: readonly Sale
             accessibilityRole="button"
             accessibilityLabel={`Tugaskan ${sales.nama}`}
             onPress={() => onTugaskan(sales.id)}
-            style={tw`flex-row items-center bg-blue-50 rounded-full px-3 py-1.5`}
+            style={tw`flex-row items-center bg-utama-sangat-muda rounded-full px-3 py-1.5`}
           >
-            <Plus size={UKURAN_IKON_TUGASKAN} color={WARNA_TUGASKAN} />
-            <Text style={tw`text-xs font-semibold text-blue-600 ml-1`}>Tugaskan</Text>
+            <Plus size={UKURAN_IKON_TUGASKAN} color={warna.utama} />
+            <Text style={tw`text-xs font-semibold text-utama-kuat ml-1`}>Tugaskan</Text>
           </TouchableOpacity>
         </View>
       ))}
@@ -187,6 +190,7 @@ interface AgendaTimKelompokProps {
  * terlewat ringkas di atas, dan anggota tanpa rencana di bawah.
  */
 export function AgendaTimKelompok(props: AgendaTimKelompokProps) {
+  const { tw } = useTemaPersona();
   const { harian, terlewat, jumlahTerlewat, daftarSales, menungguKirim, onBuka, onFokus, onTugaskan } = props;
   const terlewatPerAnggota = hitungTerlewatPerAnggota(terlewat);
   const bagian = kelompokkanAgendaTim(harian, terlewatPerAnggota);

@@ -9,7 +9,7 @@ jest.mock('expo-router', () => ({
 }));
 // Layar memakai banyak ikon; proxy ini mengembalikan komponen kosong untuk ikon apa pun.
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { AppFeature } from '@/constants/features';
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, expect, it, jest } from '@jest/globals';
 import { fireEvent, render } from '@testing-library/react-native';
 
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { PilihanChip } from '@/components/molecules/PilihanChip';
 

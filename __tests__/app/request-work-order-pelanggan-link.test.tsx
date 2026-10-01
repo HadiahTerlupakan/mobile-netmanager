@@ -63,7 +63,7 @@ jest.mock('react-native-safe-area-context', () => ({
 jest.mock('@shopify/flash-list', () => ({ FlashList: () => null }));
 // Layar memakai banyak ikon; proxy ini mengembalikan komponen kosong untuk ikon apa pun.
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const FIXTURE_PELANGGAN: MobilePelanggan = {
   id: 'plg-9',

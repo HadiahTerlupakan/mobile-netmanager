@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert, Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 import { useMutation } from '@/hooks/queries';
 import api from '@/services/api';
@@ -45,6 +45,7 @@ function useCairkanBonusCanvasing(onBerhasilCair: () => void) {
 
 /** Kartu target canvasing dan tombol pencairan bonus (skema akumulasi). */
 export function KartuPencairanCanvasing({ statistik, onBerhasilCair }: KartuPencairanCanvasingProps) {
+  const { tw } = useTemaPersona();
   const pencairan = useCairkanBonusCanvasing(onBerhasilCair);
   const isAkumulasi = statistik?.targetSchema === 'ACCUMULATED';
   const isTercapai = isTargetTercapai(statistik);
@@ -66,8 +67,8 @@ export function KartuPencairanCanvasing({ statistik, onBerhasilCair }: KartuPenc
     <View style={tw`mx-4 mb-4 bg-white rounded-2xl p-5 shadow-sm border border-gray-100`}>
       <View style={tw`flex-row justify-between items-center mb-3`}>
         <Text style={tw`text-base font-bold text-gray-900`}>Target & Pencairan</Text>
-        <View style={tw`px-2 py-1 rounded-md ${isAkumulasi ? 'bg-amber-50' : 'bg-blue-50'}`}>
-          <Text style={tw`text-[10px] font-bold ${isAkumulasi ? 'text-amber-600' : 'text-blue-600'}`}>
+        <View style={tw`px-2 py-1 rounded-md ${isAkumulasi ? 'bg-amber-50' : 'bg-utama-sangat-muda'}`}>
+          <Text style={tw`text-[10px] font-bold ${isAkumulasi ? 'text-amber-600' : 'text-utama-kuat'}`}>
             {isAkumulasi ? 'AKUMULASI' : 'BULANAN'}
           </Text>
         </View>
@@ -75,7 +76,7 @@ export function KartuPencairanCanvasing({ statistik, onBerhasilCair }: KartuPenc
 
       <View style={tw`flex-row justify-between items-center mb-2`}>
         <Text style={tw`text-sm text-gray-600`}>{isAkumulasi ? 'Progress Pencairan' : 'Progress Bulan Ini'}</Text>
-        <Text style={tw`text-sm font-bold ${isTercapai ? 'text-emerald-600' : 'text-blue-600'}`}>
+        <Text style={tw`text-sm font-bold ${isTercapai ? 'text-emerald-600' : 'text-utama-kuat'}`}>
           {belumDiklaim} / {target}
         </Text>
       </View>
@@ -83,7 +84,7 @@ export function KartuPencairanCanvasing({ statistik, onBerhasilCair }: KartuPenc
         <View
           style={[
             { width: `${Math.min((belumDiklaim / target) * PERSEN_PENUH, PERSEN_PENUH)}%` },
-            tw`h-full ${isTercapai ? 'bg-emerald-500' : 'bg-blue-500'}`,
+            tw`h-full ${isTercapai ? 'bg-emerald-500' : 'bg-utama-terang'}`,
           ]}
         />
       </View>
@@ -99,8 +100,8 @@ export function KartuPencairanCanvasing({ statistik, onBerhasilCair }: KartuPenc
           <Text style={tw`font-bold ${isTercapai ? 'text-white' : 'text-gray-400'}`}>Cairkan Bonus Belum Diklaim</Text>
         </TouchableOpacity>
       ) : (
-        <View style={tw`bg-blue-50 p-3 rounded-xl`}>
-          <Text style={tw`text-xs text-blue-700 text-center leading-4`}>
+        <View style={tw`bg-utama-sangat-muda p-3 rounded-xl`}>
+          <Text style={tw`text-xs text-utama-gelap text-center leading-4`}>
             Target Anda direset otomatis setiap awal bulan. Bonus akan diproses langsung oleh Admin.
           </Text>
         </View>

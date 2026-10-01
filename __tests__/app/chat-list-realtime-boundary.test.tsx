@@ -69,7 +69,7 @@ jest.mock('lucide-react-native', () => ({
   Plus: 'Plus',
   Users: 'Users',
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const mockChatService = chatService as unknown as Record<string, jest.Mock>;
 

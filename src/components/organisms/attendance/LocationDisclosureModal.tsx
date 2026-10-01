@@ -7,7 +7,7 @@
 import { MapPin, ShieldCheck } from 'lucide-react-native'
 import React from 'react'
 import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native'
-import tw from 'twrnc'
+import { useTemaPersona } from '@/theme'
 
 interface LocationDisclosureModalProps {
     visible: boolean
@@ -20,6 +20,7 @@ export function LocationDisclosureModal({
     onAccept,
     onReject,
 }: LocationDisclosureModalProps) {
+    const { tw, warna } = useTemaPersona();
     return (
         <Modal
             visible={visible}
@@ -32,8 +33,8 @@ export function LocationDisclosureModal({
                     <ScrollView contentContainerStyle={tw`p-6`} showsVerticalScrollIndicator={false}>
                         {/* Icon */}
                         <View style={tw`items-center mb-4`}>
-                            <View style={tw`bg-blue-100 dark:bg-blue-900/30 p-4 rounded-full`}>
-                                <MapPin size={40} color="#2563eb" />
+                            <View style={tw`bg-utama-muda dark:bg-utama-pekat/30 p-4 rounded-full`}>
+                                <MapPin size={40} color={warna.utama} />
                             </View>
                         </View>
 
@@ -52,20 +53,20 @@ export function LocationDisclosureModal({
                         {/* Purpose list */}
                         <View style={tw`mb-3`}>
                             <View style={tw`flex-row items-start mb-2`}>
-                                <Text style={tw`text-blue-500 mr-2 mt-0.5`}>•</Text>
+                                <Text style={tw`text-utama-terang mr-2 mt-0.5`}>•</Text>
                                 <Text style={tw`text-sm text-gray-600 dark:text-gray-300 flex-1`}>
                                     Verifikasi kehadiran di lokasi kerja saat check-in/check-out
                                 </Text>
                             </View>
                             <View style={tw`flex-row items-start mb-2`}>
-                                <Text style={tw`text-blue-500 mr-2 mt-0.5`}>•</Text>
+                                <Text style={tw`text-utama-terang mr-2 mt-0.5`}>•</Text>
                                 <Text style={tw`text-sm text-gray-600 dark:text-gray-300 flex-1`}>
                                     Pelacakan lokasi di latar belakang selama jam kerja (setelah
                                     check-in hingga check-out) untuk laporan perjalanan ke supervisor
                                 </Text>
                             </View>
                             <View style={tw`flex-row items-start mb-2`}>
-                                <Text style={tw`text-blue-500 mr-2 mt-0.5`}>•</Text>
+                                <Text style={tw`text-utama-terang mr-2 mt-0.5`}>•</Text>
                                 <Text style={tw`text-sm text-gray-600 dark:text-gray-300 flex-1`}>
                                     Penugasan work order ke teknisi terdekat
                                 </Text>
@@ -109,7 +110,7 @@ export function LocationDisclosureModal({
                             </TouchableOpacity>
 
                             <TouchableOpacity
-                                style={tw`flex-1 bg-blue-600 py-3 rounded-xl`}
+                                style={tw`flex-1 bg-utama-kuat py-3 rounded-xl`}
                                 onPress={onAccept}
                             >
                                 <Text style={tw`text-center font-semibold text-white`}>

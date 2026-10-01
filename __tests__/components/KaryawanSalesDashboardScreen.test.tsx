@@ -61,7 +61,7 @@ jest.mock('@/components/organisms/dashboard/DashboardHeader', () => ({
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: unknown }) => children,
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { KaryawanSalesDashboardScreen } from '@/components/screens/KaryawanSalesDashboardScreen';
 

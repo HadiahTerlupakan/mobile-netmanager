@@ -9,7 +9,7 @@ import { logger } from '@/utils/logger';
 import * as Location from 'expo-location';
 import { Crosshair, MapPin, Search } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 // Only import maplibre-gl on web platform
 let maplibregl: typeof import('maplibre-gl') | null = null;
@@ -37,6 +37,7 @@ export function WebLocationPicker({
   onSelectLocation,
   initialLocation,
 }: WebLocationPickerProps) {
+  const { tw, warna } = useTemaPersona();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -226,7 +227,7 @@ export function WebLocationPicker({
               style={tw`flex-1 ml-2 text-gray-900 h-full`}
               placeholderTextColor="#9ca3af"
             />
-            {isSearching && <ActivityIndicator size="small" color="#2563eb" />}
+            {isSearching && <ActivityIndicator size="small" color={warna.utamaKuat} />}
           </View>
 
           {/* Suggestions Dropdown */}
@@ -252,7 +253,7 @@ export function WebLocationPicker({
         <View style={tw`flex-1 relative`}>
           {!mapLoaded ? (
             <View style={tw`flex-1 items-center justify-center bg-gray-50`}>
-              <ActivityIndicator size="large" color="#2563eb" />
+              <ActivityIndicator size="large" color={warna.utamaKuat} />
               <Text style={tw`text-gray-500 mt-4`}>Memuat peta...</Text>
             </View>
           ) : null}
@@ -282,9 +283,9 @@ export function WebLocationPicker({
             disabled={loadingLocation}
           >
             {loadingLocation ? (
-              <ActivityIndicator size="small" color="#2563eb" />
+              <ActivityIndicator size="small" color={warna.utamaKuat} />
             ) : (
-              <Crosshair size={24} color="#2563eb" />
+              <Crosshair size={24} color={warna.utama} />
             )}
           </TouchableOpacity>
 
@@ -299,7 +300,7 @@ export function WebLocationPicker({
             </View>
             <TouchableOpacity
               onPress={handleSelect}
-              style={tw`bg-blue-600 py-4 rounded-xl items-center justify-center shadow-md shadow-blue-200`}
+              style={tw`bg-utama-kuat py-4 rounded-xl items-center justify-center shadow-md shadow-utama-garis`}
             >
               <Text style={tw`text-white font-bold text-base`}>Pilih Titik Ini</Text>
             </TouchableOpacity>

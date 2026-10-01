@@ -87,7 +87,7 @@ jest.mock('lucide-react-native', () => ({
   User: () => null,
 }));
 
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 jest.mock('@assets/images/icon.png', () => 1, { virtual: true });
 

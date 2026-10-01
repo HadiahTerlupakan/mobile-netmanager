@@ -11,7 +11,7 @@ jest.mock('@/hooks/presurvei/useKinerjaBeranda', () => ({
   useKinerjaBeranda: () => ({ keadaan: mockKeadaan, cobaLagi: mockCobaLagi }),
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { BagianKinerjaBeranda } from '@/components/organisms/dashboard/BagianKinerjaBeranda';
 import { RUTE_PENILAIAN_KINERJA } from '@/constants/rutePresurvei';

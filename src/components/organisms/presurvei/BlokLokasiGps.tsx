@@ -1,7 +1,7 @@
 import React from 'react';
 import { Linking, Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import { KartuFormulir } from '@/components/atoms/KartuFormulir';
 import { TeksKesalahan } from '@/components/atoms/TeksKesalahan';
 import { PetaTitik } from './PetaTitik';
@@ -27,6 +27,7 @@ interface BlokLokasiGpsProps {
  * `useLokasiKegiatan.ts:45-56`, `lokasiGps.ts:31-39`).
  */
 export function BlokLokasiGps({ status, titik, kesalahan, onCobaLagi }: BlokLokasiGpsProps) {
+  const { tw } = useTemaPersona();
   return (
     <KartuFormulir>
       <Text style={tw`font-bold text-gray-900 mb-1`}>Lokasi GPS</Text>
@@ -43,7 +44,7 @@ export function BlokLokasiGps({ status, titik, kesalahan, onCobaLagi }: BlokLoka
             <TouchableOpacity
               accessibilityRole="button"
               onPress={onCobaLagi}
-              style={tw`ml-3 px-3 py-2 rounded-lg bg-blue-600`}
+              style={tw`ml-3 px-3 py-2 rounded-lg bg-utama-kuat`}
             >
               <Text style={tw`text-white font-semibold text-sm`}>Coba lagi</Text>
             </TouchableOpacity>
@@ -52,7 +53,7 @@ export function BlokLokasiGps({ status, titik, kesalahan, onCobaLagi }: BlokLoka
             <TouchableOpacity
               accessibilityRole="button"
               onPress={() => void Linking.openSettings()}
-              style={tw`ml-3 px-3 py-2 rounded-lg bg-blue-600`}
+              style={tw`ml-3 px-3 py-2 rounded-lg bg-utama-kuat`}
             >
               <Text style={tw`text-white font-semibold text-sm`}>Buka Pengaturan</Text>
             </TouchableOpacity>

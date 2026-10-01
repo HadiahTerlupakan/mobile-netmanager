@@ -1,7 +1,7 @@
 import { BellRing, CheckCircle2, ChevronRight } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 import { LABEL_STATUS_PROSPEK } from '@/constants/presurvei';
 import type { ProspekPerluFollowUp } from '@/types/presurvei';
@@ -21,6 +21,7 @@ function hurufAwal(nama: string): string {
 
 /** Prospek aktif yang paling lama tidak disentuh (maks. 5, dari server). */
 export function DaftarPerluFollowUp({ prospek, onBuka }: DaftarPerluFollowUpProps) {
+  const { tw } = useTemaPersona();
   return (
     <View style={tw`bg-white rounded-2xl p-4 mb-4 border border-gray-100 shadow-sm`}>
       <View style={tw`flex-row items-center justify-between mb-2`}>
@@ -47,8 +48,8 @@ export function DaftarPerluFollowUp({ prospek, onBuka }: DaftarPerluFollowUpProp
           onPress={() => onBuka(item.id)}
           style={tw`flex-row items-center py-3 ${indeks < prospek.length - 1 ? 'border-b border-gray-100' : ''}`}
         >
-          <View style={tw`w-9 h-9 rounded-full bg-blue-50 items-center justify-center mr-3`}>
-            <Text style={tw`text-sm font-bold text-blue-600`}>{hurufAwal(item.nama)}</Text>
+          <View style={tw`w-9 h-9 rounded-full bg-utama-sangat-muda items-center justify-center mr-3`}>
+            <Text style={tw`text-sm font-bold text-utama-kuat`}>{hurufAwal(item.nama)}</Text>
           </View>
           <View style={tw`flex-1`}>
             <Text style={tw`text-sm font-semibold text-gray-900`}>{item.nama}</Text>

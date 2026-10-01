@@ -24,7 +24,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
-import tw from "twrnc";
+import { useTemaPersona } from '@/theme';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
 
@@ -58,6 +58,7 @@ const KONDISI_OPTIONS = [
 ];
 
 export default function BarangKeluarScreen() {
+  const { tw } = useTemaPersona();
   useFeatureGuard(AppFeature.BARANG_KELUAR);
 
   const router = useRouter();
@@ -466,11 +467,11 @@ export default function BarangKeluarScreen() {
               <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
             </TouchableOpacity>
             {selectedBarangData && (
-              <View style={tw`mt-2 p-3 bg-blue-50 rounded-lg`}>
-                <Text style={tw`text-xs text-blue-700 font-medium`}>
+              <View style={tw`mt-2 p-3 bg-utama-sangat-muda rounded-lg`}>
+                <Text style={tw`text-xs text-utama-gelap font-medium`}>
                   Satuan: {selectedBarangData.satuan}
                 </Text>
-                <Text style={tw`text-xs text-blue-700 mt-1`}>
+                <Text style={tw`text-xs text-utama-gelap mt-1`}>
                   Stok: Baru ({selectedBarangData.stokBaru || 0}) | Bekas (
                   {selectedBarangData.stokBekas || 0}) | Rusak (
                   {selectedBarangData.stokRusak || 0})

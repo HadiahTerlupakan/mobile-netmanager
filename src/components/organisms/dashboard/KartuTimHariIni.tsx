@@ -1,7 +1,7 @@
 import { ChevronRight, Users } from 'lucide-react-native';
 import React from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 import { AvatarAnggota } from '@/components/organisms/presurvei/AvatarAnggota';
 import {
@@ -27,6 +27,7 @@ interface KartuTimHariIniProps {
 
 /** Bilah progres selesai (hijau) dengan lebar persen 0–100. */
 function BilahProgres({ persen, tinggi }: { persen: number; tinggi: 'h-1.5' | 'h-2' }) {
+  const { tw } = useTemaPersona();
   return (
     <View style={tw`flex-1 ${tinggi} bg-gray-100 rounded-full overflow-hidden mr-2`}>
       <View style={[tw`${tinggi} bg-emerald-500 rounded-full`, { width: `${persen}%` }]} />
@@ -36,6 +37,7 @@ function BilahProgres({ persen, tinggi }: { persen: number; tinggi: 'h-1.5' | 'h
 
 /** Ringkasan seluruh tim: selesai/total, persen, bilah progres, dan pil total terlewat. */
 function RingkasanTimBaris({ baris }: { baris: readonly BarisTimHariIni[] }) {
+  const { tw } = useTemaPersona();
   const ringkasan = ringkasTimHariIni(baris);
   return (
     <View style={tw`rounded-xl bg-gray-50 px-3 py-2.5 mt-1 mb-1`}>
@@ -58,6 +60,7 @@ function RingkasanTimBaris({ baris }: { baris: readonly BarisTimHariIni[] }) {
 
 /** Satu anggota tim: nama, selesai/total hari ini, dan lencana terlewat bila ada. */
 function BarisAnggota({ baris, isTerakhir, onBuka }: { baris: BarisTimHariIni; isTerakhir: boolean; onBuka: () => void }) {
+  const { tw } = useTemaPersona();
   return (
     <TouchableOpacity
       accessibilityRole="button"
@@ -90,6 +93,7 @@ function BarisAnggota({ baris, isTerakhir, onBuka }: { baris: BarisTimHariIni; i
  * "Lihat semua" membuka seluruh tim.
  */
 export function KartuTimHariIni({ baris, isGagal, onCobaLagi, onBuka }: KartuTimHariIniProps) {
+  const { tw } = useTemaPersona();
   const renderIsi = () => {
     if (baris === undefined) {
       if (!isGagal) return <ActivityIndicator style={tw`my-2`} />;
@@ -131,7 +135,7 @@ export function KartuTimHariIni({ baris, isGagal, onCobaLagi, onBuka }: KartuTim
       </View>
       {renderIsi()}
       <TouchableOpacity accessibilityRole="button" onPress={() => onBuka(null)} style={tw`pt-3 items-center`}>
-        <Text style={tw`text-sm font-semibold text-blue-600`}>{labelLihatSemua}</Text>
+        <Text style={tw`text-sm font-semibold text-utama-kuat`}>{labelLihatSemua}</Text>
       </TouchableOpacity>
     </View>
   );

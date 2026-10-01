@@ -3,14 +3,11 @@ import React from 'react';
 import { Modal, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { MarkedDates } from 'react-native-calendars/src/types';
-import tw from 'twrnc';
 
 import { pasangKalenderIndonesia } from '@/constants/kalenderIndonesia';
+import { useTemaPersona } from '@/theme';
 
 pasangKalenderIndonesia();
-
-/** Warna penanda tanggal yang sedang terpilih. */
-const WARNA_TANGGAL_TERPILIH = '#2563eb';
 
 interface CustomDatePickerModalProps {
     visible: boolean;
@@ -32,13 +29,14 @@ export default function CustomDatePickerModal({
     title = 'Pilih Tanggal',
     tanggalTerpilih,
 }: CustomDatePickerModalProps) {
+    const { tw, warna } = useTemaPersona();
     const tandaTanggal: MarkedDates = tanggalTerpilih
         ? {
               ...markedDates,
               [tanggalTerpilih]: {
                   customStyles: {
-                      container: { backgroundColor: WARNA_TANGGAL_TERPILIH },
-                      text: { color: '#ffffff', fontWeight: 'bold' },
+                      container: { backgroundColor: warna.utamaKuat },
+                      text: { color: warna.teksDiAtasUtama, fontWeight: 'bold' },
                   },
               },
           }

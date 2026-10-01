@@ -78,7 +78,7 @@ jest.mock('@expo/vector-icons', () => ({
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: 'SafeAreaView',
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 describe('barang index realtime boundary', () => {
   beforeEach(() => {

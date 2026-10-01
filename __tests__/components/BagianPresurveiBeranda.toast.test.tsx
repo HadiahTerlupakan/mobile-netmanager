@@ -31,7 +31,7 @@ jest.mock('@/hooks/presurvei/useLingkupRencana', () => ({
 }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { BagianPresurveiBeranda, TEKS_PRESURVEI_BELUM_AKTIF } from '@/components/organisms/dashboard/BagianPresurveiBeranda';
 import { queryClient } from '@/lib/queryClient';

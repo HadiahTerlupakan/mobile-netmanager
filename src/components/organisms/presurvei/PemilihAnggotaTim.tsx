@@ -1,8 +1,8 @@
 import { ChevronDown, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
 
+import { useTemaPersona } from '@/theme';
 import type { SalesRencana } from '@/types/presurvei';
 import type { ProgresHarian } from '@/utils/presurvei/timRencana';
 import { PilihAnggotaTimModal } from './PilihAnggotaTimModal';
@@ -28,6 +28,7 @@ interface PemilihAnggotaTimProps {
  * pemilih bercari, dan ✕ untuk kembali ke semua anggota.
  */
 export function PemilihAnggotaTim({ daftar, terpilih, penggunaId, progres, onPilih }: PemilihAnggotaTimProps) {
+  const { tw } = useTemaPersona();
   const [isTerbuka, setTerbuka] = useState(false);
   const nama = terpilih === null
     ? 'Semua'
@@ -41,7 +42,7 @@ export function PemilihAnggotaTim({ daftar, terpilih, penggunaId, progres, onPil
         accessibilityLabel={label}
         onPress={() => setTerbuka(true)}
         style={tw`flex-row items-center flex-shrink bg-white border ${
-          terpilih === null ? 'border-gray-200' : 'border-blue-500'
+          terpilih === null ? 'border-gray-200' : 'border-utama-terang'
         } rounded-full pl-3 pr-2 py-2`}
       >
         <Text style={tw`text-sm text-gray-800 mr-1 flex-shrink`} numberOfLines={1}>{label}</Text>

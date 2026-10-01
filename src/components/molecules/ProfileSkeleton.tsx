@@ -2,14 +2,15 @@ import React from 'react';
 import { View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Skeleton } from '@/components/atoms/Skeleton';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 export const ProfileSkeleton = () => {
+  const { tw } = useTemaPersona();
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
       <ScrollView contentContainerStyle={tw`pb-20`} scrollEnabled={false}>
         {/* Header Skeleton */}
-        <View style={tw`bg-blue-600 px-6 pt-6 pb-16 rounded-b-[40px] items-center`}>
+        <View style={tw`bg-utama-kuat px-6 pt-6 pb-16 rounded-b-[40px] items-center`}>
           <Skeleton width={96} height={96} borderRadius={48} style={tw`mb-4 border-4 border-white`} />
           <Skeleton width={150} height={24} style={tw`mb-2`} />
           <Skeleton width={180} height={16} style={tw`mb-3`} />

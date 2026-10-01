@@ -3,17 +3,7 @@ import { render, fireEvent } from '@testing-library/react-native';
 import { View, Text, Linking } from 'react-native';
 
 // 1. Mocks
-jest.mock('twrnc', () => {
-  const tw = () => ({});
-  // @ts-ignore
-  tw.style = () => ({});
-  // @ts-ignore
-  tw.color = () => 'black';
-  return {
-    __esModule: true,
-    default: tw,
-  };
-});
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 // Mock icons
 jest.mock('lucide-react-native', () => {

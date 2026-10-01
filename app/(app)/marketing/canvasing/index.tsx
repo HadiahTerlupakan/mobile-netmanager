@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import tw from "twrnc";
+import { useTemaPersona } from '@/theme';
 
 interface PointClaim {
   id: string;
@@ -183,6 +184,7 @@ const CanvasingItem = React.memo(({
 CanvasingItem.displayName = 'CanvasingItem';
 
 export default function CanvasingListScreen() {
+  const { warna } = useTemaPersona();
   useFeatureGuard(AppFeature.CANVASING);
   const router = useRouter();
   const { token } = useAuth();
@@ -437,7 +439,7 @@ export default function CanvasingListScreen() {
           ListFooterComponent={
             isFetchingNextPage ? (
               <View style={tw`py-4`}>
-                <ActivityIndicator size="small" color="#2563eb" />
+                <ActivityIndicator size="small" color={warna.utamaKuat} />
               </View>
             ) : null
           }

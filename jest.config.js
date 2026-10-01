@@ -33,6 +33,7 @@ module.exports = {
     "^expo-task-manager$": "<rootDir>/__mocks__/expo-task-manager.js",
     "^@notifee/react-native$": "<rootDir>/__mocks__/@notifee/react-native.js",
     "^@/utils/logger$": "<rootDir>/__mocks__/logger.js",
+    "^twrnc-kosong$": "<rootDir>/__mocks__/twrncKosong.js",
   },
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
   collectCoverageFrom: [

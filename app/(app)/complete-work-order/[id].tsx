@@ -20,11 +20,12 @@ import { ArrowLeft, Camera, CheckCircle, X } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
-import tw from "twrnc";
+import { useTemaPersona } from "@/theme";
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
 
 export default function CompleteWorkOrderScreen() {
+  const { tw } = useTemaPersona();
   useFeatureGuard(AppFeature.WORK_ORDER);
 
   const { id } = useLocalSearchParams();
@@ -386,7 +387,7 @@ export default function CompleteWorkOrderScreen() {
           {/* Add Button */}
           <TouchableOpacity
             onPress={handleImageSelection}
-            style={tw`w-[31%] aspect-square rounded-xl border-2 border-dashed border-gray-300 items-center justify-center bg-gray-50 active:bg-blue-50 active:border-blue-300`}
+            style={tw`w-[31%] aspect-square rounded-xl border-2 border-dashed border-gray-300 items-center justify-center bg-gray-50 active:bg-utama-sangat-muda active:border-utama-pucat`}
           >
             <Camera size={24} color="#9ca3af" />
             <Text style={tw`text-[10px] text-gray-400 mt-1 font-bold`}>

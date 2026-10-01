@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, expect, it, jest } from '@jest/globals';
 import { render } from '@testing-library/react-native';
 
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const TITIK = { latitude: -6.2, longitude: 106.8, akurasiMeter: 12 };
 

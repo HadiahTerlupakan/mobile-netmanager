@@ -106,7 +106,7 @@ jest.mock('lucide-react-native', () => ({
   Send: 'Send',
   X: 'X',
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 // Dua tes di bawah sengaja di-skip: chat realtime di layar percakapan sedang
 // dimatikan (TODO(chat-realtime) / H5 di app/(app)/chat/[conversationId].tsx)

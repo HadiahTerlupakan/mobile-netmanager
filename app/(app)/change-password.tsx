@@ -9,12 +9,13 @@ import { router } from 'expo-router';
 import { ArrowLeft, Save } from 'lucide-react-native';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 import { z } from 'zod';
 
 type ChangePasswordFormData = z.infer<typeof ChangePasswordSchema>;
 
 function ChangePasswordScreen() {
+    const { tw } = useTemaPersona();
     const {
         control,
         handleValidatedSubmit,
@@ -63,8 +64,8 @@ function ChangePasswordScreen() {
 
             <ScrollView contentContainerStyle={tw`p-4`}>
                 {/* Info */}
-                <View style={tw`bg-blue-50 rounded-xl p-4 mb-6`}>
-                    <Text style={tw`text-blue-800 text-sm`}>
+                <View style={tw`bg-utama-sangat-muda rounded-xl p-4 mb-6`}>
+                    <Text style={tw`text-utama-pekat text-sm`}>
                         Untuk keamanan, masukkan password lama Anda sebelum mengubah ke password baru.
                     </Text>
                 </View>
@@ -110,7 +111,7 @@ function ChangePasswordScreen() {
                 <TouchableOpacity
                     onPress={handleSave}
                     disabled={saving}
-                    style={tw`mt-6 bg-blue-600 rounded-xl py-4 flex-row items-center justify-center ${saving ? 'opacity-50' : ''}`}
+                    style={tw`mt-6 bg-utama-kuat rounded-xl py-4 flex-row items-center justify-center ${saving ? 'opacity-50' : ''}`}
                 >
                     {saving ? (
                         <ActivityIndicator color="#fff" />

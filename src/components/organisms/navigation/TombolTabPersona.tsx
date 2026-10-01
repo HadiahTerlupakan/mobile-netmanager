@@ -2,10 +2,9 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
 
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 import type { TabPersona } from '@/utils/tabPersona';
 
-const WARNA_AKTIF = '#2563eb';
 const WARNA_PASIF = '#9ca3af';
 const UKURAN_IKON = 24;
 
@@ -27,6 +26,7 @@ function tekanTab(navigation: NavigasiTab, route: RuteTab, isFokus: boolean) {
 
 /** Satu tombol tab bar persona (sales/staff karyawan); ikon diambil dari opsi `Tabs.Screen` di layout. */
 export function TombolTabPersona({ tab, state, descriptors, navigation }: TombolTabPersonaProps) {
+  const { tw, warna } = useTemaPersona();
   const indeks = state.routes.findIndex((route) => route.name === tab.rute);
   if (indeks < 0) return null;
   const route = state.routes[indeks];
@@ -42,8 +42,8 @@ export function TombolTabPersona({ tab, state, descriptors, navigation }: Tombol
       onPress={() => tekanTab(navigation, route, isFokus)}
       style={tw`flex-1 items-center`}
     >
-      {options.tabBarIcon?.({ focused: isFokus, color: isSorot ? WARNA_AKTIF : WARNA_PASIF, size: UKURAN_IKON })}
-      <Text style={tw`text-xs font-medium mt-1 ${isSorot ? 'text-blue-600' : 'text-gray-400'}`}>{label}</Text>
+      {options.tabBarIcon?.({ focused: isFokus, color: isSorot ? warna.utamaKuat : WARNA_PASIF, size: UKURAN_IKON })}
+      <Text style={tw`text-xs font-medium mt-1 ${isSorot ? 'text-utama-kuat' : 'text-gray-400'}`}>{label}</Text>
     </TouchableOpacity>
   );
 }

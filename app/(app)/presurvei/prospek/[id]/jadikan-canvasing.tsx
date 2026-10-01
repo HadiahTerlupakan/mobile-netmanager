@@ -2,7 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 import { IsianTeks } from '@/components/molecules/IsianTeks';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
@@ -17,6 +17,7 @@ const TEKS_BUTUH_ONLINE_KONVERSI = 'Butuh koneksi internet untuk menjadikan canv
 
 /** Form Jadikan Canvasing: No. KTP, paket, kabel opsional, dan foto KTP wajib. */
 export default function JadikanCanvasingScreen() {
+  const { tw } = useTemaPersona();
   const isDiizinkan = useFeatureGuard(AppFeature.PRESURVEI);
   const { id = '' } = useLocalSearchParams<{ id?: string }>();
   const layar = useLayarJadikanCanvasing(id, isDiizinkan);
@@ -69,9 +70,9 @@ export default function JadikanCanvasingScreen() {
           <TouchableOpacity
             accessibilityRole="button"
             onPress={layar.bukaKamera}
-            style={tw`border border-dashed border-blue-400 rounded-xl py-3 items-center`}
+            style={tw`border border-dashed border-utama-lembut rounded-xl py-3 items-center`}
           >
-            <Text style={tw`text-blue-600 font-semibold`}>
+            <Text style={tw`text-utama-kuat font-semibold`}>
               {form.fotoKtpLokal === null ? 'Ambil Foto KTP' : 'Ulangi Foto KTP'}
             </Text>
           </TouchableOpacity>

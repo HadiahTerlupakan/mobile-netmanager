@@ -44,7 +44,7 @@ jest.mock('lucide-react-native', () => ({
   AlertTriangle: () => null, CloudOff: () => null, MapPin: () => null,
   Phone: () => null, Search: () => null, X: () => null, Wrench: () => null,
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const pelanggan = {
   id: 'plg-1',

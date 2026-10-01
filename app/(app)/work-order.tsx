@@ -32,7 +32,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import tw from "twrnc";
+import { useTemaPersona } from "@/theme";
 import { AppFeature } from '@/constants/features';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 
@@ -51,6 +51,7 @@ const WorkOrderRow = React.memo(({ item, userId, onPress }: { item: WorkOrder, u
 WorkOrderRow.displayName = "WorkOrderRow";
 
 function WorkOrderScreenContent() {
+  const { tw } = useTemaPersona();
   const { token, user } = useAuth();
   const router = useRouter();
   const isFocused = useIsFocused();
@@ -234,8 +235,8 @@ function WorkOrderScreenContent() {
   const getTabStyle = useCallback((tab: TabType) => {
     const isActive = activeTab === tab;
     return {
-      container: `flex-1 py-2.5 items-center border-b-2 ${isActive ? "border-blue-600" : "border-transparent"}`,
-      text: `text-sm font-bold ${isActive ? "text-blue-600" : "text-gray-400"}`,
+      container: `flex-1 py-2.5 items-center border-b-2 ${isActive ? "border-utama" : "border-transparent"}`,
+      text: `text-sm font-bold ${isActive ? "text-utama-kuat" : "text-gray-400"}`,
     };
   }, [activeTab]);
 

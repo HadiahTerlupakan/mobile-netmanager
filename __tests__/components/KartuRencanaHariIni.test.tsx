@@ -5,7 +5,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { buatRencanaUji } from '../fixtures/presurvei/rencana';
 
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import { KartuRencanaHariIni } from '@/components/organisms/dashboard/KartuRencanaHariIni';
 

@@ -59,7 +59,7 @@ jest.mock('@/components/organisms/navigation/KaryawanStaffTabBar', () => ({
   KaryawanStaffTabBar: (props: unknown) => mockKaryawanStaffTabBar(props),
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 /** Route presurvei yang tidak boleh muncul sebagai tab di tab bar bawaan. */
 const RUTE_PRESURVEI_TERSEMBUNYI = [

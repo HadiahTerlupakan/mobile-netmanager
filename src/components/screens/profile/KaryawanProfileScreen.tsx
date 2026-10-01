@@ -12,9 +12,10 @@ import { Briefcase, Building2, Calendar, Clock, Edit3, LogOut, Mail, MapPin, Shi
 import { useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 export function KaryawanProfileScreen() {
+    const { tw, warna } = useTemaPersona();
     const { user, signOut } = useAuth();
     const { profileData, isPending, refetch } = useProfileSync();
     const [refreshing, setRefreshing] = useState(false);
@@ -91,7 +92,7 @@ export function KaryawanProfileScreen() {
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             >
                 {/* Header */}
-                <View style={tw`bg-blue-600 px-6 pt-6 pb-16 rounded-b-[40px]`}>
+                <View style={tw`bg-utama-kuat px-6 pt-6 pb-16 rounded-b-[40px]`}>
                     <View style={tw`items-center`}>
                         {profileData?.image ? (
                             <ImageWithCache
@@ -102,13 +103,13 @@ export function KaryawanProfileScreen() {
                             />
                         ) : (
                             <View style={tw`w-24 h-24 bg-white rounded-full items-center justify-center mb-4 shadow-lg`}>
-                                <Text style={tw`text-blue-600 text-4xl font-bold`}>{getInitials(displayName)}</Text>
+                                <Text style={tw`text-utama-kuat text-4xl font-bold`}>{getInitials(displayName)}</Text>
                             </View>
                         )}
                         <Text style={tw`text-white font-bold text-2xl`}>{displayName}</Text>
-                        <Text style={tw`text-blue-100 text-sm mt-1`}>{displayEmail}</Text>
+                        <Text style={tw`text-utama-muda text-sm mt-1`}>{displayEmail}</Text>
                         {profileData?.role?.name && (
-                            <View style={tw`bg-blue-500 px-3 py-1 rounded-full mt-2`}>
+                            <View style={tw`bg-utama-pekat px-3 py-1 rounded-full mt-2`}>
                                 <Text style={tw`text-white text-xs font-medium`}>{profileData.role.name}</Text>
                             </View>
                         )}
@@ -120,8 +121,8 @@ export function KaryawanProfileScreen() {
                     <View style={tw`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden`}>
                         {/* Email */}
                         <View style={tw`flex-row items-center p-4 border-b border-gray-100`}>
-                            <View style={tw`w-10 h-10 bg-blue-50 rounded-full items-center justify-center mr-4`}>
-                                <Mail size={20} color="#2563eb" />
+                            <View style={tw`w-10 h-10 bg-utama-sangat-muda rounded-full items-center justify-center mr-4`}>
+                                <Mail size={20} color={warna.utama} />
                             </View>
                             <View>
                                 <Text style={tw`text-xs text-gray-400 font-medium`}>Email</Text>
@@ -163,8 +164,8 @@ export function KaryawanProfileScreen() {
                                         <Text style={tw`text-gray-800 font-semibold`}>
                                             {profileData?.workingHourMode === 'FLEXIBLE' ? 'Fleksibel' : 'Fixed'}
                                         </Text>
-                                        <View style={tw`bg-blue-100 px-2 py-0.5 rounded-full ml-2`}>
-                                            <Text style={tw`text-blue-700 text-xs font-medium`}>
+                                        <View style={tw`bg-utama-muda px-2 py-0.5 rounded-full ml-2`}>
+                                            <Text style={tw`text-utama-gelap text-xs font-medium`}>
                                                 {profileData?.workingHourMode || 'FIXED'}
                                             </Text>
                                         </View>
@@ -194,10 +195,10 @@ export function KaryawanProfileScreen() {
                     {/* Edit Profile Button */}
                     <TouchableOpacity
                         onPress={() => router.push('/(app)/edit-profile' as Href)}
-                        style={tw`mt-6 bg-blue-50 border border-blue-100 rounded-2xl p-4 flex-row items-center justify-center`}
+                        style={tw`mt-6 bg-utama-sangat-muda border border-utama-muda rounded-2xl p-4 flex-row items-center justify-center`}
                     >
-                        <Edit3 size={20} color="#2563eb" />
-                        <Text style={tw`text-blue-600 font-bold ml-2`}>Edit Profil & Password</Text>
+                        <Edit3 size={20} color={warna.utama} />
+                        <Text style={tw`text-utama-kuat font-bold ml-2`}>Edit Profil & Password</Text>
                     </TouchableOpacity>
 
                     {/* Privacy Policy Button */}

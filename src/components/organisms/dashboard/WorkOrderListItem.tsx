@@ -1,4 +1,5 @@
 import { Badge } from '@/components/atoms/Badge';
+import { useTemaPersona } from '@/theme';
 import { formatDate } from '@/utils/date';
 import { AlertCircle, Clock, MapPin, Phone } from 'lucide-react-native';
 import React, { memo } from 'react';
@@ -60,6 +61,7 @@ const getPriorityColor = (priority: string) => {
 
 // Memoized sub-components to prevent re-renders
 const PhoneButton = memo(({ phone }: { phone?: string | null }) => {
+    const { warna } = useTemaPersona();
     if (!phone) return null;
 
     const handlePress = () => {
@@ -81,8 +83,8 @@ const PhoneButton = memo(({ phone }: { phone?: string | null }) => {
             onPress={handlePress}
             style={tw`flex-row items-center mb-1`}
         >
-            <Phone size={14} color="#2563eb" style={tw`mr-1.5`} />
-            <Text style={tw`text-sm text-blue-600 flex-1`} numberOfLines={1}>
+            <Phone size={14} color={warna.utama} style={tw`mr-1.5`} />
+            <Text style={[tw`text-sm flex-1`, { color: warna.utamaKuat }]} numberOfLines={1}>
                 {phone}
             </Text>
         </TouchableOpacity>

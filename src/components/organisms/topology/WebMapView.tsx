@@ -7,6 +7,7 @@ import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, TouchableOpac
 
 import { RefreshCw, Search, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTemaPersona } from '@/theme';
 
 // Only import maplibre-gl on web platform
 let maplibregl: typeof import('maplibre-gl') | null = null;
@@ -77,6 +78,7 @@ export function WebMapView({
   initialCenter = [106.816666, -6.2],
   initialZoom = 12,
 }: WebMapViewProps) {
+  const { warna } = useTemaPersona();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<any[]>([]);
@@ -342,7 +344,7 @@ export function WebMapView({
       {/* Loading Overlay */}
       {(loading || !mapLoaded) && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#3b82f6" />
+          <ActivityIndicator size="large" color={warna.utamaTerang} />
           <Text style={styles.loadingText}>
             {loading ? 'Memuat data...' : 'Memuat peta...'}
           </Text>
@@ -352,7 +354,7 @@ export function WebMapView({
       {/* Refresh Button */}
       {onRefresh && (
         <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
-          <RefreshCw size={20} color="#3b82f6" />
+          <RefreshCw size={20} color={warna.utamaTerang} />
         </TouchableOpacity>
       )}
     </View>

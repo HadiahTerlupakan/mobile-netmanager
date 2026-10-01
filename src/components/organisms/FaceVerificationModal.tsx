@@ -6,7 +6,7 @@ import { AlertCircle, Camera as CameraIcon, CheckCircle, RefreshCw } from 'lucid
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Dimensions, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 interface FaceVerificationModalProps {
     visible: boolean;
@@ -14,6 +14,7 @@ interface FaceVerificationModalProps {
 }
 
 export function FaceVerificationModal({ visible, onVerificationComplete }: FaceVerificationModalProps) {
+    const { tw } = useTemaPersona();
     const [permission, requestPermission] = useCameraPermissions();
     const [isProcessing, setIsProcessing] = useState(false);
     const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -157,12 +158,12 @@ export function FaceVerificationModal({ visible, onVerificationComplete }: FaceV
                                 <Text style={tw`text-gray-400 text-center text-sm mb-4`}>
                                     Kami tidak bisa melanjutkan tanpa akses kamera.
                                 </Text>
-                                <TouchableOpacity onPress={requestPermission} style={tw`bg-blue-600 px-6 py-2 rounded-lg`}>
+                                <TouchableOpacity onPress={requestPermission} style={tw`bg-utama-kuat px-6 py-2 rounded-lg`}>
                                     <Text style={tw`text-white font-bold`}>Izinkan Kamera</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : photoUri ? (
-                            <View style={[tw`rounded-full overflow-hidden border-4 border-blue-500`, { width: frameSize, height: frameSize }]}>
+                            <View style={[tw`rounded-full overflow-hidden border-4 border-utama-terang`, { width: frameSize, height: frameSize }]}>
                                 <View style={tw`flex-1 bg-gray-800`} />
                                 {/* Image preview would go here, simulated for now */}
                                 <Text style={tw`absolute items-center justify-center text-white h-full w-full text-center p-32`}>✓</Text>
@@ -196,7 +197,7 @@ export function FaceVerificationModal({ visible, onVerificationComplete }: FaceV
                                     <Text style={tw`text-gray-300 font-bold`}>Ulangi</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={tw`flex-1 bg-blue-600 py-4 rounded-xl items-center flex-row justify-center`}
+                                    style={tw`flex-1 bg-utama-kuat py-4 rounded-xl items-center flex-row justify-center`}
                                     onPress={submitVerification}
                                     disabled={isProcessing}
                                 >
@@ -212,7 +213,7 @@ export function FaceVerificationModal({ visible, onVerificationComplete }: FaceV
                             </View>
                         ) : (
                             <TouchableOpacity
-                                style={tw`bg-blue-600 py-4 rounded-full items-center justify-center w-20 h-20 self-center shadow-lg`}
+                                style={tw`bg-utama-kuat py-4 rounded-full items-center justify-center w-20 h-20 self-center shadow-lg`}
                                 onPress={takePicture}
                                 disabled={!permission.granted}
                             >

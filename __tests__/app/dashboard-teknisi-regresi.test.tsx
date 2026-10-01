@@ -116,7 +116,7 @@ jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }))
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: unknown }) => children,
 }));
-jest.mock('twrnc', () => () => ({}));
+jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const TEKNISI = {
   id: 'u-9',

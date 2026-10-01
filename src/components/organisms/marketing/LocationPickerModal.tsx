@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import { Crosshair, MapPin, Search, AlertTriangle } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 import { WebLocationPicker } from './WebLocationPicker';
 
 interface LocationPickerModalProps {
@@ -26,6 +26,7 @@ interface OSMSuggestion {
 const MapLibreGL = getMapLibre();
 
 export function LocationPickerModal({ visible, onClose, onSelectLocation, initialLocation }: LocationPickerModalProps) {
+    const { tw, warna } = useTemaPersona();
     const cameraRef = useRef<any>(null);
     const [center, setCenter] = useState<[number, number]>([106.816666, -6.200000]); // Default Jakarta
     const [isInitialized, setIsInitialized] = useState(false);
@@ -234,7 +235,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                         </Text>
                         <TouchableOpacity
                             onPress={onClose}
-                            style={tw`mt-8 bg-blue-600 px-8 py-4 rounded-xl`}
+                            style={tw`mt-8 bg-utama-kuat px-8 py-4 rounded-xl`}
                         >
                             <Text style={tw`text-white font-bold`}>Tutup</Text>
                         </TouchableOpacity>
@@ -267,7 +268,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                              returnKeyType="search"
                              onSubmitEditing={() => Keyboard.dismiss()}
                         />
-                        {isSearching && <ActivityIndicator size="small" color="#2563eb" />}
+                        {isSearching && <ActivityIndicator size="small" color={warna.utamaKuat} />}
                     </View>
 
                     {/* Suggestions Dropdown */}
@@ -293,7 +294,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                 <View style={tw`flex-1 relative justify-center`}>
                     {!isInitialized ? (
                          <View style={tw`flex-1 items-center justify-center bg-gray-50`}>
-                             <ActivityIndicator size="large" color="#2563eb" />
+                             <ActivityIndicator size="large" color={warna.utamaKuat} />
                              <Text style={tw`text-gray-500 mt-4`}>Mencari lokasi...</Text>
                          </View>
                     ) : (
@@ -328,9 +329,9 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                         disabled={loadingLocation}
                     >
                         {loadingLocation ? (
-                            <ActivityIndicator size="small" color="#2563eb" />
+                            <ActivityIndicator size="small" color={warna.utamaKuat} />
                         ) : (
-                            <Crosshair size={24} color="#2563eb" />
+                            <Crosshair size={24} color={warna.utama} />
                         )}
                     </TouchableOpacity>
 
@@ -345,7 +346,7 @@ export function LocationPickerModal({ visible, onClose, onSelectLocation, initia
                     </View>
                     <TouchableOpacity
                         onPress={handleSelect}
-                        style={tw`bg-blue-600 py-4 rounded-xl items-center justify-center shadow-md shadow-blue-200`}
+                        style={tw`bg-utama-kuat py-4 rounded-xl items-center justify-center shadow-md shadow-utama-garis`}
                     >
                         <Text style={tw`text-white font-bold text-base`}>Pilih Titik Ini</Text>
                     </TouchableOpacity>

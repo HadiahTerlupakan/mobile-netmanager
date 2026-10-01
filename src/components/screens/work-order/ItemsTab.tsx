@@ -7,7 +7,7 @@ import {
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+import { useTemaPersona } from '@/theme';
 
 interface ItemsTabProps {
   wo: WorkOrder;
@@ -23,6 +23,7 @@ export const ItemsTab = React.memo(function ItemsTab({
   isWorkStarted,
   resolvedWorkOrderId,
 }: ItemsTabProps) {
+  const { tw, warna } = useTemaPersona();
   const router = useRouter();
 
   return (
@@ -115,14 +116,14 @@ export const ItemsTab = React.memo(function ItemsTab({
             router.push(`/(app)/ambil-barang/${resolvedWorkOrderId}` as any);
           }}
           disabled={!canInteract}
-          style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-blue-50 border-blue-200 active:bg-blue-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
+          style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-utama-sangat-muda border-utama-garis active:bg-utama-muda" : "bg-gray-100 border-gray-200 opacity-60"}`}
         >
           <ImageIcon
             size={20}
-            color={canInteract ? "#2563eb" : "#9ca3af"}
+            color={canInteract ? warna.utama : "#9ca3af"}
             style={tw`mr-2`}
           />
-          <Text style={tw`font-bold ${canInteract ? "text-blue-600" : "text-gray-400"}`}>
+          <Text style={tw`font-bold ${canInteract ? "text-utama-kuat" : "text-gray-400"}`}>
             Ambil Barang / Material
           </Text>
         </TouchableOpacity>

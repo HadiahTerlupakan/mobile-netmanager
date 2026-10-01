@@ -2,7 +2,8 @@ import { ChevronLeft } from 'lucide-react-native';
 import React from 'react';
 import { Modal, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import tw from 'twrnc';
+
+import { useTemaPersona } from '@/theme';
 
 /** Jarak isi modal dari tepi atas setelah inset sistem. */
 const JARAK_TEPI = 16;
@@ -25,6 +26,7 @@ interface BingkaiModalPenilaianProps {
  * FlatList (bingkai tidak menggulung sendiri).
  */
 export function BingkaiModalPenilaian({ judul, onTutup, onKembali, children }: BingkaiModalPenilaianProps) {
+  const { tw } = useTemaPersona();
   const insets = useSafeAreaInsets();
   return (
     <Modal visible animationType="slide" onRequestClose={onKembali ?? onTutup}>
@@ -36,8 +38,8 @@ export function BingkaiModalPenilaian({ judul, onTutup, onKembali, children }: B
             </TouchableOpacity>
           ) : null}
           <Text style={tw`flex-1 text-lg font-bold text-gray-900 mr-2`} numberOfLines={1}>{judul}</Text>
-          <TouchableOpacity accessibilityRole="button" onPress={onTutup} hitSlop={PERLUASAN_SENTUH} style={tw`px-3 py-1.5 bg-blue-50 rounded-full`}>
-            <Text style={tw`text-blue-600 font-semibold`}>Tutup</Text>
+          <TouchableOpacity accessibilityRole="button" onPress={onTutup} hitSlop={PERLUASAN_SENTUH} style={tw`px-3 py-1.5 bg-utama-sangat-muda rounded-full`}>
+            <Text style={tw`text-utama-kuat font-semibold`}>Tutup</Text>
           </TouchableOpacity>
         </View>
         {children}
