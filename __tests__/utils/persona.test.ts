@@ -34,6 +34,48 @@ describe('tentukanPersona', () => {
     expect(isPersonaMitra('MITRA_TEKNISI')).toBe(true);
     expect(isPersonaMitra('KARYAWAN_SALES')).toBe(false);
     expect(isPersonaMitra('KARYAWAN_TEKNISI')).toBe(false);
+    expect(isPersonaMitra('KARYAWAN_STAFF')).toBe(false);
+    expect(isPersonaMitra('KARYAWAN_FINANCE')).toBe(false);
+    expect(isPersonaMitra('KARYAWAN_DIREKTUR')).toBe(false);
+  });
+});
+
+/** persona server × isSales → persona; persona server menang atas isSales. */
+const KASUS_PERSONA_SERVER: [User['persona'], boolean | undefined, Persona][] = [
+  ['STAFF', false, 'KARYAWAN_STAFF'],
+  ['STAFF', undefined, 'KARYAWAN_STAFF'],
+  ['TEKNISI', false, 'KARYAWAN_TEKNISI'],
+  ['SALES', true, 'KARYAWAN_SALES'],
+  ['SALES', false, 'KARYAWAN_SALES'],
+  ['FINANCE', false, 'KARYAWAN_FINANCE'],
+  ['DIREKTUR', false, 'KARYAWAN_DIREKTUR'],
+];
+
+describe('tentukanPersona — persona dari server', () => {
+  it.each(KASUS_PERSONA_SERVER)('persona %s × isSales %s → %s', (persona, isSales, harapan) => {
+    expect(tentukanPersona({ employeeType: 'KARYAWAN', persona, isSales })).toBe(harapan);
+  });
+
+  it('staff tidak lagi jatuh ke tampilan teknisi', () => {
+    expect(tentukanPersona({ employeeType: 'KARYAWAN', persona: 'STAFF', isSales: false })).not.toBe('KARYAWAN_TEKNISI');
+  });
+
+  it('server/cache lama tanpa persona memakai aturan lama isSales', () => {
+    expect(tentukanPersona({ employeeType: 'KARYAWAN', isSales: true })).toBe('KARYAWAN_SALES');
+    expect(tentukanPersona({ employeeType: 'KARYAWAN', isSales: false })).toBe('KARYAWAN_TEKNISI');
+  });
+
+  it('nilai persona yang belum dikenal aplikasi ini memakai aturan lama', () => {
+    const personaBaru = { employeeType: 'KARYAWAN', persona: 'INVESTOR', isSales: true } as unknown as User;
+    expect(tentukanPersona(personaBaru)).toBe('KARYAWAN_SALES');
+    expect(tentukanPersona({ ...personaBaru, persona: 'constructor', isSales: false } as unknown as User)).toBe(
+      'KARYAWAN_TEKNISI',
+    );
+  });
+
+  it('mitra tetap dari employeeType walau membawa persona', () => {
+    expect(tentukanPersona({ employeeType: 'MITRA_SALES', persona: 'STAFF' })).toBe('MITRA_SALES');
+    expect(tentukanPersona({ employeeType: 'MITRA_TEKNISI', persona: 'SALES' })).toBe('MITRA_TEKNISI');
   });
 });
 

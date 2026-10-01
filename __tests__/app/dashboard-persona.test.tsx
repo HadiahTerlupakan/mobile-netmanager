@@ -23,6 +23,10 @@ jest.mock('@/components/screens/KaryawanSalesDashboardScreen', () => {
   const { Text } = require('react-native');
   return { KaryawanSalesDashboardScreen: () => <Text>layar-karyawan-sales</Text> };
 });
+jest.mock('@/components/screens/KaryawanStaffDashboardScreen', () => {
+  const { Text } = require('react-native');
+  return { KaryawanStaffDashboardScreen: () => <Text>layar-karyawan-staff</Text> };
+});
 jest.mock('@/components/screens/KaryawanTeknisiDashboardScreen', () => {
   const { Text } = require('react-native');
   return { KaryawanTeknisiDashboardScreen: () => <Text>layar-karyawan-teknisi</Text> };
@@ -48,10 +52,12 @@ const renderBeranda = (user: Record<string, unknown> | null) => {
 const SEMUA_PENANDA = [
   'layar-karyawan-sales',
   'layar-karyawan-teknisi',
+  'layar-karyawan-staff',
   'layar-mitra-sales',
   'layar-mitra-teknisi',
   'batas:Dashboard',
   'batas:DashboardSales',
+  'batas:DashboardStaff',
 ];
 
 describe('Beranda per persona', () => {
@@ -66,6 +72,12 @@ describe('Beranda per persona', () => {
     [{ employeeType: 'MITRA_SALES', isSales: true }, ['layar-mitra-sales']],
     [{ employeeType: 'MITRA_TEKNISI', isSales: false }, ['layar-mitra-teknisi']],
     [null, ['batas:Dashboard', 'layar-karyawan-teknisi']],
+    // Persona dari server menang atas isSales; Finance & Direktur sementara = Staff.
+    [{ employeeType: 'KARYAWAN', persona: 'STAFF', isSales: false }, ['batas:DashboardStaff', 'layar-karyawan-staff']],
+    [{ employeeType: 'KARYAWAN', persona: 'FINANCE', isSales: false }, ['batas:DashboardStaff', 'layar-karyawan-staff']],
+    [{ employeeType: 'KARYAWAN', persona: 'DIREKTUR', isSales: false }, ['batas:DashboardStaff', 'layar-karyawan-staff']],
+    [{ employeeType: 'KARYAWAN', persona: 'TEKNISI', isSales: false }, ['batas:Dashboard', 'layar-karyawan-teknisi']],
+    [{ employeeType: 'KARYAWAN', persona: 'SALES', isSales: true }, ['batas:DashboardSales', 'layar-karyawan-sales']],
   ])('%j → %j', (user, penandaHarapan) => {
     const { queryByText } = renderBeranda(user);
 

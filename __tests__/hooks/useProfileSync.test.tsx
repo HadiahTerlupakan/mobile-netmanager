@@ -133,6 +133,55 @@ describe('useProfileSync', () => {
     });
   });
 
+  it('menyalin persona dari profil ke AuthContext', async () => {
+    mockUseOfflineQuery.mockReturnValue({
+      data: { ...profileData, persona: 'STAFF' },
+      isPending: false,
+      refetch,
+    } as unknown as ReturnType<typeof useOfflineQuery>);
+
+    renderHook(() => useProfileSync({ enableBackgroundSync: true }));
+
+    await waitFor(() => {
+      expect(updateUser).toHaveBeenCalledWith(expect.objectContaining({ persona: 'STAFF' }));
+    });
+  });
+
+  it('profil tanpa persona (server lama) tidak menghapus persona dari login', async () => {
+    const userBerpersona = { ...currentUser, persona: 'SALES' } as User;
+    mockUseAuth.mockReturnValue({ user: userBerpersona, token: 'token-123', updateUser, isLoading: false, signIn, signOut });
+
+    renderHook(() => useProfileSync({ enableBackgroundSync: true }));
+
+    await waitFor(() => {
+      expect(updateUser).toHaveBeenCalledWith(expect.objectContaining({ persona: 'SALES', name: 'New Name' }));
+    });
+  });
+
+  it('persona saja yang berubah tetap memicu sinkron', async () => {
+    const userSinkron = {
+      ...currentUser,
+      name: profileData.name,
+      features: profileData.features,
+      image: profileData.image,
+      isOnLeave: profileData.isOnLeave,
+      requiresFaceVerification: profileData.requiresFaceVerification,
+      persona: 'TEKNISI',
+    } as User;
+    mockUseAuth.mockReturnValue({ user: userSinkron, token: 'token-123', updateUser, isLoading: false, signIn, signOut });
+    mockUseOfflineQuery.mockReturnValue({
+      data: { ...profileData, persona: 'STAFF' },
+      isPending: false,
+      refetch,
+    } as unknown as ReturnType<typeof useOfflineQuery>);
+
+    renderHook(() => useProfileSync({ enableBackgroundSync: true }));
+
+    await waitFor(() => {
+      expect(updateUser).toHaveBeenCalledWith({ ...userSinkron, persona: 'STAFF' });
+    });
+  });
+
   it('refetches when the user stream receives profile.refresh', () => {
     const { queryClient } = require('@/lib/queryClient');
     renderHook(() => useProfileSync({ enableBackgroundSync: true }));

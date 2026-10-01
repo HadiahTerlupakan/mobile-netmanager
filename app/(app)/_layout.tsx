@@ -4,6 +4,7 @@ import {
   ClipboardList,
   DollarSign,
   Home,
+  MessageCircle,
   Package,
   ScanLine,
   User,
@@ -18,8 +19,9 @@ import { LocationDisclosureProvider } from '@/components/providers/LocationDiscl
 import { MitraSalesTabBar } from '@/components/organisms/navigation/MitraSalesTabBar';
 import { MitraTeknisiTabBar } from '@/components/organisms/navigation/MitraTeknisiTabBar';
 import { KaryawanSalesTabBar } from '@/components/organisms/navigation/KaryawanSalesTabBar';
+import { KaryawanStaffTabBar } from '@/components/organisms/navigation/KaryawanStaffTabBar';
 import { bolehCanvasing, isPersonaMitra, punyaFitur, tentukanPersona, type Persona } from '@/utils/persona';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps, BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
 import { AppFeature } from "@/constants/features";
 import { RUTE_LAYAR_TERSEMBUNYI } from "@/constants/ruteLayarTersembunyi";
 import { useAuth } from "@/context/AuthContext";
@@ -36,10 +38,35 @@ const OPSI_TERSEMBUNYI = { href: null } as const;
 const OPSI_LAYAR_PENUH = { href: null, tabBarStyle: { display: "none" } } as const;
 
 /** Tab bar per persona; `undefined` = tab bar bawaan (teknisi karyawan, tidak berubah). */
+/**
+ * Judul & ikon route tersembunyi yang tampil sebagai tab di tab bar kustom
+ * (`TombolTabPersona` membacanya dari opsi layar). Chat = tab staff.
+ */
+const OPSI_TAB_KUSTOM: Partial<Record<string, BottomTabNavigationOptions>> = {
+  'chat/index': {
+    title: "Chat",
+    tabBarIcon: ({ color }) => <MessageCircle size={24} color={color} />,
+  },
+};
+
+/** Opsi setiap route tersembunyi, dihitung sekali. */
+const OPSI_RUTE_TERSEMBUNYI = RUTE_LAYAR_TERSEMBUNYI.map(({ nama, isLayarPenuh }) => ({
+  nama,
+  options: { ...(isLayarPenuh ? OPSI_LAYAR_PENUH : OPSI_TERSEMBUNYI), ...OPSI_TAB_KUSTOM[nama] },
+}));
+
+const tabBarStaff = (props: BottomTabBarProps) => <KaryawanStaffTabBar {...props} />;
+
 const TAB_BAR_PER_PERSONA: Record<Persona, ((props: BottomTabBarProps) => React.ReactNode) | undefined> = {
   KARYAWAN_SALES: (props) => <KaryawanSalesTabBar {...props} />,
+  KARYAWAN_STAFF: tabBarStaff,
   KARYAWAN_TEKNISI: undefined,
   MITRA_SALES: (props) => <MitraSalesTabBar {...props} />,
+  // SEMENTARA: Finance & Direktur memakai tab bar Staff sampai tampilan
+  // khususnya dibuat (docs/architecture/persona-pengguna-design.md §3 langkah 5).
+  // Persona tetap terpisah supaya nanti cukup mengganti baris ini.
+  KARYAWAN_FINANCE: tabBarStaff,
+  KARYAWAN_DIREKTUR: tabBarStaff,
   MITRA_TEKNISI: (props) => <MitraTeknisiTabBar {...props} />,
 };
 
@@ -268,12 +295,8 @@ export default function AppLayout() {
         />
 
         {/* Route tersembunyi — daftarnya di `RUTE_LAYAR_TERSEMBUNYI` */}
-        {RUTE_LAYAR_TERSEMBUNYI.map(({ nama, isLayarPenuh }) => (
-          <Tabs.Screen
-            key={nama}
-            name={nama}
-            options={isLayarPenuh ? OPSI_LAYAR_PENUH : OPSI_TERSEMBUNYI}
-          />
+        {OPSI_RUTE_TERSEMBUNYI.map(({ nama, options }) => (
+          <Tabs.Screen key={nama} name={nama} options={options} />
         ))}
       </Tabs>
 

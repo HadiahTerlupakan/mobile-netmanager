@@ -37,6 +37,8 @@ interface QuickMenuProps {
   isMitra?: boolean;
   /** Bila diisi, hanya menu ini yang tampil (izin tetap diperiksa). */
   menuIds?: readonly IdMenuCepat[];
+  /** Sembunyikan semua menu yang tidak berizin (bukan tampil terkunci). */
+  isSembunyikanTerkunci?: boolean;
 }
 
 interface MenuItem {
@@ -171,6 +173,7 @@ const QuickMenuComponent = ({
   role,
   isMitra = false,
   menuIds,
+  isSembunyikanTerkunci = false,
 }: QuickMenuProps) => {
   const router = useRouter();
 
@@ -191,8 +194,8 @@ const QuickMenuComponent = ({
           ...item,
           enabled: hasFeature(item.requiredFeatures),
         }))
-        .filter((item) => item.enabled || !item.hideWhenLocked),
-    [hasFeature, isMitra, menuIds],
+        .filter((item) => item.enabled || !(item.hideWhenLocked || isSembunyikanTerkunci)),
+    [hasFeature, isMitra, menuIds, isSembunyikanTerkunci],
   );
 
   const handleMenuPress = useCallback((item: MenuItem & { enabled: boolean }) => {
@@ -206,6 +209,8 @@ const QuickMenuComponent = ({
       );
     }
   }, [router]);
+
+  if (processedMenuItems.length === 0) return null;
 
   return (
     <View style={tw`px-4 pb-8`}>

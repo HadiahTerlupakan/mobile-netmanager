@@ -4,6 +4,7 @@ import { useOfflineQuery } from '@/hooks/queries';
 import { queryKeys, queryClient } from '@/lib/queryClient';
 import { realtimeService } from '@/services/RealtimeService';
 import { logger } from '@/utils/logger';
+import type { PersonaKaryawanServer } from '@/utils/persona';
 import { useCallback, useEffect } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 
@@ -21,6 +22,8 @@ interface UserProfile {
     canCashoutCanvasing?: boolean;
     /** Lingkup rencana kunjungan; TIM/SEMUA = pemberi tugas (kepala sales/admin). */
     lingkupRencana?: LingkupRencana;
+    /** Persona karyawan; server lama/mitra tidak mengirimnya. */
+    persona?: PersonaKaryawanServer;
     role?: {
         id: string;
         name: string;
@@ -157,8 +160,11 @@ export function useProfileSync({ enableBackgroundSync = false }: UseProfileSyncO
         const hasImageChanged = user.image !== profileData.image;
         const hasLeaveStatusChanged = user.isOnLeave !== profileData.isOnLeave;
         const hasVerificationChanged = user.requiresFaceVerification !== profileData.requiresFaceVerification;
+        // Profil tanpa `persona` (server lama) tidak menghapus persona dari login.
+        const persona = profileData.persona ?? user.persona;
+        const hasPersonaChanged = user.persona !== persona;
 
-        if (hasNameChanged || hasFeaturesChanged || hasImageChanged || hasLeaveStatusChanged || hasVerificationChanged) {
+        if (hasNameChanged || hasFeaturesChanged || hasImageChanged || hasLeaveStatusChanged || hasVerificationChanged || hasPersonaChanged) {
             logger.info('[useProfileSync] Syncing fresh profile data to AuthContext');
 
             const updatedUser: User = {
@@ -167,7 +173,8 @@ export function useProfileSync({ enableBackgroundSync = false }: UseProfileSyncO
                 features: profileData.features || user.features,
                 image: profileData.image,
                 isOnLeave: profileData.isOnLeave,
-                requiresFaceVerification: profileData.requiresFaceVerification
+                requiresFaceVerification: profileData.requiresFaceVerification,
+                persona,
             };
 
             updateUser(updatedUser);

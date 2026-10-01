@@ -12,6 +12,9 @@ const LAYAR_PROFIL: Record<Persona, () => React.JSX.Element> = {
     MITRA_TEKNISI: () => <MitraTeknisiProfileScreen />,
     KARYAWAN_SALES: () => <KaryawanProfileScreen />,
     KARYAWAN_TEKNISI: () => <KaryawanProfileScreen />,
+    KARYAWAN_STAFF: () => <KaryawanProfileScreen />,
+    KARYAWAN_FINANCE: () => <KaryawanProfileScreen />,
+    KARYAWAN_DIREKTUR: () => <KaryawanProfileScreen />,
 };
 
 /** Route Profil: memilih layar dari persona (`tentukanPersona`, satu-satunya definisi persona). */

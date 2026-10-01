@@ -9,6 +9,7 @@ import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { SecureStorage, Storage } from '@/utils/storage';
 import { queryClient } from '@/lib/queryClient';
+import type { PersonaKaryawanServer } from '@/utils/persona';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
 
@@ -21,6 +22,8 @@ export type User = {
     features?: string[];
     employeeType?: 'KARYAWAN' | 'MITRA_TEKNISI' | 'MITRA_SALES';
     isSales?: boolean;
+    /** Persona karyawan dari server (login, `/me`, profil). Mitra & server lama tidak mengirimnya. */
+    persona?: PersonaKaryawanServer;
     image?: string | null;
     workDays?: string | null;
     workingHourMode?: string | null;

@@ -54,6 +54,10 @@ const mockKaryawanSalesTabBar = jest.fn((_props: unknown) => null);
 jest.mock('@/components/organisms/navigation/KaryawanSalesTabBar', () => ({
   KaryawanSalesTabBar: (props: unknown) => mockKaryawanSalesTabBar(props),
 }));
+const mockKaryawanStaffTabBar = jest.fn((_props: unknown) => null);
+jest.mock('@/components/organisms/navigation/KaryawanStaffTabBar', () => ({
+  KaryawanStaffTabBar: (props: unknown) => mockKaryawanStaffTabBar(props),
+}));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 jest.mock('twrnc', () => () => ({}));
 
@@ -262,6 +266,38 @@ describe('layout aplikasi — route presurvei', () => {
 
     expect(preventDefault).toHaveBeenCalledWith();
     expect(alert).toHaveBeenCalledWith('Akses Terbatas', expect.any(String), expect.any(Array));
+  });
+
+  it.each(['STAFF', 'FINANCE', 'DIREKTUR'])('persona %s memakai KaryawanStaffTabBar (Finance & Direktur sementara)', (persona) => {
+    renderLayout({ ...TEKNISI, persona });
+
+    renderTabBar();
+
+    expect(mockKaryawanStaffTabBar).toHaveBeenCalledWith({ state: { index: 0, routes: [] } });
+    expect(mockKaryawanSalesTabBar).not.toHaveBeenCalled();
+  });
+
+  it('persona TEKNISI tetap memakai tab bar bawaan', () => {
+    renderLayout({ ...TEKNISI, persona: 'TEKNISI' });
+
+    expect(mockPropsTabs.tabBar).toBeUndefined();
+  });
+
+  it('staff: registrasi route tetap lengkap; chat/index tersembunyi tetapi berjudul Chat untuk tab staff', () => {
+    renderLayout({ ...TEKNISI, persona: 'STAFF' });
+
+    expect(sidikRegistrasi().map(([nama]) => nama)).toEqual([
+      'dashboard',
+      'presurvei/index',
+      'work-order',
+      'marketing/canvasing/index',
+      'barang',
+      'absensi',
+      'profile',
+      'mitra-wallet',
+      ...SIDIK_TERSEMBUNYI.map(([nama]) => nama),
+    ]);
+    expect(layar('chat/index')?.options).toEqual(expect.objectContaining({ href: null, title: 'Chat' }));
   });
 
   it('mitra sales tetap memakai MitraSalesTabBar', () => {

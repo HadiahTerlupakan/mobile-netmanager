@@ -1,9 +1,9 @@
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import React from 'react';
 import { Text, TouchableOpacity } from 'react-native';
-import tw from 'twrnc';
 
-import type { TabSales } from '@/utils/tabKaryawanSales';
+import tw from 'twrnc';
+import type { TabPersona } from '@/utils/tabPersona';
 
 const WARNA_AKTIF = '#2563eb';
 const WARNA_PASIF = '#9ca3af';
@@ -12,8 +12,8 @@ const UKURAN_IKON = 24;
 type NavigasiTab = BottomTabBarProps['navigation'];
 type RuteTab = BottomTabBarProps['state']['routes'][number];
 
-interface TombolTabSalesProps extends Pick<BottomTabBarProps, 'state' | 'descriptors' | 'navigation'> {
-  tab: TabSales;
+interface TombolTabPersonaProps extends Pick<BottomTabBarProps, 'state' | 'descriptors' | 'navigation'> {
+  tab: TabPersona;
 }
 
 /**
@@ -25,8 +25,8 @@ function tekanTab(navigation: NavigasiTab, route: RuteTab, isFokus: boolean) {
   if (!isFokus && !event.defaultPrevented) navigation.navigate(route.name, route.params);
 }
 
-/** Satu tombol tab sales; ikon diambil dari opsi `Tabs.Screen` di layout. */
-export function TombolTabSales({ tab, state, descriptors, navigation }: TombolTabSalesProps) {
+/** Satu tombol tab bar persona (sales/staff karyawan); ikon diambil dari opsi `Tabs.Screen` di layout. */
+export function TombolTabPersona({ tab, state, descriptors, navigation }: TombolTabPersonaProps) {
   const indeks = state.routes.findIndex((route) => route.name === tab.rute);
   if (indeks < 0) return null;
   const route = state.routes[indeks];
