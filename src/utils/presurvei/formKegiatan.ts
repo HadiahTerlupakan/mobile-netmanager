@@ -11,31 +11,31 @@ import {
   isButuhDataTeknis,
   isButuhLokasi,
 } from './aturanPresurvei';
+import {
+  PANJANG_ALAMAT_PROSPEK_MAKS,
+  PESAN_ISIAN_PROSPEK,
+  isTerlaluPanjang,
+  teksAtauNull,
+  validasiIsianProspek,
+  type IsianProspekBaru,
+} from './isianProspek';
 import type { TitikGps } from './lokasiGps';
+
+export type { IsianProspekBaru } from './isianProspek';
 
 /**
  * Aturan form catat kegiatan. Meniru `catatKegiatanSchema`
  * (netmanager `kegiatan.validator.ts`) untuk UX; server tetap penentu.
  * Medan yang tidak berlaku untuk jenisnya tidak divalidasi dan tidak dikirim.
+ * Aturan data prospek baru dipakai bersama lewat `isianProspek.ts`.
  */
 
-// Batas panjang = kegiatan.validator.ts:19-21 dan 57-63.
+// Batas panjang = kegiatan.validator.ts:19-21.
 const PANJANG_NAMA_MAKS = 120;
-const PANJANG_ALAMAT_MAKS = 500;
+const PANJANG_ALAMAT_MAKS = PANJANG_ALAMAT_PROSPEK_MAKS;
 const PANJANG_CATATAN_MAKS = 1000;
 const JUMLAH_FOTO_KEGIATAN_MIN = 1;
-const PANJANG_NAMA_PROSPEK_MIN = 2;
-const PANJANG_TELP_MIN = 8;
-const PANJANG_TELP_MAKS = 20;
-const PANJANG_ALAMAT_PROSPEK_MIN = 5;
 const POLA_BILANGAN_BULAT = /^\d+$/;
-
-export interface IsianProspekBaru {
-  nama: string;
-  noTelp: string;
-  alamat: string;
-  paketDiminati: string;
-}
 
 export interface NilaiFormKegiatan {
   jenis: KegiatanJenis | null;
@@ -96,13 +96,11 @@ export const PESAN_FORM_KEGIATAN = {
   fotoKurang: 'Ambil minimal 1 foto bukti',
   fotoLebih: `Maksimal ${JUMLAH_FOTO_KEGIATAN_MAKS} foto`,
   kabel: `Estimasi kabel harus bilangan bulat 0–${KABEL_METER_MAKS} meter`,
-  terlaluPanjang: 'Isian terlalu panjang',
-  namaProspek: `Nama minimal ${PANJANG_NAMA_PROSPEK_MIN} huruf`,
-  telpProspek: `Nomor HP ${PANJANG_TELP_MIN}–${PANJANG_TELP_MAKS} karakter`,
-  alamatProspek: `Alamat minimal ${PANJANG_ALAMAT_PROSPEK_MIN} huruf`,
+  terlaluPanjang: PESAN_ISIAN_PROSPEK.terlaluPanjang,
+  namaProspek: PESAN_ISIAN_PROSPEK.namaPendek,
+  telpProspek: PESAN_ISIAN_PROSPEK.telpPendek,
+  alamatProspek: PESAN_ISIAN_PROSPEK.alamatPendek,
 } as const;
-
-const isTerlaluPanjang = (teks: string, batas: number): boolean => teks.trim().length > batas;
 
 /** Apakah prospek baru benar-benar akan dikirim. */
 export function isProspekBaruDipakai(nilai: NilaiFormKegiatan): boolean {
@@ -150,43 +148,15 @@ function validasiTeknis(nilai: NilaiFormKegiatan): KesalahanFormKegiatan {
   return kesalahan;
 }
 
-/**
- * Panjang saja, tanpa pola karakter — server (`dataProspekBaruSchema.noTelp`,
- * `kegiatan.validator.ts:59`) juga hanya `z.string().min(8).max(20)` tanpa
- * regex. Memaksa hanya-digit di klien akan menolak nomor yang server terima.
- */
-function isTelpSah(teks: string): boolean {
-  const panjang = teks.trim().length;
-  return panjang >= PANJANG_TELP_MIN && panjang <= PANJANG_TELP_MAKS;
-}
-
+/** Data prospek baru memakai aturan bersama form Tambah Prospek (`isianProspek.ts`). */
 function validasiProspekBaru(nilai: NilaiFormKegiatan): KesalahanFormKegiatan {
   if (!isProspekBaruDipakai(nilai)) return {};
-  const { nama, alamat, noTelp, paketDiminati } = nilai.prospekBaru;
+  const { nama, noTelp, alamat, paketDiminati } = validasiIsianProspek(nilai.prospekBaru);
   const kesalahan: KesalahanFormKegiatan = {};
-
-  const panjangNama = nama.trim().length;
-  if (panjangNama < PANJANG_NAMA_PROSPEK_MIN) {
-    kesalahan.prospekBaruNama = PESAN_FORM_KEGIATAN.namaProspek;
-  } else if (panjangNama > PANJANG_NAMA_MAKS) {
-    kesalahan.prospekBaruNama = PESAN_FORM_KEGIATAN.terlaluPanjang;
-  }
-
-  if (!isTelpSah(noTelp)) kesalahan.prospekBaruNoTelp = PESAN_FORM_KEGIATAN.telpProspek;
-
-  const panjangAlamat = alamat.trim().length;
-  if (panjangAlamat < PANJANG_ALAMAT_PROSPEK_MIN) {
-    kesalahan.prospekBaruAlamat = PESAN_FORM_KEGIATAN.alamatProspek;
-  } else if (panjangAlamat > PANJANG_ALAMAT_MAKS) {
-    kesalahan.prospekBaruAlamat = PESAN_FORM_KEGIATAN.terlaluPanjang;
-  }
-
-  // paketDiminati opsional di server (`dataProspekBaruSchema.paketDiminati`,
-  // `kegiatan.validator.ts:62`), hanya batas maksimal yang berlaku.
-  if (isTerlaluPanjang(paketDiminati, PANJANG_NAMA_MAKS)) {
-    kesalahan.prospekBaruPaket = PESAN_FORM_KEGIATAN.terlaluPanjang;
-  }
-
+  if (nama) kesalahan.prospekBaruNama = nama;
+  if (noTelp) kesalahan.prospekBaruNoTelp = noTelp;
+  if (alamat) kesalahan.prospekBaruAlamat = alamat;
+  if (paketDiminati) kesalahan.prospekBaruPaket = paketDiminati;
   return kesalahan;
 }
 
@@ -203,11 +173,6 @@ export function validasiFormKegiatan(
     ...validasiProspekBaru(nilai),
   };
 }
-
-const teksAtauNull = (teks: string): string | null => {
-  const bersih = teks.trim();
-  return bersih === '' ? null : bersih;
-};
 
 /** Kabel kosong → null; "0" tetap 0 (hasil survei yang sah). */
 const kabelAtauNull = (teks: string): number | null => {

@@ -4,6 +4,8 @@ import { ActivityIndicator, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
+import { KepalaLayar } from '@/components/molecules/KepalaLayar';
+
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { AksiProspek } from '@/components/organisms/presurvei/AksiProspek';
 import { KartuRincianProspek } from '@/components/organisms/presurvei/KartuRincianProspek';
@@ -32,6 +34,7 @@ export default function RincianProspekScreen() {
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
+      <KepalaLayar judul="Rincian Prospek" />
       <ScrollView>
         <KartuRincianProspek prospek={prospek} />
         <AksiProspek

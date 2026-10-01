@@ -45,7 +45,7 @@ export function BlokProspekKegiatan(props: BlokProspekKegiatanProps) {
           onPress={onBukaPilih}
           style={tw`border border-gray-300 rounded-xl py-3 items-center`}
         >
-          <Text style={tw`text-gray-700`}>Pilih prospek (follow-up)</Text>
+          <Text style={tw`text-gray-700`}>Pilih prospek</Text>
         </TouchableOpacity>
       )}
       {isBolehProspekBaru(nilai) ? (

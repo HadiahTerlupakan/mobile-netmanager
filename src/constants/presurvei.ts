@@ -28,6 +28,23 @@ export const PROSPEK_STATUSES = [
 ] as const;
 export type ProspekStatus = (typeof PROSPEK_STATUSES)[number];
 
+/**
+ * Siapa prospek ini (netmanager `domain/entities/Prospek.ts` `PROSPEK_JENIS`):
+ * calon pemasang, atau perantara yang bisa membawa pelanggan (ketua RT/RW,
+ * kepala desa, tokoh masyarakat, pemilik warung, dll.).
+ */
+export const PROSPEK_JENIS = ['CALON_PELANGGAN', 'PERANTARA'] as const;
+export type ProspekJenis = (typeof PROSPEK_JENIS)[number];
+
+/** Label jenis prospek untuk sales. */
+export const LABEL_JENIS_PROSPEK: Record<ProspekJenis, string> = {
+  CALON_PELANGGAN: 'Calon pelanggan',
+  PERANTARA: 'Perantara',
+};
+
+/** Batas panjang peran perantara (netmanager `prospek.validator.ts` `PANJANG_PERAN_MAKS`). */
+export const PANJANG_PERAN_PROSPEK_MAKS = 120;
+
 /** Label jenis kegiatan; `Record` memaksa jenis baru dijawab saat kompilasi. */
 export const LABEL_JENIS_KEGIATAN: Record<KegiatanJenis, string> = {
   KUNJUNGAN: 'Kunjungan',

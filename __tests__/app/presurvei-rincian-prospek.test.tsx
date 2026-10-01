@@ -40,6 +40,8 @@ const prospek = (over: Partial<ProspekDetail>): ProspekDetail => ({
   nama: 'Budi Santoso',
   noTelp: '081234567890',
   alamat: 'Jl. Kenanga 1',
+  jenis: 'CALON_PELANGGAN',
+  peran: null,
   sumber: 'LAPANGAN',
   status: 'TERTARIK',
   pemilikId: 'sales-a',
@@ -145,6 +147,34 @@ describe('Rincian prospek', () => {
     mockProspek = prospek({ status: 'DEAL', canvasingId: 'cv-1' });
     const sudah = renderLayar();
     expect(sudah.queryByText('Jadikan Canvasing')).toBeNull();
+  });
+
+  describe('perantara', () => {
+    it('ditandai lencana berperan dan tidak ditawari Jadikan Canvasing walau Deal', () => {
+      mockProspek = prospek({ status: 'DEAL', jenis: 'PERANTARA', peran: 'Kepala desa/lurah' });
+      const { getByText, queryByText } = renderLayar();
+
+      expect(getByText('Perantara · Kepala desa/lurah')).toBeTruthy();
+      expect(queryByText('Jadikan Canvasing')).toBeNull();
+    });
+
+    it('memilih Deal cukup mengubah status, tanpa form Jadikan Canvasing', () => {
+      mockProspek = prospek({ status: 'NEGOSIASI', jenis: 'PERANTARA', peran: 'Ketua RT 03' });
+      const { getByText, queryByText } = renderLayar();
+
+      fireEvent.press(getByText('Ubah Status'));
+      expect(queryByText('Lanjut ke form Jadikan Canvasing')).toBeNull();
+      fireEvent.press(getByText('Deal'));
+
+      expect(mockUbah).toHaveBeenCalledWith('DEAL');
+      expect(mockPush).not.toHaveBeenCalled();
+    });
+  });
+
+  it('calon pelanggan tanpa lencana perantara', () => {
+    const { queryByTestId } = renderLayar();
+
+    expect(queryByTestId('lencana-perantara')).toBeNull();
   });
 
   it('Catat Follow-up membawa prospek ke form catat', () => {

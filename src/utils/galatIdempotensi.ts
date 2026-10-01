@@ -69,3 +69,15 @@ export function isGalatIdempotensiKunciDipakaiUlang(error: unknown): boolean {
 export function isGalatStatusTidakSah(error: unknown): boolean {
   return kodeGalatKonflik(error) === KODE_STATUS_TIDAK_SAH;
 }
+
+/**
+ * Kode galat backend untuk 409 "nomor HP sudah dipakai prospek aktif"
+ * (netmanager `ProspekService.buat`). Balasannya membawa
+ * `details.duplikat[]` supaya klien bisa menawarkan prospek yang sudah ada.
+ */
+export const KODE_DUPLIKAT = 'DUPLIKAT';
+
+/** Apakah galat adalah 409 `DUPLIKAT` dari pembuatan prospek. */
+export function isGalatDuplikat(error: unknown): boolean {
+  return kodeGalatKonflik(error) === KODE_DUPLIKAT;
+}

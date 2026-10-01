@@ -3,7 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import type { KegiatanListItem } from '@/types/presurvei';
 import type { KegiatanMenunggu } from '@/utils/presurvei/antreanKegiatan';
 import { gabungKegiatanHarian, keBarisKegiatan } from '@/utils/presurvei/daftarKegiatan';
-import { bangunFilterProspek } from '@/utils/presurvei/filterProspek';
+import { OPSI_FILTER_JENIS_PROSPEK, bangunFilterProspek } from '@/utils/presurvei/filterProspek';
 
 const RENTANG = { dariTanggal: '2026-09-23T17:00:00.000Z', sampaiTanggal: '2026-09-24T16:59:59.999Z' };
 
@@ -108,5 +108,15 @@ describe('bangunFilterProspek', () => {
 
   it('status dan pencarian yang dirapikan', () => {
     expect(bangunFilterProspek('TERTARIK', ' budi ')).toEqual({ status: 'TERTARIK', search: 'budi' });
+  });
+
+  it('jenis dikirim kecuali SEMUA', () => {
+    expect(bangunFilterProspek('SEMUA', '', 'PERANTARA')).toEqual({ jenis: 'PERANTARA' });
+    expect(bangunFilterProspek('BARU', '', 'CALON_PELANGGAN')).toEqual({ status: 'BARU', jenis: 'CALON_PELANGGAN' });
+    expect(bangunFilterProspek('SEMUA', '', 'SEMUA')).toEqual({});
+  });
+
+  it('pilihan jenis: Semua / Calon pelanggan / Perantara', () => {
+    expect(OPSI_FILTER_JENIS_PROSPEK.map((opsi) => opsi.label)).toEqual(['Semua', 'Calon pelanggan', 'Perantara']);
   });
 });

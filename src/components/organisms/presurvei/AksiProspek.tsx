@@ -26,7 +26,7 @@ interface AksiProspekProps {
  */
 export function AksiProspek(props: AksiProspekProps) {
   const { prospek, isOnline, isMenyimpan, onCatatFollowUp, onUbahStatus, onJadikanCanvasing } = props;
-  const isAdaPilihan = daftarPilihanUbahStatus(prospek.status).length > 0;
+  const isAdaPilihan = daftarPilihanUbahStatus(prospek.status, prospek.jenis).length > 0;
   return (
     <View style={tw`px-4 mb-4`}>
       <TombolAksi label="Catat Follow-up" onPress={onCatatFollowUp} isAktif />

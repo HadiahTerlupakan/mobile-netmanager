@@ -1,6 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
-import type { ProspekStatus } from '@/constants/presurvei';
+import type { ProspekJenis, ProspekStatus } from '@/constants/presurvei';
 import { queryKeys } from '@/lib/queryClient';
 import { PresurveiService } from '@/services/PresurveiService';
 import type { HalamanPresurvei, ProspekListItem } from '@/types/presurvei';
@@ -12,6 +12,7 @@ const HALAMAN_PERTAMA = 1;
 /** Filter layar daftar prospek. */
 export interface FilterDaftarProspek {
   status?: ProspekStatus;
+  jenis?: ProspekJenis;
   search?: string;
 }
 

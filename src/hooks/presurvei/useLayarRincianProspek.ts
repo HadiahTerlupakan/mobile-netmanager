@@ -25,7 +25,8 @@ export function useLayarRincianProspek(id: string, isAktif: boolean) {
 
   /**
    * Deal membuka form Jadikan Canvasing (data konversi belum ada di
-   * prospek); tujuan lain langsung dikirim sebagai mutasi status.
+   * prospek) — kecuali perantara, yang tidak dikonversi; tujuan lain
+   * langsung dikirim sebagai mutasi status.
    */
   const pilihAksi = (aksi: AksiUbahStatus) => {
     setIsPilihStatusTerbuka(false);
@@ -44,7 +45,7 @@ export function useLayarRincianProspek(id: string, isAktif: boolean) {
     isOnline,
     isMenyimpan: ubahStatus.isPending,
     isPilihStatusTerbuka,
-    pilihanStatus: prospek ? daftarPilihanUbahStatus(prospek.status) : [],
+    pilihanStatus: prospek ? daftarPilihanUbahStatus(prospek.status, prospek.jenis) : [],
     bukaPilihStatus: () => setIsPilihStatusTerbuka(true),
     tutupPilihStatus: () => setIsPilihStatusTerbuka(false),
     pilihAksi,

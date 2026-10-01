@@ -157,6 +157,28 @@ describe('Tab Presurvei', () => {
     expect(mockUseDaftarProspek).toHaveBeenLastCalledWith({ status: 'TERTARIK', search: 'budi' });
   });
 
+  it('tab Prospek menyaring jenis: Perantara dikirim sebagai jenis ke API', () => {
+    const { getByText, getByLabelText } = renderLayar();
+
+    fireEvent.press(getByText('Prospek'));
+    fireEvent.press(getByLabelText('Perantara'));
+
+    expect(mockUseDaftarProspek).toHaveBeenLastCalledWith({ jenis: 'PERANTARA' });
+  });
+
+  it('perantara di daftar ditandai lencana "Perantara · peran"; calon pelanggan tidak', () => {
+    const hasilAwal = mockUseDaftarProspek() as { data: { pages: { data: Record<string, unknown>[] }[] } };
+    const budi = hasilAwal.data.pages[0].data[0];
+    mockUseDaftarProspek.mockReturnValue({
+      ...hasilAwal,
+      data: { pages: [{ data: [budi, { ...budi, id: 'p-2', nama: 'Pak Slamet', jenis: 'PERANTARA', peran: 'Ketua RT 03' }] }] },
+    });
+    const { getByText, getAllByTestId } = renderLayar();
+
+    expect(getByText('Perantara · Ketua RT 03')).toBeTruthy();
+    expect(getAllByTestId('lencana-perantara')).toHaveLength(1);
+  });
+
   it('menekan prospek membuka rinciannya', () => {
     const { getByText } = renderLayar();
 
@@ -167,5 +189,25 @@ describe('Tab Presurvei', () => {
       pathname: '/(app)/presurvei/prospek/[id]',
       params: { id: 'p-1' },
     });
+  });
+
+  it('tab Prospek punya tombol Tambah prospek, juga saat daftar kosong', () => {
+    mockUseDaftarProspek.mockReturnValue({
+      data: { pages: [{ data: [] }] },
+      isPending: false,
+      isError: false,
+      isRefetching: false,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      refetch: jest.fn(),
+      fetchNextPage: jest.fn(),
+    });
+    const { getByText, getByLabelText } = renderLayar();
+
+    fireEvent.press(getByText('Prospek'));
+    expect(getByText('Belum ada prospek yang cocok. Ketuk tombol biru di atas untuk menambah.')).toBeTruthy();
+    fireEvent.press(getByLabelText('Tambah prospek'));
+
+    expect(mockPush).toHaveBeenCalledWith('/(app)/presurvei/prospek/baru');
   });
 });

@@ -5,29 +5,42 @@ import tw from 'twrnc';
 
 import { PilihanChip } from '@/components/molecules/PilihanChip';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
+import { SegmenPilihan } from '@/components/molecules/SegmenPilihan';
 import { JEDA_CARI_PROSPEK_MS, LABEL_STATUS_PROSPEK, PROSPEK_STATUSES } from '@/constants/presurvei';
-import { ruteRincianProspek } from '@/constants/rutePresurvei';
+import { RUTE_TAMBAH_PROSPEK, ruteRincianProspek } from '@/constants/rutePresurvei';
 import { useDaftarProspek } from '@/hooks/queries/usePresurveiProspek';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { bangunFilterProspek, type FilterStatusProspek } from '@/utils/presurvei/filterProspek';
+import {
+  OPSI_FILTER_JENIS_PROSPEK,
+  bangunFilterProspek,
+  type FilterJenisProspek,
+  type FilterStatusProspek,
+} from '@/utils/presurvei/filterProspek';
 import { KartuProspek } from './KartuProspek';
+import { TombolTambahProspek } from './TombolTambahProspek';
 
 const OPSI_STATUS: { nilai: FilterStatusProspek; label: string }[] = [
   { nilai: 'SEMUA', label: 'Semua' },
   ...PROSPEK_STATUSES.map((status) => ({ nilai: status, label: LABEL_STATUS_PROSPEK[status] })),
 ];
 
-/** Sub-tab Prospek: daftar prospek milik sendiri per status, dengan pencarian. */
+/**
+ * Sub-tab Prospek: tombol Tambah prospek, lalu daftar prospek milik sendiri
+ * dengan pencarian, saringan jenis (calon pelanggan/perantara), dan status.
+ * Tombol tetap tampil saat daftar kosong atau gagal dimuat.
+ */
 export function TabProspek() {
   const router = useRouter();
   const [status, setStatus] = useState<FilterStatusProspek>('SEMUA');
+  const [jenis, setJenis] = useState<FilterJenisProspek>('SEMUA');
   const [cari, setCari] = useState('');
   const cariTertunda = useDebouncedValue(cari, JEDA_CARI_PROSPEK_MS);
-  const daftar = useDaftarProspek(bangunFilterProspek(status, cariTertunda));
+  const daftar = useDaftarProspek(bangunFilterProspek(status, cariTertunda, jenis));
   const prospek = daftar.data?.pages.flatMap((halaman) => halaman.data) ?? [];
 
   return (
     <View style={tw`flex-1 px-4`}>
+      <TombolTambahProspek label="Tambah prospek" onTekan={() => router.push(RUTE_TAMBAH_PROSPEK)} />
       <TextInput
         accessibilityLabel="Cari prospek"
         value={cari}
@@ -35,6 +48,9 @@ export function TabProspek() {
         placeholder="Cari nama atau nomor HP"
         style={tw`bg-white border border-gray-300 rounded-xl px-3 py-2 mb-2`}
       />
+      <View style={tw`mb-2`}>
+        <SegmenPilihan opsi={OPSI_FILTER_JENIS_PROSPEK} terpilih={jenis} onPilih={setJenis} />
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={tw`mb-2 flex-grow-0`}>
         <PilihanChip opsi={OPSI_STATUS} terpilih={status} onPilih={setStatus} />
       </ScrollView>
@@ -52,7 +68,7 @@ export function TabProspek() {
           contentContainerStyle={tw`pb-24`}
           ListEmptyComponent={
             <Text style={tw`text-center text-gray-500 mt-8`}>
-              {daftar.isPending ? 'Memuat…' : 'Belum ada prospek.'}
+              {daftar.isPending ? 'Memuat…' : 'Belum ada prospek yang cocok. Ketuk tombol biru di atas untuk menambah.'}
             </Text>
           }
         />

@@ -2,6 +2,7 @@ import {
   KEGIATAN_JENIS,
   type KegiatanHasil,
   type KegiatanJenis,
+  type ProspekJenis,
   type ProspekStatus,
 } from '@/constants/presurvei';
 
@@ -23,6 +24,7 @@ const TRANSISI_SAH: Record<ProspekStatus, readonly ProspekStatus[]> = {
 };
 
 const STATUS_DEAL: ProspekStatus = 'DEAL';
+const JENIS_PERANTARA: ProspekJenis = 'PERANTARA';
 const JENIS_DI_LAPANGAN: readonly KegiatanJenis[] = ['KUNJUNGAN', 'SURVEI_LOKASI'];
 const JENIS_BERDATA_TEKNIS: readonly KegiatanJenis[] = ['SURVEI_LOKASI'];
 const JENIS_TIDAK_DICATAT_DARI_HP: readonly KegiatanJenis[] = ['IKLAN'];
@@ -45,16 +47,23 @@ export type AksiUbahStatus =
 
 /**
  * Aksi untuk perpindahan `dari` → `ke`, atau null bila tidak sah.
- * Deal membuka form konversi karena menuntut data yang tidak ada di prospek.
+ * Deal membuka form konversi karena menuntut data yang tidak ada di prospek —
+ * kecuali perantara: ia tidak pernah dijadikan pelanggan (netmanager
+ * `canPromosikanKeCanvasing`), jadi Deal-nya cukup perubahan status biasa.
  *
  * Padanan backend: `resolveAksiKanban` (`modules/presurvei/domain/prospek-kanban.ts:26`,
  * diekspor lewat `modules/presurvei/client.ts:41`). Nama di sini beda karena
  * dipakai layar non-kanban di mobile (Task 15); perilaku sama.
  */
-export function resolveAksiProspek(dari: ProspekStatus, ke: ProspekStatus): AksiUbahStatus | null {
+export function resolveAksiProspek(
+  dari: ProspekStatus,
+  ke: ProspekStatus,
+  jenisProspek?: ProspekJenis,
+): AksiUbahStatus | null {
   if (dari === ke) return null;
   if (!isTransisiStatusSah(dari, ke)) return null;
-  return ke === STATUS_DEAL ? { jenis: 'buka-konversi' } : { jenis: 'ubah-status', tujuan: ke };
+  const isBukaKonversi = ke === STATUS_DEAL && jenisProspek !== JENIS_PERANTARA;
+  return isBukaKonversi ? { jenis: 'buka-konversi' } : { jenis: 'ubah-status', tujuan: ke };
 }
 
 /** Satu pilihan di lembar Ubah Status. */
@@ -64,9 +73,9 @@ export interface PilihanUbahStatus {
 }
 
 /** Pilihan Ubah Status yang sah dari `dari`, dalam urutan tabel transisi. */
-export function daftarPilihanUbahStatus(dari: ProspekStatus): PilihanUbahStatus[] {
+export function daftarPilihanUbahStatus(dari: ProspekStatus, jenisProspek?: ProspekJenis): PilihanUbahStatus[] {
   return getStatusLanjutan(dari).flatMap((tujuan) => {
-    const aksi = resolveAksiProspek(dari, tujuan);
+    const aksi = resolveAksiProspek(dari, tujuan, jenisProspek);
     return aksi ? [{ tujuan, aksi }] : [];
   });
 }
@@ -106,10 +115,16 @@ export function isBolehProspekBaru(kegiatan: {
   return isButuhLokasi(kegiatan.jenis) && isHasilMelahirkanProspek(kegiatan.hasil);
 }
 
-/** Apakah prospek boleh dijadikan canvasing (netmanager `prospek-rules.ts:97-105`). */
+/**
+ * Apakah prospek boleh dijadikan canvasing (netmanager `prospek-rules.ts`
+ * `canPromosikanKeCanvasing`). Perantara tidak pernah: yang didaftarkan
+ * adalah orang yang ia bawa, dicatat sebagai prospek tersendiri.
+ */
 export function isBolehJadikanCanvasing(prospek: {
   status: ProspekStatus;
   canvasingId: string | null;
+  jenis?: ProspekJenis;
 }): boolean {
+  if (prospek.jenis === JENIS_PERANTARA) return false;
   return prospek.status === STATUS_DEAL && (prospek.canvasingId ?? null) === null;
 }

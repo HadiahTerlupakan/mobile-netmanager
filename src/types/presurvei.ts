@@ -1,4 +1,9 @@
-import type { KegiatanHasil, KegiatanJenis, ProspekStatus } from '@/constants/presurvei';
+import type {
+  KegiatanHasil,
+  KegiatanJenis,
+  ProspekJenis,
+  ProspekStatus,
+} from '@/constants/presurvei';
 
 /** Sumber prospek (netmanager `domain/entities/Prospek.ts:19-25`). */
 export type ProspekSumber = 'LAPANGAN' | 'IKLAN' | 'WEBSITE' | 'REFERRAL' | 'WALK_IN';
@@ -27,6 +32,9 @@ export interface ProspekListItem {
   nama: string;
   noTelp: string;
   alamat: string;
+  jenis: ProspekJenis;
+  /** Peran perantara, mis. "Ketua RT/RW (RT 03)"; selalu null untuk calon pelanggan. */
+  peran: string | null;
   sumber: ProspekSumber;
   status: ProspekStatus;
   pemilikId: string | null;
@@ -49,6 +57,38 @@ export interface ProspekDetail extends ProspekListItem {
   konversiAt: string | null;
   isSiapDipromosikan: boolean;
   updatedAt: string;
+}
+
+/**
+ * Badan `POST /api/presurvei/prospek` dari aplikasi (subset `buatProspekSchema`,
+ * netmanager `prospek.validator.ts`). `IKLAN` tidak ditawarkan di aplikasi
+ * karena butuh `iklanId` yang hanya dikelola kantor.
+ */
+export interface MuatanBuatProspek {
+  nama: string;
+  noTelp: string;
+  alamat: string;
+  /** Server memakai CALON_PELANGGAN bila tidak dikirim. */
+  jenis?: ProspekJenis;
+  /** Wajib (tidak kosong) bila `jenis` = PERANTARA; server membuangnya untuk calon pelanggan. */
+  peran?: string | null;
+  sumber: Exclude<ProspekSumber, 'IKLAN'>;
+  /** Wajib bila `sumber` = REFERRAL. */
+  referralNama?: string;
+  latitude?: number;
+  longitude?: number;
+  paketDiminati?: string | null;
+  catatan?: string | null;
+  /** Simpan walau nomor HP sudah dipakai prospek aktif lain. */
+  abaikanDuplikat?: boolean;
+}
+
+/** Prospek aktif yang bentrok nomor HP (409 `DUPLIKAT`, `details.duplikat[]`). */
+export interface DuplikatProspek {
+  id: string;
+  nama: string;
+  status: ProspekStatus;
+  pemilikId: string | null;
 }
 
 /** Satu halaman daftar (`apiPaginated`, netmanager `lib/api-response.ts:216-236`). */

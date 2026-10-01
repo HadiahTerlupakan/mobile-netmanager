@@ -3,12 +3,14 @@ import {
   ENDPOINT_KEGIATAN_PRESURVEI,
   ENDPOINT_PROSPEK_PRESURVEI,
   ENDPOINT_RINGKASAN_PRESURVEI,
+  type ProspekJenis,
   type ProspekStatus,
 } from '@/constants/presurvei';
 import type {
   HalamanPresurvei,
   HasilJadikanCanvasing,
   KegiatanListItem,
+  MuatanBuatProspek,
   MuatanJadikanCanvasing,
   ProspekDetail,
   ProspekListItem,
@@ -27,6 +29,7 @@ export interface FilterKegiatanPresurvei {
 /** Filter `GET /api/presurvei/prospek` (route baris 30-38). */
 export interface FilterProspekPresurvei {
   status?: ProspekStatus;
+  jenis?: ProspekJenis;
   search?: string;
   page: number;
   limit: number;
@@ -86,6 +89,16 @@ export const PresurveiService = {
   /** Rincian satu prospek. */
   async rincianProspek(id: string): Promise<ProspekDetail> {
     const respons = await api.get<AmplopTunggal<ProspekDetail>>(buildProspekUrl(id));
+    return respons.data.data;
+  },
+
+  /**
+   * Catat prospek baru (calon pelanggan atau perantara) secara manual (online saja). Nomor HP yang
+   * sudah dipakai prospek aktif ditolak 409 `DUPLIKAT` kecuali
+   * `abaikanDuplikat`; galat itu ditangani pemanggil, jadi toast jaringan dibungkam.
+   */
+  async buatProspek(muatan: MuatanBuatProspek): Promise<ProspekDetail> {
+    const respons = await api.post<AmplopTunggal<ProspekDetail>>(ENDPOINT_PROSPEK_PRESURVEI, muatan, TANPA_TOAST);
     return respons.data.data;
   },
 

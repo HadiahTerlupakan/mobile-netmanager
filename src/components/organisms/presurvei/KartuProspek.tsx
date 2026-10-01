@@ -4,13 +4,14 @@ import tw from 'twrnc';
 
 import { LABEL_STATUS_PROSPEK } from '@/constants/presurvei';
 import type { ProspekListItem } from '@/types/presurvei';
+import { LencanaJenisProspek } from './LencanaJenisProspek';
 
 interface KartuProspekProps {
   prospek: ProspekListItem;
   onBuka: (id: string) => void;
 }
 
-/** Satu prospek di daftar. */
+/** Satu prospek di daftar; perantara ditandai lencana ungu. */
 export function KartuProspek({ prospek, onBuka }: KartuProspekProps) {
   return (
     <TouchableOpacity
@@ -22,6 +23,7 @@ export function KartuProspek({ prospek, onBuka }: KartuProspekProps) {
         <Text style={tw`font-semibold text-gray-900 flex-1`}>{prospek.nama}</Text>
         <Text style={tw`text-xs text-blue-700`}>{LABEL_STATUS_PROSPEK[prospek.status]}</Text>
       </View>
+      <LencanaJenisProspek prospek={prospek} />
       <Text style={tw`text-xs text-gray-500`}>{prospek.noTelp}</Text>
       <Text style={tw`text-xs text-gray-500`} numberOfLines={1}>{prospek.alamat}</Text>
     </TouchableOpacity>

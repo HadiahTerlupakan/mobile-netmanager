@@ -5,6 +5,9 @@ import type { ProspekListItem } from '@/types/presurvei';
 /** Layar catat kegiatan (`app/(app)/presurvei/kegiatan/catat.tsx`). */
 export const RUTE_CATAT_KEGIATAN = '/(app)/presurvei/kegiatan/catat';
 
+/** Layar Tambah Prospek (`app/(app)/presurvei/prospek/baru.tsx`). */
+export const RUTE_TAMBAH_PROSPEK = '/(app)/presurvei/prospek/baru';
+
 /** Rincian satu prospek. */
 export function ruteRincianProspek(id: string): Href {
   return { pathname: '/(app)/presurvei/prospek/[id]', params: { id } } as Href;
@@ -22,3 +25,4 @@ export function ruteCatatFollowUp(prospek: Pick<ProspekListItem, 'id' | 'nama'>)
 export function ruteJadikanCanvasing(id: string): Href {
   return { pathname: '/(app)/presurvei/prospek/[id]/jadikan-canvasing', params: { id } } as Href;
 }
+
