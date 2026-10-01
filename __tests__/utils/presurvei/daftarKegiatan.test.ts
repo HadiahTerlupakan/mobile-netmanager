@@ -36,6 +36,7 @@ const antrean = (
   alamatDikunjungi: null,
   ditemuiNama: 'Bu Sari',
   jumlahFoto: 0,
+  rencanaId: null,
   status,
 });
 

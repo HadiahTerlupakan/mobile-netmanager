@@ -5,6 +5,13 @@ import { Calendar, DateData } from 'react-native-calendars';
 import { MarkedDates } from 'react-native-calendars/src/types';
 import tw from 'twrnc';
 
+import { pasangKalenderIndonesia } from '@/constants/kalenderIndonesia';
+
+pasangKalenderIndonesia();
+
+/** Warna penanda tanggal yang sedang terpilih. */
+const WARNA_TANGGAL_TERPILIH = '#2563eb';
+
 interface CustomDatePickerModalProps {
     visible: boolean;
     onClose: () => void;
@@ -12,6 +19,8 @@ interface CustomDatePickerModalProps {
     markedDates?: MarkedDates;
     minDate?: string;
     title?: string;
+    /** Tanggal yang sedang terpilih ("YYYY-MM-DD"), ditandai lingkaran penuh. */
+    tanggalTerpilih?: string;
 }
 
 export default function CustomDatePickerModal({
@@ -20,9 +29,21 @@ export default function CustomDatePickerModal({
     onSelect,
     markedDates = {},
     minDate,
-    title = 'Pilih Tanggal'
+    title = 'Pilih Tanggal',
+    tanggalTerpilih,
 }: CustomDatePickerModalProps) {
-    
+    const tandaTanggal: MarkedDates = tanggalTerpilih
+        ? {
+              ...markedDates,
+              [tanggalTerpilih]: {
+                  customStyles: {
+                      container: { backgroundColor: WARNA_TANGGAL_TERPILIH },
+                      text: { color: '#ffffff', fontWeight: 'bold' },
+                  },
+              },
+          }
+        : markedDates;
+
     return (
         <Modal
             visible={visible}
@@ -49,7 +70,8 @@ export default function CustomDatePickerModal({
                             onSelect(date);
                             onClose();
                         }}
-                        markedDates={markedDates}
+                        current={tanggalTerpilih}
+                        markedDates={tandaTanggal}
                         theme={{
                             backgroundColor: '#ffffff',
                             calendarBackground: '#ffffff',

@@ -142,6 +142,10 @@ export default function AppLayout() {
         />
 
       <Tabs
+        // Layar turunan (buat/ubah/rincian) adalah tab tersembunyi. Dengan
+        // bawaan `firstRoute`, router.back() dari sana selalu jatuh ke Beranda;
+        // `history` mengembalikan pengguna ke layar asalnya.
+        backBehavior="history"
         tabBar={TAB_BAR_PER_PERSONA[persona]}
         screenOptions={{
           headerShown: false,

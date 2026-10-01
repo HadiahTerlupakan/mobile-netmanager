@@ -71,6 +71,18 @@ export function isGalatStatusTidakSah(error: unknown): boolean {
 }
 
 /**
+ * Kode galat backend untuk 409 konflik state bisnis generik (`AppError(...,
+ * 409, "CONFLICT")`), mis. rencana kunjungan yang sudah dilaporkan atau
+ * dibatalkan (netmanager `RencanaService`/`KegiatanService`).
+ */
+export const KODE_KONFLIK = 'CONFLICT';
+
+/** Apakah galat adalah 409 `CONFLICT`: resource sudah ditutup/berubah di server. */
+export function isGalatKonflik(error: unknown): boolean {
+  return kodeGalatKonflik(error) === KODE_KONFLIK;
+}
+
+/**
  * Kode galat backend untuk 409 "nomor HP sudah dipakai prospek aktif"
  * (netmanager `ProspekService.buat`). Balasannya membawa
  * `details.duplikat[]` supaya klien bisa menawarkan prospek yang sudah ada.

@@ -2,11 +2,18 @@ import { describe, expect, it } from '@jest/globals';
 
 import kontrak from '../../fixtures/presurvei/kontrak-mobile.json';
 import {
+  ALAMAT_RENCANA_MAKS,
+  ALASAN_BATAL_RENCANA_MAKS,
+  ALASAN_BATAL_RENCANA_MIN,
   JUMLAH_FOTO_KEGIATAN_MAKS,
   KABEL_METER_MAKS,
   KEGIATAN_HASIL,
   KEGIATAN_JENIS,
   PROSPEK_STATUSES,
+  RENCANA_JENIS,
+  RENCANA_STATUS_TAMPIL,
+  RENCANA_SUMBER,
+  TUJUAN_RENCANA_MAKS,
   type KegiatanHasil,
   type KegiatanJenis,
   type ProspekStatus,
@@ -35,6 +42,16 @@ describe('paritas dengan kontrak backend', () => {
     expect([...KEGIATAN_JENIS]).toEqual(kontrak.kegiatanJenis);
     expect([...KEGIATAN_HASIL]).toEqual(kontrak.kegiatanHasil);
     expect([...PROSPEK_STATUSES]).toEqual(kontrak.prospekStatus);
+  });
+
+  it('enum dan batas rencana kunjungan sama', () => {
+    expect([...RENCANA_JENIS]).toEqual(kontrak.rencanaJenis);
+    expect([...RENCANA_SUMBER]).toEqual(kontrak.rencanaSumber);
+    expect([...RENCANA_STATUS_TAMPIL]).toEqual(kontrak.rencanaStatusTampil);
+    expect(TUJUAN_RENCANA_MAKS).toBe(kontrak.tujuanRencanaMaks);
+    expect(ALAMAT_RENCANA_MAKS).toBe(kontrak.alamatRencanaMaks);
+    expect(ALASAN_BATAL_RENCANA_MIN).toBe(kontrak.alasanBatalRencanaMin);
+    expect(ALASAN_BATAL_RENCANA_MAKS).toBe(kontrak.alasanBatalRencanaMaks);
   });
 
   it('tabel transisi sama untuk setiap status', () => {
@@ -124,5 +141,18 @@ describe('aturan presurvei', () => {
     expect(isBolehJadikanCanvasing({ status: 'DEAL', canvasingId: null })).toBe(true);
     expect(isBolehJadikanCanvasing({ status: 'DEAL', canvasingId: 'cv-1' })).toBe(false);
     expect(isBolehJadikanCanvasing({ status: 'NEGOSIASI', canvasingId: null })).toBe(false);
+  });
+
+  it('perantara tidak pernah dijadikan canvasing (canPromosikanKeCanvasing server)', () => {
+    expect(isBolehJadikanCanvasing({ status: 'DEAL', canvasingId: null, jenis: 'PERANTARA' })).toBe(false);
+    expect(isBolehJadikanCanvasing({ status: 'DEAL', canvasingId: null, jenis: 'CALON_PELANGGAN' })).toBe(true);
+  });
+
+  it('Deal perantara cukup ubah status, tanpa form Jadikan Canvasing', () => {
+    expect(daftarPilihanUbahStatus('NEGOSIASI', 'PERANTARA')[0]).toEqual({
+      tujuan: 'DEAL',
+      aksi: { jenis: 'ubah-status', tujuan: 'DEAL' },
+    });
+    expect(resolveAksiProspek('NEGOSIASI', 'DEAL', 'CALON_PELANGGAN')).toEqual({ jenis: 'buka-konversi' });
   });
 });

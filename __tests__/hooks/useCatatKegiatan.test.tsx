@@ -10,8 +10,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
  */
 
 const mockPresentAppError = jest.fn();
+const mockPresentErrorMessage = jest.fn();
 jest.mock('@/utils/errorPresenter', () => ({
   presentAppError: (...args: unknown[]) => mockPresentAppError(...args),
+  presentErrorMessage: (...args: unknown[]) => mockPresentErrorMessage(...args),
   presentInfoMessage: jest.fn(),
   presentSuccessMessage: jest.fn(),
 }));
@@ -52,7 +54,7 @@ jest.mock('@tanstack/react-query', () => {
   };
 });
 
-import { useCatatKegiatan } from '@/hooks/presurvei/useCatatKegiatan';
+import { PESAN_LAPORAN_RENCANA_DITUTUP, useCatatKegiatan } from '@/hooks/presurvei/useCatatKegiatan';
 import { keMuatanKegiatan, NILAI_FORM_KEGIATAN_KOSONG } from '@/utils/presurvei/formKegiatan';
 import { bangunVariabelCatat } from '@/utils/presurvei/variabelCatat';
 
@@ -174,7 +176,7 @@ describe('useCatatKegiatan', () => {
       });
     };
 
-    const kirimDenganGalat = async (galatServer: unknown) => {
+    const kirimDenganGalat = async (galatServer: unknown, variabel = VARIABEL) => {
       mockIsOnline.mockResolvedValue(true);
       mockRequest.mockRejectedValue(galatServer);
       const client = buatClient();
@@ -184,7 +186,7 @@ describe('useCatatKegiatan', () => {
       let galat: unknown = null;
       await act(async () => {
         try {
-          await result.current.mutateAsync(VARIABEL);
+          await result.current.mutateAsync(variabel);
         } catch (error) {
           galat = error;
         }
@@ -213,6 +215,16 @@ describe('useCatatKegiatan', () => {
       const { galat, invalidasi } = await kirimDenganGalat(galatServer);
 
       expect(galat).toBe(galatServer);
+      expect(mockPresentAppError).not.toHaveBeenCalled();
+      expect(invalidasi).toHaveBeenCalledWith({ queryKey: ['presurvei'] });
+    });
+
+    it('409 CONFLICT pada laporan rencana: pesan rencana sudah ditutup dan data dimuat ulang', async () => {
+      const galatServer = bangunGalatServer(409, 'CONFLICT');
+
+      const { invalidasi } = await kirimDenganGalat(galatServer, { ...VARIABEL, rencanaId: 'r-1' });
+
+      expect(mockPresentErrorMessage).toHaveBeenCalledWith(PESAN_LAPORAN_RENCANA_DITUTUP, expect.any(String));
       expect(mockPresentAppError).not.toHaveBeenCalled();
       expect(invalidasi).toHaveBeenCalledWith({ queryKey: ['presurvei'] });
     });

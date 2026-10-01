@@ -287,5 +287,13 @@ export const queryKeys = {
     prospekDetail: (id: string) =>
       [...queryKeys.presurvei.all, "prospek", "detail", id] as const,
     ringkasan: () => [...queryKeys.presurvei.all, "ringkasan"] as const,
+    rencanaList: (filter: { dari?: string; sampai?: string; status?: string; salesId?: string }) =>
+      [...queryKeys.presurvei.all, "rencana", "list", filter] as const,
+    rencanaDetail: (id: string) =>
+      [...queryKeys.presurvei.all, "rencana", "detail", id] as const,
+    rencanaSalesTersedia: () =>
+      [...queryKeys.presurvei.all, "rencana", "sales-tersedia"] as const,
+    rencanaRekap: (rentang: { dari: string; sampai: string }) =>
+      [...queryKeys.presurvei.all, "rencana", "rekap", rentang] as const,
   },
 };

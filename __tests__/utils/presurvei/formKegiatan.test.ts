@@ -284,3 +284,20 @@ describe('variabel catat', () => {
     expect('meta' in variabel).toBe(false);
   });
 });
+
+describe('keMuatanKegiatan — laporan rencana', () => {
+  it('rencanaId ikut terkirim bila form melaporkan rencana', () => {
+    const muatan = keMuatanKegiatan(
+      nilai({ jenis: 'TELEPON', hasil: 'DEAL', rencanaId: 'r-5' }),
+      { titik: null, waktuMulai: WAKTU },
+    );
+
+    expect(muatan.rencanaId).toBe('r-5');
+  });
+
+  it('kegiatan biasa tidak membawa medan rencanaId sama sekali', () => {
+    const muatan = keMuatanKegiatan(nilai({ jenis: 'TELEPON', hasil: 'DEAL' }), { titik: null, waktuMulai: WAKTU });
+
+    expect('rencanaId' in muatan).toBe(false);
+  });
+});

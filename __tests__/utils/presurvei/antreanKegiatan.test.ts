@@ -31,6 +31,7 @@ describe('ambilKegiatanMenunggu', () => {
         alamatDikunjungi: 'Jl. Melati 9',
         ditemuiNama: 'Bu Sari',
         jumlahFoto: 2,
+        rencanaId: null,
         status: 'PENDING',
       },
     ]);
@@ -70,5 +71,12 @@ describe('ambilKegiatanMenunggu', () => {
     ]);
     expect(kegiatan.alamatDikunjungi).toBeNull();
     expect(kegiatan.ditemuiNama).toBeNull();
+  });
+
+  it('membawa rencanaId laporan rencana supaya rencananya tampil Menunggu kirim', () => {
+    const [kegiatan] = ambilKegiatanMenunggu([
+      item({ body: JSON.stringify({ jenis: 'TELEPON', hasil: 'DEAL', waktuMulai: '2026-09-24T03:15:00.000Z', rencanaId: 'r-1' }) }),
+    ]);
+    expect(kegiatan.rencanaId).toBe('r-1');
   });
 });

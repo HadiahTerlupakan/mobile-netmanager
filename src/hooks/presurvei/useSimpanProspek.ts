@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 
-import { useAuth } from '@/context/AuthContext';
 import { queryKeys } from '@/lib/queryClient';
 import { PresurveiService } from '@/services/PresurveiService';
 import type { MuatanBuatProspek, ProspekListItem } from '@/types/presurvei';
@@ -12,6 +11,7 @@ import {
   teksPemberitahuanDuplikat,
   type TawaranDuplikat,
 } from '@/utils/presurvei/duplikatProspek';
+import { useLingkupRencana } from './useLingkupRencana';
 
 export const PESAN_PROSPEK_TERSIMPAN = 'Prospek tersimpan';
 export const PESAN_DUPLIKAT_GAGAL_DIBUKA =
@@ -40,8 +40,7 @@ export interface SimpanProspek {
  */
 export function useSimpanProspek(onBerhasil: (prospek: ProspekListItem) => void): SimpanProspek {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const penggunaId = user?.id ?? null;
+  const { penggunaId } = useLingkupRencana();
   const [tawaran, setTawaran] = useState<TawaranDuplikat | null>(null);
   const [isMemuatDuplikat, setIsMemuatDuplikat] = useState(false);
   const isSedangMengirim = useRef(false);

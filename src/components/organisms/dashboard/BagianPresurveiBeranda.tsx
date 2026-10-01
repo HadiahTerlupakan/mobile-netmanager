@@ -4,12 +4,18 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import tw from 'twrnc';
 
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
-import { ruteRincianProspek } from '@/constants/rutePresurvei';
+import { RUTE_BUAT_RENCANA, ruteRincianProspek, ruteRincianRencana } from '@/constants/rutePresurvei';
+import { useLingkupRencana } from '@/hooks/presurvei/useLingkupRencana';
 import { useKegiatanMenungguKirim } from '@/hooks/queries/usePresurveiKegiatan';
+import { useDaftarRencana } from '@/hooks/queries/usePresurveiRencana';
 import { useRingkasanPresurvei } from '@/hooks/queries/useRingkasanPresurvei';
 import { keadaanRingkasan, rekapKegiatanHariIni } from '@/utils/presurvei/berandaSales';
+import { FILTER_RENCANA_TERLEWAT, filterRencanaHarian } from '@/utils/presurvei/rencana';
+import { filterMilikSendiri } from '@/utils/presurvei/timRencana';
+import { BagianTimHariIni } from './BagianTimHariIni';
 import { DaftarPerluFollowUp } from './DaftarPerluFollowUp';
 import { KartuKegiatanHariIni } from './KartuKegiatanHariIni';
+import { KartuRencanaHariIni } from './KartuRencanaHariIni';
 import { KartuTargetBulanIni } from './KartuTargetBulanIni';
 
 /** Pesan saat presurvei belum aktif (tanpa izin, atau server menolak 403). */
@@ -20,7 +26,10 @@ interface BagianPresurveiBerandaProps {
 }
 
 /**
- * Ringkasan presurvei di Beranda sales: hari ini, target, perlu follow-up.
+ * Ringkasan presurvei di Beranda sales: rencana hari ini (milik sendiri),
+ * tim hari ini (khusus pemberi tugas), kinerja bulan ini (kartu tim bagi
+ * kepala sales, kartu pribadi bagi sales), kegiatan hari ini, target, perlu
+ * follow-up. Query rencana berbagi cache dengan sub-tab Rencana (Saya).
  * 403 tampil sebagai "belum aktif" tanpa toast global — toast diredam oleh
  * `meta.silentToastStatuses` di `useRingkasanPresurvei` (Review Focus #4).
  */
@@ -28,6 +37,9 @@ export function BagianPresurveiBeranda({ isPresurveiAktif }: BagianPresurveiBera
   const router = useRouter();
   const ringkasan = useRingkasanPresurvei(isPresurveiAktif);
   const antrean = useKegiatanMenungguKirim();
+  const lingkup = useLingkupRencana();
+  const rencanaHariIni = useDaftarRencana(filterMilikSendiri(filterRencanaHarian(new Date()), lingkup), isPresurveiAktif);
+  const rencanaTerlewat = useDaftarRencana(filterMilikSendiri(FILTER_RENCANA_TERLEWAT, lingkup), isPresurveiAktif);
   const keadaan = keadaanRingkasan({ isPresurveiAktif, hasData: ringkasan.data !== undefined, error: ringkasan.error });
 
   if (keadaan === 'belum-aktif') return <Text style={tw`text-sm text-gray-500 mb-4`}>{TEKS_PRESURVEI_BELUM_AKTIF}</Text>;
@@ -37,6 +49,13 @@ export function BagianPresurveiBeranda({ isPresurveiAktif }: BagianPresurveiBera
   }
   return (
     <View>
+      <KartuRencanaHariIni
+        rencanaHariIni={rencanaHariIni.data?.data ?? []}
+        jumlahTerlewat={rencanaTerlewat.data?.meta.total ?? 0}
+        onBuka={(id) => router.push(ruteRincianRencana(id))}
+        onBuat={() => router.push(RUTE_BUAT_RENCANA)}
+      />
+      {lingkup.isPemberiTugas ? <BagianTimHariIni /> : null}
       <KartuKegiatanHariIni
         rekap={rekapKegiatanHariIni(ringkasan.data.kegiatanHariIni)}
         jumlahMenunggu={antrean.data?.filter((kegiatan) => kegiatan.status !== 'FAILED').length ?? 0}

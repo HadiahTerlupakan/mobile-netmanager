@@ -2,19 +2,31 @@ import api from './api';
 import {
   ENDPOINT_KEGIATAN_PRESURVEI,
   ENDPOINT_PROSPEK_PRESURVEI,
+  ENDPOINT_REKAP_RENCANA,
+  ENDPOINT_RENCANA_PRESURVEI,
   ENDPOINT_RINGKASAN_PRESURVEI,
+  ENDPOINT_SALES_TERSEDIA_RENCANA,
   type ProspekJenis,
   type ProspekStatus,
+  type RencanaStatusTampil,
 } from '@/constants/presurvei';
+import { buildIdempotencyHeaders } from '@/utils/requestId';
 import type {
   HalamanPresurvei,
   HasilJadikanCanvasing,
   KegiatanListItem,
   MuatanBuatProspek,
+  MuatanBuatRencana,
   MuatanJadikanCanvasing,
+  MuatanTugaskanRencana,
+  MuatanUbahRencana,
   ProspekDetail,
   ProspekListItem,
+  RekapRencana,
+  Rencana,
+  RincianRencana,
   RingkasanPresurvei,
+  SalesRencana,
 } from '@/types/presurvei';
 
 /** Filter `GET /api/presurvei/kegiatan`; nama sama persis dengan route (baris 20-31). */
@@ -31,6 +43,17 @@ export interface FilterProspekPresurvei {
   status?: ProspekStatus;
   jenis?: ProspekJenis;
   search?: string;
+  page: number;
+  limit: number;
+}
+
+/** Filter `GET /api/presurvei/rencana` (`daftarRencanaSchema`); tanggal "YYYY-MM-DD". */
+export interface FilterRencanaPresurvei {
+  dari?: string;
+  sampai?: string;
+  status?: RencanaStatusTampil;
+  /** Persempit ke satu sales; hanya berarti bagi pemberi tugas (lingkup TIM/SEMUA). */
+  salesId?: string;
   page: number;
   limit: number;
 }
@@ -63,6 +86,13 @@ export const buildProspekUrl = (id: string): string =>
 /** URL promosi prospek menjadi canvasing. */
 export const buildJadikanCanvasingUrl = (id: string): string =>
   `${buildProspekUrl(id)}/jadikan-canvasing`;
+
+/** URL rincian/ubah satu rencana. */
+export const buildRencanaUrl = (id: string): string =>
+  `${ENDPOINT_RENCANA_PRESURVEI}/${encodeURIComponent(id)}`;
+
+/** URL pembatalan satu rencana. */
+export const buildBatalRencanaUrl = (id: string): string => `${buildRencanaUrl(id)}/batal`;
 
 /** Buang param kosong supaya query string bersih dan validator tidak menerima "". */
 const tanpaNilaiKosong = (params: object): Record<string, string | number> =>
@@ -125,6 +155,58 @@ export const PresurveiService = {
       muatan,
       TANPA_TOAST,
     );
+    return respons.data.data;
+  },
+
+  /**
+   * Satu halaman rencana dalam lingkup pemanggil: sales hanya miliknya,
+   * kepala sales dirinya + tim, admin seluruh tenant (`salesId` mempersempit).
+   */
+  daftarRencana(filter: FilterRencanaPresurvei): Promise<HalamanPresurvei<Rencana>> {
+    return ambilHalaman<Rencana>(ENDPOINT_RENCANA_PRESURVEI, filter);
+  },
+
+  /** Rincian satu rencana beserta laporannya bila sudah dilaporkan. */
+  async rincianRencana(id: string): Promise<RincianRencana> {
+    const respons = await api.get<AmplopTunggal<RincianRencana>>(buildRencanaUrl(id));
+    return respons.data.data;
+  },
+
+  /**
+   * Buat rencana MANDIRI, atau penugasan bila `salesId` orang lain (pemberi
+   * tugas). `requestId` dikirim sebagai `Idempotency-Key` supaya ketukan
+   * ganda atau ulang setelah timeout tidak melahirkan dua rencana.
+   */
+  async buatRencana(muatan: MuatanBuatRencana | MuatanTugaskanRencana, requestId: string): Promise<Rencana> {
+    const respons = await api.post<AmplopTunggal<Rencana>>(
+      ENDPOINT_RENCANA_PRESURVEI,
+      { ...muatan, requestId },
+      { ...TANPA_TOAST, headers: buildIdempotencyHeaders(requestId) },
+    );
+    return respons.data.data;
+  },
+
+  /** Jadwal ulang/ubah rencana terbuka (sales: MANDIRI miliknya; pemberi tugas: semua dalam lingkup). */
+  async ubahRencana(id: string, muatan: MuatanUbahRencana): Promise<Rencana> {
+    const respons = await api.patch<AmplopTunggal<Rencana>>(buildRencanaUrl(id), muatan, TANPA_TOAST);
+    return respons.data.data;
+  },
+
+  /** Batalkan rencana terbuka dengan alasan (hak sama dengan `ubahRencana`). */
+  async batalkanRencana(id: string, alasan: string): Promise<Rencana> {
+    const respons = await api.post<AmplopTunggal<Rencana>>(buildBatalRencanaUrl(id), { alasan }, TANPA_TOAST);
+    return respons.data.data;
+  },
+
+  /** Sales yang boleh ditugasi pemberi tugas: dirinya + anggota tim aktif (admin: semua sales). */
+  async salesTersediaRencana(): Promise<SalesRencana[]> {
+    const respons = await api.get<AmplopTunggal<SalesRencana[]>>(ENDPOINT_SALES_TERSEDIA_RENCANA);
+    return respons.data.data;
+  },
+
+  /** Rekap rencana vs realisasi per sales pada rentang "YYYY-MM-DD" (server: maks 92 hari). */
+  async rekapRencana(rentang: { dari: string; sampai: string }): Promise<RekapRencana> {
+    const respons = await api.get<AmplopTunggal<RekapRencana>>(ENDPOINT_REKAP_RENCANA, { params: rentang });
     return respons.data.data;
   },
 };

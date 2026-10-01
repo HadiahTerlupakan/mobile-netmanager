@@ -95,3 +95,63 @@ export const TIPE_UNGGAH_FOTO_KTP = 'marketing';
 
 /** Jeda debounce pencarian prospek. */
 export const JEDA_CARI_PROSPEK_MS = 400;
+
+/**
+ * Rencana kunjungan (netmanager `domain/entities/Rencana.ts`). Belum masuk
+ * `kontrak-mobile.json` karena fixture itu salinan byte-demi-byte dari backend.
+ */
+export const RENCANA_JENIS = ['KUNJUNGAN', 'SURVEI_LOKASI', 'TELEPON', 'CHAT'] as const satisfies readonly KegiatanJenis[];
+export type RencanaJenis = (typeof RENCANA_JENIS)[number];
+
+/** Jenis rencana yang mendatangi tempat — hanya ini yang butuh alamat. */
+export const RENCANA_JENIS_BERALAMAT: readonly RencanaJenis[] = ['KUNJUNGAN', 'SURVEI_LOKASI'];
+
+/** Contoh tujuan siap ketuk di form rencana; tetap bisa diubah setelah dipilih. */
+export const CONTOH_TUJUAN_RENCANA = [
+  'Tawarkan paket internet',
+  'Jelaskan harga dan promo',
+  'Cek lokasi pemasangan',
+  'Tindak lanjut calon pelanggan',
+  'Ambil data untuk pendaftaran',
+] as const;
+
+export const RENCANA_SUMBER = ['MANDIRI', 'PENUGASAN'] as const;
+export type RencanaSumber = (typeof RENCANA_SUMBER)[number];
+
+/** Status tampil; TERLEWAT = DIRENCANAKAN yang tanggalnya sudah lewat (tidak disimpan server). */
+export const RENCANA_STATUS_TAMPIL = ['DIRENCANAKAN', 'TERLEWAT', 'SELESAI', 'BATAL'] as const;
+export type RencanaStatusTampil = (typeof RENCANA_STATUS_TAMPIL)[number];
+
+/** Status yang tersimpan di server. */
+export type RencanaStatus = Exclude<RencanaStatusTampil, 'TERLEWAT'>;
+
+export const LABEL_STATUS_RENCANA: Record<RencanaStatusTampil, string> = {
+  DIRENCANAKAN: 'Direncanakan',
+  TERLEWAT: 'Terlewat',
+  SELESAI: 'Selesai',
+  BATAL: 'Batal',
+};
+
+export const LABEL_SUMBER_RENCANA: Record<RencanaSumber, string> = {
+  MANDIRI: 'Mandiri',
+  PENUGASAN: 'Penugasan',
+};
+
+/** Batas isian rencana (`Rencana.ts`: TUJUAN_RENCANA_MAKS, ALAMAT_RENCANA_MAKS, ALASAN_BATAL_*). */
+export const TUJUAN_RENCANA_MAKS = 500;
+export const ALAMAT_RENCANA_MAKS = 300;
+export const ALASAN_BATAL_RENCANA_MIN = 3;
+export const ALASAN_BATAL_RENCANA_MAKS = 300;
+
+export const ENDPOINT_RENCANA_PRESURVEI = '/api/presurvei/rencana';
+/** Sales yang boleh ditugasi pemanggil (hanya pemberi tugas). */
+export const ENDPOINT_SALES_TERSEDIA_RENCANA = `${ENDPOINT_RENCANA_PRESURVEI}/sales-tersedia`;
+/** Rekap rencana vs realisasi per sales dalam lingkup pemanggil. */
+export const ENDPOINT_REKAP_RENCANA = `${ENDPOINT_RENCANA_PRESURVEI}/rekap`;
+
+/**
+ * Lingkup rencana dari profil (`GET /api/mobile/profile` `lingkupRencana`,
+ * netmanager `jenisLingkupDariIzin`): SENDIRI = sales biasa, TIM = kepala
+ * sales (dirinya + anggota tim), SEMUA = admin (seluruh sales tenant).
+ */
+export type LingkupRencana = 'SENDIRI' | 'TIM' | 'SEMUA';

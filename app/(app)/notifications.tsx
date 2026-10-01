@@ -16,6 +16,7 @@ import {
   Bell,
   Briefcase,
   Calendar,
+  CalendarCheck,
   Clock,
   Megaphone,
   Package,
@@ -68,6 +69,8 @@ const NotificationItem = React.memo(({ item, onPress }: { item: Notification, on
         return <Package size={20} color="#8b5cf6" />;
       case "ANNOUNCEMENT":
         return <Megaphone size={20} color="#ec4899" />;
+      case "PRESURVEI_RENCANA":
+        return <CalendarCheck size={20} color="#2563eb" />;
       default:
         return <Bell size={20} color="#6b7280" />;
     }
@@ -229,6 +232,9 @@ export default function NotificationsScreen() {
         }
         break;
       case "INVENTORY": router.push("/(app)/barang"); break;
+      case "PRESURVEI_RENCANA":
+        router.push(notification.sourceId ? `/(app)/presurvei/rencana/${notification.sourceId}` as Href : "/(app)/presurvei");
+        break;
       default: router.push("/(app)/dashboard"); break;
     }
   }, [markAsRead, announcementReadMutation, router]);

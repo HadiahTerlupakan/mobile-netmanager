@@ -4,11 +4,16 @@ import { ENDPOINT_KEGIATAN_PRESURVEI } from '@/constants/presurvei';
 import { isOfflineMutationQueuedResult, useApiMutation } from '@/hooks/queries/useApiMutation';
 import { queryKeys } from '@/lib/queryClient';
 import type { HasilCatatKegiatan } from '@/types/presurvei';
-import { presentAppError } from '@/utils/errorPresenter';
-import { isGalatIdempotensiKunciDipakaiUlang } from '@/utils/galatIdempotensi';
+import { presentAppError, presentErrorMessage } from '@/utils/errorPresenter';
+import { isGalatIdempotensiKunciDipakaiUlang, isGalatKonflik } from '@/utils/galatIdempotensi';
 import { badanCatatKegiatan, type VariabelCatatKegiatan } from '@/utils/presurvei/variabelCatat';
 
 const PESAN_TERCATAT = 'Kegiatan tercatat';
+const JUDUL_RENCANA_DITUTUP = 'Rencana Sudah Ditutup';
+
+/** Pesan 409 laporan rencana: rencananya sudah dilaporkan/dibatalkan; isian tetap bisa disimpan sebagai kegiatan biasa. */
+export const PESAN_LAPORAN_RENCANA_DITUTUP =
+  'Rencana ini sudah dilaporkan atau dibatalkan. Tekan Simpan lagi untuk mencatat kunjungan ini sebagai kegiatan biasa.';
 
 /** Hasil simpan untuk layar: terkirim langsung atau masuk antrean. */
 export interface HasilSimpanKegiatan {
@@ -28,7 +33,8 @@ interface AmplopCatatKegiatan {
  * artinya hanya layar yang tahu (apakah variabel itu hasil pakai ulang dari
  * upaya yang mungkin sudah tercatat), jadi pesan untuk kasus itu diserahkan
  * ke layar. Data presurvei tetap disegarkan karena kegiatan itu bisa jadi
- * sudah ada di server.
+ * sudah ada di server. 409 `CONFLICT` pada laporan rencana (rencana sudah
+ * ditutup) dijelaskan dengan pesan khusus; layar yang melepas tautannya.
  */
 export function useCatatKegiatan(onTersimpan: (hasil: HasilSimpanKegiatan) => void) {
   const queryClient = useQueryClient();
@@ -57,7 +63,12 @@ export function useCatatKegiatan(onTersimpan: (hasil: HasilSimpanKegiatan) => vo
       if (isAntre) void queryClient.invalidateQueries({ queryKey: queryKeys.presurvei.antrean() });
       onTersimpan({ isAntre });
     },
-    onError: (error) => {
+    onError: (error, variabel) => {
+      if (variabel.rencanaId !== undefined && isGalatKonflik(error)) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.presurvei.all });
+        presentErrorMessage(PESAN_LAPORAN_RENCANA_DITUTUP, JUDUL_RENCANA_DITUTUP);
+        return;
+      }
       if (!isGalatIdempotensiKunciDipakaiUlang(error)) {
         presentAppError(error, { source: 'mutation', route: ENDPOINT_KEGIATAN_PRESURVEI, report: false });
         return;

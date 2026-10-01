@@ -120,8 +120,106 @@ describe('PresurveiService', () => {
     expect(hasil).toEqual({ canvasingId: 'cv-1' });
   });
 
+  it('buat prospek POST ke endpoint prospek tanpa toast jaringan dan mengembalikan data', async () => {
+    mockPost.mockResolvedValueOnce({ data: { success: true, data: { id: 'p-baru' } } });
+    const muatan = { nama: 'Budi', noTelp: '081234567890', alamat: 'Jl. Melati 5', sumber: 'LAPANGAN' as const };
+
+    const hasil = await PresurveiService.buatProspek(muatan);
+
+    expect(mockPost).toHaveBeenCalledWith('/api/presurvei/prospek', muatan, { skipErrorToast: true });
+    expect(hasil).toEqual({ id: 'p-baru' });
+  });
+
   it('URL prospek dan promosi dibangun dari id yang di-encode', () => {
     expect(buildProspekUrl('a b')).toBe('/api/presurvei/prospek/a%20b');
     expect(buildJadikanCanvasingUrl('a b')).toBe('/api/presurvei/prospek/a%20b/jadikan-canvasing');
+  });
+});
+
+describe('PresurveiService — rencana', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGet.mockResolvedValue({ data: { success: true, data: [], meta: META } });
+    mockPost.mockResolvedValue({ data: { success: true, data: { id: 'r-1' } } });
+    mockPatch.mockResolvedValue({ data: { success: true, data: { id: 'r-1' } } });
+  });
+
+  it('daftar rencana memakai param dari/sampai/status route dan membuang yang kosong', async () => {
+    await PresurveiService.daftarRencana({ dari: '2026-09-26', sampai: '2026-09-26', status: undefined, page: 1, limit: 100 });
+
+    expect(mockGet).toHaveBeenCalledWith('/api/presurvei/rencana', {
+      params: { dari: '2026-09-26', sampai: '2026-09-26', page: 1, limit: 100 },
+    });
+  });
+
+  it('buat rencana mengirim requestId di badan dan header Idempotency-Key', async () => {
+    const muatan = { tanggal: '2026-09-27', jam: '09:30', jenis: 'KUNJUNGAN' as const, tujuan: 'Presentasi', prospekId: null, alamat: null };
+
+    await PresurveiService.buatRencana(muatan, 'rencana-abc');
+
+    expect(mockPost).toHaveBeenCalledWith(
+      '/api/presurvei/rencana',
+      { ...muatan, requestId: 'rencana-abc' },
+      { skipErrorToast: true, headers: { 'Idempotency-Key': 'rencana-abc' } },
+    );
+  });
+
+  it('rincian, ubah, dan batal memakai URL ber-id yang di-encode', async () => {
+    mockGet.mockResolvedValue({ data: { success: true, data: { id: 'r/1' } } });
+
+    await PresurveiService.rincianRencana('r/1');
+    await PresurveiService.ubahRencana('r/1', { tujuan: 'Baru' });
+    await PresurveiService.batalkanRencana('r/1', 'Hujan');
+
+    expect(mockGet).toHaveBeenCalledWith('/api/presurvei/rencana/r%2F1', undefined);
+    expect(mockPatch).toHaveBeenCalledWith('/api/presurvei/rencana/r%2F1', { tujuan: 'Baru' }, { skipErrorToast: true });
+    expect(mockPost).toHaveBeenCalledWith('/api/presurvei/rencana/r%2F1/batal', { alasan: 'Hujan' }, { skipErrorToast: true });
+  });
+});
+
+describe('PresurveiService — delegasi kepala sales', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPost.mockResolvedValue({ data: { success: true, data: { id: 'r-1' } } });
+  });
+
+  it('daftar rencana tim bisa dipersempit ke satu sales lewat salesId', async () => {
+    mockGet.mockResolvedValue({ data: { success: true, data: [], meta: META } });
+
+    await PresurveiService.daftarRencana({ status: 'TERLEWAT', salesId: 's-2', page: 1, limit: 100 });
+
+    expect(mockGet).toHaveBeenCalledWith('/api/presurvei/rencana', {
+      params: { status: 'TERLEWAT', salesId: 's-2', page: 1, limit: 100 },
+    });
+  });
+
+  it('tugaskan mengirim salesId bersama muatan dan kunci idempotensi', async () => {
+    const muatan = {
+      tanggal: '2026-09-27', jam: null, jenis: 'KUNJUNGAN' as const, tujuan: 'Demo', prospekId: null, alamat: null, salesId: 's-2',
+    };
+
+    await PresurveiService.buatRencana(muatan, 'rencana-xyz');
+
+    expect(mockPost).toHaveBeenCalledWith(
+      '/api/presurvei/rencana',
+      { ...muatan, requestId: 'rencana-xyz' },
+      { skipErrorToast: true, headers: { 'Idempotency-Key': 'rencana-xyz' } },
+    );
+  });
+
+  it('sales tersedia dan rekap memakai endpoint masing-masing', async () => {
+    mockGet
+      .mockResolvedValueOnce({ data: { success: true, data: [{ id: 's-2', nama: 'Sinta' }] } })
+      .mockResolvedValueOnce({ data: { success: true, data: { hariIni: '2026-09-26', baris: [] } } });
+
+    const sales = await PresurveiService.salesTersediaRencana();
+    const rekap = await PresurveiService.rekapRencana({ dari: '2026-09-26', sampai: '2026-09-26' });
+
+    expect(sales).toEqual([{ id: 's-2', nama: 'Sinta' }]);
+    expect(rekap).toEqual({ hariIni: '2026-09-26', baris: [] });
+    expect(mockGet).toHaveBeenNthCalledWith(1, '/api/presurvei/rencana/sales-tersedia', undefined);
+    expect(mockGet).toHaveBeenNthCalledWith(2, '/api/presurvei/rencana/rekap', {
+      params: { dari: '2026-09-26', sampai: '2026-09-26' },
+    });
   });
 });

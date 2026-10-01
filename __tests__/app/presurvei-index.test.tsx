@@ -7,7 +7,10 @@ const mockUseKegiatanHarian = jest.fn();
 const mockUseAntrean = jest.fn();
 const mockUseDaftarProspek = jest.fn();
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }), useLocalSearchParams: () => ({}) }));
+jest.mock('@/hooks/presurvei/useLingkupRencana', () => ({
+  useLingkupRencana: () => ({ isPemberiTugas: false, penggunaId: 's-1' }),
+}));
 jest.mock('@/hooks/useFeatureGuard', () => ({ useFeatureGuard: jest.fn() }));
 jest.mock('@/hooks/useDebouncedValue', () => ({ useDebouncedValue: (nilai: unknown) => nilai }));
 jest.mock('@/hooks/queries/usePresurveiKegiatan', () => ({
@@ -174,6 +177,8 @@ describe('Tab Presurvei', () => {
       data: { pages: [{ data: [budi, { ...budi, id: 'p-2', nama: 'Pak Slamet', jenis: 'PERANTARA', peran: 'Ketua RT 03' }] }] },
     });
     const { getByText, getAllByTestId } = renderLayar();
+
+    fireEvent.press(getByText('Prospek'));
 
     expect(getByText('Perantara · Ketua RT 03')).toBeTruthy();
     expect(getAllByTestId('lencana-perantara')).toHaveLength(1);

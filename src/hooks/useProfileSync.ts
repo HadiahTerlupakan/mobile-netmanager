@@ -1,3 +1,4 @@
+import type { LingkupRencana } from '@/constants/presurvei';
 import { useAuth, User } from '@/context/AuthContext';
 import { useOfflineQuery } from '@/hooks/queries';
 import { queryKeys, queryClient } from '@/lib/queryClient';
@@ -18,6 +19,8 @@ interface UserProfile {
     features?: string[];
     /** Boleh mencairkan bonus canvasing: sales, atau role dengan izin `m_canvasing:cashout`. */
     canCashoutCanvasing?: boolean;
+    /** Lingkup rencana kunjungan; TIM/SEMUA = pemberi tugas (kepala sales/admin). */
+    lingkupRencana?: LingkupRencana;
     role?: {
         id: string;
         name: string;

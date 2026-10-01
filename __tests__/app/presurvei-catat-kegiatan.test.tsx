@@ -387,7 +387,7 @@ describe('Catat Kegiatan', () => {
     fireEvent.changeText(utilitas.getByLabelText('Nama calon pelanggan'), 'Rina Kartika');
 
     expect(utilitas.queryByText('modal-pilih-prospek')).toBeNull();
-    fireEvent.press(utilitas.getByText('Pilih prospek (follow-up)'));
+    fireEvent.press(utilitas.getByText('Pilih prospek'));
     expect(utilitas.getByText('modal-pilih-prospek')).toBeTruthy();
     act(() => mockPilihProps?.onPilih(PROSPEK_DIPILIH));
     fireEvent.press(utilitas.getByText('Simpan Kegiatan'));
@@ -407,7 +407,7 @@ describe('Catat Kegiatan', () => {
     fireEvent(utilitas.getByLabelText('Buat prospek baru'), 'valueChange', true);
     fireEvent.changeText(utilitas.getByLabelText('Nama calon pelanggan'), 'Rina Kartika');
 
-    fireEvent.press(utilitas.getByText('Pilih prospek (follow-up)'));
+    fireEvent.press(utilitas.getByText('Pilih prospek'));
     act(() => mockPilihProps?.onPilih(PROSPEK_DIPILIH));
     fireEvent.press(utilitas.getByText('Lepas'));
 
@@ -425,7 +425,7 @@ describe('Catat Kegiatan', () => {
     fireEvent.press(getByText('Simpan Kegiatan'));
 
     expect(queryByText('Budi Santoso')).toBeNull();
-    expect(getByText('Pilih prospek (follow-up)')).toBeTruthy();
+    expect(getByText('Pilih prospek')).toBeTruthy();
     expect(panggilanMutate(0).variabel.prospekId).toBeNull();
   });
 
@@ -611,5 +611,63 @@ describe('Catat Kegiatan', () => {
       expect(getByLabelText('Kembali').props.accessibilityState).toEqual({ disabled: true });
       expect(mockBack).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('Catat Kegiatan — laporan rencana kunjungan', () => {
+  const PARAM_RENCANA = { rencanaId: 'r-1', jenis: 'TELEPON', prospekId: 'p-9', prospekNama: 'Sari Wulandari' };
+
+  /** 409 CONFLICT: rencana sudah dilaporkan atau dibatalkan di server. */
+  const bangunGalatRencanaDitutup = () => ({
+    isAxiosError: true,
+    response: { status: 409, data: { success: false, error: 'Rencana ini sudah dilaporkan atau dibatalkan.', code: 'CONFLICT' } },
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockParam.mockReturnValue(PARAM_RENCANA);
+    mockLokasi = { status: 'gagal', titik: null, alamatTerdeteksi: '' };
+    mockUseFeatureGuard.mockReturnValue(true);
+    mockIsPending = false;
+  });
+
+  it('form terisi dari rencana dan muatan membawa rencanaId', () => {
+    const { getByText, getByLabelText } = renderLayar();
+
+    expect(getByText('Laporkan Kunjungan')).toBeTruthy();
+    expect(getByText('Sari Wulandari')).toBeTruthy();
+    expect(getByLabelText('Telepon').props.accessibilityState).toEqual({ selected: true });
+    fireEvent.press(getByText('Deal'));
+    fireEvent.press(getByText('Simpan Kegiatan'));
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ jenis: 'TELEPON', prospekId: 'p-9', rencanaId: 'r-1', requestId: expect.any(String) }),
+      expect.anything(),
+    );
+  });
+
+  it('jenis dari param yang tidak ditawarkan form diabaikan', () => {
+    mockParam.mockReturnValue({ ...PARAM_RENCANA, jenis: 'IKLAN' });
+    const { getByLabelText } = renderLayar();
+
+    expect(getByLabelText('Telepon').props.accessibilityState).toEqual({ selected: false });
+    expect(getByLabelText('Kunjungan').props.accessibilityState).toEqual({ selected: false });
+  });
+
+  it('409 rencana sudah ditutup melepas tautan rencana; simpan berikutnya kegiatan biasa dengan kunci baru', () => {
+    const { getByText, queryByText } = renderLayar();
+    fireEvent.press(getByText('Deal'));
+    fireEvent.press(getByText('Simpan Kegiatan'));
+
+    gagalkanMutate(0, bangunGalatRencanaDitutup());
+    fireEvent.press(getByText('Simpan Kegiatan'));
+
+    const pertama = panggilanMutate(0).variabel;
+    const kedua = panggilanMutate(1).variabel;
+    expect(pertama.rencanaId).toBe('r-1');
+    expect('rencanaId' in kedua).toBe(false);
+    expect(kedua.requestId).not.toBe(pertama.requestId);
+    expect(queryByText('Laporkan Kunjungan')).toBeNull();
+    expect(mockBack).not.toHaveBeenCalled();
   });
 });

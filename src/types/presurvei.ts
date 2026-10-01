@@ -3,6 +3,10 @@ import type {
   KegiatanJenis,
   ProspekJenis,
   ProspekStatus,
+  RencanaJenis,
+  RencanaStatus,
+  RencanaStatusTampil,
+  RencanaSumber,
 } from '@/constants/presurvei';
 
 /** Sumber prospek (netmanager `domain/entities/Prospek.ts:19-25`). */
@@ -153,6 +157,8 @@ export interface MuatanCatatKegiatan {
   estimasiKabelMeter?: number | null;
   catatanTeknis?: string | null;
   prospekBaru?: ProspekBaruKegiatan;
+  /** Rencana yang dilaporkan kegiatan ini; server menutupnya (SELESAI) dalam transaksi yang sama. */
+  rencanaId?: string;
 }
 
 /** Isi `data` respons `POST /api/presurvei/kegiatan` (route baris 63-69). */
@@ -173,4 +179,103 @@ export interface MuatanJadikanCanvasing {
 export interface HasilJadikanCanvasing {
   prospek: ProspekDetail;
   canvasingId: string;
+}
+
+/** Rincian kegiatan (netmanager `dto/kegiatan.dto.ts` `KegiatanDetailDto`). */
+export interface KegiatanDetail extends KegiatanListItem {
+  iklanId: string | null;
+  waktuSelesai: string | null;
+  catatan: string | null;
+  fotoUrls: string[];
+  dataTeknis: {
+    odpTerdekat: string | null;
+    estimasiKabelMeter: number | null;
+    catatanTeknis: string | null;
+  } | null;
+  createdAt: string;
+}
+
+/** Rencana kunjungan (netmanager `dto/rencana.dto.ts` `RencanaDto`). */
+export interface Rencana {
+  id: string;
+  salesId: string;
+  namaSales: string | null;
+  dibuatOlehId: string;
+  namaPembuat: string | null;
+  sumber: RencanaSumber;
+  jenis: RencanaJenis;
+  /** Tanggal kalender "YYYY-MM-DD". */
+  tanggal: string;
+  /** Jam "HH:mm" waktu lokal tenant; null = kapan saja di hari itu. */
+  jam: string | null;
+  tujuan: string;
+  prospekId: string | null;
+  namaProspek: string | null;
+  alamat: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  status: RencanaStatus;
+  statusTampil: RencanaStatusTampil;
+  isTerlambat: boolean;
+  kegiatanId: string | null;
+  dilaporkanAt: string | null;
+  alasanBatal: string | null;
+  dibatalkanAt: string | null;
+  createdAt: string;
+}
+
+/** Rincian rencana beserta laporannya (`RincianRencanaDto`). */
+export interface RincianRencana extends Rencana {
+  laporan: KegiatanDetail | null;
+}
+
+/** Badan `POST /api/presurvei/rencana` untuk diri sendiri (`buatRencanaSchema`, tanpa `salesId`). */
+export interface MuatanBuatRencana {
+  tanggal: string;
+  jam: string | null;
+  jenis: RencanaJenis;
+  tujuan: string;
+  prospekId: string | null;
+  alamat: string | null;
+}
+
+/**
+ * Badan `PATCH /api/presurvei/rencana/[id]` (`ubahRencanaSchema`, `.strict()`):
+ * hanya medan yang berubah.
+ */
+export type MuatanUbahRencana = Partial<MuatanBuatRencana>;
+
+/**
+ * Badan `POST /api/presurvei/rencana` dari pemberi tugas: `salesId` orang
+ * lain melahirkan PENUGASAN (sales dikabari), dirinya sendiri MANDIRI.
+ */
+export interface MuatanTugaskanRencana extends MuatanBuatRencana {
+  salesId: string;
+}
+
+/** Sales yang boleh ditugasi (`SalesPresurveiDto`). */
+export interface SalesRencana {
+  id: string;
+  nama: string;
+}
+
+/** Satu baris rekap rencana vs realisasi per sales (`BarisRekapRencana`). */
+export interface BarisRekapRencana {
+  salesId: string;
+  namaSales: string | null;
+  total: number;
+  selesai: number;
+  tepatWaktu: number;
+  terlambat: number;
+  terlewat: number;
+  batal: number;
+  mendatang: number;
+  /** Selesai ÷ (selesai + terlewat), 0–100; null bila belum ada yang jatuh tempo. */
+  persenRealisasi: number | null;
+}
+
+/** Respons `GET /api/presurvei/rencana/rekap`; `hariIni` menurut zona waktu tenant. */
+export interface RekapRencana {
+  hariIni: string;
+  baris: BarisRekapRencana[];
 }

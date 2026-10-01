@@ -55,6 +55,8 @@ export function useNotificationSetup() {
       '/chat',
       '/holidays',
       '/marketing/canvasing',
+      // Penugasan rencana kunjungan: link `/presurvei/rencana/<id>`.
+      '/presurvei',
     ];
 
     const handleNotificationNavigation = (data: { url?: string }) => {

@@ -1,10 +1,11 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { ENDPOINT_KEGIATAN_PRESURVEI } from '@/constants/presurvei';
+import { ENDPOINT_KEGIATAN_PRESURVEI, type KegiatanJenis } from '@/constants/presurvei';
 import type { MuatanCatatKegiatan, ProspekListItem } from '@/types/presurvei';
 import { presentAppError, presentInfoMessage } from '@/utils/errorPresenter';
-import { isGalatIdempotensiKunciDipakaiUlang } from '@/utils/galatIdempotensi';
+import { isGalatIdempotensiKunciDipakaiUlang, isGalatKonflik } from '@/utils/galatIdempotensi';
+import { daftarJenisDitawarkan } from '@/utils/presurvei/aturanPresurvei';
 import { keMuatanKegiatan } from '@/utils/presurvei/formKegiatan';
 import type { TitikGps } from '@/utils/presurvei/lokasiGps';
 import { bangunVariabelCatat, type VariabelCatatKegiatan } from '@/utils/presurvei/variabelCatat';
@@ -13,7 +14,8 @@ import { useFormKegiatan, type FormKegiatan } from './useFormKegiatan';
 import { useLokasiKegiatan } from './useLokasiKegiatan';
 
 /**
- * Param route layar catat (dari "Catat Follow-up"). Sengaja `type`, bukan
+ * Param route layar catat (dari "Catat Follow-up" atau "Laporkan Kunjungan"
+ * sebuah rencana, lihat `ruteLaporkanRencana`). Sengaja `type`, bukan
  * `interface`: `useLocalSearchParams<T>()` menuntut `T` memenuhi
  * `Record<string, string | string[]>`, dan hanya alias tipe objek yang
  * mendapat index signature implisit.
@@ -21,11 +23,17 @@ import { useLokasiKegiatan } from './useLokasiKegiatan';
 export type ParamCatatKegiatan = {
   prospekId?: string;
   prospekNama?: string;
+  rencanaId?: string;
+  jenis?: string;
 };
 
 /** Param kosong sama dengan tidak ada; form memakai `null`, bukan `''`. */
 const teksParamAtauNull = (teks: string | undefined): string | null =>
   teks === undefined || teks === '' ? null : teks;
+
+/** Jenis dari param hanya dipakai bila memang ditawarkan form; selain itu sales memilih sendiri. */
+const jenisParamAtauNull = (teks: string | undefined): KegiatanJenis | null =>
+  daftarJenisDitawarkan().find((jenis) => jenis === teks) ?? null;
 
 function useProspekTertaut(ubah: FormKegiatan['ubah']) {
   const [nama, setNama] = useState<string | null>(null);
@@ -64,7 +72,8 @@ interface UpayaSimpan {
  * otomatis (reverse geocode bisa tiba setelah simpan pertama gagal) sengaja
  * dikeluarkan. Perubahan pada bagian-bagian itu bukan niat baru, sehingga
  * variabel lama, termasuk titik lamanya, tetap dipakai ulang. Alamat yang
- * diketik sales tetap ikut sidik.
+ * diketik sales tetap ikut sidik. `rencanaId` juga ikut sidik: melepas tautan
+ * rencana (409 rencana sudah ditutup) adalah niat baru dengan kunci baru.
  */
 function sidikNiat(muatan: MuatanCatatKegiatan, fotoLokal: readonly string[], isAlamatOtomatis: boolean): string {
   const { waktuMulai: _waktu, latitude: _lat, longitude: _lng, alamatDikunjungi, ...isi } = muatan;
@@ -121,10 +130,19 @@ type NiatSimpan = ReturnType<typeof useVariabelPerNiat>;
  * ulang mengubah badan), jadi niat itu selesai dan layar ditutup; ingatan
  * niat dilupakan saat layar difokuskan lagi. Pada upaya pertama kasus itu
  * tidak semestinya terjadi; ia tampil sebagai galat biasa dan tidak diingat,
- * sehingga simpan berikutnya memakai kunci baru. Galat lain diingat untuk
- * simpan ulang (`useCatatKegiatan` yang menampilkan pesannya).
+ * sehingga simpan berikutnya memakai kunci baru.
+ *
+ * 409 `CONFLICT` pada laporan rencana berarti rencananya sudah dilaporkan
+ * atau dibatalkan; tautan rencana dilepas (tidak diingat) supaya simpan
+ * berikutnya mencatat kunjungan ini sebagai kegiatan biasa dan isian sales
+ * tidak hilang. Galat lain diingat untuk simpan ulang (`useCatatKegiatan`
+ * yang menampilkan pesannya).
  */
-function tanganiGalatSimpan(galat: unknown, upaya: UpayaSimpan, onSelesai: () => void) {
+function tanganiGalatSimpan(galat: unknown, upaya: UpayaSimpan, aksi: AksiGalatSimpan) {
+  if (upaya.variabel.rencanaId !== undefined && isGalatKonflik(galat)) {
+    aksi.lepasRencana();
+    return;
+  }
   if (!isGalatIdempotensiKunciDipakaiUlang(galat)) {
     upaya.ingatGagal();
     return;
@@ -134,7 +152,12 @@ function tanganiGalatSimpan(galat: unknown, upaya: UpayaSimpan, onSelesai: () =>
     return;
   }
   presentInfoMessage(PESAN_SUDAH_TERCATAT);
-  onSelesai();
+  aksi.onSelesai();
+}
+
+interface AksiGalatSimpan {
+  onSelesai: () => void;
+  lepasRencana: () => void;
 }
 
 interface OpsiPengirimKegiatan {
@@ -171,7 +194,8 @@ function usePengirimKegiatan({ form, titik, niat, isAlamatOtomatis, onSelesai }:
       // selesai (`isMengirim`), jadi saat ini tidak ada ingatan niat baru.
       onSuccess: niat.lupakan,
       onError: (galat) => {
-        if (upaya.isMasihBerlaku()) tanganiGalatSimpan(galat, upaya, onSelesai);
+        if (!upaya.isMasihBerlaku()) return;
+        tanganiGalatSimpan(galat, upaya, { onSelesai, lepasRencana: () => form.ubah({ rencanaId: null }) });
       },
       onSettled: () => {
         isMengirim.current = false;
@@ -223,14 +247,18 @@ interface AksiMulaiLayar {
  */
 function useMulaiSaatFokus(param: ParamCatatKegiatan, aksi: AksiMulaiLayar, isAktif: boolean) {
   const { reset, setNamaProspek, cariLokasi, mulaiNiatBaru } = aksi;
-  const { prospekId, prospekNama } = param;
+  const { prospekId, prospekNama, rencanaId, jenis } = param;
   useFocusEffect(useCallback(() => {
     if (!isAktif) return;
     mulaiNiatBaru();
-    reset({ prospekId: teksParamAtauNull(prospekId) });
+    reset({
+      prospekId: teksParamAtauNull(prospekId),
+      rencanaId: teksParamAtauNull(rencanaId),
+      jenis: jenisParamAtauNull(jenis),
+    });
     setNamaProspek(teksParamAtauNull(prospekNama));
     cariLokasi();
-  }, [isAktif, mulaiNiatBaru, reset, setNamaProspek, cariLokasi, prospekId, prospekNama]));
+  }, [isAktif, mulaiNiatBaru, reset, setNamaProspek, cariLokasi, prospekId, prospekNama, rencanaId, jenis]));
 }
 
 /**

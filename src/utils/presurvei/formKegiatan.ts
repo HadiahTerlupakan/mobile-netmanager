@@ -49,6 +49,8 @@ export interface NilaiFormKegiatan {
   prospekId: string | null;
   isBuatProspekBaru: boolean;
   prospekBaru: IsianProspekBaru;
+  /** Rencana kunjungan yang dilaporkan lewat form ini; null = kegiatan biasa. */
+  rencanaId: string | null;
 }
 
 export const NILAI_FORM_KEGIATAN_KOSONG: NilaiFormKegiatan = Object.freeze({
@@ -63,6 +65,7 @@ export const NILAI_FORM_KEGIATAN_KOSONG: NilaiFormKegiatan = Object.freeze({
   prospekId: null,
   isBuatProspekBaru: false,
   prospekBaru: Object.freeze({ nama: '', noTelp: '', alamat: '', paketDiminati: '' }),
+  rencanaId: null,
 });
 
 export type MedanFormKegiatan =
@@ -223,5 +226,6 @@ export function keMuatanKegiatan(
     ...bagianLapangan(nilai.jenis, nilai, konteks.titik),
     ...bagianTeknis(nilai.jenis, nilai),
     ...bagianProspekBaru(nilai),
+    ...(nilai.rencanaId !== null ? { rencanaId: nilai.rencanaId } : {}),
   };
 }

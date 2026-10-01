@@ -9,6 +9,7 @@ import { queryKeys } from '@/lib/queryClient';
  * baru (mis. `m_presurvei` setelah migration Task 20) langsung berlaku;
  * `useProfileSync` di `app/(app)/_layout.tsx` menyalinnya ke AuthContext.
  * Statistik Beranda ikut disegarkan untuk kartu pencairan bonus canvasing.
+ * `presurvei.all` mencakup ringkasan, rencana hari ini/terlewat, dan rekap tim.
  */
 export function useSegarkanBerandaSales() {
   const queryClient = useQueryClient();

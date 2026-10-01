@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+
+import { KepalaLayar } from '@/components/molecules/KepalaLayar';
 
 import { FormCatatKegiatan } from '@/components/organisms/presurvei/FormCatatKegiatan';
 import { KameraBukti } from '@/components/organisms/presurvei/KameraBukti';
@@ -13,8 +14,6 @@ import { useLayarCatatKegiatan, type ParamCatatKegiatan } from '@/hooks/presurve
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 
 /** Ukuran dan warna ikon kembali di kepala layar. */
-const UKURAN_IKON_KEMBALI = 24;
-const WARNA_IKON_KEMBALI = '#111827';
 
 /** Layar catat kegiatan presurvei (form satu halaman). */
 export default function CatatKegiatanScreen() {
@@ -24,6 +23,7 @@ export default function CatatKegiatanScreen() {
   const layar = useLayarCatatKegiatan(param, () => router.back(), isDiizinkan);
   const [isKameraTerbuka, setIsKameraTerbuka] = useState(false);
   const [isPilihProspekTerbuka, setIsPilihProspekTerbuka] = useState(false);
+  const isLaporanRencana = layar.form.nilai.rencanaId !== null;
 
   // Guard fitur yang mengalihkan; jangan tampilkan form sebelum diizinkan.
   if (!isDiizinkan) return null;
@@ -42,19 +42,13 @@ export default function CatatKegiatanScreen() {
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`}>
-      <View style={tw`flex-row items-center px-4 py-3 bg-white border-b border-gray-100`}>
-        {/* Nonaktif selama menyimpan: hasilnya menutup layar ini (review akhir M4). */}
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel="Kembali"
-          accessibilityState={{ disabled: layar.isMenyimpan }}
-          disabled={layar.isMenyimpan}
-          onPress={() => router.back()}
-        >
-          <ChevronLeft size={UKURAN_IKON_KEMBALI} color={WARNA_IKON_KEMBALI} />
-        </TouchableOpacity>
-        <Text style={tw`ml-2 text-lg font-bold text-gray-900`}>Catat Kegiatan</Text>
-      </View>
+      {/* Nonaktif selama menyimpan: hasilnya menutup layar ini (review akhir M4). */}
+      <KepalaLayar judul={isLaporanRencana ? 'Laporkan Kunjungan' : 'Catat Kegiatan'} isKembaliNonaktif={layar.isMenyimpan} />
+      {isLaporanRencana ? (
+        <Text style={tw`px-4 py-2 bg-blue-50 text-sm text-blue-700`}>
+          Kegiatan ini dicatat sebagai laporan rencana kunjungan Anda.
+        </Text>
+      ) : null}
       <ScrollView contentContainerStyle={tw`p-4 pb-32`} keyboardShouldPersistTaps="handled">
         <FormCatatKegiatan
           form={layar.form}

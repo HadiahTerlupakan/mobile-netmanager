@@ -16,6 +16,8 @@ export interface KegiatanMenunggu {
   alamatDikunjungi: string | null;
   ditemuiNama: string | null;
   jumlahFoto: number;
+  /** Rencana yang dilaporkan kegiatan ini, bila ada — rencananya tampil "Menunggu kirim". */
+  rencanaId: string | null;
   /**
    * Status item di antrean. PENDING/RETRY masih akan dicoba ulang
    * ("Menunggu kirim"); FAILED sudah berhenti dicoba ulang tapi tetap
@@ -64,6 +66,7 @@ function keKegiatanMenunggu(item: SyncQueueItem, badan: BadanAntrean): KegiatanM
     alamatDikunjungi: teksAtauNull(badan.alamatDikunjungi),
     ditemuiNama: teksAtauNull(badan.ditemuiNama),
     jumlahFoto: jumlahFotoMeta(item),
+    rencanaId: teksAtauNull(badan.rencanaId),
     status: item.status,
   };
 }

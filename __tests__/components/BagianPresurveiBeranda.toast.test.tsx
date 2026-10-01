@@ -25,6 +25,10 @@ jest.mock('@/services/PresurveiService', () => ({
   PresurveiService: { ringkasan: () => mockRingkasan() },
 }));
 jest.mock('@/hooks/queries/usePresurveiKegiatan', () => ({ useKegiatanMenungguKirim: () => ({ data: [] }) }));
+jest.mock('@/hooks/queries/usePresurveiRencana', () => ({ useDaftarRencana: () => ({ data: undefined }) }));
+jest.mock('@/hooks/presurvei/useLingkupRencana', () => ({
+  useLingkupRencana: () => ({ isPemberiTugas: false, penggunaId: 's-1' }),
+}));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 jest.mock('twrnc', () => () => ({}));
