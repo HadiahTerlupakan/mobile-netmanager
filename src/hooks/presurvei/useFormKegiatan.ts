@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { JUMLAH_FOTO_KEGIATAN_MAKS } from '@/constants/presurvei';
 import {
   NILAI_FORM_KEGIATAN_KOSONG,
+  terapkanPerubahanFormKegiatan,
   validasiFormKegiatan,
   type IsianProspekBaru,
   type KesalahanFormKegiatan,
@@ -45,7 +46,7 @@ function useFotoKegiatan() {
 function useNilaiKegiatan() {
   const [nilai, setNilai] = useState<NilaiFormKegiatan>(NILAI_FORM_KEGIATAN_KOSONG);
   const ubah = useCallback((perubahan: Partial<NilaiFormKegiatan>) => {
-    setNilai((lama) => ({ ...lama, ...perubahan }));
+    setNilai((lama) => terapkanPerubahanFormKegiatan(lama, perubahan));
   }, []);
   const ubahProspekBaru = useCallback((perubahan: Partial<IsianProspekBaru>) => {
     setNilai((lama) => ({ ...lama, prospekBaru: { ...lama.prospekBaru, ...perubahan } }));

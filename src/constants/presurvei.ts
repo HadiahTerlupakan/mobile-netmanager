@@ -14,6 +14,9 @@ export const KEGIATAN_HASIL = [
   'TIDAK_MINAT',
   'TIDAK_ADA_ORANG',
   'DEAL',
+  // Khusus survei lokasi: kelayakan pasang (lihat `utils/presurvei/hasilKegiatan.ts`).
+  'BISA_DIPASANG',
+  'TIDAK_BISA_DIPASANG',
 ] as const;
 export type KegiatanHasil = (typeof KEGIATAN_HASIL)[number];
 
@@ -54,13 +57,18 @@ export const LABEL_JENIS_KEGIATAN: Record<KegiatanJenis, string> = {
   IKLAN: 'Iklan',
 };
 
-/** Label hasil kegiatan (sama dengan netmanager `modules/presurvei/utils/statusConfig.ts:54-66`). */
+/**
+ * Label umum hasil kegiatan (netmanager `domain/hasil-kegiatan.ts` `LABEL_HASIL_UMUM`).
+ * Untuk tampilan pakai `labelHasilKegiatan(hasil, jenis)` agar labelnya sesuai jenis.
+ */
 export const LABEL_HASIL_KEGIATAN: Record<KegiatanHasil, string> = {
   TERTARIK: 'Tertarik',
   PERLU_FOLLOWUP: 'Perlu follow-up',
   TIDAK_MINAT: 'Tidak minat',
   TIDAK_ADA_ORANG: 'Tidak ada orang',
   DEAL: 'Deal',
+  BISA_DIPASANG: 'Bisa dipasang',
+  TIDAK_BISA_DIPASANG: 'Tidak bisa dipasang',
 };
 
 /** Label status prospek (sama dengan netmanager `modules/presurvei/utils/statusConfig.ts:25-33`). */

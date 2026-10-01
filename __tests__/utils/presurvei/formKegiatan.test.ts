@@ -5,6 +5,7 @@ import {
   keMuatanKegiatan,
   NILAI_FORM_KEGIATAN_KOSONG,
   PESAN_FORM_KEGIATAN,
+  terapkanPerubahanFormKegiatan,
   validasiFormKegiatan,
   type NilaiFormKegiatan,
 } from '@/utils/presurvei/formKegiatan';
@@ -16,6 +17,24 @@ const WAKTU = new Date('2026-09-24T03:15:00.000Z');
 const nilai = (over: Partial<NilaiFormKegiatan>): NilaiFormKegiatan => ({
   ...NILAI_FORM_KEGIATAN_KOSONG,
   ...over,
+});
+
+describe('terapkanPerubahanFormKegiatan', () => {
+  it('ganti jenis mengosongkan hasil yang tidak ada di pilihan jenis baru', () => {
+    const baru = terapkanPerubahanFormKegiatan(nilai({ jenis: 'KUNJUNGAN', hasil: 'TERTARIK' }), { jenis: 'SURVEI_LOKASI' });
+    expect(baru).toEqual(nilai({ jenis: 'SURVEI_LOKASI', hasil: null }));
+  });
+
+  it('ganti jenis mempertahankan hasil yang masih tersedia', () => {
+    const baru = terapkanPerubahanFormKegiatan(nilai({ jenis: 'KUNJUNGAN', hasil: 'TIDAK_MINAT' }), { jenis: 'TELEPON' });
+    expect(baru.hasil).toBe('TIDAK_MINAT');
+  });
+
+  it('hasil yang dikirim bersama jenis dipakai apa adanya; perubahan lain tidak menyentuh hasil', () => {
+    const lama = nilai({ jenis: 'SURVEI_LOKASI', hasil: 'TERTARIK' });
+    expect(terapkanPerubahanFormKegiatan(lama, { jenis: 'SURVEI_LOKASI', hasil: 'BISA_DIPASANG' }).hasil).toBe('BISA_DIPASANG');
+    expect(terapkanPerubahanFormKegiatan(lama, { catatan: 'ok' }).hasil).toBe('TERTARIK');
+  });
 });
 
 describe('validasiFormKegiatan', () => {

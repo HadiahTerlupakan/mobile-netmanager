@@ -11,6 +11,7 @@ import {
   isButuhDataTeknis,
   isButuhLokasi,
 } from './aturanPresurvei';
+import { hasilTetapUntukJenis } from './hasilKegiatan';
 import {
   PANJANG_ALAMAT_PROSPEK_MAKS,
   PESAN_ISIAN_PROSPEK,
@@ -104,6 +105,19 @@ export const PESAN_FORM_KEGIATAN = {
   telpProspek: PESAN_ISIAN_PROSPEK.telpPendek,
   alamatProspek: PESAN_ISIAN_PROSPEK.alamatPendek,
 } as const;
+
+/**
+ * Nilai form setelah perubahan. Saat jenis diganti, hasil yang tidak ada di
+ * pilihan jenis baru dikosongkan supaya sales memilih ulang.
+ */
+export function terapkanPerubahanFormKegiatan(
+  lama: NilaiFormKegiatan,
+  perubahan: Partial<NilaiFormKegiatan>,
+): NilaiFormKegiatan {
+  const baru = { ...lama, ...perubahan };
+  const isJenisDiganti = perubahan.jenis !== undefined && perubahan.hasil === undefined;
+  return isJenisDiganti ? { ...baru, hasil: hasilTetapUntukJenis(baru.hasil, baru.jenis) } : baru;
+}
 
 /** Apakah prospek baru benar-benar akan dikirim. */
 export function isProspekBaruDipakai(nilai: NilaiFormKegiatan): boolean {

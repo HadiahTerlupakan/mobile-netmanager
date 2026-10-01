@@ -3,9 +3,10 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import tw from 'twrnc';
 
-import { LABEL_HASIL_KEGIATAN, LABEL_JENIS_KEGIATAN } from '@/constants/presurvei';
+import { LABEL_JENIS_KEGIATAN } from '@/constants/presurvei';
 import { formatDate } from '@/utils/date';
 import type { BarisKegiatan } from '@/utils/presurvei/daftarKegiatan';
+import { labelHasilKegiatan } from '@/utils/presurvei/hasilKegiatan';
 
 /** Ukuran dan warna ikon jumlah foto. */
 const UKURAN_IKON_FOTO = 12;
@@ -27,7 +28,7 @@ export function KartuKegiatan({ baris }: KartuKegiatanProps) {
       {baris.tempat !== null ? <Text style={tw`text-xs text-gray-500`} numberOfLines={1}>{baris.tempat}</Text> : null}
       <View style={tw`flex-row items-center justify-between mt-1`}>
         <View style={tw`flex-row items-center`}>
-          <Text style={tw`text-xs text-blue-700`}>{LABEL_HASIL_KEGIATAN[baris.hasil]}</Text>
+          <Text style={tw`text-xs text-blue-700`}>{labelHasilKegiatan(baris.hasil, baris.jenis)}</Text>
           {baris.jumlahFoto > 0 ? (
             <View style={tw`flex-row items-center ml-2`}>
               <Camera size={UKURAN_IKON_FOTO} color={WARNA_IKON_FOTO} />

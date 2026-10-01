@@ -28,7 +28,7 @@ const JENIS_PERANTARA: ProspekJenis = 'PERANTARA';
 const JENIS_DI_LAPANGAN: readonly KegiatanJenis[] = ['KUNJUNGAN', 'SURVEI_LOKASI'];
 const JENIS_BERDATA_TEKNIS: readonly KegiatanJenis[] = ['SURVEI_LOKASI'];
 const JENIS_TIDAK_DICATAT_DARI_HP: readonly KegiatanJenis[] = ['IKLAN'];
-const HASIL_BERMINAT: readonly KegiatanHasil[] = ['TERTARIK', 'DEAL'];
+const HASIL_BERMINAT: readonly KegiatanHasil[] = ['TERTARIK', 'DEAL', 'BISA_DIPASANG'];
 
 /** Status yang boleh dituju dari `status`. Selalu salinan baru. */
 export function getStatusLanjutan(status: ProspekStatus): ProspekStatus[] {

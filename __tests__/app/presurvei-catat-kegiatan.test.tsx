@@ -193,6 +193,53 @@ describe('Catat Kegiatan', () => {
     expect(getByText('Ambil minimal 1 foto bukti')).toBeTruthy();
   });
 
+  it('pilihan hasil baru tampil setelah jenis dipilih dan mengikuti jenisnya', () => {
+    const { getByText, queryByText } = renderLayar();
+    expect(getByText('Pilih jenis kegiatan dulu')).toBeTruthy();
+    expect(queryByText('Tertarik')).toBeNull();
+
+    fireEvent.press(getByText('Survei lokasi'));
+    expect(getByText('Bisa dipasang di lokasi ini?')).toBeTruthy();
+    for (const label of ['Bisa dipasang', 'Tidak bisa dipasang', 'Perlu dicek ulang', 'Tidak ketemu orangnya']) {
+      expect(getByText(label)).toBeTruthy();
+    }
+    expect(queryByText('Tertarik')).toBeNull();
+
+    fireEvent.press(getByText('Chat'));
+    expect(getByText('Belum dibalas')).toBeTruthy();
+    expect(queryByText('Bisa dipasang')).toBeNull();
+  });
+
+  it('ganti jenis mengosongkan hasil yang tidak ada di jenis baru sehingga sales memilih ulang', () => {
+    const { getByText } = renderLayar();
+    fireEvent.press(getByText('Telepon'));
+    fireEvent.press(getByText('Tertarik'));
+    fireEvent.press(getByText('Survei lokasi'));
+    fireEvent.press(getByText('Simpan Kegiatan'));
+
+    expect(mockMutate).not.toHaveBeenCalled();
+    expect(getByText('Pilih hasil kegiatan')).toBeTruthy();
+  });
+
+  it('survei lokasi "Bisa dipasang" tanpa prospek menawarkan prospek baru dan terkirim sebagai BISA_DIPASANG', () => {
+    mockLokasi = { status: 'siap', titik: TITIK, alamatTerdeteksi: '' };
+    const { getByText, queryByLabelText } = renderLayar();
+    fireEvent.press(getByText('Survei lokasi'));
+    fireEvent.press(getByText('Tidak bisa dipasang'));
+    expect(queryByLabelText('Buat prospek baru')).toBeNull();
+
+    fireEvent.press(getByText('Bisa dipasang'));
+    expect(queryByLabelText('Buat prospek baru')).toBeTruthy();
+    fireEvent.press(getByText('Ambil Foto'));
+    act(() => mockKameraProps?.onAmbil('file:///cache/a.jpg'));
+    fireEvent.press(getByText('Simpan Kegiatan'));
+
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ jenis: 'SURVEI_LOKASI', hasil: 'BISA_DIPASANG' }),
+      expect.anything(),
+    );
+  });
+
   it('kolom teknis hanya tampil untuk survei lokasi', () => {
     const { getByText, queryByLabelText } = renderLayar();
 
@@ -334,7 +381,7 @@ describe('Catat Kegiatan', () => {
     const { getByText } = renderLayar();
 
     fireEvent.press(getByText('Telepon'));
-    fireEvent.press(getByText('Perlu follow-up'));
+    fireEvent.press(getByText('Minta ditelepon lagi'));
     fireEvent.press(getByText('Simpan Kegiatan'));
 
     expect(getByText('Budi Santoso')).toBeTruthy();
@@ -421,7 +468,7 @@ describe('Catat Kegiatan', () => {
 
     fireEvent.press(getByText('Lepas'));
     fireEvent.press(getByText('Telepon'));
-    fireEvent.press(getByText('Perlu follow-up'));
+    fireEvent.press(getByText('Minta ditelepon lagi'));
     fireEvent.press(getByText('Simpan Kegiatan'));
 
     expect(queryByText('Budi Santoso')).toBeNull();
@@ -631,13 +678,15 @@ describe('Catat Kegiatan — laporan rencana kunjungan', () => {
     mockIsPending = false;
   });
 
-  it('form terisi dari rencana dan muatan membawa rencanaId', () => {
-    const { getByText, getByLabelText } = renderLayar();
+  it('form terisi dari rencana, pilihan hasil mengikuti jenis rencana, dan muatan membawa rencanaId', () => {
+    const { getByText, getByLabelText, queryByText } = renderLayar();
 
     expect(getByText('Laporkan Kunjungan')).toBeTruthy();
     expect(getByText('Sari Wulandari')).toBeTruthy();
     expect(getByLabelText('Telepon').props.accessibilityState).toEqual({ selected: true });
-    fireEvent.press(getByText('Deal'));
+    expect(getByText('Tidak diangkat / nomor tidak aktif')).toBeTruthy();
+    expect(queryByText('Bisa dipasang')).toBeNull();
+    fireEvent.press(getByText('Setuju pasang'));
     fireEvent.press(getByText('Simpan Kegiatan'));
 
     expect(mockMutate).toHaveBeenCalledWith(
@@ -656,7 +705,7 @@ describe('Catat Kegiatan — laporan rencana kunjungan', () => {
 
   it('409 rencana sudah ditutup melepas tautan rencana; simpan berikutnya kegiatan biasa dengan kunci baru', () => {
     const { getByText, queryByText } = renderLayar();
-    fireEvent.press(getByText('Deal'));
+    fireEvent.press(getByText('Setuju pasang'));
     fireEvent.press(getByText('Simpan Kegiatan'));
 
     gagalkanMutate(0, bangunGalatRencanaDitutup());

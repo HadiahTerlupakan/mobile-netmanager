@@ -5,17 +5,36 @@ import tw from 'twrnc';
 import { TeksKesalahan } from '@/components/atoms/TeksKesalahan';
 import { IsianTeks } from '@/components/molecules/IsianTeks';
 import { PilihanChip } from '@/components/molecules/PilihanChip';
-import { KEGIATAN_HASIL, LABEL_HASIL_KEGIATAN, LABEL_JENIS_KEGIATAN } from '@/constants/presurvei';
+import { LABEL_JENIS_KEGIATAN } from '@/constants/presurvei';
 import type { FormKegiatan } from '@/hooks/presurvei/useFormKegiatan';
 import type { LokasiKegiatan } from '@/hooks/presurvei/useLokasiKegiatan';
 import { daftarJenisDitawarkan, isButuhDataTeknis, isButuhLokasi } from '@/utils/presurvei/aturanPresurvei';
+import { daftarOpsiHasil, pertanyaanHasil } from '@/utils/presurvei/hasilKegiatan';
 import { BlokFotoBukti } from './BlokFotoBukti';
 import { BlokLokasiGps } from './BlokLokasiGps';
 import { BlokProspekKegiatan } from './BlokProspekKegiatan';
 import { IsianDataTeknis } from './IsianDataTeknis';
 
 const OPSI_JENIS = daftarJenisDitawarkan().map((jenis) => ({ nilai: jenis, label: LABEL_JENIS_KEGIATAN[jenis] }));
-const OPSI_HASIL = KEGIATAN_HASIL.map((hasil) => ({ nilai: hasil, label: LABEL_HASIL_KEGIATAN[hasil] }));
+
+/** Pilihan hasil sesuai jenis terpilih; sebelum jenis dipilih hanya tampil petunjuk. */
+function BagianHasil({ form }: { form: FormKegiatan }) {
+  const { nilai, kesalahan, ubah } = form;
+  const pertanyaan = nilai.jenis === null ? null : pertanyaanHasil(nilai.jenis);
+  return (
+    <View>
+      <Text style={tw`font-bold text-gray-900`}>Hasil</Text>
+      {pertanyaan !== null ? <Text style={tw`text-sm text-gray-600`}>{pertanyaan}</Text> : null}
+      <View style={tw`h-2`} />
+      {nilai.jenis === null ? (
+        <Text style={tw`text-sm text-gray-500`}>Pilih jenis kegiatan dulu</Text>
+      ) : (
+        <PilihanChip opsi={daftarOpsiHasil(nilai.jenis)} terpilih={nilai.hasil} onPilih={(hasil) => ubah({ hasil })} />
+      )}
+      <TeksKesalahan pesan={kesalahan.hasil} />
+    </View>
+  );
+}
 
 interface FormCatatKegiatanProps {
   form: FormKegiatan;
@@ -61,13 +80,7 @@ export function FormCatatKegiatan(props: FormCatatKegiatanProps) {
           />
         </View>
       ) : null}
-      <Text style={tw`font-bold text-gray-900 mb-2`}>Hasil</Text>
-      <PilihanChip
-        opsi={OPSI_HASIL}
-        terpilih={nilai.hasil}
-        onPilih={(hasil) => ubah({ hasil })}
-      />
-      <TeksKesalahan pesan={kesalahan.hasil} />
+      <BagianHasil form={form} />
       <View style={tw`h-4`} />
       <IsianTeks
         label={isLapangan ? 'Yang ditemui' : 'Yang dihubungi'}

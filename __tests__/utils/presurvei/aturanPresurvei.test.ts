@@ -29,6 +29,7 @@ import {
   isHasilMelahirkanProspek,
   resolveAksiProspek,
 } from '@/utils/presurvei/aturanPresurvei';
+import { HASIL_PER_JENIS, labelHasilKegiatan } from '@/utils/presurvei/hasilKegiatan';
 
 /**
  * Fixture disalin byte-demi-byte dari netmanager
@@ -79,6 +80,14 @@ describe('paritas dengan kontrak backend', () => {
     );
   });
 
+  it('pilihan dan label hasil per jenis sama', () => {
+    expect(HASIL_PER_JENIS).toEqual(kontrak.hasilPerJenis);
+    for (const jenis of KEGIATAN_JENIS) {
+      const label = Object.fromEntries(HASIL_PER_JENIS[jenis].map((hasil) => [hasil, labelHasilKegiatan(hasil, jenis)]));
+      expect(label).toEqual(kontrak.labelHasilPerJenis[jenis]);
+    }
+  });
+
   it('batas foto dan kabel sama', () => {
     expect(JUMLAH_FOTO_KEGIATAN_MAKS).toBe(kontrak.jumlahFotoMaks);
     expect(KABEL_METER_MAKS).toBe(kontrak.kabelMeterMaks);
@@ -123,6 +132,8 @@ describe('aturan presurvei', () => {
   > = [
     ['KUNJUNGAN', 'TERTARIK', null, true],
     ['SURVEI_LOKASI', 'DEAL', null, true],
+    ['SURVEI_LOKASI', 'BISA_DIPASANG', null, true],
+    ['SURVEI_LOKASI', 'TIDAK_BISA_DIPASANG', null, false],
     ['KUNJUNGAN', 'PERLU_FOLLOWUP', null, false],
     ['TELEPON', 'TERTARIK', null, false],
     ['KUNJUNGAN', 'TERTARIK', 'prospek-1', false],

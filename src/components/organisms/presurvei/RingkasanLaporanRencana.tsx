@@ -2,9 +2,9 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import tw from 'twrnc';
 
-import { LABEL_HASIL_KEGIATAN } from '@/constants/presurvei';
 import type { RincianRencana } from '@/types/presurvei';
 import { formatDate } from '@/utils/date';
+import { labelHasilKegiatan } from '@/utils/presurvei/hasilKegiatan';
 
 interface RingkasanLaporanRencanaProps {
   rencana: RincianRencana;
@@ -25,7 +25,7 @@ export function RingkasanLaporanRencana({ rencana }: RingkasanLaporanRencanaProp
         <Text style={tw`text-sm text-gray-500`}>Rincian laporan tidak tersedia.</Text>
       ) : (
         <View>
-          <Text style={tw`text-sm text-blue-700`}>{LABEL_HASIL_KEGIATAN[laporan.hasil]}</Text>
+          <Text style={tw`text-sm text-blue-700`}>{labelHasilKegiatan(laporan.hasil, laporan.jenis)}</Text>
           <Text style={tw`text-xs text-gray-500 mt-1`}>{formatDate(laporan.waktuMulai, 'dd MMM yyyy HH:mm')}</Text>
           {laporan.catatan !== null ? <Text style={tw`text-sm text-gray-700 mt-2`}>{laporan.catatan}</Text> : null}
           <Text style={tw`text-xs text-gray-500 mt-2`}>{`${laporan.jumlahFoto} foto`}</Text>

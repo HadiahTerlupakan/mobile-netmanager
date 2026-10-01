@@ -21,6 +21,15 @@ const item = (over: Partial<SyncQueueItem>): SyncQueueItem => ({
 });
 
 describe('ambilKegiatanMenunggu', () => {
+  it('antrean lama berkombinasi lama dan hasil survei baru tetap dikenali', () => {
+    const badan = (jenis: string, hasil: string) => JSON.stringify({ jenis, hasil, waktuMulai: '2026-09-24T03:15:00.000Z' });
+    const menunggu = ambilKegiatanMenunggu([
+      item({ id: 1, body: badan('SURVEI_LOKASI', 'TERTARIK') }),
+      item({ id: 2, body: badan('SURVEI_LOKASI', 'BISA_DIPASANG') }),
+    ]);
+    expect(menunggu.map((kegiatan) => kegiatan.hasil)).toEqual(['TERTARIK', 'BISA_DIPASANG']);
+  });
+
   it('memetakan kegiatan dari antrean beserta jumlah fotonya', () => {
     expect(ambilKegiatanMenunggu([item({})])).toEqual([
       {
