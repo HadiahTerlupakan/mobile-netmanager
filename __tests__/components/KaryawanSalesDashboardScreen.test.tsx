@@ -86,17 +86,16 @@ describe('KaryawanSalesDashboardScreen', () => {
     mockPropsHeader = {};
   });
 
-  it('menu cepat sales: Chat, Izin/Cuti, Lembur, Kalender Libur (ruling I5)', () => {
+  it('menu cepat sales: Chat, Izin/Cuti, Kalender Libur — tanpa Lembur', () => {
     mockUseAuth.mockReturnValue(sales(['m_chat', 'm_izin']));
 
     render(<KaryawanSalesDashboardScreen />);
 
     expect(mockPropsMenu).toEqual({
       features: ['m_chat', 'm_izin'],
-      isSales: true,
       role: 'SALES',
       isMitra: false,
-      menuIds: ['chat', 'izin', 'lembur', 'holidays'],
+      menuIds: ['chat', 'izin', 'holidays'],
     });
   });
 

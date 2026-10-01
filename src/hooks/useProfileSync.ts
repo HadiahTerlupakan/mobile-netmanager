@@ -16,6 +16,8 @@ interface UserProfile {
     createdAt?: string;
     mitraType?: string;
     features?: string[];
+    /** Boleh mencairkan bonus canvasing: sales, atau role dengan izin `m_canvasing:cashout`. */
+    canCashoutCanvasing?: boolean;
     role?: {
         id: string;
         name: string;

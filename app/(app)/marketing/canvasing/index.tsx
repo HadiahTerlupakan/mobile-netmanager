@@ -232,10 +232,10 @@ export default function CanvasingListScreen() {
     enabled: !!token,
   });
 
-  const hasAccess = useMemo(() => {
-    const features = profile?.features || [];
-    return features.includes("m_canvasing") || profile?.isSales === true;
-  }, [profile?.features, profile?.isSales]);
+  const hasAccess = useMemo(
+    () => (profile?.features || []).includes("m_canvasing"),
+    [profile?.features],
+  );
 
   const stats = useMemo(() => {
     if (!requests)

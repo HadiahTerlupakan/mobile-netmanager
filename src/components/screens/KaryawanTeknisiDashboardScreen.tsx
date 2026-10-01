@@ -12,7 +12,6 @@ import { useProfileSync } from '@/hooks/useProfileSync';
 import { useStatistikBeranda } from '@/hooks/useStatistikBeranda';
 import { queryKeys } from '@/lib/queryClient';
 import { TenantService } from '@/services/TenantService';
-import { presentInfoMessage } from '@/utils/errorPresenter';
 import { isPersonaMitra, tentukanPersona } from '@/utils/persona';
 import { FlashList, ListRenderItem } from '@shopify/flash-list';
 import { Href, useRouter } from 'expo-router';
@@ -59,6 +58,8 @@ export function KaryawanTeknisiDashboardScreen() {
 
     const hasWorkOrder = hasFeature('m_work_order');
     const hasCanvasing = hasFeature('m_canvasing');
+    // Teknisi hanya bisa mencairkan bila role-nya diberi izin cashout (opsional per role).
+    const bisaCairkanBonus = profileData?.canCashoutCanvasing ?? user?.isSales === true;
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
@@ -71,12 +72,8 @@ export function KaryawanTeknisiDashboardScreen() {
     }, [router]);
 
     const handleCanvasingPress = useCallback(() => {
-        if (!user?.isSales) {
-            presentInfoMessage('Fitur ini hanya dapat diakses oleh Sales yang aktif.', 'Akses Terbatas');
-            return;
-        }
         router.push('/(app)/marketing/canvasing' as Href);
-    }, [user?.isSales, router]);
+    }, [router]);
 
     const carouselData = useMemo<CarouselItem[]>(() => {
         const items: CarouselItem[] = [];
@@ -261,7 +258,7 @@ export function KaryawanTeknisiDashboardScreen() {
                             month={canvasingStatsProps.month}
                         />
 
-                        {user?.isSales && (
+                        {bisaCairkanBonus && (
                             <KartuPencairanCanvasing statistik={statsData} onBerhasilCair={refetchStats} />
                         )}
                     </>
@@ -269,7 +266,6 @@ export function KaryawanTeknisiDashboardScreen() {
 
                 <QuickMenu
                     features={profileData?.features || user?.features || []}
-                    isSales={user?.isSales ?? false}
                     role={user?.role}
                     isMitra={isPersonaMitra(tentukanPersona(user))}
                 />

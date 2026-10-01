@@ -41,9 +41,10 @@ export function punyaFitur(user: Pick<User, 'role' | 'features'> | null | undefi
 }
 
 /**
- * Apakah Canvasing boleh tampil: izin `m_canvasing` dan user sales sekaligus
- * (spec §3 aturan 4). Dipakai tab bar bawaan dan tab bar sales karyawan.
+ * Apakah Canvasing boleh tampil: cukup izin `m_canvasing` dari role. Teknisi
+ * yang role-nya diberi izin ini ikut canvasing tanpa berubah persona menjadi
+ * sales. Dipakai tab bar bawaan dan tab bar sales karyawan.
  */
-export function bolehCanvasing(user: Pick<User, 'role' | 'features' | 'isSales'> | null | undefined): boolean {
-  return punyaFitur(user, AppFeature.CANVASING) && user?.isSales === true;
+export function bolehCanvasing(user: Pick<User, 'role' | 'features'> | null | undefined): boolean {
+  return punyaFitur(user, AppFeature.CANVASING);
 }

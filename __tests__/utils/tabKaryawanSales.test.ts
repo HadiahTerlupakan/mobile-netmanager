@@ -25,12 +25,10 @@ describe('susunTabKaryawanSales', () => {
     expect(tab.find((t) => t.rute === 'presurvei/index')).toEqual({ rute: 'presurvei/index', isTerkunci: true });
   });
 
-  it('Canvasing dan Absensi mengikuti gerbang lama: disembunyikan, bukan dikunci', () => {
+  it('Canvasing dan Absensi tanpa izin: disembunyikan, bukan dikunci', () => {
     const tanpaIzin = susunTabKaryawanSales({ ...SALES_LENGKAP, features: ['m_dashboard', 'm_presurvei'] });
-    const bukanSales = susunTabKaryawanSales({ ...SALES_LENGKAP, isSales: false });
 
     expect(tanpaIzin.map((t) => t.rute)).toEqual(['dashboard', 'presurvei/index', 'profile']);
-    expect(bukanSales.map((t) => t.rute)).not.toContain('marketing/canvasing/index');
   });
 });
 

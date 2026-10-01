@@ -51,16 +51,14 @@ describe('punyaFitur', () => {
 });
 
 describe('bolehCanvasing', () => {
-  it('butuh izin m_canvasing dan user sales sekaligus (spec §3 aturan 4)', () => {
-    expect(bolehCanvasing({ role: 'SALES', features: ['m_canvasing'], isSales: true })).toBe(true);
-    expect(bolehCanvasing({ role: 'SALES', features: ['m_canvasing'], isSales: false })).toBe(false);
-    expect(bolehCanvasing({ role: 'SALES', features: ['m_canvasing'] })).toBe(false);
-    expect(bolehCanvasing({ role: 'SALES', features: ['m_presurvei'], isSales: true })).toBe(false);
+  it('cukup izin m_canvasing — sales maupun teknisi', () => {
+    expect(bolehCanvasing({ role: 'SALES', features: ['m_canvasing'] })).toBe(true);
+    expect(bolehCanvasing({ role: 'TEKNISI', features: ['m_canvasing', 'm_work_order'] })).toBe(true);
+    expect(bolehCanvasing({ role: 'SALES', features: ['m_presurvei'] })).toBe(false);
   });
 
-  it('SUPER_ADMIN tetap harus sales; tanpa pengguna tidak boleh', () => {
-    expect(bolehCanvasing({ role: 'SUPER_ADMIN', features: [], isSales: true })).toBe(true);
-    expect(bolehCanvasing({ role: 'SUPER_ADMIN', features: [], isSales: false })).toBe(false);
+  it('SUPER_ADMIN selalu boleh; tanpa pengguna tidak boleh', () => {
+    expect(bolehCanvasing({ role: 'SUPER_ADMIN', features: [] })).toBe(true);
     expect(bolehCanvasing(null)).toBe(false);
   });
 });

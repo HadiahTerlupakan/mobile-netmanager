@@ -48,7 +48,7 @@ describe('Tab Presurvei', () => {
       refetch: jest.fn(),
     });
     mockUseDaftarProspek.mockReturnValue({
-      data: { pages: [{ data: [{ id: 'p-1', nama: 'Budi Santoso', noTelp: '081234567890', alamat: 'Jl. Kenanga', sumber: 'LAPANGAN', status: 'TERTARIK', pemilikId: 'sales-a', namaPemilik: null, paketDiminati: null, canvasingId: null, createdAt: sekarangIso() }], meta: { page: 1, limit: 20, total: 1, totalPages: 1 } }] },
+      data: { pages: [{ data: [{ id: 'p-1', nama: 'Budi Santoso', noTelp: '081234567890', alamat: 'Jl. Kenanga', jenis: 'CALON_PELANGGAN', peran: null, sumber: 'LAPANGAN', status: 'TERTARIK', pemilikId: 'sales-a', namaPemilik: null, paketDiminati: null, canvasingId: null, createdAt: sekarangIso() }], meta: { page: 1, limit: 20, total: 1, totalPages: 1 } }] },
       hasNextPage: false, isFetchingNextPage: false, isPending: false, isError: false, isRefetching: false,
       fetchNextPage: jest.fn(), refetch: jest.fn(),
     });

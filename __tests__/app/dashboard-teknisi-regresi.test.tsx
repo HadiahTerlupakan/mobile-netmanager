@@ -177,7 +177,6 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     const menu = mockProps.QuickMenu.at(-1);
     expect(menu).toEqual({
       features: ['m_work_order', 'm_canvasing'],
-      isSales: false,
       role: 'TEKNISI',
       isMitra: false,
     });
@@ -198,8 +197,8 @@ describe('Beranda teknisi karyawan (regresi)', () => {
 
     fireEvent.press(getByText('kartu-canvasing:5/3'));
 
-    expect(mockPresentInfo).toHaveBeenCalledWith('Fitur ini hanya dapat diakses oleh Sales yang aktif.', 'Akses Terbatas');
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockPresentInfo).not.toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith('/(app)/marketing/canvasing');
   });
 
   it('kartu WO membuka daftar work order', () => {

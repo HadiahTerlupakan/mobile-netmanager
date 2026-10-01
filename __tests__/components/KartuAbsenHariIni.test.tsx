@@ -8,6 +8,7 @@ const mockUseStatusAbsen = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@/hooks/useStatusAbsenHariIni', () => ({ useStatusAbsenHariIni: () => mockUseStatusAbsen() }));
 jest.mock('twrnc', () => () => ({}));
+jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 
 import { KartuAbsenHariIni } from '@/components/organisms/dashboard/KartuAbsenHariIni';
 

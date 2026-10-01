@@ -3,9 +3,9 @@ import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
 
 /**
- * Ruling I5 (review akhir): Beranda sales memakai QuickMenu ASLI dengan
- * Lembur dan Kalender Libur — kemampuan karyawan yang sudah ada sebelum OTA.
- * Tile tetap terkunci tanpa izin; menu teknisi tetap tidak tampil.
+ * Beranda sales memakai QuickMenu ASLI dengan Kalender Libur. Lembur
+ * dihapus (keputusan pemilik 2026-09-26: sales tidak lembur). Tile tetap
+ * terkunci tanpa izin; menu teknisi tetap tidak tampil.
  */
 
 const mockUseAuth = jest.fn();
@@ -40,41 +40,40 @@ describe('Menu cepat Beranda sales (QuickMenu asli, ruling I5)', () => {
     jest.clearAllMocks();
   });
 
-  it('menampilkan Chat, Izin & Cuti, Lembur, Kalender Libur; menu teknisi tidak tampil', () => {
+  it('menampilkan Chat, Izin & Cuti, Kalender Libur; Lembur dan menu teknisi tidak tampil', () => {
     mockUseAuth.mockReturnValue(sales(['m_chat', 'm_izin', 'm_lembur', 'm_holidays', 'm_work_order', 'm_pelanggan']));
 
     const { getByText, queryByText } = render(<KaryawanSalesDashboardScreen />);
 
-    for (const judul of ['Chat', 'Izin & Cuti', 'Lembur', 'Kalender Libur']) {
+    for (const judul of ['Chat', 'Izin & Cuti', 'Kalender Libur']) {
       expect(getByText(judul)).toBeTruthy();
     }
-    for (const judul of ['Request WO', 'Topology Map', 'Barang Keluar', 'Isolir', 'Canvasing', 'Presurvei']) {
+    // Lembur tetap tersembunyi meski role memegang m_lembur: sales tidak lembur.
+    for (const judul of ['Lembur', 'Request WO', 'Topology Map', 'Barang Keluar', 'Isolir', 'Canvasing', 'Presurvei']) {
       expect(queryByText(judul)).toBeNull();
     }
   });
 
-  it('Lembur dan Kalender Libur terkunci tanpa izin: tidak membuka layar, tampil Akses Terbatas', () => {
+  it('Kalender Libur terkunci tanpa izin: tidak membuka layar, tampil Akses Terbatas', () => {
     const { Alert } = require('react-native');
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     mockUseAuth.mockReturnValue(sales(['m_chat', 'm_izin']));
     const { getByText } = render(<KaryawanSalesDashboardScreen />);
 
-    fireEvent.press(getByText('Lembur'));
     fireEvent.press(getByText('Kalender Libur'));
 
     expect(mockPush).not.toHaveBeenCalled();
-    expect(alert).toHaveBeenCalledTimes(2);
+    expect(alert).toHaveBeenCalledTimes(1);
     expect(alert).toHaveBeenCalledWith('Akses Terbatas', expect.any(String), expect.any(Array));
     alert.mockRestore();
   });
 
-  it('dengan izin: Lembur dan Kalender Libur membuka layarnya', () => {
-    mockUseAuth.mockReturnValue(sales(['m_lembur', 'm_holidays']));
+  it('dengan izin: Kalender Libur membuka layarnya', () => {
+    mockUseAuth.mockReturnValue(sales(['m_holidays']));
     const { getByText } = render(<KaryawanSalesDashboardScreen />);
 
-    fireEvent.press(getByText('Lembur'));
     fireEvent.press(getByText('Kalender Libur'));
 
-    expect(mockPush.mock.calls).toEqual([['/(app)/lembur'], ['/(app)/holidays']]);
+    expect(mockPush.mock.calls).toEqual([['/(app)/holidays']]);
   });
 });

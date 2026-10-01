@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { RefreshControl, ScrollView, View } from 'react-native';
+import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
@@ -18,10 +18,15 @@ import { bolehCanvasing, punyaFitur } from '@/utils/persona';
 
 /**
  * Menu cepat Beranda sales (spec §3): Presurvei & Canvasing sudah jadi tab.
- * Lembur & Kalender Libur dipertahankan (ruling I5 review akhir): kemampuan
- * karyawan yang sudah ada sebelum OTA; tile terkunci sendiri tanpa izin.
+ * Lembur tidak ditawarkan: sales tidak mengenal lembur (keputusan pemilik
+ * 2026-09-26). Kalender Libur tetap; tile terkunci sendiri tanpa izin.
  */
-const MENU_CEPAT_SALES: readonly IdMenuCepat[] = ['chat', 'izin', 'lembur', 'holidays'];
+const MENU_CEPAT_SALES: readonly IdMenuCepat[] = ['chat', 'izin', 'holidays'];
+
+/** Judul kecil pemisah bagian Beranda. */
+function JudulBagian({ teks }: { teks: string }) {
+  return <Text style={tw`text-xs font-bold uppercase tracking-wider text-gray-400 px-4 mb-2`}>{teks}</Text>;
+}
 
 /** Beranda sales karyawan: absen, ringkasan presurvei, pencairan bonus canvasing, menu cepat. */
 export function KaryawanSalesDashboardScreen() {
@@ -47,12 +52,22 @@ export function KaryawanSalesDashboardScreen() {
           userImage={user?.image}
           onProfilePress={() => router.push('/(app)/profile')}
         />
+        <View style={tw`px-4 pt-1 pb-4`}>
+          <Text style={tw`text-sm font-medium text-gray-500`}>Selamat datang,</Text>
+          <Text style={tw`text-2xl font-bold text-gray-900`}>{user?.name || 'Sales'}</Text>
+        </View>
         {punyaFitur(user, AppFeature.ABSENSI) ? <KartuAbsenHariIni /> : null}
+        <JudulBagian teks="Ringkasan Presurvei" />
         <View style={tw`px-4`}>
           <BagianPresurveiBeranda isPresurveiAktif={punyaFitur(user, AppFeature.PRESURVEI)} />
         </View>
-        {bolehCanvasing(user) ? <BagianPencairanCanvasing /> : null}
-        <QuickMenu features={user?.features ?? []} isSales role={user?.role} isMitra={false} menuIds={MENU_CEPAT_SALES} />
+        {bolehCanvasing(user) ? (
+          <>
+            <JudulBagian teks="Bonus Canvasing" />
+            <BagianPencairanCanvasing />
+          </>
+        ) : null}
+        <QuickMenu features={user?.features ?? []} role={user?.role} isMitra={false} menuIds={MENU_CEPAT_SALES} />
       </ScrollView>
     </SafeAreaView>
   );

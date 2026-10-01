@@ -33,7 +33,6 @@ export type IdMenuCepat =
 
 interface QuickMenuProps {
   features?: string[];
-  isSales?: boolean;
   role?: string;
   isMitra?: boolean;
   /** Bila diisi, hanya menu ini yang tampil (izin tetap diperiksa). */
@@ -49,7 +48,6 @@ interface MenuItem {
   iconColor: string;
   route: string;
   requiredFeatures: string[];
-  requiresSales?: boolean;
   /** Menu khusus karyawan internal; tidak ditampilkan sama sekali ke mitra. */
   internalOnly?: boolean;
   /** Sembunyikan (bukan kunci) bila tidak berizin. */
@@ -140,7 +138,6 @@ const MENU_ITEMS: MenuItem[] = [
     iconColor: "#2563eb",
     route: "/(app)/marketing/canvasing",
     requiredFeatures: [AppFeature.CANVASING],
-    requiresSales: true,
   },
   {
     id: 'presurvei',
@@ -171,7 +168,6 @@ const MENU_ITEMS: MenuItem[] = [
 
 const QuickMenuComponent = ({
   features = [],
-  isSales = false,
   role,
   isMitra = false,
   menuIds,
@@ -193,24 +189,23 @@ const QuickMenuComponent = ({
         .filter((item) => menuIds === undefined || menuIds.includes(item.id))
         .map((item) => ({
           ...item,
-          enabled: hasFeature(item.requiredFeatures) && (!item.requiresSales || isSales),
+          enabled: hasFeature(item.requiredFeatures),
         }))
         .filter((item) => item.enabled || !item.hideWhenLocked),
-    [hasFeature, isSales, isMitra, menuIds],
+    [hasFeature, isMitra, menuIds],
   );
 
   const handleMenuPress = useCallback((item: MenuItem & { enabled: boolean }) => {
     if (item.enabled) {
       router.push(item.route as Href);
     } else {
-      // Optional: Add specific message for sales restriction vs general permission
-      const message = item.requiresSales && !isSales
-        ? "Fitur ini hanya dapat diakses oleh Sales yang aktif."
-        : "Anda tidak memiliki izin untuk mengakses fitur ini. Hubungi administrator untuk mendapatkan akses.";
-
-      Alert.alert("Akses Terbatas", message, [{ text: "OK" }]);
+      Alert.alert(
+        "Akses Terbatas",
+        "Anda tidak memiliki izin untuk mengakses fitur ini. Hubungi administrator untuk mendapatkan akses.",
+        [{ text: "OK" }],
+      );
     }
-  }, [router, isSales]);
+  }, [router]);
 
   return (
     <View style={tw`px-4 pb-8`}>
