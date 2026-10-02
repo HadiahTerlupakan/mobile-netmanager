@@ -73,31 +73,35 @@ jest.mock('@/components/organisms/dashboard/QuickMenu', () => ({
     return null;
   },
 }));
-jest.mock('@/components/organisms/dashboard/PerformanceStats', () => {
+jest.mock('@/components/molecules/KepalaSapaan', () => ({
+  KepalaSapaan: (props: Record<string, unknown>) => {
+    catatProps('KepalaSapaan', props);
+    return null;
+  },
+}));
+jest.mock('@/components/organisms/dashboard/KartuAbsenHariIni', () => {
   const { Text: T } = require('react-native');
-  return {
-    PerformanceStats: (props: { title: string; today: number; week: number; month: number }) => (
-      <T>{`statistik:${props.title}:${props.today}/${props.week}/${props.month}`}</T>
-    ),
-  };
+  return { KartuAbsenHariIni: () => <T>kartu-absen</T> };
 });
 jest.mock('@/components/organisms/dashboard/BagianKinerjaBeranda', () => {
   const { Text: T } = require('react-native');
   return { BagianKinerjaBeranda: () => <T>kartu-kinerja</T> };
 });
-jest.mock('@/components/organisms/dashboard/WorkOrderCard', () => {
+jest.mock('@/components/organisms/teknisi/KartuWorkOrderTeknisi', () => {
   const { Text: T } = require('react-native');
+  type MockRingkasan = { ditugaskan: number; tersedia: number; selesaiHariIni: number; selesaiMinggu: number; selesaiBulan: number };
   return {
-    WorkOrderCard: (props: { assigned: number; pending: number; onPress: () => void }) => (
-      <T onPress={props.onPress}>{`kartu-wo:${props.assigned}/${props.pending}`}</T>
+    KartuWorkOrderTeknisi: ({ ringkasan: r, onBuka }: { ringkasan: MockRingkasan; onBuka: () => void }) => (
+      <T onPress={onBuka}>{`kartu-wo:${r.ditugaskan}/${r.tersedia}:${r.selesaiHariIni}/${r.selesaiMinggu}/${r.selesaiBulan}`}</T>
     ),
   };
 });
-jest.mock('@/components/organisms/dashboard/CanvasingCard', () => {
+jest.mock('@/components/organisms/teknisi/KartuCanvasingTeknisi', () => {
   const { Text: T } = require('react-native');
+  type MockRingkasan = { disetujui: number; selesaiHariIni: number; selesaiMinggu: number; selesaiBulan: number };
   return {
-    CanvasingCard: (props: { assigned: number; completed: number; onPress: () => void }) => (
-      <T onPress={props.onPress}>{`kartu-canvasing:${props.assigned}/${props.completed}`}</T>
+    KartuCanvasingTeknisi: ({ ringkasan: r, onBuka }: { ringkasan: MockRingkasan; onBuka: () => void }) => (
+      <T onPress={onBuka}>{`kartu-canvasing:${r.disetujui}:${r.selesaiHariIni}/${r.selesaiMinggu}/${r.selesaiBulan}`}</T>
     ),
   };
 });
@@ -163,21 +167,26 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     mockCanvasing = { data: CANVASING, isPending: false };
   });
 
-  it('karusel WO lalu canvasing dengan statistik tiket selesai untuk kartu pertama', () => {
+  it('kartu Work order (ditugaskan, tersedia, tiket selesai) lalu kartu canvasing, tanpa karusel', () => {
     const { getByText, queryByText } = renderBeranda(TEKNISI);
 
-    expect(getByText('kartu-wo:7/4')).toBeTruthy();
-    expect(getByText('kartu-canvasing:5/3')).toBeTruthy();
-    expect(getByText('statistik:Tiket Selesai:2/9/31')).toBeTruthy();
+    expect(getByText('kartu-wo:7/4:2/9/31')).toBeTruthy();
+    expect(getByText('kartu-canvasing:5:3/8/21')).toBeTruthy();
     expect(queryByText('Bonus canvasing')).toBeNull();
-    expect(getByText('Tono Profil')).toBeTruthy();
+  });
+
+  it('kartu absen hanya bila berizin m_absensi', () => {
+    expect(renderBeranda(TEKNISI).queryByText('kartu-absen')).toBeNull();
+    expect(renderBeranda({ ...TEKNISI, features: ['m_absensi'] }).getByText('kartu-absen')).toBeTruthy();
   });
 
   it('header dan menu cepat memakai profil segar; teknisi bukan mitra dan bukan sales', () => {
     renderBeranda(TEKNISI);
 
-    const header = mockProps.DashboardHeader.at(-1);
-    expect(header).toEqual({ userName: 'Tono Profil', userImage: 'https://tenant.test/uploads/tono.jpg' });
+    const header = mockProps.KepalaSapaan.at(-1);
+    expect(header).toMatchObject({ nama: 'Tono Profil', gambar: 'uploads/tono.jpg', isLonceng: true });
+    (header?.onTekanProfil as () => void)();
+    expect(mockPush).toHaveBeenCalledWith('/(app)/profile');
     const menu = mockProps.QuickMenu.at(-1);
     expect(menu).toEqual({
       features: ['m_work_order', 'm_canvasing'],
@@ -186,23 +195,21 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     });
   });
 
-  it('hanya canvasing: statistik canvasing tanpa kartu pencairan untuk non-sales', () => {
+  it('hanya canvasing: kartu canvasing tanpa kartu pencairan untuk non-sales', () => {
     mockProfil = { profileData: profilDengan(['m_canvasing']), isPending: false };
     const { getByText, queryByText } = renderBeranda(TEKNISI);
 
-    expect(getByText('statistik:Canvasing Selesai:3/8/21')).toBeTruthy();
+    expect(getByText('kartu-canvasing:5:3/8/21')).toBeTruthy();
     expect(queryByText('Bonus canvasing')).toBeNull();
     expect(queryByText(/kartu-wo/)).toBeNull();
   });
 
-  it('kartu penilaian kinerja hanya untuk pemberi tugas (lingkup TIM/SEMUA)', () => {
-    expect(renderBeranda(TEKNISI).queryByText('kartu-kinerja')).toBeNull();
-
+  it('teknisi bukan sales: kinerja tim sales tidak tampil walau lingkup rencana SEMUA', () => {
     mockProfil = {
       profileData: profilDengan(['m_work_order'], { lingkupRencana: 'SEMUA' }),
       isPending: false,
     };
-    expect(renderBeranda(TEKNISI).getByText('kartu-kinerja')).toBeTruthy();
+    expect(renderBeranda(TEKNISI).queryByText('kartu-kinerja')).toBeNull();
   });
 
   it('teknisi yang role-nya diberi izin cashout melihat kartu pencairan', () => {
@@ -219,7 +226,7 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     mockProfil = { profileData: profilDengan(['m_canvasing']), isPending: false };
     const { getByText } = renderBeranda(TEKNISI);
 
-    fireEvent.press(getByText('kartu-canvasing:5/3'));
+    fireEvent.press(getByText('kartu-canvasing:5:3/8/21'));
 
     expect(mockPresentInfo).not.toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith('/(app)/marketing/canvasing');
@@ -228,7 +235,7 @@ describe('Beranda teknisi karyawan (regresi)', () => {
   it('kartu WO membuka daftar work order', () => {
     const { getByText } = renderBeranda(TEKNISI);
 
-    fireEvent.press(getByText('kartu-wo:7/4'));
+    fireEvent.press(getByText('kartu-wo:7/4:2/9/31'));
 
     expect(mockPush).toHaveBeenCalledWith('/(app)/work-order');
   });
@@ -254,10 +261,8 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     expect(queryByText(/kartu-wo/)).toBeNull();
     fireEvent.press(getByLabelText('Buka chat'));
     expect(mockPush).toHaveBeenCalledWith('/(app)/chat');
-    expect(mockProps.DashboardHeader.at(-1)).toEqual({
-      userName: 'Tono Profil',
-      userImage: 'https://tenant.test/uploads/tono.jpg',
-    });
+    // Jalur mentah; DashboardHeader sendiri menggabungkannya dengan domain tenant (urlGambarTenant).
+    expect(mockProps.DashboardHeader.at(-1)).toEqual({ userName: 'Tono Profil', userImage: 'uploads/tono.jpg' });
   });
 
   it('tarik-untuk-segarkan memuat ulang statistik, profil, dan canvasing', async () => {
