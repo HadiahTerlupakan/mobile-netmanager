@@ -13,6 +13,7 @@ import {
   Map,
   MessageCircle,
   PackageMinus,
+  ReceiptText,
   WifiOff
 } from "lucide-react-native";
 import React, { useCallback, useMemo } from "react";
@@ -30,7 +31,8 @@ export type IdMenuCepat =
   | 'holidays'
   | 'canvasing'
   | 'isolir'
-  | 'presurvei';
+  | 'presurvei'
+  | 'tunggakan';
 
 interface QuickMenuProps {
   features?: string[];
@@ -165,6 +167,18 @@ const MENU_ITEMS: MenuItem[] = [
     route: "/(app)/pelanggan/isolir",
     requiredFeatures: [AppFeature.PELANGGAN],
     // Data billing pelanggan tidak boleh terekspos ke mitra eksternal.
+    internalOnly: true,
+  },
+  {
+    id: 'tunggakan',
+    title: "Tunggakan",
+    subtitle: "Ingatkan bayar",
+    icon: ReceiptText,
+    color: "bg-rose-100",
+    iconColor: "#e11d48",
+    route: "/(app)/pelanggan/tunggakan",
+    // Lingkup (milik sendiri/tim/semua) diputuskan server dari izin rencana presurvei.
+    requiredFeatures: [AppFeature.PRESURVEI],
     internalOnly: true,
   },
 ];

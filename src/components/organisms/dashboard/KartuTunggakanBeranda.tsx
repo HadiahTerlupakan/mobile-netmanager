@@ -9,7 +9,8 @@ import { useTunggakanPelanggan } from '@/hooks/queries/useTunggakanPelanggan';
 import { DESAIN_PREMIUM } from '@/theme';
 
 const RUTE_TUNGGAKAN = '/(app)/pelanggan/tunggakan';
-const JUMLAH_PRATINJAU = 3;
+/** Beranda hanya pratinjau; daftar lengkap lewat menu Tunggakan. */
+const JUMLAH_PRATINJAU = 2;
 
 /**
  * Beranda sales/kepala sales: pelanggan isolir yang perlu ditindaklanjuti

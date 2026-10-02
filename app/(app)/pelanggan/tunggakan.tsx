@@ -74,7 +74,7 @@ export default function TunggakanPelangganScreen() {
             <PelangganCard
               pelanggan={item}
               aksi={{
-                label: item.noTelp ? "Ingatkan via WhatsApp" : "Nomor HP belum ada",
+                label: item.noTelp ? "Ingatkan bayar" : "Nomor HP belum ada",
                 ikon: MessageCircle,
                 onTekan: () => ingatkan(item, section.kelompok.namaSales),
                 isNonaktif: !item.noTelp,

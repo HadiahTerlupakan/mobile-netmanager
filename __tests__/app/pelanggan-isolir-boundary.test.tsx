@@ -118,7 +118,7 @@ describe('layar isolir pelanggan', () => {
     const PelangganIsolirScreen = require('../../app/(app)/pelanggan/isolir').default;
     const { getByText } = render(<PelangganIsolirScreen />);
 
-    fireEvent.press(getByText('Ajukan work order'));
+    fireEvent.press(getByText('Ajukan WO'));
 
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/(app)/request-work-order',

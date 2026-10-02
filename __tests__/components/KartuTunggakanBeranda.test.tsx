@@ -42,7 +42,7 @@ describe('KartuTunggakanBeranda', () => {
     expect(render(<KartuTunggakanBeranda isAktif />).getByText('Tidak ada pelanggan yang menunggak.')).toBeTruthy();
   });
 
-  it('menampilkan tiga terlama lintas sales dan membuka layar tunggakan', () => {
+  it('menampilkan dua terlama lintas sales dan membuka layar tunggakan', () => {
     mockTunggakan.mockReturnValue({
       data: {
         total: 4,
@@ -57,7 +57,7 @@ describe('KartuTunggakanBeranda', () => {
     expect(getByText('4 isolir')).toBeTruthy();
     expect(getByText('Lewat 40 hari')).toBeTruthy();
     expect(getByText('Lewat 25 hari')).toBeTruthy();
-    expect(getByText('Lewat 10 hari')).toBeTruthy();
+    expect(queryByText('Lewat 10 hari')).toBeNull();
     expect(queryByText('Lewat 3 hari')).toBeNull();
 
     fireEvent.press(getByLabelText('Buka tunggakan pelanggan'));

@@ -85,7 +85,7 @@ export default function PelangganIsolirScreen() {
         renderItem={({ item }: { item: MobilePelanggan }) => (
           <PelangganCard
             pelanggan={item}
-            aksi={{ label: "Ajukan work order", ikon: Wrench, onTekan: () => handleRequestWorkOrder(item) }}
+            aksi={{ label: "Ajukan WO", ikon: Wrench, onTekan: () => handleRequestWorkOrder(item) }}
           />
         )}
         onEndReached={handleLoadMore}

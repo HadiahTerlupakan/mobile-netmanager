@@ -96,7 +96,7 @@ describe('KaryawanSalesDashboardScreen', () => {
       features: ['m_chat', 'm_izin'],
       role: 'SALES',
       isMitra: false,
-      menuIds: ['chat', 'izin', 'holidays'],
+      menuIds: ['tunggakan', 'chat', 'izin', 'holidays'],
     });
   });
 

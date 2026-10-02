@@ -23,7 +23,7 @@ import { bolehCanvasing, punyaFitur } from '@/utils/persona';
  * Lembur tidak ditawarkan: sales tidak mengenal lembur (keputusan pemilik
  * 2026-09-26). Kalender Libur tetap; tile terkunci sendiri tanpa izin.
  */
-const MENU_CEPAT_SALES: readonly IdMenuCepat[] = ['chat', 'izin', 'holidays'];
+const MENU_CEPAT_SALES: readonly IdMenuCepat[] = ['tunggakan', 'chat', 'izin', 'holidays'];
 
 /** Beranda sales karyawan: sapaan, absen, kinerja & aktivitas presurvei, bonus canvasing, menu cepat. */
 export function KaryawanSalesDashboardScreen() {

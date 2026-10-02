@@ -305,7 +305,7 @@ export function ringkasTimHariIni(baris: readonly BarisTimHariIni[]): RingkasanT
 }
 
 /** Jumlah anggota yang ditampilkan kartu Beranda. */
-export const JUMLAH_ANGGOTA_PERLU_PERHATIAN = 4;
+export const JUMLAH_ANGGOTA_PERLU_PERHATIAN = 3;
 
 /**
  * Anggota yang paling perlu diperhatikan: terlewat terbanyak, lalu rencana

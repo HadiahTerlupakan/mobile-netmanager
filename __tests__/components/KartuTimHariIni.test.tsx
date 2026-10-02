@@ -93,11 +93,11 @@ describe('KartuTimHariIni', () => {
       expect(getByText('6 terlewat')).toBeTruthy();
     });
 
-    it('hanya 4 anggota paling perlu perhatian, urut terlewat lalu belum selesai', () => {
+    it('hanya 3 anggota paling perlu perhatian, urut terlewat lalu belum selesai', () => {
       const { getAllByLabelText, queryByText } = tampilkan({ baris: TIM });
 
       const label = getAllByLabelText(/^Rencana /).map((el) => el.props.accessibilityLabel);
-      expect(label).toEqual(['Rencana Dewi', 'Rencana Budi', 'Rencana Fajar', 'Rencana Tono']);
+      expect(label).toEqual(['Rencana Dewi', 'Rencana Budi', 'Rencana Fajar']);
       expect(queryByText('Sinta')).toBeNull();
       expect(queryByText('Wati')).toBeNull();
     });

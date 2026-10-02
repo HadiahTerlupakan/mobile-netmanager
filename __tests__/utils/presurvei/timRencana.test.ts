@@ -278,7 +278,7 @@ describe('ringkasan tim Beranda', () => {
 
   it('4 anggota paling perlu perhatian: terlewat, lalu belum selesai, lalu nama', () => {
     // Dewi (4 terlewat), lalu terlewat 1: Budi (2 belum) sebelum Fajar (0 belum), lalu Tono (3 belum).
-    expect(anggotaPerluPerhatian(TIM).map((item) => item.namaSales)).toEqual(['Dewi', 'Budi', 'Fajar', 'Tono']);
+    expect(anggotaPerluPerhatian(TIM).map((item) => item.namaSales)).toEqual(['Dewi', 'Budi', 'Fajar']);
     expect(anggotaPerluPerhatian(TIM, 2)).toHaveLength(2);
   });
 });
