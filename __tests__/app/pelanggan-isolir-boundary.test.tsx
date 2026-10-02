@@ -40,10 +40,7 @@ jest.mock('@shopify/flash-list', () => {
     ),
   };
 });
-jest.mock('lucide-react-native', () => ({
-  AlertTriangle: () => null, CloudOff: () => null, MapPin: () => null,
-  Phone: () => null, Search: () => null, X: () => null, Wrench: () => null,
-}));
+jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 jest.mock('twrnc', () => require('twrnc-kosong'));
 
 const pelanggan = {
@@ -121,7 +118,7 @@ describe('layar isolir pelanggan', () => {
     const PelangganIsolirScreen = require('../../app/(app)/pelanggan/isolir').default;
     const { getByText } = render(<PelangganIsolirScreen />);
 
-    fireEvent.press(getByText('Ajukan WO'));
+    fireEvent.press(getByText('Ajukan work order'));
 
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/(app)/request-work-order',

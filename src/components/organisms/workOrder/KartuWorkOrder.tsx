@@ -25,7 +25,7 @@ import {
 } from '@/constants/workOrder';
 import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 import { formatDate } from '@/utils/date';
-import { bukaAlamatDiPeta, hubungiKontak } from '@/utils/kontakWorkOrder';
+import { bukaAlamatDiPeta, hubungiKontak } from '@/utils/kontak';
 
 const UKURAN_IKON_INFO = 14;
 const UKURAN_IKON_TIPE = 18;

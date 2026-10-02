@@ -7,7 +7,7 @@ const mockPeta = jest.fn();
 
 jest.mock('twrnc', () => require('twrnc-kosong'));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
-jest.mock('@/utils/kontakWorkOrder', () => ({
+jest.mock('@/utils/kontak', () => ({
   hubungiKontak: (nomor: string) => mockHubungi(nomor),
   bukaAlamatDiPeta: (alamat: string) => mockPeta(alamat),
 }));

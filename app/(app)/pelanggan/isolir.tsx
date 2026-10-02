@@ -1,10 +1,11 @@
 import { FlashList } from "@shopify/flash-list";
 import { Stack, useRouter } from "expo-router";
-import { AlertTriangle, CloudOff, Search, X } from "lucide-react-native";
+import { AlertTriangle, Search, ShieldCheck, X } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTemaPersona } from "@/theme";
+import { EmptyState } from "@/components/atoms/EmptyState";
+import { DESAIN_PREMIUM, useTemaPersona } from "@/theme";
 
 import { PelangganCard } from "@/components/molecules/PelangganCard";
 import { AppFeature } from "@/constants/features";
@@ -31,6 +32,7 @@ export default function PelangganIsolirScreen() {
   } = usePelangganList({ status: "ISOLIR", search: debouncedSearch });
 
   const pelanggans = data?.pages.flatMap((page) => page.data) ?? [];
+  const jumlahTotal = data?.pages[0]?.meta.total;
   const emptyMessage = resolvePelangganListMessage({
     isError,
     error,
@@ -52,22 +54,26 @@ export default function PelangganIsolirScreen() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
-    <View style={[tw`flex-1 bg-gray-50`, { paddingTop: insets.top }]}>
+    <View style={[tw`flex-1`, { paddingTop: insets.top, backgroundColor: DESAIN_PREMIUM.latarLayar }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={tw`px-4 py-3`}>
-        <Text style={tw`text-lg font-bold text-gray-900 mb-3`}>Pelanggan Isolir</Text>
-        <View style={tw`flex-row items-center bg-white px-3 rounded-lg border border-gray-200`}>
-          <Search size={16} color="#9ca3af" />
+      <View style={tw`px-4 pt-4 pb-3`}>
+        <Text style={tw`text-2xl font-bold text-slate-900`}>Pelanggan Isolir</Text>
+        <Text style={tw`text-sm text-slate-500 mt-0.5 mb-4`}>
+          {jumlahTotal !== undefined ? `${jumlahTotal} pelanggan terisolir karena tunggakan` : "Pelanggan terisolir karena tunggakan"}
+        </Text>
+        <View style={tw`flex-row items-center bg-white px-4 rounded-2xl border border-slate-200/70`}>
+          <Search size={18} color={DESAIN_PREMIUM.ikonNetral} />
           <TextInput
-            style={tw`flex-1 h-10 ml-2 text-gray-900`}
+            style={tw`flex-1 h-11 ml-3 text-slate-900 text-sm`}
             placeholder="Cari nama, username, atau ID pelanggan..."
+            placeholderTextColor="#94a3b8"
             value={search}
             onChangeText={setSearch}
             returnKeyType="search"
           />
           {search.length > 0 ? (
-            <TouchableOpacity onPress={() => setSearch("")}>
-              <X size={16} color="#9ca3af" />
+            <TouchableOpacity accessibilityLabel="Hapus pencarian" onPress={() => setSearch("")}>
+              <X size={18} color={DESAIN_PREMIUM.ikonNetral} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -90,10 +96,12 @@ export default function PelangganIsolirScreen() {
               <ActivityIndicator size="large" color={warna.utamaKuat} />
             </View>
           ) : (
-            <View style={tw`items-center justify-center py-20 px-8`}>
-              {isError ? <AlertTriangle size={40} color="#dc2626" /> : <CloudOff size={40} color="#d1d5db" />}
-              <Text style={tw`text-gray-500 mt-4 text-center`}>{emptyMessage}</Text>
-            </View>
+            <EmptyState
+              ikon={isError ? AlertTriangle : ShieldCheck}
+              judul={isError ? "Gagal memuat" : search ? "Tidak ditemukan" : "Semua pelanggan aktif"}
+              pesan={emptyMessage}
+              aksi={isError ? { label: "Coba lagi", onTekan: () => void refetch() } : undefined}
+            />
           )
         }
       />
