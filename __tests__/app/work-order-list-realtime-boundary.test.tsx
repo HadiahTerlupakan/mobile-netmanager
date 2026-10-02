@@ -86,8 +86,7 @@ jest.mock('@/components/atoms/ScreenErrorBoundary', () => ({
   ScreenErrorBoundary: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock('@/components/molecules/WorkOrderSkeleton', () => ({ WorkOrderSkeleton: () => null }));
-jest.mock('@/components/organisms/dashboard/AvailableWorkOrderListItem', () => 'AvailableWorkOrderListItem');
-jest.mock('@/components/organisms/dashboard/WorkOrderListItem', () => ({ WorkOrderListItem: () => null }));
+jest.mock('@/components/organisms/workOrder/KartuWorkOrder', () => ({ KartuWorkOrder: () => null }));
 jest.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
 jest.mock('lucide-react-native', () => ({

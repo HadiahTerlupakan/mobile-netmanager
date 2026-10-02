@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import tw from 'twrnc';
 
-import type { NadaStatus, TampilanStatus } from '@/constants/investor';
+import type { NadaStatus, TampilanStatus } from '@/constants/status';
 
 /** Warna MAKNA status — sengaja tidak ikut tema persona. */
 const GAYA_NADA: Readonly<Record<NadaStatus, { latar: string; teks: string }>> = {

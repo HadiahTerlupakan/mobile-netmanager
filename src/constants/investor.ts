@@ -10,13 +10,8 @@ export const ENDPOINT_PENCAIRAN_INVESTOR = '/api/mobile/investor/payouts';
 /** Jumlah riwayat uang diterima per halaman (server membatasi maksimal 50). */
 export const UKURAN_HALAMAN_PENCAIRAN = 20;
 
-/** Warna makna sebuah status: hijau selesai, kuning menunggu, merah gagal, abu lain-lain. */
-export type NadaStatus = 'berhasil' | 'menunggu' | 'gagal' | 'netral';
-
-export interface TampilanStatus {
-  label: string;
-  nada: NadaStatus;
-}
+export type { NadaStatus, TampilanStatus } from './status';
+import type { TampilanStatus } from './status';
 
 export const STATUS_SETORAN: Readonly<Record<string, TampilanStatus>> = {
   PENDING: { label: 'Menunggu dicek', nada: 'menunggu' },
