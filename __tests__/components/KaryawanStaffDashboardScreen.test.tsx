@@ -115,19 +115,17 @@ describe('Beranda staff', () => {
     expect(mockPush.mock.calls).toEqual([['/(app)/lembur']]);
   });
 
-  it.each([
-    ['TIM', true],
-    ['SEMUA', true],
-    ['SENDIRI', false],
-    [undefined, false],
-  ])('kartu penilaian kinerja tim: lingkup %s → tampil %s', (lingkupRencana, isTampil) => {
-    mockProfil = { lingkupRencana };
-    mockUseAuth.mockReturnValue(staff(SEMUA_FITUR));
+  it.each(['TIM', 'SEMUA', 'SENDIRI', undefined])(
+    'staf tidak melihat kartu kinerja tim sales walau lingkup rencana %s',
+    (lingkupRencana) => {
+      mockProfil = { lingkupRencana };
+      mockUseAuth.mockReturnValue(staff(SEMUA_FITUR));
 
-    const { queryByText } = render(<KaryawanStaffDashboardScreen />);
+      const { queryByText } = render(<KaryawanStaffDashboardScreen />);
 
-    expect(queryByText('kartu-kinerja') !== null).toBe(isTampil);
-  });
+      expect(queryByText('kartu-kinerja')).toBeNull();
+    },
+  );
 
   it('sedang cuti: menampilkan Beranda mode cuti saja', () => {
     mockUseAuth.mockReturnValue(staff(SEMUA_FITUR, { isOnLeave: true }));
@@ -139,7 +137,7 @@ describe('Beranda staff', () => {
     expect(queryByText('Menu Cepat')).toBeNull();
   });
 
-  it('tarik-untuk-segarkan memuat ulang absen, penilaian, dan profil', async () => {
+  it('tarik-untuk-segarkan memuat ulang absen dan profil', async () => {
     mockUseAuth.mockReturnValue(staff(SEMUA_FITUR));
     const { getByTestId } = render(<KaryawanStaffDashboardScreen />);
 
@@ -147,7 +145,7 @@ describe('Beranda staff', () => {
       await getByTestId('beranda-staff-gulir').props.refreshControl.props.onRefresh();
     });
 
-    expect(mockInvalidate.mock.calls).toEqual([[{ queryKey: ['attendance'] }], [{ queryKey: ['presurvei'] }]]);
+    expect(mockInvalidate.mock.calls).toEqual([[{ queryKey: ['attendance'] }]]);
     expect(mockRefetchProfile).toHaveBeenCalledTimes(1);
   });
 });
