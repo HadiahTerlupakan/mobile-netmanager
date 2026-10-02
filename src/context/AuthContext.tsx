@@ -2,6 +2,7 @@ import { Events } from '@/constants/Events';
 import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { fcmService } from '@/services/FirebaseMessagingService';
 import { DatabaseService } from '@/services/DatabaseService';
+import { LocationTrackingService } from '@/services/LocationTrackingService';
 import { RefreshTokenService } from '@/services/RefreshTokenService';
 import { TokenService } from '@/services/TokenService';
 import { errorReportingService } from '@/services/ErrorReportingService';
@@ -85,6 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         queryClient.clear();
 
         const cleanupResults = await Promise.allSettled([
+            // Pelacakan lokasi milik sesi ini; tanpa ini tracking terus jalan setelah logout.
+            LocationTrackingService.cleanup(),
             DatabaseService.clearSessionData(),
             RefreshTokenService.clearRefreshToken(),
             Storage.removeItemStrict('TANSTACK_QUERY_CACHE'),

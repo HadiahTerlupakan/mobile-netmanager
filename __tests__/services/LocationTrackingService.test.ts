@@ -18,6 +18,15 @@ jest.mock('@/utils/storage');
 jest.mock('@/utils/logger');
 jest.mock('@/services/api');
 jest.mock('../../src/utils/locationDisclosure');
+jest.mock('@/services/RefreshTokenService', () => ({
+  RefreshTokenService: { refreshAccessToken: jest.fn() },
+}));
+
+import { RefreshTokenService } from '@/services/RefreshTokenService';
+import { TokenService } from '@/services/TokenService';
+
+const mockRefresh = RefreshTokenService.refreshAccessToken as jest.Mock;
+const galat401 = { isAxiosError: true, response: { status: 401, data: {} } };
 
 const mockRequestForeground = requestForegroundLocationWithDisclosure as jest.Mock;
 const mockEnsureBackground = ensureDisclosureBeforeBackground as jest.Mock;
@@ -25,6 +34,7 @@ const mockEnsureBackground = ensureDisclosureBeforeBackground as jest.Mock;
 describe('LocationTrackingService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    TokenService.setToken(null);
     jest.spyOn(global, 'setTimeout').mockImplementation(() => 0 as unknown as ReturnType<typeof setTimeout>);
     (Storage.getItem as jest.Mock).mockResolvedValue(null);
     // Default: gerbang disclosure mengizinkan & memberi foreground granted
@@ -62,6 +72,7 @@ describe('LocationTrackingService', () => {
         })
       );
       expect(Storage.setItem).toHaveBeenCalledWith('@location_tracking_enabled', 'true');
+      expect(Storage.setItem).toHaveBeenCalledWith('@location_tracking_started_at', expect.any(String));
     });
 
     it('should use lower frequency for low battery', async () => {
@@ -147,6 +158,33 @@ describe('LocationTrackingService', () => {
     });
   });
 
+  describe('hentikanBilaLewatBatas', () => {
+    const SEKARANG = new Date('2026-10-02T20:00:00.000Z');
+
+    it('sesi tanpa catatan waktu mulai (dari versi lama) dicatat sekarang, tidak dihentikan', async () => {
+      (Storage.getItem as jest.Mock).mockResolvedValue(null);
+
+      await expect(LocationTrackingService.hentikanBilaLewatBatas(SEKARANG)).resolves.toBe(false);
+      expect(Storage.setItem).toHaveBeenCalledWith('@location_tracking_started_at', SEKARANG.toISOString());
+    });
+
+    it('lebih dari 16 jam sejak mulai → dihentikan (lupa check-out sambil offline)', async () => {
+      (Storage.getItem as jest.Mock).mockResolvedValue('2026-10-02T03:00:00.000Z');
+      (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(true);
+
+      await expect(LocationTrackingService.hentikanBilaLewatBatas(SEKARANG)).resolves.toBe(true);
+      expect(Location.stopLocationUpdatesAsync).toHaveBeenCalled();
+      expect(Storage.removeItem).toHaveBeenCalledWith('@location_tracking_started_at');
+    });
+
+    it('masih dalam jam kerja → tetap jalan', async () => {
+      (Storage.getItem as jest.Mock).mockResolvedValue('2026-10-02T08:00:00.000Z');
+
+      await expect(LocationTrackingService.hentikanBilaLewatBatas(SEKARANG)).resolves.toBe(false);
+      expect(Location.stopLocationUpdatesAsync).not.toHaveBeenCalled();
+    });
+  });
+
   describe('sendLocation', () => {
     const mockLocationData = {
       latitude: 1.23,
@@ -172,18 +210,60 @@ describe('LocationTrackingService', () => {
       );
     });
 
-    it('should save to pending if no token', async () => {
+    it('tanpa sesi login (sudah logout) menghentikan tracking, tidak menumpuk antrean', async () => {
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
-      (Storage.getItem as jest.Mock).mockReturnValue(null); // No existing pending
+      (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(true);
 
       const result = await LocationTrackingService.sendLocation(mockLocationData);
 
-      expect(result).toBe(true);
+      expect(result).toBe(false);
       expect(api.post).not.toHaveBeenCalled();
-      expect(Storage.setItem).toHaveBeenCalledWith(
-        '@pending_locations',
-        expect.stringContaining(JSON.stringify([mockLocationData]).slice(1, -1)) // Check it contains the data
-      );
+      expect(Location.stopLocationUpdatesAsync).toHaveBeenCalled();
+      expect(Storage.setItem).not.toHaveBeenCalledWith('@pending_locations', expect.anything());
+    });
+
+    it('app tertutup (token di memori kosong) memakai token tersimpan agar request terautentikasi', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('token-tersimpan');
+      (api.post as jest.Mock).mockResolvedValue({ data: { success: true } });
+
+      await expect(LocationTrackingService.sendLocation(mockLocationData)).resolves.toBe(true);
+      expect(TokenService.getToken()).toBe('token-tersimpan');
+    });
+
+    it('token kedaluwarsa (401) → refresh sekali lalu kirim ulang, sehingga perintah berhenti dari server tetap sampai', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('token-lama');
+      mockRefresh.mockResolvedValue('token-baru');
+      (api.post as jest.Mock)
+        .mockRejectedValueOnce(galat401)
+        .mockResolvedValueOnce({ data: { data: { shouldStopTracking: true }, shouldStopTracking: true } });
+      (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(true);
+
+      const result = await LocationTrackingService.sendLocation(mockLocationData);
+
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+      expect(api.post).toHaveBeenCalledTimes(2);
+      expect(result).toBe(false);
+      expect(Location.stopLocationUpdatesAsync).toHaveBeenCalled();
+    });
+
+    it('sesi tidak bisa diperbarui (refresh gagal) → tracking dihentikan, bukan jalan selamanya', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('token-lama');
+      mockRefresh.mockResolvedValue(null);
+      (api.post as jest.Mock).mockRejectedValue(galat401);
+      (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(true);
+
+      await expect(LocationTrackingService.sendLocation(mockLocationData)).resolves.toBe(false);
+      expect(Location.stopLocationUpdatesAsync).toHaveBeenCalled();
+    });
+
+    it('gagal jaringan (offline) tetap disimpan ke antrean dan tracking jalan', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('token');
+      (api.post as jest.Mock).mockRejectedValue(new Error('No Internet connection'));
+
+      await expect(LocationTrackingService.sendLocation(mockLocationData)).resolves.toBe(true);
+      expect(mockRefresh).not.toHaveBeenCalled();
+      expect(Storage.setItem).toHaveBeenCalledWith('@pending_locations', expect.any(String));
+      expect(Location.stopLocationUpdatesAsync).not.toHaveBeenCalled();
     });
 
     it('should stop tracking if server requests it', async () => {

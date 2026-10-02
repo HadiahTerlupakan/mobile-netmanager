@@ -11,6 +11,9 @@ import { isAxiosError } from 'axios';
 import { Storage } from '@/utils/storage';
 import { calculateDistance } from '@/utils/geo';
 import { getLocationConfig } from './locationTrackingConfig';
+import { isSesiTrackingKedaluwarsa } from './batasSesiTracking';
+import { RefreshTokenService } from './RefreshTokenService';
+import { TokenService } from './TokenService';
 import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
@@ -29,6 +32,40 @@ const STORAGE_KEY_TRACKING = '@location_tracking_enabled';
 const STORAGE_KEY_TOKEN = 'session_token'; // Must match AuthContext key
 const STORAGE_KEY_PENDING = '@pending_locations';
 const STORAGE_KEY_LAST_SENT = '@last_sent_location'; // New key for movement check
+const STORAGE_KEY_STARTED_AT = '@location_tracking_started_at';
+const HTTP_UNAUTHORIZED = 401;
+
+/**
+ * Token sesi untuk request tracking. Task background bisa berjalan tanpa
+ * AuthContext (app ditutup) sehingga token di memori kosong — ambil dari
+ * penyimpanan aman lalu pasang agar interceptor api mengirimnya.
+ */
+async function ambilTokenSesi(): Promise<string | null> {
+    const diMemori = TokenService.getToken();
+    if (diMemori) return diMemori;
+    const tersimpan = await SecureStore.getItemAsync(STORAGE_KEY_TOKEN);
+    if (tersimpan) TokenService.setToken(tersimpan);
+    return tersimpan;
+}
+
+function isTidakTerautentikasi(error: unknown): boolean {
+    return isAxiosError(error) && error.response?.status === HTTP_UNAUTHORIZED;
+}
+
+/**
+ * Kirim request tracking; bila token kedaluwarsa (401) coba refresh sekali.
+ * Mengembalikan null bila sesi login sudah tidak berlaku.
+ */
+async function kirimDenganSesi<T>(kirim: () => Promise<T>): Promise<T | null> {
+    try {
+        return await kirim();
+    } catch (error) {
+        if (!isTidakTerautentikasi(error)) throw error;
+        const tokenBaru = await RefreshTokenService.refreshAccessToken();
+        if (!tokenBaru) return null;
+        return kirim();
+    }
+}
 
 interface LocationData {
     latitude: number;
@@ -177,6 +214,7 @@ export class LocationTrackingService {
             }
 
             await Storage.setItem(STORAGE_KEY_TRACKING, 'true');
+            await Storage.setItem(STORAGE_KEY_STARTED_AT, new Date().toISOString());
             logger.info('[LocationTracking] Started background tracking');
 
             // Initial position push (tracked for cleanup on stopTracking)
@@ -223,6 +261,7 @@ export class LocationTrackingService {
             }
             await Storage.setItem(STORAGE_KEY_TRACKING, 'false');
             await Storage.removeItem(STORAGE_KEY_LAST_SENT); // Clear session data
+            await Storage.removeItem(STORAGE_KEY_STARTED_AT);
             logger.info('[LocationTracking] Stopped tracking');
         } catch (error) {
             logger.error('[LocationTracking] Stop tracking cleanup failed:', error);
@@ -256,34 +295,55 @@ export class LocationTrackingService {
     }
 
     /**
+     * Hentikan tracking bila sesinya melewati batas aman (lupa check-out
+     * sambil offline). Sesi lama tanpa catatan waktu mulai dicatat sekarang.
+     * Mengembalikan true bila tracking dihentikan.
+     */
+    static async hentikanBilaLewatBatas(sekarang: Date = new Date()): Promise<boolean> {
+        const mulai = await Storage.getItem(STORAGE_KEY_STARTED_AT);
+        if (!mulai) {
+            await Storage.setItem(STORAGE_KEY_STARTED_AT, sekarang.toISOString());
+            return false;
+        }
+        if (!isSesiTrackingKedaluwarsa(mulai, sekarang)) return false;
+        logger.warn('[LocationTracking] Sesi tracking melewati batas jam kerja, dihentikan');
+        await this.stopTracking();
+        return true;
+    }
+
+    /**
      * Send location to server
      * Called by background task
      * Returns true if sent successfully or saved to queue, false if failed/stopped
      */
     static async sendLocation(locationData: LocationData): Promise<boolean> {
         try {
-            const token = await SecureStore.getItemAsync(STORAGE_KEY_TOKEN);
+            const token = await ambilTokenSesi();
             if (!token) {
-                logger.warn(`[LocationTracking] No token found, saving to pending queue`);
-                await this.savePendingLocation(locationData);
-                return true;
+                // Tidak ada sesi login (sudah logout) → tidak ada alasan melacak.
+                logger.warn(`[LocationTracking] No session token, stopping tracking`);
+                await this.stopTracking();
+                return false;
             }
 
             logger.info(`[LocationTracking] Sending to server...`);
             // Only log summary in prod to save logs space, detailed in DEV
             if (__DEV__) logger.info(`[LocationTracking] Data:`, JSON.stringify(locationData));
 
-            const response = await api.post(
-                `/api/mobile/location`,
-                locationData,
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+            const response = await kirimDenganSesi(() =>
+                api.post(`/api/mobile/location`, locationData, {
+                    headers: { 'Content-Type': 'application/json' },
                     timeout: 10000,
-                    skipGlobalAuthHandler: true
-                }
+                    // 401 ditangani di sini (refresh sekali), bukan logout global
+                    // — task background tidak boleh mengeluarkan pengguna.
+                    skipGlobalAuthHandler: true,
+                })
             );
+            if (!response) {
+                logger.warn(`[LocationTracking] Session expired, stopping tracking`);
+                await this.stopTracking();
+                return false;
+            }
 
             logger.info(`[LocationTracking] ✅ Location sent successfully!`);
 
@@ -353,22 +413,17 @@ export class LocationTrackingService {
             const pending = await this.getPendingLocations();
             if (pending.length === 0) return 0;
 
-            const token = await SecureStore.getItemAsync(STORAGE_KEY_TOKEN);
+            const token = await ambilTokenSesi();
             if (!token) return 0;
 
-            // Optional: Filter duplicates or optimize pending list before sending
-            // For now, send all
-            await api.post(
-                `/api/mobile/location`,
-                { locations: pending },
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+            const response = await kirimDenganSesi(() =>
+                api.post(`/api/mobile/location`, { locations: pending }, {
+                    headers: { 'Content-Type': 'application/json' },
                     timeout: 30000,
-                    skipGlobalAuthHandler: true
-                }
+                    skipGlobalAuthHandler: true,
+                })
             );
+            if (!response) return 0;
 
             // Clear pending queue
             await Storage.removeItem(STORAGE_KEY_PENDING);
@@ -436,6 +491,8 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManage
         logger.error(`[LocationTracking][${timestamp}] Background task error:`, error);
         return;
     }
+
+    if (await LocationTrackingService.hentikanBilaLewatBatas()) return;
 
     if (data) {
         const { locations } = data as { locations: Location.LocationObject[] };

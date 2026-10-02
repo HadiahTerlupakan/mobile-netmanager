@@ -62,6 +62,8 @@ jest.mock('@/services/FirebaseMessagingService', () => ({ fcmService: mockFcmSer
 jest.mock('@/services/RefreshTokenService', () => ({ RefreshTokenService: mockRefreshTokenService }));
 jest.mock('@/services/TokenService', () => ({ TokenService: mockTokenService }));
 jest.mock('@/services/DatabaseService', () => ({ DatabaseService: mockDatabaseService }));
+const mockLocationTracking = { cleanup: jest.fn() };
+jest.mock('@/services/LocationTrackingService', () => ({ LocationTrackingService: mockLocationTracking }));
 jest.mock('react-native', () => ({
   Alert: { alert: jest.fn() },
   DeviceEventEmitter: { addListener: jest.fn(() => ({ remove: jest.fn() })) },
@@ -266,6 +268,8 @@ describe('AuthContext', () => {
       expect(mockDatabaseService.clearSessionData).toHaveBeenCalled();
       expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('session_token');
       expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('user_data');
+      // Logout menghentikan pelacakan lokasi (sebelumnya tetap jalan setelah logout).
+      expect(mockLocationTracking.cleanup).toHaveBeenCalled();
     });
 
     it('triggers FCM remove on sign out without calling the legacy mobile push-token endpoint', async () => {
