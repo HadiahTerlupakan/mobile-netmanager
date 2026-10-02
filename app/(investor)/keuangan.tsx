@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
-import React, { useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
@@ -22,16 +23,33 @@ const OPSI_BAGIAN: readonly OpsiChip<BagianUang>[] = [
   { nilai: 'modal', label: 'Modal' },
 ];
 
+const BAGIAN_BAWAAN: BagianUang = 'bagi-hasil';
+
+function isBagianUang(nilai: unknown): nilai is BagianUang {
+  return OPSI_BAGIAN.some((opsi) => opsi.nilai === nilai);
+}
+
 const DAFTAR_PER_BAGIAN: Readonly<Record<BagianUang, () => React.JSX.Element>> = {
   'bagi-hasil': DaftarBagiHasil,
   diterima: DaftarPencairan,
   modal: DaftarSetoranModal,
 };
 
-/** Riwayat uang investor: bagi hasil, uang yang sudah diterima, dan setoran modal. */
+/**
+ * Riwayat uang investor: bagi hasil, uang yang sudah diterima, dan setoran modal.
+ * `?bagian=` (dari tautan notifikasi) memilih bagian yang dibuka.
+ */
 export default function KeuanganInvestorScreen() {
   const queryClient = useQueryClient();
-  const [bagian, setBagian] = useState<BagianUang>('bagi-hasil');
+  const { bagian: bagianTautan } = useLocalSearchParams<{ bagian?: string }>();
+  const [bagian, setBagian] = useState<BagianUang>(
+    isBagianUang(bagianTautan) ? bagianTautan : BAGIAN_BAWAAN,
+  );
+
+  // Notifikasi baru saat layar ini sudah terbuka hanya mengganti parameter.
+  useEffect(() => {
+    if (isBagianUang(bagianTautan)) setBagian(bagianTautan);
+  }, [bagianTautan]);
   const [isMenyegarkan, setIsMenyegarkan] = useState(false);
   const Daftar = DAFTAR_PER_BAGIAN[bagian];
 

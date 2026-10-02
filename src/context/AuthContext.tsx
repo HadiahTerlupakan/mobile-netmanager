@@ -14,6 +14,11 @@ import { isAkunInvestor } from '@/utils/investor';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
 
+/** Endpoint token FCM mengikuti jenis akun: investor punya endpoint sendiri. */
+function jenisAkunPush(user: Pick<User, 'role'>) {
+    return isAkunInvestor(user) ? 'investor' : 'umum';
+}
+
 export type User = {
     id: string;
     tenantId: string;
@@ -122,12 +127,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             logger.auth('Syncing FCM token (background)...');
             // FCM sync is non-critical - don't block login if it fails.
-            // Investor belum menerima notifikasi push (endpoint FCM khusus karyawan/mitra/pelanggan).
             try {
-                if (!isAkunInvestor(userData)) {
-                    syncFcmToken('add');
-                    startFcmTokenRefreshListener();
-                }
+                fcmService.setJenisAkun(jenisAkunPush(userData));
+                syncFcmToken('add');
+                startFcmTokenRefreshListener();
             } catch (fcmError) {
                 logger.warn('[AuthContext] FCM sync failed, continuing with login', fcmError);
                 // Don't throw - FCM is optional feature
@@ -150,7 +153,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signOut = useCallback(async (options?: { skipApi?: boolean }) => {
         try {
-            const isPakaiPush = !isAkunInvestor(user);
             if (token && !options?.skipApi) {
                 stopFcmTokenRefreshListener();
                 // Tunggu FCM token unregister dengan timeout 3s — sebelumnya
@@ -158,14 +160,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // user lama selama beberapa detik setelah logout. Tidak block
                 // logout bila FCM lambat: race vs 3s timeout.
                 try {
-                    if (isPakaiPush) {
-                        await Promise.race([
-                            fcmService.syncFCMTokenToBackend('remove'),
-                            new Promise<null>((resolve) =>
-                                setTimeout(() => resolve(null), 3000),
-                            ),
-                        ]);
-                    }
+                    await Promise.race([
+                        fcmService.syncFCMTokenToBackend('remove'),
+                        new Promise<null>((resolve) =>
+                            setTimeout(() => resolve(null), 3000),
+                        ),
+                    ]);
                 } catch (fcmError) {
                     logger.warn('[Auth] FCM remove failed (non-fatal):', fcmError);
                 }
@@ -188,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // device sama, push notification user sebelumnya bisa
                 // sampai (cross-account leak di shared device).
                 try {
-                    if (isPakaiPush) await fcmService.deleteDeviceToken();
+                    await fcmService.deleteDeviceToken();
                 } catch (deleteError) {
                     logger.warn('[Auth] FCM deleteToken failed (non-fatal):', deleteError);
                 }
@@ -204,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // berikutnya tidak di-skip oleh dedupe check.
             fcmService.resetSyncCache();
         }
-    }, [clearLocalSession, stopFcmTokenRefreshListener, token, user]);
+    }, [clearLocalSession, stopFcmTokenRefreshListener, token]);
 
     const fetchProfile = useCallback(async () => {
         try {
@@ -258,10 +258,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         logger.setTenantId(parsedUser.tenantId);
 
                         RefreshTokenService.startProactiveRefresh(storedToken);
-                        if (!isAkunInvestor(parsedUser)) {
-                            syncFcmToken('add');
-                            startFcmTokenRefreshListener();
-                        }
+                        fcmService.setJenisAkun(jenisAkunPush(parsedUser));
+                        syncFcmToken('add');
+                        startFcmTokenRefreshListener();
                     } catch (parseError) {
                         logger.error('Failed to parse stored user data', parseError);
                         await clearLocalSession();

@@ -8,10 +8,11 @@ const mockDaftarProyek = jest.fn();
 const mockBagiHasil = jest.fn();
 const mockSetoran = jest.fn();
 const mockPencairan = jest.fn();
+let mockParam: Record<string, string> = {};
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn() }),
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockParam,
 }));
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'inv-1', name: 'Budi Santoso', role: 'INVESTOR' } }),
@@ -64,6 +65,7 @@ const RINGKASAN = {
 describe('layar investor', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockParam = {};
     mockRingkasan.mockReturnValue(kueri(RINGKASAN));
     mockBagiHasil.mockReturnValue(kueri([]));
     mockSetoran.mockReturnValue(kueri([]));
@@ -101,6 +103,15 @@ describe('layar investor', () => {
     const layar = render(<DaftarProyekInvestorScreen />);
 
     expect(layar.getByText('Belum ada proyek untuk Anda.')).toBeTruthy();
+  });
+
+  it('Uang: tautan notifikasi ?bagian=modal langsung membuka bagian Modal', () => {
+    mockParam = { bagian: 'modal' };
+
+    const layar = render(<KeuanganInvestorScreen />);
+
+    expect(layar.getByLabelText('Modal').props.accessibilityState).toEqual({ selected: true });
+    expect(layar.getByText('Belum ada setoran modal.')).toBeTruthy();
   });
 
   it('Uang: bawaan bagi hasil, segmen berpindah ke uang diterima dan modal', () => {

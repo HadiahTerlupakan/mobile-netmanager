@@ -41,6 +41,7 @@ const mockFcmService = {
   onTokenRefresh: jest.fn(),
   resetSyncCache: jest.fn(),
   deleteDeviceToken: jest.fn(),
+  setJenisAkun: jest.fn(),
 };
 const mockDatabaseService = { clearSessionData: jest.fn() };
 const mockRefreshTokenService = {
@@ -207,7 +208,7 @@ describe('AuthContext', () => {
       await expect(signInPromise!).resolves.toBeUndefined();
     });
 
-    it('investor tidak mendaftarkan token FCM (endpoint FCM menolak token investor)', async () => {
+    it('investor mendaftarkan token FCM lewat endpoint investor', async () => {
       const authContext = await renderAuth();
       const investor = { id: 'inv-1', tenantId: 'tenant-1', name: 'Budi', email: 'pakbudi', role: 'INVESTOR' };
 
@@ -215,9 +216,20 @@ describe('AuthContext', () => {
         await authContext.signIn('investor-token', investor, 'investor-refresh');
       });
 
-      expect(mockSecureStorage.setItemStrict).toHaveBeenCalledWith('session_token', 'investor-token');
-      expect(mockFcmService.syncFCMTokenToBackend).not.toHaveBeenCalled();
-      expect(mockFcmService.onTokenRefresh).not.toHaveBeenCalled();
+      expect(mockFcmService.setJenisAkun).toHaveBeenLastCalledWith('investor');
+      expect(mockFcmService.syncFCMTokenToBackend).toHaveBeenCalledWith('add');
+      expect(mockFcmService.onTokenRefresh).toHaveBeenCalledTimes(1);
+    });
+
+    it('karyawan memakai endpoint FCM umum', async () => {
+      const authContext = await renderAuth();
+      const karyawan = { id: '2', tenantId: 'tenant-1', name: 'Ani', email: 'ani@test.com', role: 'ADMIN' };
+
+      await act(async () => {
+        await authContext.signIn('token', karyawan);
+      });
+
+      expect(mockFcmService.setJenisAkun).toHaveBeenLastCalledWith('umum');
     });
 
     it('rolls back local session state when persistence fails mid-signIn', async () => {
@@ -270,20 +282,20 @@ describe('AuthContext', () => {
       expect(mockFcmService.syncFCMTokenToBackend).toHaveBeenCalledWith('remove');
     });
 
-    it('logout investor tetap mencabut token di server tanpa memanggil FCM', async () => {
+    it('logout investor melepas token FCM dan mencabut sesi di server', async () => {
       const storedUser = { id: 'inv-1', tenantId: 'tenant-1', name: 'Budi', email: 'pakbudi', role: 'INVESTOR' };
       mockSecureStorage.getItem.mockResolvedValueOnce('stored-token').mockResolvedValueOnce(JSON.stringify(storedUser));
 
       const authContext = await renderAuth();
-      expect(mockFcmService.syncFCMTokenToBackend).not.toHaveBeenCalled();
+      expect(mockFcmService.setJenisAkun).toHaveBeenLastCalledWith('investor');
 
       await act(async () => {
         await authContext.signOut();
       });
 
+      expect(mockFcmService.syncFCMTokenToBackend).toHaveBeenCalledWith('remove');
       expect(mockApi.post).toHaveBeenCalledWith('/api/mobile/auth/logout', {}, expect.anything());
-      expect(mockFcmService.syncFCMTokenToBackend).not.toHaveBeenCalled();
-      expect(mockFcmService.deleteDeviceToken).not.toHaveBeenCalled();
+      expect(mockFcmService.deleteDeviceToken).toHaveBeenCalled();
     });
 
     it('still clears local session when refresh-token cleanup fails', async () => {

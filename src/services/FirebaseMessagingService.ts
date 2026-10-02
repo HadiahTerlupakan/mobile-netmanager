@@ -4,6 +4,14 @@ import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { PermissionsAndroid, Platform } from 'react-native';
 
+/** Endpoint pendaftaran token FCM per jenis akun; token investor ditolak endpoint umum. */
+const ENDPOINT_TOKEN_PER_AKUN = {
+    umum: '/api/mobile/fcm-token',
+    investor: '/api/mobile/investor/fcm-token',
+} as const;
+
+export type JenisAkunPush = keyof typeof ENDPOINT_TOKEN_PER_AKUN;
+
 function maskToken(token: string): string {
     if (token.length <= 8) {
         return '***';
@@ -16,6 +24,16 @@ class FirebaseMessagingService {
     private lastSyncedToken: string | null = null
 
     private lastSyncedAction: 'add' | 'remove' | null = null
+
+    private jenisAkun: JenisAkunPush = 'umum'
+
+    /**
+     * Pilih endpoint pendaftaran token sesuai akun yang login. Dipanggil
+     * AuthContext sebelum sinkron token (login, pulihkan sesi).
+     */
+    setJenisAkun(jenis: JenisAkunPush): void {
+        this.jenisAkun = jenis;
+    }
 
     /**
      * Meminta izin notifikasi dari sistem pengguna
@@ -128,7 +146,7 @@ class FirebaseMessagingService {
             logger.info(`[FCM] Sending token to backend: ${maskToken(token)}, action: ${action}`);
             logger.debug('[FCM] Payload:', { action, tokenLength: token.length });
 
-            await api.post('/api/mobile/fcm-token', payload, {
+            await api.post(ENDPOINT_TOKEN_PER_AKUN[this.jenisAkun], payload, {
                 headers: { 'Idempotency-Key': `fcm-${action}-${token}` },
                 skipErrorToast: true,
             });
@@ -176,7 +194,7 @@ class FirebaseMessagingService {
                 };
 
                 logger.debug('[FCM] Sending refreshed token to backend');
-                await api.post('/api/mobile/fcm-token', payload, {
+                await api.post(ENDPOINT_TOKEN_PER_AKUN[this.jenisAkun], payload, {
                     headers: { 'Idempotency-Key': `fcm-add-${newToken}` },
                     skipErrorToast: true,
                 });

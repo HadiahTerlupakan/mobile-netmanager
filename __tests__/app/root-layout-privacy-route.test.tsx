@@ -73,6 +73,7 @@ jest.mock('@/lib/queryClient', () => ({
       list: () => ['notifications', 'list'],
       unread: () => ['notifications', 'unread'],
     },
+    investor: { all: ['investor'] },
   },
 }));
 

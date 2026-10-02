@@ -134,6 +134,23 @@ describe('FirebaseMessagingService', () => {
     );
   });
 
+  it('akun investor mendaftarkan token ke endpoint investor', async () => {
+    mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
+    mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(true);
+    mockGetToken.mockResolvedValue('fcm-token-investor');
+    mockPost.mockResolvedValue({});
+
+    const fcmService = loadService();
+    fcmService.setJenisAkun('investor');
+
+    await fcmService.syncFCMTokenToBackend('add');
+    expect(mockPost).toHaveBeenCalledWith(
+      '/api/mobile/investor/fcm-token',
+      { fcmToken: 'fcm-token-investor', action: 'add' },
+      expect.any(Object)
+    );
+  });
+
   it('does not write the raw token to logs while syncing to the backend', async () => {
     mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
     mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(false);

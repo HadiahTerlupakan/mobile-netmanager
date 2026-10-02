@@ -12,6 +12,14 @@ import { Href, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
+/** Rute grup layar investor; hanya bisa dibuka akun investor (lihat useAuthRedirect). */
+const AWALAN_RUTE_INVESTOR = '/(investor)/';
+
+/** Beranda tujuan bila tautan notifikasi tidak valid, sesuai grup tautannya. */
+function berandaCadangan(url: string | undefined): Href {
+  return url?.startsWith(AWALAN_RUTE_INVESTOR) ? '/(investor)/dashboard' : '/(app)/dashboard';
+}
+
 /**
  * Setup push notification handling
  * - Initial notification (app opened from killed state)
@@ -72,7 +80,8 @@ export function useNotificationSetup() {
               url.startsWith('/(app)' + r)
           ) ||
           url.startsWith('/work-order-detail/') ||
-          url.startsWith('/chat/');
+          url.startsWith('/chat/') ||
+          url.startsWith(AWALAN_RUTE_INVESTOR);
 
         if (isValidRoute) {
           router.push(url as Href);
@@ -81,7 +90,7 @@ export function useNotificationSetup() {
             'Invalid notification route, redirecting to dashboard:',
             url
           );
-          router.replace('/(app)/dashboard');
+          router.replace(berandaCadangan(url));
         }
       } catch (e) {
         logger.error('Navigation failed:', e);
@@ -92,7 +101,7 @@ export function useNotificationSetup() {
             route: data.url,
           }
         );
-        router.replace('/(app)/dashboard');
+        router.replace(berandaCadangan(data.url));
       }
     };
     handleNavRef.current = handleNotificationNavigation;
@@ -139,6 +148,10 @@ export function useNotificationSetup() {
               });
               queryClient.invalidateQueries({
                 queryKey: queryKeys.notifications.unread(),
+              });
+              // Push investor (modal/bagi hasil/uang dikirim) → segarkan angka di layar.
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.investor.all,
               });
             }
           },
