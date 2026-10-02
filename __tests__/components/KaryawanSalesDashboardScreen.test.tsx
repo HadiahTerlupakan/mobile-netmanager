@@ -138,7 +138,7 @@ describe('KaryawanSalesDashboardScreen', () => {
     expect(mockPush).toHaveBeenCalledWith('/(app)/profile');
   });
 
-  it('tarik-untuk-segarkan: presurvei, absensi, dan profil (izin baru, S12)', async () => {
+  it('tarik-untuk-segarkan: presurvei, absensi, statistik, tunggakan, dan profil (izin baru, S12)', async () => {
     mockUseAuth.mockReturnValue(sales(['m_presurvei']));
     const { getByTestId } = render(<KaryawanSalesDashboardScreen />);
     const refreshControl = getByTestId('beranda-sales-gulir').props.refreshControl;
@@ -147,10 +147,11 @@ describe('KaryawanSalesDashboardScreen', () => {
       await refreshControl.props.onRefresh();
     });
 
-    expect(mockInvalidate).toHaveBeenCalledTimes(3);
+    expect(mockInvalidate).toHaveBeenCalledTimes(4);
     expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['presurvei'] });
     expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['attendance'] });
     expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['dashboard'] });
+    expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['pelanggan', 'tunggakan'] });
     expect(mockRefetchProfile).toHaveBeenCalledWith();
   });
 
