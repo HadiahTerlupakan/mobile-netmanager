@@ -29,7 +29,7 @@ concurrency:
 jobs:
   promosikan:
     name: Promosikan build target OTA ke production
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-24.04"') }}
     environment: production
     steps:
       - name: Ambil kode

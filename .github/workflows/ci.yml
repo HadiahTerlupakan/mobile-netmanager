@@ -20,7 +20,7 @@ permissions:
 jobs:
   check:
     name: Lint & Typecheck
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-24.04"') }}
     steps:
       # Token checkout tidak disimpan di .git/config: tidak ada langkah di job
       # ini yang perlu menulis ke repo, dan `npm ci` menjalankan skrip pihak

@@ -42,7 +42,7 @@ concurrency:
 jobs:
   publish:
     name: Fingerprint guard & publish
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-24.04"') }}
     # Secret publish tinggal di environment `production`, yang hanya boleh
     # dipakai dari branch main.
     environment: production

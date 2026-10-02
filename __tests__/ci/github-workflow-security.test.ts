@@ -169,13 +169,20 @@ describe('secret', () => {
   });
 });
 
+/**
+ * Runner dipilih variabel repo CI_RUNS_ON: kosong → ubuntu-24.04 (runner GitHub),
+ * diisi '["self-hosted","radpro-ci"]' → VM CI sendiri. Satu ekspresi di semua job
+ * supaya pindah/kembali cukup dengan mengubah variabel, bukan workflow.
+ */
+const RUNNER_STANDAR = "${{ fromJSON(vars.CI_RUNS_ON || '\"ubuntu-24.04\"') }}";
+
 describe('runner dan action', () => {
-  it('semua job berjalan di ubuntu-24.04', () => {
+  it('semua job memakai runner dari CI_RUNS_ON (bawaan ubuntu-24.04)', () => {
     for (const [nama, wf] of semuaWorkflow()) {
       for (const [idJob, job] of Object.entries(wf.jobs)) {
         expect({ job: `${nama}#${idJob}`, runner: job['runs-on'] }).toEqual({
           job: `${nama}#${idJob}`,
-          runner: 'ubuntu-24.04',
+          runner: RUNNER_STANDAR,
         });
       }
     }
