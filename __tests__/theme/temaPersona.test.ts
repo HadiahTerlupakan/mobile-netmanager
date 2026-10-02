@@ -117,6 +117,12 @@ describe('tentukanPersonaTema', () => {
     expect(tentukanPersonaTema(undefined)).toBe('KARYAWAN_SALES');
   });
 
+  it('investor memakai tema zamrud sendiri walau membawa field karyawan', () => {
+    expect(tentukanPersonaTema({ role: 'INVESTOR' })).toBe('INVESTOR');
+    expect(tentukanPersonaTema({ role: 'INVESTOR', persona: 'SALES', isSales: true })).toBe('INVESTOR');
+    expect(PALET_PERSONA.INVESTOR.utamaKuat).toBe('#047857');
+  });
+
   it('pelanggan memakai tema bawaan', () => {
     expect(tentukanPersonaTema({ role: 'CUSTOMER' })).toBe('KARYAWAN_SALES');
   });

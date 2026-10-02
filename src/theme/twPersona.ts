@@ -1,8 +1,7 @@
 import { create, type TailwindFn } from 'twrnc';
 
-import type { Persona } from '@/utils/persona';
 
-import { PALET_PERSONA, type WarnaTemaPersona } from './temaPersona';
+import { PALET_PERSONA, type PersonaTema, type WarnaTemaPersona } from './temaPersona';
 
 /**
  * Warna kustom twrnc dari palet: `bg-utama`, `bg-utama-kuat`, `text-utama-gelap`,
@@ -26,13 +25,13 @@ function keWarnaTwrnc(warna: WarnaTemaPersona) {
   };
 }
 
-const twPerPersona = new Map<Persona, TailwindFn>();
+const twPerPersona = new Map<PersonaTema, TailwindFn>();
 
 /**
  * Instans twrnc untuk persona — dibuat sekali lalu dipakai ulang supaya cache
  * gaya twrnc tetap hangat (maksimal tujuh instans seumur aplikasi).
  */
-export function ambilTwPersona(persona: Persona): TailwindFn {
+export function ambilTwPersona(persona: PersonaTema): TailwindFn {
   const tersimpan = twPerPersona.get(persona);
   if (tersimpan) return tersimpan;
   const twBaru = create({ theme: { extend: { colors: keWarnaTwrnc(PALET_PERSONA[persona]) } } });

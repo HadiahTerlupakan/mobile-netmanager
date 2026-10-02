@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useMemo } from 'react';
 import type { TailwindFn } from 'twrnc';
 
-import type { Persona } from '@/utils/persona';
 
-import { ambilTemaPersona, PERSONA_TEMA_BAWAAN, type TemaPersona } from './temaPersona';
+import { ambilTemaPersona, PERSONA_TEMA_BAWAAN, type PersonaTema, type TemaPersona } from './temaPersona';
 import { ambilTwPersona } from './twPersona';
 
 /** Nilai tema yang dipakai komponen: palet hex + `tw` yang mengenal kelas `utama-*`. */
@@ -12,7 +11,7 @@ export interface NilaiTemaPersona extends TemaPersona {
 }
 
 /** Tema lengkap untuk satu persona. */
-function buatNilaiTema(persona: Persona): NilaiTemaPersona {
+function buatNilaiTema(persona: PersonaTema): NilaiTemaPersona {
   return { ...ambilTemaPersona(persona), tw: ambilTwPersona(persona) };
 }
 
@@ -27,7 +26,7 @@ function ambilNilaiBawaan(): NilaiTemaPersona {
 }
 
 interface TemaPersonaProviderProps {
-  persona: Persona;
+  persona: PersonaTema;
   children: React.ReactNode;
 }
 

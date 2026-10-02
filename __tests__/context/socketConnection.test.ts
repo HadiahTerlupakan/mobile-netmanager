@@ -53,6 +53,16 @@ describe('socketConnection', () => {
     });
   });
 
+  it('investor tidak tersambung ke realtime (token Firebase ditolak untuk investor)', () => {
+    expect(
+      getSocketConnectionState({
+        token: 'token-investor',
+        tenantUrl: 'http://192.168.1.2:3000',
+        user: { id: 'inv-1', role: 'INVESTOR' },
+      }).canConnect
+    ).toBe(false);
+  });
+
   it('prefers websocket before polling for mobile connections', () => {
     expect(SOCKET_TRANSPORTS).toEqual(['websocket', 'polling']);
   });

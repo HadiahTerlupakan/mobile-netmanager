@@ -1,5 +1,13 @@
 import type { User } from '@/context/AuthContext';
+import { PERAN_INVESTOR } from '@/constants/investor';
 import { tentukanPersona, type Persona } from '@/utils/persona';
+
+/**
+ * Pemilik tema: persona karyawan/mitra, atau investor. Investor bukan
+ * `Persona` karena punya grup layar sendiri (`app/(investor)`) dan tidak
+ * memakai Beranda/tab karyawan.
+ */
+export type PersonaTema = Persona | typeof PERAN_INVESTOR;
 
 /**
  * Warna IDENTITAS satu persona: tombol utama, tab aktif, tautan, header aksen,
@@ -34,7 +42,7 @@ export interface WarnaTemaPersona {
 
 /** Tema identitas aktif: persona pemiliknya dan palet warnanya. */
 export interface TemaPersona {
-  persona: Persona;
+  persona: PersonaTema;
   warna: WarnaTemaPersona;
 }
 
@@ -115,8 +123,23 @@ const WARNA_INDIGO: WarnaTemaPersona = {
   teksDiAtasUtama: PUTIH,
 };
 
+/** Zamrud — investor; berangkat dari emerald-700 agar teks putih tetap terbaca. */
+const WARNA_ZAMRUD: WarnaTemaPersona = {
+  utama: '#059669',
+  utamaKuat: '#047857',
+  utamaGelap: '#047857',
+  utamaPekat: '#065f46',
+  utamaTerang: '#10b981',
+  utamaLembut: '#34d399',
+  utamaPucat: '#6ee7b7',
+  utamaGaris: '#a7f3d0',
+  utamaMuda: '#d1fae5',
+  utamaSangatMuda: '#ecfdf5',
+  teksDiAtasUtama: PUTIH,
+};
+
 /** Palet per persona. Mitra memakai biru yang selama ini tampil di layar mitra. */
-export const PALET_PERSONA: Readonly<Record<Persona, WarnaTemaPersona>> = {
+export const PALET_PERSONA: Readonly<Record<PersonaTema, WarnaTemaPersona>> = {
   KARYAWAN_SALES: WARNA_BIRU,
   KARYAWAN_TEKNISI: WARNA_ORANYE,
   KARYAWAN_STAFF: WARNA_TOSCA,
@@ -124,6 +147,7 @@ export const PALET_PERSONA: Readonly<Record<Persona, WarnaTemaPersona>> = {
   KARYAWAN_DIREKTUR: WARNA_INDIGO,
   MITRA_SALES: WARNA_BIRU,
   MITRA_TEKNISI: WARNA_BIRU,
+  INVESTOR: WARNA_ZAMRUD,
 };
 
 /** Persona yang dipakai saat belum login atau bukan karyawan/mitra (pelanggan). */
@@ -132,7 +156,7 @@ export const PERSONA_TEMA_BAWAAN: Persona = 'KARYAWAN_SALES';
 const PERAN_PELANGGAN = 'CUSTOMER';
 
 /** Tema identitas untuk sebuah persona. */
-export function ambilTemaPersona(persona: Persona): TemaPersona {
+export function ambilTemaPersona(persona: PersonaTema): TemaPersona {
   return { persona, warna: PALET_PERSONA[persona] };
 }
 
@@ -143,7 +167,8 @@ export function ambilTemaPersona(persona: Persona): TemaPersona {
  */
 export function tentukanPersonaTema(
   user: Pick<User, 'role' | 'employeeType' | 'isSales' | 'persona'> | null | undefined,
-): Persona {
+): PersonaTema {
   if (!user || user.role === PERAN_PELANGGAN) return PERSONA_TEMA_BAWAAN;
+  if (user.role === PERAN_INVESTOR) return PERAN_INVESTOR;
   return tentukanPersona(user);
 }

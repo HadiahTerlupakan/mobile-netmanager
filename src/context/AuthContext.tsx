@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger';
 import { SecureStorage, Storage } from '@/utils/storage';
 import { queryClient } from '@/lib/queryClient';
 import type { PersonaKaryawanServer } from '@/utils/persona';
+import { isAkunInvestor } from '@/utils/investor';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
 
@@ -29,6 +30,10 @@ export type User = {
     workingHourMode?: string | null;
     isOnLeave?: boolean;
     requiresFaceVerification?: boolean;
+    /** Akun investor (`role === 'INVESTOR'`): username login, perusahaan, dan nomor telepon. */
+    username?: string;
+    perusahaan?: string | null;
+    noTelp?: string | null;
 };
 
 export type AuthContextType = {
@@ -116,10 +121,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             RefreshTokenService.startProactiveRefresh(newToken);
 
             logger.auth('Syncing FCM token (background)...');
-            // FCM sync is non-critical - don't block login if it fails
+            // FCM sync is non-critical - don't block login if it fails.
+            // Investor belum menerima notifikasi push (endpoint FCM khusus karyawan/mitra/pelanggan).
             try {
-                syncFcmToken('add');
-                startFcmTokenRefreshListener();
+                if (!isAkunInvestor(userData)) {
+                    syncFcmToken('add');
+                    startFcmTokenRefreshListener();
+                }
             } catch (fcmError) {
                 logger.warn('[AuthContext] FCM sync failed, continuing with login', fcmError);
                 // Don't throw - FCM is optional feature
@@ -142,6 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signOut = useCallback(async (options?: { skipApi?: boolean }) => {
         try {
+            const isPakaiPush = !isAkunInvestor(user);
             if (token && !options?.skipApi) {
                 stopFcmTokenRefreshListener();
                 // Tunggu FCM token unregister dengan timeout 3s — sebelumnya
@@ -149,12 +158,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // user lama selama beberapa detik setelah logout. Tidak block
                 // logout bila FCM lambat: race vs 3s timeout.
                 try {
-                    await Promise.race([
-                        fcmService.syncFCMTokenToBackend('remove'),
-                        new Promise<null>((resolve) =>
-                            setTimeout(() => resolve(null), 3000),
-                        ),
-                    ]);
+                    if (isPakaiPush) {
+                        await Promise.race([
+                            fcmService.syncFCMTokenToBackend('remove'),
+                            new Promise<null>((resolve) =>
+                                setTimeout(() => resolve(null), 3000),
+                            ),
+                        ]);
+                    }
                 } catch (fcmError) {
                     logger.warn('[Auth] FCM remove failed (non-fatal):', fcmError);
                 }
@@ -177,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // device sama, push notification user sebelumnya bisa
                 // sampai (cross-account leak di shared device).
                 try {
-                    await fcmService.deleteDeviceToken();
+                    if (isPakaiPush) await fcmService.deleteDeviceToken();
                 } catch (deleteError) {
                     logger.warn('[Auth] FCM deleteToken failed (non-fatal):', deleteError);
                 }
@@ -193,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // berikutnya tidak di-skip oleh dedupe check.
             fcmService.resetSyncCache();
         }
-    }, [clearLocalSession, stopFcmTokenRefreshListener, token]);
+    }, [clearLocalSession, stopFcmTokenRefreshListener, token, user]);
 
     const fetchProfile = useCallback(async () => {
         try {
@@ -247,8 +258,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         logger.setTenantId(parsedUser.tenantId);
 
                         RefreshTokenService.startProactiveRefresh(storedToken);
-                        syncFcmToken('add');
-                        startFcmTokenRefreshListener();
+                        if (!isAkunInvestor(parsedUser)) {
+                            syncFcmToken('add');
+                            startFcmTokenRefreshListener();
+                        }
                     } catch (parseError) {
                         logger.error('Failed to parse stored user data', parseError);
                         await clearLocalSession();

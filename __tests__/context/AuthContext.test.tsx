@@ -40,6 +40,7 @@ const mockFcmService = {
   syncFCMTokenToBackend: jest.fn(),
   onTokenRefresh: jest.fn(),
   resetSyncCache: jest.fn(),
+  deleteDeviceToken: jest.fn(),
 };
 const mockDatabaseService = { clearSessionData: jest.fn() };
 const mockRefreshTokenService = {
@@ -206,6 +207,19 @@ describe('AuthContext', () => {
       await expect(signInPromise!).resolves.toBeUndefined();
     });
 
+    it('investor tidak mendaftarkan token FCM (endpoint FCM menolak token investor)', async () => {
+      const authContext = await renderAuth();
+      const investor = { id: 'inv-1', tenantId: 'tenant-1', name: 'Budi', email: 'pakbudi', role: 'INVESTOR' };
+
+      await act(async () => {
+        await authContext.signIn('investor-token', investor, 'investor-refresh');
+      });
+
+      expect(mockSecureStorage.setItemStrict).toHaveBeenCalledWith('session_token', 'investor-token');
+      expect(mockFcmService.syncFCMTokenToBackend).not.toHaveBeenCalled();
+      expect(mockFcmService.onTokenRefresh).not.toHaveBeenCalled();
+    });
+
     it('rolls back local session state when persistence fails mid-signIn', async () => {
       mockSecureStorage.setItemStrict.mockImplementation(async (key) => {
         if (key === 'user_data') throw new Error('disk full');
@@ -254,6 +268,22 @@ describe('AuthContext', () => {
 
       expect(mockApi.delete).not.toHaveBeenCalledWith('/api/mobile/push-token');
       expect(mockFcmService.syncFCMTokenToBackend).toHaveBeenCalledWith('remove');
+    });
+
+    it('logout investor tetap mencabut token di server tanpa memanggil FCM', async () => {
+      const storedUser = { id: 'inv-1', tenantId: 'tenant-1', name: 'Budi', email: 'pakbudi', role: 'INVESTOR' };
+      mockSecureStorage.getItem.mockResolvedValueOnce('stored-token').mockResolvedValueOnce(JSON.stringify(storedUser));
+
+      const authContext = await renderAuth();
+      expect(mockFcmService.syncFCMTokenToBackend).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await authContext.signOut();
+      });
+
+      expect(mockApi.post).toHaveBeenCalledWith('/api/mobile/auth/logout', {}, expect.anything());
+      expect(mockFcmService.syncFCMTokenToBackend).not.toHaveBeenCalled();
+      expect(mockFcmService.deleteDeviceToken).not.toHaveBeenCalled();
     });
 
     it('still clears local session when refresh-token cleanup fails', async () => {

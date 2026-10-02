@@ -1,3 +1,4 @@
+import { isAkunInvestor } from '@/utils/investor';
 import type { User } from './AuthContext';
 
 export const SOCKET_TRANSPORTS = ['websocket', 'polling'] as const;
@@ -26,7 +27,9 @@ export function getSocketConnectionState({ token, tenantUrl, user }: SocketConne
 
     return {
         baseUrl,
-        canConnect: Boolean(token && baseUrl && userId),
+        // Investor tidak memakai realtime (chat/presence/work order); endpoint
+        // token Firebase menolak token investor dan 401-nya akan menutup sesi.
+        canConnect: Boolean(token && baseUrl && userId) && !isAkunInvestor(user),
         userId,
         userRole,
     };

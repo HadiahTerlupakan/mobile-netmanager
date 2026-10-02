@@ -3,6 +3,7 @@ export {
   PALET_PERSONA,
   PERSONA_TEMA_BAWAAN,
   tentukanPersonaTema,
+  type PersonaTema,
   type TemaPersona,
   type WarnaTemaPersona,
 } from './temaPersona';

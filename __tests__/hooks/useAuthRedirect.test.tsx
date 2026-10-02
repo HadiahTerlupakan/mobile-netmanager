@@ -75,6 +75,37 @@ describe('useAuthRedirect', () => {
     expect(mockReplace).not.toHaveBeenCalled()
   })
 
+  it('mengarahkan investor ke Beranda investor, bukan Beranda karyawan', () => {
+    const useAuthRedirect = loadUseAuthRedirect()
+    const investor = { id: 'inv-1', tenantId: 'tenant-1', name: 'Budi', email: 'pakbudi', role: 'INVESTOR' }
+
+    renderHook(() => useAuthRedirect(investor, ['(auth)', 'login'], false))
+    act(() => {
+      jest.advanceTimersByTime(150)
+    })
+
+    expect(mockReplace).toHaveBeenCalledWith('/(investor)/dashboard')
+  })
+
+  it('investor yang sudah di grup investor tidak dialihkan, investor di grup karyawan dikeluarkan', () => {
+    const useAuthRedirect = loadUseAuthRedirect()
+    const investor = { id: 'inv-1', tenantId: 'tenant-1', name: 'Budi', email: 'pakbudi', role: 'INVESTOR' }
+
+    const { rerender } = renderHook(({ segments }) => useAuthRedirect(investor, segments, false), {
+      initialProps: { segments: ['(investor)', 'keuangan'] },
+    })
+    act(() => {
+      jest.advanceTimersByTime(150)
+    })
+    expect(mockReplace).not.toHaveBeenCalled()
+
+    rerender({ segments: ['(app)', 'dashboard'] })
+    act(() => {
+      jest.advanceTimersByTime(150)
+    })
+    expect(mockReplace).toHaveBeenCalledWith('/(investor)/dashboard')
+  })
+
   it('does not re-run redirect effect when the segments array changes but the top-level group stays the same', () => {
     const useAuthRedirect = loadUseAuthRedirect()
     const user = {

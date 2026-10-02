@@ -1,4 +1,5 @@
 import { User } from '@/context/AuthContext';
+import { isAkunInvestor } from '@/utils/investor';
 import { errorReportingService } from '@/services/ErrorReportingService';
 import { logger } from '@/utils/logger';
 import { useRouter } from 'expo-router';
@@ -37,6 +38,7 @@ export function useAuthRedirect(
     const inAuthGroup = currentSegment === '(auth)';
     const inAppGroup = currentSegment === '(app)';
     const inCustomerGroup = currentSegment === '(customer)';
+    const inInvestorGroup = currentSegment === '(investor)';
     const isPublicRoute = currentSegment === 'kebijakan-privasi';
 
     logger.auth('Status:', {
@@ -44,6 +46,7 @@ export function useAuthRedirect(
       inAuthGroup,
       inAppGroup,
       inCustomerGroup,
+      inInvestorGroup,
       isPublicRoute,
       role: user?.role,
       segment: currentSegment,
@@ -65,6 +68,13 @@ export function useAuthRedirect(
           if (!inCustomerGroup) {
             logger.auth('Redirecting to Customer Dashboard');
             router.replace('/(customer)/dashboard');
+          }
+        }
+        // Investor punya grup layar sendiri
+        else if (isAkunInvestor(user)) {
+          if (!inInvestorGroup) {
+            logger.auth('Redirecting to Investor Dashboard');
+            router.replace('/(investor)/dashboard');
           }
         }
         // If User is Employee (Admin, Teknisi, Sales, etc)

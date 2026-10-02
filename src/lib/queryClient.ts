@@ -274,6 +274,17 @@ export const queryKeys = {
     detail: () => [...queryKeys.profile.all, "detail"] as const,
   },
 
+  // Portal investor
+  investor: {
+    all: ["investor"] as const,
+    ringkasan: () => [...queryKeys.investor.all, "ringkasan"] as const,
+    proyekList: () => [...queryKeys.investor.all, "proyek", "list"] as const,
+    proyekDetail: (id: string) => [...queryKeys.investor.all, "proyek", "detail", id] as const,
+    setoran: () => [...queryKeys.investor.all, "setoran"] as const,
+    bagiHasil: () => [...queryKeys.investor.all, "bagi-hasil"] as const,
+    pencairan: () => [...queryKeys.investor.all, "pencairan"] as const,
+  },
+
   // Presurvei
   presurvei: {
     all: ["presurvei"] as const,
