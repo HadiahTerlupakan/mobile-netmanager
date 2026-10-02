@@ -1,20 +1,27 @@
-import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
+import { KartuHeroGradien } from '@/components/molecules/KartuHeroGradien';
 import { ProfileSkeleton } from '@/components/molecules/ProfileSkeleton';
 import { getAppVersionLabel } from '@/constants/appVersion';
 import { useAuth } from '@/context/AuthContext';
 import { renderUpdateModal, useCheckUpdateButton } from '@/hooks/useCheckUpdateButton';
 import { useProfileSync } from '@/hooks/useProfileSync';
-import { TenantService } from '@/services/TenantService';
+import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 import { logger } from '@/utils/logger';
+import { urlGambarTenant } from '@/utils/urlGambarTenant';
 import { Href, router } from 'expo-router';
-import { BadgeCheck, LogOut, Mail, MapPin, ShieldCheck } from 'lucide-react-native';
+import { BadgeCheck, LogOut, Mail, MapPin, ShieldCheck, type LucideIcon } from 'lucide-react-native';
+import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
+const UKURAN_IKON = 18;
+const WARNA_KELUAR = '#dc2626';
+
+/** Profil mitra sales: kartu identitas bergradien, data akun, ID card, privasi, keluar. */
 export function MitraSalesProfileScreen() {
+    const { tw: twTema, warna } = useTemaPersona();
     const { user, signOut } = useAuth();
     const { profileData, isPending, refetch } = useProfileSync();
     const [refreshing, setRefreshing] = useState(false);
@@ -51,23 +58,6 @@ export function MitraSalesProfileScreen() {
         );
     };
 
-    const getInitials = (name?: string) => {
-        if (!name) return 'U';
-        return name.charAt(0).toUpperCase();
-    };
-
-    const getImageUrl = (path: string | null | undefined) => {
-        if (!path) return null;
-        if (path.startsWith('http')) return path;
-
-        const baseUrl = TenantService.getTenantUrl().replace(/\/$/, '');
-        const imagePath = path.startsWith('/') ? path : `/${path}`;
-
-        if (imagePath.includes('http')) return path;
-
-        return `${baseUrl}${imagePath}`;
-    };
-
     if (isPending && !profileData) {
         return <ProfileSkeleton />;
     }
@@ -75,116 +65,99 @@ export function MitraSalesProfileScreen() {
     const displayName = profileData?.name || user?.name || 'User';
     const displayEmail = profileData?.email || user?.email || '-';
 
+    const urlFoto = urlGambarTenant(profileData?.image);
+    const baris: { ikon: LucideIcon; label: string; nilai: string }[] = [
+        { ikon: Mail, label: 'Email', nilai: displayEmail },
+        { ikon: MapPin, label: 'Site / lokasi', nilai: profileData?.sites?.name || 'Belum diatur' },
+    ];
+
     return (
-        <SafeAreaView style={tw`flex-1 bg-slate-50`} edges={["top", "left", "right"]}>
+        <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_PREMIUM.latarLayar }]} edges={['top', 'left', 'right']}>
             <ScrollView
-                contentContainerStyle={tw`pb-32`}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                contentContainerStyle={tw`px-4 pb-32`}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={warna.utamaKuat} />}
             >
-                {/* Header */}
-                <View style={tw`bg-slate-900 px-6 pt-6 pb-20 rounded-b-[40px] z-10`}>
-                    <View style={tw`items-center`}>
-                        {profileData?.image ? (
-                            <ImageWithCache
-                                source={getImageUrl(profileData.image)}
-                                style={tw`w-28 h-28 rounded-full mb-4 border-4 border-slate-700`}
-                                contentFit="cover"
-                                transition={1000}
-                            />
+                <Text style={tw`text-2xl font-bold text-slate-900 pt-4 pb-5`}>Profil</Text>
+
+                <KartuHeroGradien>
+                    <View style={tw`flex-row items-center`}>
+                        {urlFoto ? (
+                            <Image source={{ uri: urlFoto }} style={tw`w-16 h-16 rounded-full`} contentFit="cover" cachePolicy="memory-disk" />
                         ) : (
-                            <View style={tw`w-28 h-28 bg-white rounded-full items-center justify-center mb-4 shadow-lg border-4 border-slate-700`}>
-                                <Text style={tw`text-slate-800 text-4xl font-black`}>{getInitials(displayName)}</Text>
+                            <View style={tw`w-16 h-16 rounded-full bg-white/15 border border-white/30 items-center justify-center`}>
+                                <Text style={tw`text-2xl font-bold text-white`}>{displayName.charAt(0).toUpperCase() || 'M'}</Text>
                             </View>
                         )}
-                        <Text style={tw`text-white font-black text-2xl tracking-tight mt-2`}>{displayName}</Text>
-                        <Text style={tw`text-slate-400 text-sm mt-1 uppercase tracking-widest font-bold`}>{displayEmail}</Text>
-                        {profileData?.role?.name && (
-                            <View style={tw`bg-emerald-500/20 border border-emerald-500/30 px-4 py-1.5 rounded-full mt-3`}>
-                                <Text style={tw`text-emerald-400 text-xs font-bold tracking-wider uppercase`}>{profileData.role.name}</Text>
-                            </View>
-                        )}
-                    </View>
-                </View>
-
-                {/* Info Cards */}
-                <View style={tw`px-4 -mt-10 z-20`}>
-                    <View style={tw`bg-white rounded-[24px] shadow-sm border border-slate-100/80 overflow-hidden`}>
-                        {/* Email */}
-                        <View style={tw`flex-row items-center p-4 border-b border-slate-50`}>
-                            <View style={tw`w-10 h-10 bg-emerald-50 rounded-2xl items-center justify-center mr-4 border border-emerald-100/50`}>
-                                <Mail size={20} color="#059669" />
-                            </View>
-                            <View>
-                                <Text style={tw`text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-0.5`}>Email</Text>
-                                <Text style={tw`text-slate-800 font-black tracking-tight`}>{displayEmail}</Text>
-                            </View>
-                        </View>
-
-
-                        {/* Site */}
-                        <View style={tw`flex-row items-center p-4`}>
-                            <View style={tw`w-10 h-10 bg-blue-50 rounded-2xl items-center justify-center mr-4 border border-blue-100/50`}>
-                                <MapPin size={20} color="#2563eb" />
-                            </View>
-                            <View>
-                                <Text style={tw`text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-0.5`}>Site / Lokasi</Text>
-                                <Text style={tw`text-slate-800 font-black tracking-tight`}>{profileData?.sites?.name || 'Belum diatur'}</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* View ID Card Button */}
-                    {profileData?.id && (
-                        <TouchableOpacity
-                            onPress={() => router.push(`/(app)/id-card/${profileData.id}` as Href)}
-                            style={tw`mt-6 bg-purple-600 rounded-[20px] p-4 flex-row items-center justify-center shadow-sm`}
-                        >
-                            <BadgeCheck size={20} color="white" />
-                            <Text style={tw`text-white font-black ml-2 tracking-widest text-xs uppercase`}>LIHAT ID CARD RESMI</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    {/* Privacy Policy Button */}
-                    <TouchableOpacity
-                        onPress={() => router.push('/kebijakan-privasi' as Href)}
-                        style={tw`mt-3 bg-white border border-slate-100/80 rounded-[20px] p-4 flex-row items-center justify-center shadow-sm`}
-                    >
-                        <ShieldCheck size={20} color="#64748b" />
-                        <Text style={tw`text-slate-600 font-black ml-2 tracking-widest text-xs uppercase`}>Kebijakan Privasi</Text>
-                    </TouchableOpacity>
-
-                    {/* Logout Button */}
-                    <TouchableOpacity
-                        onPress={handleLogout}
-                        disabled={isLoggingOut}
-                        style={tw`mt-3 bg-rose-50 border border-rose-100 rounded-2xl p-4 flex-row items-center justify-center`}
-                    >
-                        {isLoggingOut ? (
-                            <ActivityIndicator color="#e11d48" />
-                        ) : (
-                            <>
-                                <LogOut size={20} color="#e11d48" />
-                                <Text style={tw`text-rose-600 font-black ml-2 uppercase tracking-tight`}>Keluar</Text>
-                            </>
-                        )}
-                    </TouchableOpacity>
-
-                    {/* App Version - Manual Check */}
-                    <TouchableOpacity
-                        onPress={updateCheck.handleCheckUpdate}
-                        disabled={updateCheck.isChecking}
-                        style={tw`mt-8 items-center`}
-                    >
-                        {updateCheck.isChecking ? (
-                            <ActivityIndicator size="small" color="#94a3b8" />
-                        ) : (
-                            <Text style={tw`text-center text-slate-400 text-[10px] font-bold tracking-widest uppercase`}>
-                                {getAppVersionLabel()}
-                                {'\n'}Ketuk untuk cek update
+                        <View style={tw`flex-1 ml-4`}>
+                            <Text style={tw`text-xl font-bold text-white`} numberOfLines={1}>{displayName}</Text>
+                            <Text style={[tw`text-sm mt-0.5`, { color: warna.utamaGaris }]} numberOfLines={1}>
+                                Mitra sales
                             </Text>
-                        )}
-                    </TouchableOpacity>
+                        </View>
+                    </View>
+                </KartuHeroGradien>
+
+                <View style={tw`bg-white rounded-2xl px-4 mt-5 border border-slate-200/70`}>
+                    {baris.map(({ ikon: Ikon, label, nilai }, indeks) => (
+                        <View key={label} style={tw`flex-row items-center py-3.5 ${indeks < baris.length - 1 ? 'border-b border-slate-100' : ''}`}>
+                            <View style={twTema`w-9 h-9 rounded-lg bg-utama-sangat-muda items-center justify-center mr-3`}>
+                                <Ikon size={UKURAN_IKON} color={warna.utamaKuat} />
+                            </View>
+                            <View style={tw`flex-1`}>
+                                <Text style={tw`text-xs text-slate-500`}>{label}</Text>
+                                <Text style={tw`text-sm font-semibold text-slate-900 mt-0.5`}>{nilai}</Text>
+                            </View>
+                        </View>
+                    ))}
                 </View>
+
+                {profileData?.id && (
+                    <TouchableOpacity
+                        accessibilityRole="button"
+                        onPress={() => router.push(`/(app)/id-card/${profileData.id}` as Href)}
+                        style={[tw`mt-6 rounded-2xl py-4 flex-row items-center justify-center`, { backgroundColor: warna.utamaKuat }]}
+                    >
+                        <BadgeCheck size={UKURAN_IKON} color="white" />
+                        <Text style={tw`text-white font-semibold ml-2`}>Lihat ID card resmi</Text>
+                    </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                    accessibilityRole="button"
+                    onPress={() => router.push('/kebijakan-privasi' as Href)}
+                    style={tw`mt-3 bg-white border border-slate-200/70 rounded-2xl py-4 flex-row items-center justify-center`}
+                >
+                    <ShieldCheck size={UKURAN_IKON} color={DESAIN_PREMIUM.ikonNetral} />
+                    <Text style={tw`text-slate-700 font-semibold ml-2`}>Kebijakan privasi</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Keluar"
+                    onPress={handleLogout}
+                    disabled={isLoggingOut}
+                    style={tw`mt-3 bg-white border border-red-100 rounded-2xl py-4 flex-row items-center justify-center`}
+                >
+                    {isLoggingOut ? (
+                        <ActivityIndicator color={WARNA_KELUAR} />
+                    ) : (
+                        <>
+                            <LogOut size={UKURAN_IKON} color={WARNA_KELUAR} />
+                            <Text style={tw`text-red-600 font-semibold ml-2`}>Keluar</Text>
+                        </>
+                    )}
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={updateCheck.handleCheckUpdate} disabled={updateCheck.isChecking} style={tw`mt-8 items-center`}>
+                    {updateCheck.isChecking ? (
+                        <ActivityIndicator size="small" color={DESAIN_PREMIUM.ikonNetral} />
+                    ) : (
+                        <Text style={tw`text-center text-slate-400 text-xs`}>
+                            {getAppVersionLabel()}
+                            {'\n'}Ketuk untuk cek update
+                        </Text>
+                    )}
+                </TouchableOpacity>
             </ScrollView>
 
             {renderUpdateModal(updateCheck)}

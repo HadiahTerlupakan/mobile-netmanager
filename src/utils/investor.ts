@@ -4,25 +4,13 @@ import type { User } from '@/context/AuthContext';
 import { PERAN_INVESTOR, type TampilanStatus } from '@/constants/investor';
 import { formatDate } from '@/utils/date';
 
-const FORMAT_RUPIAH = new Intl.NumberFormat('id-ID', {
-  style: 'currency',
-  currency: 'IDR',
-  maximumFractionDigits: 0,
-});
+export { formatRupiah, formatRupiahRingkas } from './rupiah';
 
 /** Apakah pengguna login sebagai investor (punya grup layar sendiri). */
 export function isAkunInvestor(user: Pick<User, 'role'> | null | undefined): boolean {
   return user?.role === PERAN_INVESTOR;
 }
 
-/**
- * Rupiah tanpa desimal. Server mengirim nominal besar sebagai string (BigInt);
- * nilai tak terbaca ditampilkan Rp 0 alih-alih "NaN".
- */
-export function formatRupiah(nilai: string | number | null | undefined): string {
-  const angka = Number(nilai ?? 0);
-  return FORMAT_RUPIAH.format(Number.isFinite(angka) ? angka : 0);
-}
 
 /** Persen dengan maksimal dua angka di belakang koma, gaya Indonesia (12,5%). */
 export function formatPersen(nilai: number | null | undefined): string {
@@ -61,9 +49,6 @@ export function labelPeriode(mulai: string, selesai: string): string {
 }
 
 const PERSEN_PENUH = 100;
-const SATU_MILIAR = 1_000_000_000;
-const SATU_JUTA = 1_000_000;
-const SATU_RIBU = 1_000;
 
 function keAngka(nilai: string | number | null | undefined): number {
   const angka = Number(nilai ?? 0);
@@ -93,14 +78,3 @@ export function hitungImbalHasil(
   return (keAngka(bagiHasil) / total) * PERSEN_PENUH;
 }
 
-/** Rupiah ringkas untuk sumbu grafik: "Rp 4,5 jt", "Rp 850 rb". */
-export function formatRupiahRingkas(nilai: string | number | null | undefined): string {
-  const angka = keAngka(nilai);
-  const mutlak = Math.abs(angka);
-  const format = (n: number, satuan: string) =>
-    `Rp ${n.toLocaleString('id-ID', { maximumFractionDigits: 1 })} ${satuan}`;
-  if (mutlak >= SATU_MILIAR) return format(angka / SATU_MILIAR, 'M');
-  if (mutlak >= SATU_JUTA) return format(angka / SATU_JUTA, 'jt');
-  if (mutlak >= SATU_RIBU) return format(angka / SATU_RIBU, 'rb');
-  return `Rp ${angka.toLocaleString('id-ID')}`;
-}
