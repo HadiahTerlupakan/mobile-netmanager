@@ -35,6 +35,7 @@ jest.mock('@/components/organisms/dashboard/BerandaModeCuti', () => {
   return { BerandaModeCuti: () => <Text>mode-cuti</Text> };
 });
 jest.mock('@/components/organisms/dashboard/DashboardHeader', () => ({ DashboardHeader: () => null }));
+jest.mock('@/components/molecules/NotificationBell', () => ({ __esModule: true, default: () => null }));
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: unknown }) => children,
 }));

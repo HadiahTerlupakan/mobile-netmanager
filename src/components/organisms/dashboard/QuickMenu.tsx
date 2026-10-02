@@ -1,4 +1,5 @@
 import { AppFeature } from '@/constants/features';
+import { JudulBagian } from '@/components/molecules/JudulBagian';
 import { Href, useRouter } from "expo-router";
 import {
   Banknote,
@@ -214,9 +215,7 @@ const QuickMenuComponent = ({
 
   return (
     <View style={tw`px-4 pb-8`}>
-      <Text style={tw`text-lg font-bold text-gray-900 mb-3 ml-1`}>
-        Menu Cepat
-      </Text>
+      <JudulBagian judul="Menu Cepat" />
       <View style={tw`flex-row flex-wrap justify-between`}>
         {processedMenuItems.map((item) => (
           <TouchableOpacity

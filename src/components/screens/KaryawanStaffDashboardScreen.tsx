@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { RefreshControl, ScrollView, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
+import { KepalaSapaan } from '@/components/molecules/KepalaSapaan';
 import { BagianKinerjaBeranda } from '@/components/organisms/dashboard/BagianKinerjaBeranda';
 import { BerandaModeCuti } from '@/components/organisms/dashboard/BerandaModeCuti';
-import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
 import { KartuAbsenHariIni } from '@/components/organisms/dashboard/KartuAbsenHariIni';
 import { QuickMenu, type IdMenuCepat } from '@/components/organisms/dashboard/QuickMenu';
 import { AppFeature } from '@/constants/features';
@@ -14,6 +14,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useProfileSync } from '@/hooks/useProfileSync';
 import { useSegarkanBeranda } from '@/hooks/useSegarkanBeranda';
 import { queryKeys } from '@/lib/queryClient';
+import { DESAIN_PREMIUM } from '@/theme';
 import { punyaFitur } from '@/utils/persona';
 import { isPemberiTugas } from '@/utils/presurvei/timRencana';
 
@@ -45,25 +46,22 @@ export function KaryawanStaffDashboardScreen() {
   }
 
   return (
-    <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
+    <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_PREMIUM.latarLayar }]} edges={['top']}>
       <ScrollView
         testID="beranda-staff-gulir"
         contentContainerStyle={tw`pb-24`}
         refreshControl={<RefreshControl refreshing={isMenyegarkan} onRefresh={() => void segarkan()} />}
       >
-        <DashboardHeader
-          userName={namaPengguna}
-          userImage={user?.image}
-          onProfilePress={() => router.push('/(app)/profile')}
+        <KepalaSapaan
+          nama={namaPengguna}
+          gambar={user?.image}
+          onTekanProfil={() => router.push('/(app)/profile')}
+          isLonceng
         />
-        <View style={tw`px-4 pt-1 pb-4`}>
-          <Text style={tw`text-sm font-medium text-gray-500`}>Selamat datang,</Text>
-          <Text style={tw`text-2xl font-bold text-gray-900`}>{namaPengguna}</Text>
-        </View>
         {punyaFitur(user, AppFeature.ABSENSI) ? <KartuAbsenHariIni /> : null}
         {/* Admin/manajer (lingkup TIM/SEMUA) memantau kinerja tim sales, sama seperti Beranda teknisi. */}
         {isPemberiTugas(profileData?.lingkupRencana) ? (
-          <View style={tw`px-4`}>
+          <View style={tw`px-4 mt-1`}>
             <BagianKinerjaBeranda isPresurveiAktif />
           </View>
         ) : null}

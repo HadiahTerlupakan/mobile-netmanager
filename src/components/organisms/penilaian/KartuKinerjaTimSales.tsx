@@ -16,7 +16,7 @@ interface KartuKinerjaTimSalesProps {
 /** Deret pil kecil "Baik 3" per predikat. */
 function SebaranRingkas({ sebaran }: { sebaran: readonly SebaranPredikat[] }) {
   return (
-    <View style={tw`flex-row flex-wrap mt-3 -m-0.5`}>
+    <View style={tw`flex-row flex-wrap mt-4 -m-0.5`}>
       {sebaran.map(({ predikat, jumlah }) => {
         const gaya = gayaPredikat(predikat);
         return (
