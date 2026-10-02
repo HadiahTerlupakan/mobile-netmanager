@@ -1,12 +1,11 @@
-import { MapPin, Phone, type LucideIcon } from "lucide-react-native";
 import React, { memo } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Text, View } from "react-native";
 import tw from "twrnc";
 
-import { TombolIkonBulat as TombolIkon } from "@/components/molecules/TombolIkonBulat";
-import { GAYA_ANGKA_TABULAR, useTemaPersona } from "@/theme";
+import { BarisAksiPelanggan, type AksiUtamaPelanggan } from "@/components/molecules/BarisAksiPelanggan";
+import { GAYA_ANGKA_TABULAR } from "@/theme";
 import { formatDate } from "@/utils/date";
-import { bukaAlamatDiPeta, hariLewatJatuhTempo, hubungiKontak } from "@/utils/kontak";
+import { hariLewatJatuhTempo, keteranganPelanggan, tujuanPetaPelanggan } from "@/utils/kontak";
 
 /** Data minimal kartu: cocok untuk daftar isolir maupun daftar tunggakan sales. */
 export interface DataKartuPelanggan {
@@ -25,7 +24,7 @@ export interface DataKartuPelanggan {
 interface PelangganCardProps {
   pelanggan: DataKartuPelanggan;
   /** Tombol utama kartu, mis. "Ajukan WO" (teknisi) atau "Ingatkan" (sales). */
-  aksi: { label: string; ikon: LucideIcon; onTekan: () => void; isNonaktif?: boolean };
+  aksi: AksiUtamaPelanggan;
 }
 
 /**
@@ -33,15 +32,7 @@ interface PelangganCardProps {
  * alamat satu baris, lalu tombol telepon (WhatsApp), peta, dan satu aksi utama.
  */
 export const PelangganCard = memo(({ pelanggan, aksi }: PelangganCardProps) => {
-  const { tw: twTema, warna } = useTemaPersona();
-  const IkonAksi = aksi.ikon;
   const hariLewat = hariLewatJatuhTempo(pelanggan.jatuhTempo);
-  const keterangan = [pelanggan.paket, pelanggan.idPelanggan, pelanggan.alamat ?? pelanggan.siteName]
-    .filter(Boolean)
-    .join(" · ");
-  const lokasi =
-    pelanggan.alamat ??
-    (pelanggan.latitude !== null && pelanggan.longitude !== null ? `${pelanggan.latitude},${pelanggan.longitude}` : null);
 
   return (
     <View style={tw`bg-white mx-4 mb-2 px-4 py-3 rounded-2xl border border-slate-200/70`}>
@@ -56,25 +47,14 @@ export const PelangganCard = memo(({ pelanggan, aksi }: PelangganCardProps) => {
         </View>
       </View>
       <Text style={tw`text-xs text-slate-500 mt-1`} numberOfLines={1}>
-        {keterangan}
+        {keteranganPelanggan(pelanggan)}
       </Text>
-
-      <View style={tw`flex-row items-center mt-2.5`}>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={`${aksi.label} untuk ${pelanggan.nama}`}
-          onPress={aksi.onTekan}
-          disabled={aksi.isNonaktif}
-          style={twTema`flex-1 flex-row items-center justify-center bg-utama-sangat-muda py-2 rounded-full ${aksi.isNonaktif ? "opacity-50" : ""}`}
-        >
-          <IkonAksi size={14} color={warna.utamaKuat} />
-          <Text style={twTema`font-semibold text-utama-kuat text-xs ml-1.5`}>{aksi.label}</Text>
-        </TouchableOpacity>
-        {pelanggan.noTelp ? (
-          <TombolIkon ikon={Phone} label={`Hubungi ${pelanggan.noTelp}`} onTekan={() => hubungiKontak(pelanggan.noTelp as string)} />
-        ) : null}
-        {lokasi ? <TombolIkon ikon={MapPin} label={`Buka peta ${pelanggan.nama}`} onTekan={() => bukaAlamatDiPeta(lokasi)} /> : null}
-      </View>
+      <BarisAksiPelanggan
+        namaPelanggan={pelanggan.nama}
+        aksi={aksi}
+        noTelp={pelanggan.noTelp}
+        tujuanPeta={tujuanPetaPelanggan(pelanggan)}
+      />
     </View>
   );
 });

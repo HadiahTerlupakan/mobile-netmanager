@@ -1,4 +1,3 @@
-import dayjs from 'dayjs';
 import { useLocalSearchParams } from 'expo-router';
 import { MapPin, ReceiptText, Users } from 'lucide-react-native';
 import React from 'react';
@@ -22,12 +21,13 @@ import { KeadaanDaftar } from '@/components/organisms/investor/KeadaanDaftar';
 import { STATUS_PROYEK } from '@/constants/investor';
 import { useRincianProyekInvestor } from '@/hooks/queries/useInvestor';
 import { useSegarkanDataInvestor } from '@/hooks/useSegarkanDataInvestor';
-import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
+import { DESAIN_PREMIUM, GAYA_ANGKA_TABULAR, useTemaPersona } from '@/theme';
 import type { CapaianBulananProyek, RincianProyekInvestor } from '@/types/investor';
 import {
   formatPersen,
   formatRupiah,
   hitungPersenModalKembali,
+  labelBatangBulanProyek,
   labelBulanProyek,
   tampilanStatus,
 } from '@/utils/investor';
@@ -35,7 +35,6 @@ import {
 /** Jumlah bulan terakhir yang digambar di grafik. */
 const BULAN_DI_GRAFIK = 6;
 const UKURAN_IKON_LOKASI = 13;
-const GAYA_ANGKA = { fontVariant: ['tabular-nums' as const] };
 
 /** Capaian bulanan terbaru dulu (bulan ke-n terbesar). */
 function urutkanTerbaru(daftar: CapaianBulananProyek[]): CapaianBulananProyek[] {
@@ -49,7 +48,7 @@ function susunBatang(terbaruDulu: CapaianBulananProyek[], tanggalMulai: string |
     .reverse()
     .map((bulan) => ({
       kunci: bulan.id,
-      label: tanggalMulai ? dayjs(tanggalMulai).add(bulan.month - 1, 'month').format('MMM') : `B${bulan.month}`,
+      label: labelBatangBulanProyek(bulan.month, tanggalMulai),
       pendapatan: Number(bulan.achievedRevenue) || 0,
       bagianSaya: bulan.myProfitShare + bulan.myCapitalReturn,
     }));
@@ -72,13 +71,13 @@ function KepalaProyek({ proyek }: { proyek: RincianProyekInvestor }) {
         <View style={[tw`flex-row mt-5 pt-4 border-t`, { borderColor: DESAIN_PREMIUM.garisDiAtasGelap }]}>
           <View style={tw`flex-1`}>
             <Text style={[tw`text-xs`, teksLembut]}>Modal saya</Text>
-            <Text style={[tw`text-lg font-bold text-white mt-0.5`, GAYA_ANGKA]}>
+            <Text style={[tw`text-lg font-bold text-white mt-0.5`, GAYA_ANGKA_TABULAR]}>
               {formatRupiah(proyek.investmentAmount)}
             </Text>
           </View>
           <View style={tw`items-end`}>
             <Text style={[tw`text-xs`, teksLembut]}>Porsi bagi hasil</Text>
-            <Text style={[tw`text-lg font-bold mt-0.5`, GAYA_ANGKA, { color: DESAIN_PREMIUM.aksenEmas }]}>
+            <Text style={[tw`text-lg font-bold mt-0.5`, GAYA_ANGKA_TABULAR, { color: DESAIN_PREMIUM.aksenEmas }]}>
               {formatPersen(proyek.profitSharePercent)}
             </Text>
           </View>
@@ -96,13 +95,13 @@ function KartuPengembalian({ proyek }: { proyek: RincianProyekInvestor }) {
       <View style={tw`flex-row`}>
         <View style={tw`flex-1`}>
           <Text style={tw`text-xs font-medium text-slate-500`}>Bagi hasil saya</Text>
-          <Text style={[tw`text-lg font-bold text-slate-900 mt-0.5`, GAYA_ANGKA]}>
+          <Text style={[tw`text-lg font-bold text-slate-900 mt-0.5`, GAYA_ANGKA_TABULAR]}>
             {formatRupiah(proyek.myTotalProfitShare)}
           </Text>
         </View>
         <View style={tw`flex-1 items-end`}>
           <Text style={tw`text-xs font-medium text-slate-500`}>Modal sudah kembali</Text>
-          <Text style={[tw`text-lg font-bold text-slate-900 mt-0.5`, GAYA_ANGKA]}>
+          <Text style={[tw`text-lg font-bold text-slate-900 mt-0.5`, GAYA_ANGKA_TABULAR]}>
             {formatRupiah(proyek.myTotalCapitalReturn)}
           </Text>
         </View>
@@ -111,7 +110,7 @@ function KartuPengembalian({ proyek }: { proyek: RincianProyekInvestor }) {
         <BilahKemajuan persen={persen} warnaIsi={warna.utamaKuat} warnaLatar={warna.utamaSangatMuda} />
         <View style={tw`flex-row justify-between mt-2`}>
           <Text style={tw`text-xs font-semibold text-slate-700`}>{formatPersen(Math.round(persen))} modal kembali</Text>
-          <Text style={[tw`text-xs text-slate-500`, GAYA_ANGKA]}>Sisa {formatRupiah(sisaModal)}</Text>
+          <Text style={[tw`text-xs text-slate-500`, GAYA_ANGKA_TABULAR]}>Sisa {formatRupiah(sisaModal)}</Text>
         </View>
       </View>
     </View>

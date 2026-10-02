@@ -33,6 +33,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const APP_DASHBOARD_ROUTE = "/(app)/dashboard";
 
+/** Ukuran ikon tab bar (sama untuk tab bawaan dan kustom). */
+const UKURAN_IKON_TAB = 24;
+
 /** Opsi route tersembunyi: terdaftar tanpa tab. */
 const OPSI_TERSEMBUNYI = { href: null } as const;
 /** Opsi route tersembunyi layar penuh: tab bar ikut disembunyikan. */
@@ -45,7 +48,7 @@ const OPSI_LAYAR_PENUH = { href: null, tabBarStyle: { display: "none" } } as con
 const OPSI_TAB_KUSTOM: Partial<Record<string, BottomTabNavigationOptions>> = {
   'chat/index': {
     title: "Chat",
-    tabBarIcon: ({ color }) => <MessageCircle size={24} color={color} />,
+    tabBarIcon: ({ color }) => <MessageCircle size={UKURAN_IKON_TAB} color={color} />,
   },
 };
 
@@ -194,7 +197,7 @@ export default function AppLayout() {
           options={{
             title: "Beranda",
             tabBarIcon: ({ color }) => (
-              <Home size={24} color={getIconColor(color, AppFeature.DASHBOARD)} />
+              <Home size={UKURAN_IKON_TAB} color={getIconColor(color, AppFeature.DASHBOARD)} />
             ),
           }}
           listeners={{
@@ -208,7 +211,7 @@ export default function AppLayout() {
             title: "Presurvei",
             href: null,
             tabBarIcon: ({ color }) => (
-              <ClipboardCheck size={24} color={getIconColor(color, AppFeature.PRESURVEI)} />
+              <ClipboardCheck size={UKURAN_IKON_TAB} color={getIconColor(color, AppFeature.PRESURVEI)} />
             ),
           }}
           listeners={{
@@ -221,7 +224,7 @@ export default function AppLayout() {
             title: "Work Order",
             href: hasFeature(AppFeature.WORK_ORDER) ? "/work-order" : null,
             tabBarIcon: ({ color }) => (
-              <ClipboardList size={24} color={color} />
+              <ClipboardList size={UKURAN_IKON_TAB} color={color} />
             ),
           }}
           listeners={{
@@ -235,7 +238,7 @@ export default function AppLayout() {
             href: bolehCanvasing(user) ? "/marketing/canvasing" : null,
             tabBarIcon: ({ color }) => (
               <DollarSign
-                size={24}
+                size={UKURAN_IKON_TAB}
                 color={getIconColor(color, AppFeature.CANVASING)}
               />
             ),
@@ -251,7 +254,7 @@ export default function AppLayout() {
             href: isMitra ? null : (hasFeature(AppFeature.BARANG) ? "/barang" : null),
             tabBarIcon: ({ color }) => (
               <Package
-                size={24}
+                size={UKURAN_IKON_TAB}
                 color={hasFeature(AppFeature.BARANG) ? color : "#9ca3af"}
               />
             ),
@@ -266,7 +269,7 @@ export default function AppLayout() {
             title: "Absensi",
             href: isMitra ? null : (hasFeature(AppFeature.ABSENSI) ? "/absensi" : null),
             tabBarIcon: ({ color }) => (
-              <ScanLine size={24} color={getIconColor(color, AppFeature.ABSENSI)} />
+              <ScanLine size={UKURAN_IKON_TAB} color={getIconColor(color, AppFeature.ABSENSI)} />
             ),
           }}
           listeners={{
@@ -277,7 +280,7 @@ export default function AppLayout() {
           name="profile"
           options={{
             title: "Profil",
-            tabBarIcon: ({ color }) => <User size={24} color={color} />,
+            tabBarIcon: ({ color }) => <User size={UKURAN_IKON_TAB} color={color} />,
           }}
           listeners={{
             tabPress: (e) => handleTabPress(e, AppFeature.PROFILE),
@@ -291,7 +294,7 @@ export default function AppLayout() {
             title: "Wallet",
             href: isMitra ? ("/mitra-wallet" as any) : null,
             tabBarIcon: ({ color }) => (
-              <Wallet size={24} color={color} />
+              <Wallet size={UKURAN_IKON_TAB} color={color} />
             ),
           }}
         />

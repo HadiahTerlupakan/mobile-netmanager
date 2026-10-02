@@ -12,11 +12,16 @@ import { AppFeature } from "@/constants/features";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { usePelangganList } from "@/hooks/queries/usePelangganList";
 import { useFeatureGuard } from "@/hooks/useFeatureGuard";
+import { AMBANG_MUAT_BERIKUTNYA, useMuatHalamanBerikutnya } from "@/hooks/useMuatHalamanBerikutnya";
 import { MobilePelanggan } from "@/services/PelangganService";
 import { resolvePelangganListMessage } from "@/utils/pelangganListMessage";
 
 const SEARCH_DEBOUNCE_MS = 400;
+const UKURAN_IKON_KOLOM_CARI = 18;
+/** slate-400 */
+const WARNA_PLACEHOLDER = "#94a3b8";
 
+/** Pelanggan terisolir (teknisi): cari, hubungi, buka peta, atau ajukan WO pemulihan. */
 export default function PelangganIsolirScreen() {
   const { tw, warna } = useTemaPersona();
   useFeatureGuard(AppFeature.PELANGGAN);
@@ -49,9 +54,7 @@ export default function PelangganIsolirScreen() {
     [router],
   );
 
-  const handleLoadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const handleLoadMore = useMuatHalamanBerikutnya({ hasNextPage, isFetchingNextPage, fetchNextPage });
 
   return (
     <View style={[tw`flex-1`, { paddingTop: insets.top, backgroundColor: DESAIN_PREMIUM.latarLayar }]}>
@@ -62,18 +65,18 @@ export default function PelangganIsolirScreen() {
           {jumlahTotal !== undefined ? `${jumlahTotal} pelanggan terisolir karena tunggakan` : "Pelanggan terisolir karena tunggakan"}
         </Text>
         <View style={tw`flex-row items-center bg-white px-4 rounded-2xl border border-slate-200/70`}>
-          <Search size={18} color={DESAIN_PREMIUM.ikonNetral} />
+          <Search size={UKURAN_IKON_KOLOM_CARI} color={DESAIN_PREMIUM.ikonNetral} />
           <TextInput
             style={tw`flex-1 h-11 ml-3 text-slate-900 text-sm`}
             placeholder="Cari nama, username, atau ID pelanggan..."
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor={WARNA_PLACEHOLDER}
             value={search}
             onChangeText={setSearch}
             returnKeyType="search"
           />
           {search.length > 0 ? (
             <TouchableOpacity accessibilityLabel="Hapus pencarian" onPress={() => setSearch("")}>
-              <X size={18} color={DESAIN_PREMIUM.ikonNetral} />
+              <X size={UKURAN_IKON_KOLOM_CARI} color={DESAIN_PREMIUM.ikonNetral} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -89,7 +92,7 @@ export default function PelangganIsolirScreen() {
           />
         )}
         onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
+        onEndReachedThreshold={AMBANG_MUAT_BERIKUTNYA}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={warna.utamaKuat} />
         }

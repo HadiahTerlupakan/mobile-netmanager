@@ -1,3 +1,4 @@
+import { MS_SEHARI } from '@/utils/date';
 import { Linking } from 'react-native';
 
 const KODE_NEGARA = '62';
@@ -23,7 +24,6 @@ export function bukaAlamatDiPeta(alamat: string): void {
   void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alamat)}`);
 }
 
-const MS_SEHARI = 24 * 60 * 60 * 1000;
 
 /** Jumlah hari kalender lewat dari jatuh tempo (0 bila belum lewat atau tanggal tak terbaca). */
 export function hariLewatJatuhTempo(jatuhTempo: string, sekarang: Date = new Date()): number {
@@ -48,4 +48,26 @@ export function pesanPengingatTunggakan(masukan: {
     `Saya ${masukan.namaSales}. Tagihan internet${paket} (ID ${masukan.idPelanggan}) jatuh tempo ${tempo} belum kami terima, sehingga layanan sementara terisolir.`,
     'Setelah pembayaran diterima, layanan otomatis aktif kembali. Bila sudah membayar, mohon abaikan pesan ini. Terima kasih.',
   ].join('\n\n');
+}
+
+/** Data lokasi & ringkasan pelanggan yang dipakai kartu pelanggan. */
+interface LokasiPelanggan {
+  paket: string | null;
+  idPelanggan: string;
+  alamat: string | null;
+  siteName: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+/** Satu baris keterangan kartu: paket · ID · alamat (atau site bila alamat kosong). */
+export function keteranganPelanggan(pelanggan: LokasiPelanggan): string {
+  return [pelanggan.paket, pelanggan.idPelanggan, pelanggan.alamat ?? pelanggan.siteName].filter(Boolean).join(' · ');
+}
+
+/** Tujuan peta: alamat, atau "lat,lng" bila alamat kosong; null bila keduanya tak ada. */
+export function tujuanPetaPelanggan(pelanggan: LokasiPelanggan): string | null {
+  if (pelanggan.alamat) return pelanggan.alamat;
+  if (pelanggan.latitude === null || pelanggan.longitude === null) return null;
+  return `${pelanggan.latitude},${pelanggan.longitude}`;
 }

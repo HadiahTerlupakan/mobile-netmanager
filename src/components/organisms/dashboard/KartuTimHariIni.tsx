@@ -1,10 +1,10 @@
 import { ChevronRight, Users } from 'lucide-react-native';
 import React from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
-import { KartuBagian } from '@/components/molecules/KartuBagian';
-import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 
+import { KartuBagian } from '@/components/molecules/KartuBagian';
 import { AvatarAnggota } from '@/components/organisms/presurvei/AvatarAnggota';
+import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 import {
   anggotaPerluPerhatian,
   persenSelesai,

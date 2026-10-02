@@ -4,6 +4,7 @@
  * kalender perangkat agar zona waktu tidak menggeser hari.
  */
 
+import { keTanggalKalender, MS_SEHARI } from '@/utils/date';
 import type { AttendanceUiStatus } from './attendanceStatus';
 
 export type NadaPengajuan = 'berhasil' | 'menunggu' | 'gagal' | 'netral';
@@ -44,7 +45,6 @@ export interface BarisPengajuan {
   status: { label: string; nada: NadaPengajuan };
 }
 
-const MS_SEHARI = 24 * 60 * 60 * 1000;
 export const JUMLAH_PENGAJUAN_BERANDA = 3;
 
 const LABEL_JENIS_IZIN: Readonly<Record<string, string>> = {
@@ -62,12 +62,6 @@ const STATUS_PENGAJUAN: Readonly<Record<string, { label: string; nada: NadaPenga
   REJECTED: { label: 'Ditolak', nada: 'gagal' },
 };
 
-/** "YYYY-MM-DD" kalender perangkat. */
-export function tanggalLokal(waktu: Date): string {
-  const bulan = String(waktu.getMonth() + 1).padStart(2, '0');
-  const hari = String(waktu.getDate()).padStart(2, '0');
-  return `${waktu.getFullYear()}-${bulan}-${hari}`;
-}
 
 function hariSaja(tanggal: string): string {
   return tanggal.slice(0, 10);
@@ -75,7 +69,7 @@ function hariSaja(tanggal: string): string {
 
 /** Libur hari ini, atau null. */
 export function liburHariIni(daftar: readonly HariLibur[], sekarang: Date): HariLibur | null {
-  const hariIni = tanggalLokal(sekarang);
+  const hariIni = keTanggalKalender(sekarang);
   return daftar.find((libur) => hariSaja(libur.date) === hariIni) ?? null;
 }
 
@@ -84,7 +78,7 @@ export function liburBerikutnya(
   daftar: readonly HariLibur[],
   sekarang: Date,
 ): { libur: HariLibur; sisaHari: number } | null {
-  const hariIni = tanggalLokal(sekarang);
+  const hariIni = keTanggalKalender(sekarang);
   const berikut = [...daftar]
     .filter((libur) => hariSaja(libur.date) > hariIni)
     .sort((a, b) => hariSaja(a.date).localeCompare(hariSaja(b.date)))[0];

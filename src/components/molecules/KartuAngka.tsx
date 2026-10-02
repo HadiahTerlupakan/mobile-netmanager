@@ -3,7 +3,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import tw from 'twrnc';
 
-import { useTemaPersona } from '@/theme';
+import { GAYA_ANGKA_TABULAR, useTemaPersona } from '@/theme';
 
 interface KartuAngkaProps {
   label: string;
@@ -13,9 +13,6 @@ interface KartuAngkaProps {
 }
 
 const UKURAN_IKON = 14;
-/** Angka sejajar per digit agar nominal mudah dibandingkan. */
-const GAYA_ANGKA = { fontVariant: ['tabular-nums' as const] };
-
 /** Kotak satu angka penting: ikon, label kecil, nilai tebal, keterangan. */
 export function KartuAngka({ label, nilai, keterangan, ikon: Ikon }: KartuAngkaProps) {
   const { tw: twTema, warna } = useTemaPersona();
@@ -29,7 +26,7 @@ export function KartuAngka({ label, nilai, keterangan, ikon: Ikon }: KartuAngkaP
         ) : null}
         <Text style={tw`flex-1 text-xs font-medium text-slate-500`}>{label}</Text>
       </View>
-      <Text style={[tw`text-lg font-bold text-slate-900 mt-2`, GAYA_ANGKA]} numberOfLines={1} adjustsFontSizeToFit>
+      <Text style={[tw`text-lg font-bold text-slate-900 mt-2`, GAYA_ANGKA_TABULAR]} numberOfLines={1} adjustsFontSizeToFit>
         {nilai}
       </Text>
       {keterangan ? <Text style={tw`text-xs text-slate-500 mt-1`}>{keterangan}</Text> : null}

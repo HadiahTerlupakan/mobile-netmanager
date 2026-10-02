@@ -32,6 +32,8 @@ import { presentErrorMessage, presentSuccessMessage } from '@/utils/errorPresent
 const OPSI_KATEGORI = PILIHAN_KATEGORI_KELUHAN.map(({ nilai, label }) => ({ nilai, label }));
 const OPSI_PRIORITAS = PILIHAN_PRIORITAS_KELUHAN.map(({ nilai, label }) => ({ nilai, label }));
 const TEKS_BUTUH_ONLINE = 'Mengirim keluhan butuh koneksi internet.';
+const TEKS_FOTO_GAGAL = 'Foto gagal diambil. Coba lagi.';
+const JUMLAH_BARIS_CERITA = 5;
 
 /**
  * Lapor keluhan atas nama pelanggan. Keluhan menjadi tiket yang ditangani
@@ -62,7 +64,11 @@ export default function LaporKeluhanScreen() {
     setNilai((sebelum) => ({ ...sebelum, [kunci]: isian }));
 
   const tambahFoto = async (sumber: SumberFoto) => {
-    const hasil = await ambilFotoKeluhan(sumber);
+    const hasil = await ambilFotoKeluhan(sumber).catch(() => null);
+    if (!hasil) {
+      presentErrorMessage(TEKS_FOTO_GAGAL);
+      return;
+    }
     if (hasil.status === 'izin-ditolak') {
       presentErrorMessage(PESAN_IZIN_FOTO_DITOLAK[sumber], 'Izin dibutuhkan');
       return;
@@ -154,7 +160,7 @@ export default function LaporKeluhanScreen() {
             kesalahan={kesalahan.deskripsi}
             placeholder="Tulis keluhan pelanggan"
             multiline
-            jumlahBaris={5}
+            jumlahBaris={JUMLAH_BARIS_CERITA}
             maxLength={DESKRIPSI_MAKS}
             isTampilPenghitung
           />

@@ -1,3 +1,4 @@
+import { keTanggalKalender } from '@/utils/date';
 import { describe, expect, it } from '@jest/globals';
 
 import {
@@ -7,7 +8,6 @@ import {
   liburBerikutnya,
   liburHariIni,
   statusPengajuan,
-  tanggalLokal,
 } from '@/utils/berandaStaff';
 
 const LIBUR = [
@@ -20,7 +20,7 @@ const SEKARANG = new Date(2026, 9, 2, 9, 0); // 2 Okt 2026 09.00 waktu perangkat
 
 describe('libur', () => {
   it('tanggal lokal berformat YYYY-MM-DD', () => {
-    expect(tanggalLokal(SEKARANG)).toBe('2026-10-02');
+    expect(keTanggalKalender(SEKARANG)).toBe('2026-10-02');
   });
 
   it('mengenali libur hari ini', () => {

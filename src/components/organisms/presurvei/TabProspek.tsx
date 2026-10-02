@@ -1,11 +1,10 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
 import { Users } from 'lucide-react-native';
+import React, { useState } from 'react';
 import { FlatList, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import tw from 'twrnc';
 
 import { EmptyState } from '@/components/atoms/EmptyState';
-
 import { PilihanChip } from '@/components/molecules/PilihanChip';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { SegmenPilihan } from '@/components/molecules/SegmenPilihan';

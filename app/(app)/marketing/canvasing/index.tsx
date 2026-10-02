@@ -25,6 +25,11 @@ import tw from "twrnc";
 import { KartuPoinCanvasing } from '@/components/organisms/canvasing/KartuPoinCanvasing';
 import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 
+/** Target canvasing per bulan bila profil belum menetapkannya. */
+const TARGET_CANVASING_BULANAN_BAWAAN = 50;
+/** Abu-abu ikon & placeholder sekunder (slate-400). */
+const WARNA_IKON_SEKUNDER = '#94a3b8';
+
 /** Jarak judul layar dari batas aman atas. */
 const JARAK_ATAS = 16;
 
@@ -124,7 +129,7 @@ const CanvasingItem = React.memo(({
 
       <View style={tw`flex-row items-center justify-between mt-1 pt-3 border-t border-slate-100`}>
         <View style={tw`flex-row items-center`}>
-          <Ionicons name="calendar" size={14} color="#94a3b8" />
+          <Ionicons name="calendar" size={14} color={WARNA_IKON_SEKUNDER} />
           <Text style={tw`text-xs text-slate-500 ml-1.5`}>
             {new Date(item.createdAt).toLocaleDateString("id-ID", {
               day: "2-digit",
@@ -163,7 +168,7 @@ const CanvasingItem = React.memo(({
             activeOpacity={0.7}
             style={tw`w-8 h-8 rounded-full bg-slate-50 items-center justify-center border border-slate-100`}
           >
-            <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
+            <Ionicons name="chevron-forward" size={14} color={WARNA_IKON_SEKUNDER} />
           </TouchableOpacity>
         </View>
       </View>
@@ -224,7 +229,7 @@ export default function CanvasingListScreen() {
   });
 
   const hasAccess = useMemo(
-    () => (profile?.features || []).includes("m_canvasing"),
+    () => (profile?.features || []).includes(AppFeature.CANVASING),
     [profile?.features],
   );
 
@@ -307,8 +312,7 @@ export default function CanvasingListScreen() {
     />
   ), [handleItemPress, handleClaimPress, getStatusUI, canClaimPoints, hasClaimPending, hasClaimApproved]);
 
-  const targetMonthly = profile?.canvasingTarget || 50;
-  const progressPerc = Math.min((stats.total / targetMonthly) * 100, 100);
+  const targetMonthly = profile?.canvasingTarget || TARGET_CANVASING_BULANAN_BAWAAN;
 
   const insets = useSafeAreaInsets();
 
@@ -363,7 +367,7 @@ export default function CanvasingListScreen() {
         <Ionicons name="search-outline" size={18} color={DESAIN_PREMIUM.ikonNetral} />
         <TextInput
           placeholder="Cari pelanggan atau alamat..."
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={WARNA_IKON_SEKUNDER}
           style={tw`flex-1 ml-3 h-11 text-slate-900 text-sm`}
           value={searchQuery}
           onChangeText={setSearchQuery}

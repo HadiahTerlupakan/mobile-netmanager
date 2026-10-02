@@ -12,7 +12,7 @@ interface TombolTambahProspekProps {
   onTekan: () => void;
 }
 
-/** Tombol biru menonjol untuk membuka form Tambah Prospek. */
+/** Tombol menonjol berwarna persona untuk membuka form Tambah Prospek. */
 export function TombolTambahProspek({ label, onTekan }: TombolTambahProspekProps) {
   const { tw } = useTemaPersona();
   return (

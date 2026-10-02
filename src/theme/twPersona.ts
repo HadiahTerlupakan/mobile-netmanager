@@ -1,6 +1,5 @@
 import { create, type TailwindFn } from 'twrnc';
 
-
 import { PALET_PERSONA, type PersonaTema, type WarnaTemaPersona } from './temaPersona';
 
 /**

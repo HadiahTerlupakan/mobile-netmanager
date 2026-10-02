@@ -13,6 +13,9 @@ interface DaftarPerluFollowUpProps {
   onBuka: (id: string) => void;
 }
 
+const UKURAN_IKON = 18;
+/** Hijau makna "beres" (emerald-600); sengaja tidak ikut warna persona. */
+const WARNA_IKON_BERES = '#059669';
 
 /** Huruf awal nama prospek untuk avatar ringkas. */
 function hurufAwal(nama: string): string {
@@ -30,7 +33,7 @@ export function DaftarPerluFollowUp({ prospek, onBuka }: DaftarPerluFollowUpProp
     >
       {prospek.length === 0 ? (
         <View style={tw`flex-row items-center rounded-xl bg-emerald-50 px-3 py-3`}>
-          <CheckCircle2 size={18} color="#059669" />
+          <CheckCircle2 size={UKURAN_IKON} color={WARNA_IKON_BERES} />
           <Text style={tw`text-sm text-emerald-700 ml-2`}>Tidak ada prospek yang menunggu.</Text>
         </View>
       ) : null}
@@ -38,6 +41,7 @@ export function DaftarPerluFollowUp({ prospek, onBuka }: DaftarPerluFollowUpProp
         <TouchableOpacity
           key={item.id}
           accessibilityRole="button"
+          accessibilityLabel={`Buka prospek ${item.nama}`}
           onPress={() => onBuka(item.id)}
           style={tw`flex-row items-center py-3 ${indeks < prospek.length - 1 ? 'border-b border-gray-100' : ''}`}
         >
@@ -50,7 +54,7 @@ export function DaftarPerluFollowUp({ prospek, onBuka }: DaftarPerluFollowUpProp
               {`${LABEL_STATUS_PROSPEK[item.status]} · terakhir ${formatDate(item.sentuhanTerakhir, 'dd MMM')}`}
             </Text>
           </View>
-          <ChevronRight size={18} color={DESAIN_PREMIUM.ikonNetral} />
+          <ChevronRight size={UKURAN_IKON} color={DESAIN_PREMIUM.ikonNetral} />
         </TouchableOpacity>
       ))}
     </KartuBagian>

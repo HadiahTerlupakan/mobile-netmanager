@@ -5,11 +5,9 @@ import tw from 'twrnc';
 
 import { LencanaStatus } from '@/components/molecules/LencanaStatus';
 import type { TampilanStatus } from '@/constants/investor';
-import { useTemaPersona } from '@/theme';
+import { GAYA_ANGKA_TABULAR, useTemaPersona } from '@/theme';
 
 const UKURAN_IKON = 18;
-const GAYA_ANGKA = { fontVariant: ['tabular-nums' as const] };
-
 interface BarisRiwayatUangProps {
   judul: string;
   tanggal: string;
@@ -33,7 +31,7 @@ export function BarisRiwayatUang({ judul, tanggal, nominal, status, ikon: Ikon, 
           <Text style={tw`text-sm font-bold text-slate-900`}>{judul}</Text>
           <Text style={tw`text-xs text-slate-500 mt-0.5`}>{tanggal}</Text>
         </View>
-        <Text style={[tw`text-base font-bold text-slate-900`, GAYA_ANGKA]}>{nominal}</Text>
+        <Text style={[tw`text-base font-bold text-slate-900`, GAYA_ANGKA_TABULAR]}>{nominal}</Text>
       </View>
       <View style={tw`flex-row items-center mt-3 ml-13`}>
         <LencanaStatus status={status} />

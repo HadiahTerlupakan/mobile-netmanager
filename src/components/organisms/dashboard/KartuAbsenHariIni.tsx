@@ -10,15 +10,18 @@ import { teksStatusAbsen } from '@/utils/presurvei/berandaSales';
 /** Rute layar Absensi, tempat check-in/out yang sebenarnya. */
 const RUTE_ABSENSI = '/(app)/absensi';
 const UKURAN_IKON = 22;
+const UKURAN_IKON_PANAH = 14;
 
 /** Kartu absen baca-saja; check-in/out tetap di layar Absensi (selfie, geofence). */
 export function KartuAbsenHariIni() {
   const { tw, warna } = useTemaPersona();
   const router = useRouter();
   const status = useStatusAbsenHariIni();
+  const teksStatus = teksStatusAbsen(status.data?.data ?? null);
   return (
     <TouchableOpacity
       accessibilityRole="button"
+      accessibilityLabel={`Absen hari ini: ${teksStatus}. Buka Absensi`}
       onPress={() => router.push(RUTE_ABSENSI)}
       style={tw`flex-row items-center bg-white rounded-2xl p-4 mx-4 mb-4 border border-gray-100 shadow-sm`}
     >
@@ -27,11 +30,11 @@ export function KartuAbsenHariIni() {
       </View>
       <View style={tw`flex-1`}>
         <Text style={tw`text-xs font-medium text-gray-500`}>Absen hari ini</Text>
-        <Text style={tw`text-base font-bold text-gray-900 mt-0.5`}>{teksStatusAbsen(status.data?.data ?? null)}</Text>
+        <Text style={tw`text-base font-bold text-gray-900 mt-0.5`}>{teksStatus}</Text>
       </View>
       <View style={tw`flex-row items-center bg-utama-sangat-muda rounded-full pl-3 pr-2 py-1.5`}>
         <Text style={tw`text-xs font-semibold text-utama-kuat`}>Buka Absensi</Text>
-        <ChevronRight size={14} color={warna.utama} />
+        <ChevronRight size={UKURAN_IKON_PANAH} color={warna.utama} />
       </View>
     </TouchableOpacity>
   );

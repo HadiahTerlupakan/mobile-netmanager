@@ -15,11 +15,15 @@ export function useSegarkanBeranda(kunciKueri: readonly QueryKey[]) {
 
   const segarkan = async () => {
     setIsMenyegarkan(true);
-    await Promise.all([
-      ...kunciKueri.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
-      refetchProfile(),
-    ]);
-    setIsMenyegarkan(false);
+    try {
+      await Promise.all([
+        ...kunciKueri.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+        refetchProfile(),
+      ]);
+    } finally {
+      // Indikator tarik-segarkan wajib berhenti walau salah satu muat ulang gagal.
+      setIsMenyegarkan(false);
+    }
   };
 
   return { isMenyegarkan, segarkan };

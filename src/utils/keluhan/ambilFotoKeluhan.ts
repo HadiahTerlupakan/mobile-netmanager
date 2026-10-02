@@ -1,5 +1,6 @@
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+
+import { perkecilFoto } from '@/utils/perkecilFoto';
 
 /** Lebar maksimal foto keluhan; cukup untuk melihat lampu modem / layar speedtest. */
 const LEBAR_FOTO = 1280;
@@ -32,9 +33,5 @@ export async function ambilFotoKeluhan(sumber: SumberFoto): Promise<HasilAmbilFo
     sumber === 'kamera' ? await ImagePicker.launchCameraAsync(opsi) : await ImagePicker.launchImageLibraryAsync(opsi);
   if (hasil.canceled || !hasil.assets[0]) return { status: 'batal' };
 
-  const diperkecil = await ImageManipulator.manipulateAsync(hasil.assets[0].uri, [{ resize: { width: LEBAR_FOTO } }], {
-    compress: KUALITAS_FOTO,
-    format: ImageManipulator.SaveFormat.JPEG,
-  });
-  return { status: 'ok', uri: diperkecil.uri };
+  return { status: 'ok', uri: await perkecilFoto(hasil.assets[0].uri, { lebar: LEBAR_FOTO, kualitas: KUALITAS_FOTO }) };
 }

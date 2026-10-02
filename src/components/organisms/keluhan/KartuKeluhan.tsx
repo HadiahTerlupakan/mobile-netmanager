@@ -8,6 +8,14 @@ import { labelKategoriKeluhan, statusKeluhan } from '@/constants/keluhan';
 import { statusWorkOrder } from '@/constants/workOrder';
 import type { KeluhanRingkas } from '@/types/keluhan';
 import { formatTimeAgo } from '@/utils/date';
+import { formatHariJadwal } from '@/utils/keluhan/langkahKeluhan';
+
+const UKURAN_IKON_WO = 12;
+const UKURAN_IKON_BUKA = 16;
+/** sky-700, senada teks baris WO. */
+const WARNA_IKON_WO = '#0369a1';
+/** slate-400 */
+const WARNA_IKON_BUKA = '#94a3b8';
 
 interface KartuKeluhanProps {
   keluhan: KeluhanRingkas;
@@ -16,18 +24,16 @@ interface KartuKeluhanProps {
   onTekan: (keluhan: KeluhanRingkas) => void;
 }
 
-const FORMAT_JADWAL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-
 /** Ringkasan WO yang menangani keluhan: nomor, status, teknisi, jadwal. */
 function BarisWo({ wo }: { wo: NonNullable<KeluhanRingkas['wo']> }) {
   const bagian = [
     statusWorkOrder(wo.status).label,
     wo.namaTeknisi,
-    wo.jadwal ? FORMAT_JADWAL.format(new Date(wo.jadwal)) : null,
+    wo.jadwal ? formatHariJadwal(wo.jadwal) : null,
   ].filter(Boolean);
   return (
     <View style={tw`flex-row items-center mt-2 bg-sky-50 rounded-lg px-2.5 py-1.5`}>
-      <Wrench size={12} color="#0369a1" />
+      <Wrench size={UKURAN_IKON_WO} color={WARNA_IKON_WO} />
       <Text style={tw`text-[11px] text-sky-800 ml-1.5 flex-1`} numberOfLines={1}>
         {`${wo.nomor} · ${bagian.join(' · ')}`}
       </Text>
@@ -62,7 +68,7 @@ export const KartuKeluhan = memo(({ keluhan, isTampilkanSales, onTekan }: KartuK
         <Text style={tw`flex-1 text-sm text-slate-700`} numberOfLines={1}>
           {keluhan.subjek}
         </Text>
-        <ChevronRight size={16} color="#94a3b8" />
+        <ChevronRight size={UKURAN_IKON_BUKA} color={WARNA_IKON_BUKA} />
       </View>
       <Text style={tw`text-xs text-slate-400 mt-0.5`} numberOfLines={1}>
         {`${keterangan} · ${formatTimeAgo(keluhan.diperbaruiPada)}`}

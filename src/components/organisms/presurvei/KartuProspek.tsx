@@ -16,6 +16,7 @@ export function KartuProspek({ prospek, onBuka }: KartuProspekProps) {
   return (
     <TouchableOpacity
       accessibilityRole="button"
+      accessibilityLabel={`Prospek ${prospek.nama}`}
       onPress={() => onBuka(prospek.id)}
       style={tw`bg-white rounded-xl p-3 mb-2 border border-gray-100`}
     >

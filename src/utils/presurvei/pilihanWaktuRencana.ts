@@ -1,4 +1,5 @@
 import { formatDate } from '@/utils/date';
+import { duaDigit } from './rencana';
 
 /**
  * Teks & pilihan tanggal/jam di form rencana. Ditulis untuk pengguna yang
@@ -32,17 +33,19 @@ export function tentukanPilihanJam(jam: string): PilihanJam {
   return jam === '' ? 'TANPA_JAM' : 'PAKAI_JAM';
 }
 
-/** "09:30" → "09.30" (penulisan jam yang lazim di Indonesia). */
-const tulisJam = (jam: string): string => jam.replace(':', '.');
+/** "09:30" → "09.30" (penulisan jam yang lazim di Indonesia), untuk tombol dan ringkasan. */
+export function tulisJamTampil(jam: string): string {
+  return jam.replace(':', '.');
+}
 
 /** Label tombol jam: "Pilih jam", atau jam terpilih supaya tombolnya menunjukkan isinya. */
 export function labelTombolJam(jam: string): string {
-  return jam === '' ? 'Pilih jam' : `Pukul ${tulisJam(jam)}`;
+  return jam === '' ? 'Pilih jam' : `Pukul ${tulisJamTampil(jam)}`;
 }
 
 /** Ringkasan jam di bawah tombol: arti pilihan saat ini dan cara menggantinya. */
 export function teksJamRingkas(jam: string): string {
-  return jam === '' ? 'Tidak pakai jam — boleh datang kapan saja di hari itu' : `Datang pukul ${tulisJam(jam)}. Ketuk tombol jam untuk mengganti.`;
+  return jam === '' ? 'Tidak pakai jam — boleh datang kapan saja di hari itu' : `Datang pukul ${tulisJamTampil(jam)}. Ketuk tombol jam untuk mengganti.`;
 }
 
 /** Kelompok jam di pemilih jam: judul bagian + daftar jam "HH:mm". */
@@ -54,7 +57,6 @@ export interface KelompokJam {
 /** Jarak antarpilihan jam, dalam menit. */
 const JARAK_SLOT_MENIT = 30;
 const MENIT_PER_JAM = 60;
-const PANJANG_DUA_DIGIT = 2;
 
 /** Rentang jam kerja lapangan per bagian hari: [jam awal, jam akhir terakhir yang ditawarkan]. */
 const BAGIAN_HARI: readonly { judul: string; dari: number; sampai: number }[] = [
@@ -63,8 +65,6 @@ const BAGIAN_HARI: readonly { judul: string; dari: number; sampai: number }[] = 
   { judul: 'Sore', dari: 15, sampai: 17 },
   { judul: 'Malam', dari: 18, sampai: 21 },
 ];
-
-const duaDigit = (angka: number): string => String(angka).padStart(PANJANG_DUA_DIGIT, '0');
 
 /**
  * Pilihan jam siap ketuk, dikelompokkan Pagi/Siang/Sore/Malam dengan jarak
@@ -80,9 +80,4 @@ export function daftarKelompokJam(): KelompokJam[] {
     }
     return { judul, daftarJam };
   });
-}
-
-/** "09:30" → "09.30" untuk tampilan tombol. */
-export function tulisJamTampil(jam: string): string {
-  return tulisJam(jam);
 }

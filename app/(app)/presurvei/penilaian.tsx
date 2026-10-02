@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 import { KepalaLayar } from '@/components/molecules/KepalaLayar';
-
 import { IsiTabPenilaian } from '@/components/organisms/penilaian/IsiTabPenilaian';
 import { ModalRincianAnggota } from '@/components/organisms/penilaian/ModalRincianAnggota';
 import { ModalRincianKepala } from '@/components/organisms/penilaian/ModalRincianKepala';
@@ -12,7 +11,6 @@ import { AppFeature } from '@/constants/features';
 import { useLayarPenilaian } from '@/hooks/presurvei/useLayarPenilaian';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { anggotaTimKepala, bacaTabPenilaian } from '@/utils/presurvei/tampilanPenilaian';
-
 
 /**
  * Penilaian kinerja per bulan, bertab sesuai jenis tampilan: sales biasa

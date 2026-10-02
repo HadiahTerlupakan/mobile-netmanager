@@ -11,6 +11,10 @@ import { DESAIN_PREMIUM } from '@/theme';
 const RUTE_TUNGGAKAN = '/(app)/pelanggan/tunggakan';
 /** Beranda hanya pratinjau; daftar lengkap lewat menu Tunggakan. */
 const JUMLAH_PRATINJAU = 2;
+const UKURAN_IKON_AMAN = 18;
+const UKURAN_IKON_BUKA = 16;
+/** emerald-600, senada teks pesan aman. */
+const WARNA_IKON_AMAN = '#059669';
 
 /**
  * Beranda sales/kepala sales: pelanggan isolir yang perlu ditindaklanjuti
@@ -33,7 +37,7 @@ export function KartuTunggakanBeranda({ isAktif }: { isAktif: boolean }) {
     >
       {data.total === 0 ? (
         <View style={tw`flex-row items-center rounded-xl bg-emerald-50 px-3 py-3`}>
-          <CheckCircle2 size={18} color="#059669" />
+          <CheckCircle2 size={UKURAN_IKON_AMAN} color={WARNA_IKON_AMAN} />
           <Text style={tw`text-sm text-emerald-700 ml-2`}>Tidak ada pelanggan yang menunggak.</Text>
         </View>
       ) : (
@@ -49,7 +53,7 @@ export function KartuTunggakanBeranda({ isAktif }: { isAktif: boolean }) {
           ))}
           <View style={tw`flex-row items-center justify-center pt-3`}>
             <Text style={tw`text-sm font-semibold text-slate-700 mr-1`}>Lihat semua & ingatkan</Text>
-            <ChevronRight size={16} color={DESAIN_PREMIUM.ikonNetral} />
+            <ChevronRight size={UKURAN_IKON_BUKA} color={DESAIN_PREMIUM.ikonNetral} />
           </View>
         </TouchableOpacity>
       )}

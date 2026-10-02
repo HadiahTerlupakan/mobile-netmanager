@@ -6,6 +6,7 @@ import { PresurveiService } from '@/services/PresurveiService';
 import type { MuatanBuatRencana, MuatanTugaskanRencana, MuatanUbahRencana } from '@/types/presurvei';
 import { presentAppError, presentErrorMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { isGalatKonflik } from '@/utils/galatIdempotensi';
+import { PESAN_RENCANA_DIBUAT } from '@/utils/presurvei/timRencana';
 import { createRequestId } from '@/utils/requestId';
 
 /**
@@ -26,6 +27,7 @@ export const PESAN_RENCANA_DITUTUP =
 
 const OPSI_BERSAMA = { retry: false, meta: { skipGlobalErrorToast: true } } as const;
 
+/** Muat ulang semua data presurvei setelah rencana berubah. */
 function useSegarkanPresurvei() {
   const queryClient = useQueryClient();
   return () => void queryClient.invalidateQueries({ queryKey: queryKeys.presurvei.all });
@@ -66,8 +68,6 @@ function useKunciPerNiat() {
 
 /** Muatan buat rencana: untuk diri sendiri, atau penugasan dari pemberi tugas. */
 type MuatanRencanaBaru = MuatanBuatRencana | MuatanTugaskanRencana;
-
-const PESAN_RENCANA_DIBUAT = 'Rencana dibuat';
 
 /**
  * Buat rencana MANDIRI, atau tugaskan ke sales lain (muatan dengan

@@ -42,3 +42,19 @@ describe('pesanPengingatTunggakan', () => {
     expect(pesan).toContain('September 2026');
   });
 });
+
+describe('keteranganPelanggan & tujuanPetaPelanggan', () => {
+  const { keteranganPelanggan, tujuanPetaPelanggan } = require('@/utils/kontak') as typeof import('@/utils/kontak');
+  const dasar = { paket: '20 Mbps', idPelanggan: '77001', alamat: null, siteName: 'Site A', latitude: null, longitude: null };
+
+  it('keterangan: paket · ID · alamat, jatuh ke site bila alamat kosong', () => {
+    expect(keteranganPelanggan({ ...dasar, alamat: 'Jl. Mawar 1' })).toBe('20 Mbps · 77001 · Jl. Mawar 1');
+    expect(keteranganPelanggan({ ...dasar, paket: null })).toBe('77001 · Site A');
+  });
+
+  it('tujuan peta: alamat, lalu koordinat, lalu null', () => {
+    expect(tujuanPetaPelanggan({ ...dasar, alamat: 'Jl. Mawar 1', latitude: -6.2, longitude: 106.8 })).toBe('Jl. Mawar 1');
+    expect(tujuanPetaPelanggan({ ...dasar, latitude: -6.2, longitude: 106.8 })).toBe('-6.2,106.8');
+    expect(tujuanPetaPelanggan({ ...dasar, latitude: -6.2 })).toBeNull();
+  });
+});

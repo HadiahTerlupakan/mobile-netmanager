@@ -38,7 +38,7 @@ export function BingkaiModalPenilaian({ judul, onTutup, onKembali, children }: B
             </TouchableOpacity>
           ) : null}
           <Text style={tw`flex-1 text-lg font-bold text-gray-900 mr-2`} numberOfLines={1}>{judul}</Text>
-          <TouchableOpacity accessibilityRole="button" onPress={onTutup} hitSlop={PERLUASAN_SENTUH} style={tw`px-3 py-1.5 bg-utama-sangat-muda rounded-full`}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tutup" onPress={onTutup} hitSlop={PERLUASAN_SENTUH} style={tw`px-3 py-1.5 bg-utama-sangat-muda rounded-full`}>
             <Text style={tw`text-utama-kuat font-semibold`}>Tutup</Text>
           </TouchableOpacity>
         </View>

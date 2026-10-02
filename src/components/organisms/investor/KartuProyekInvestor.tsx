@@ -5,14 +5,12 @@ import tw from 'twrnc';
 
 import { LencanaStatus } from '@/components/molecules/LencanaStatus';
 import { STATUS_PROYEK } from '@/constants/investor';
-import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
+import { DESAIN_PREMIUM, GAYA_ANGKA_TABULAR, useTemaPersona } from '@/theme';
 import { tampilanStatus } from '@/utils/investor';
 
 const UKURAN_IKON_LOKASI = 13;
 const UKURAN_IKON_PANAH = 18;
 const UKURAN_IKON_PROYEK = 20;
-const GAYA_ANGKA = { fontVariant: ['tabular-nums' as const] };
-
 interface KartuProyekInvestorProps {
   nama: string;
   lokasi?: string | null;
@@ -58,7 +56,7 @@ export function KartuProyekInvestor({ nama, lokasi, status, rincian = [], onTeka
           {rincian.map((baris) => (
             <View key={baris.label} style={tw`flex-1`}>
               <Text style={tw`text-[11px] font-medium text-slate-500`}>{baris.label}</Text>
-              <Text style={[tw`text-sm font-bold text-slate-900 mt-0.5`, GAYA_ANGKA]} numberOfLines={1} adjustsFontSizeToFit>
+              <Text style={[tw`text-sm font-bold text-slate-900 mt-0.5`, GAYA_ANGKA_TABULAR]} numberOfLines={1} adjustsFontSizeToFit>
                 {baris.nilai}
               </Text>
             </View>

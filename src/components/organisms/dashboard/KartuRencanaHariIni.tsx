@@ -1,13 +1,14 @@
 import { CalendarCheck, ChevronRight } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { KartuBagian, LencanaJudul } from '@/components/molecules/KartuBagian';
-import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 
+import { KartuBagian, LencanaJudul } from '@/components/molecules/KartuBagian';
 import { LABEL_JENIS_KEGIATAN } from '@/constants/presurvei';
 import type { Rencana } from '@/types/presurvei';
+import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 import { JUMLAH_RENCANA_BERIKUTNYA, rekapRencanaHariIni } from '@/utils/presurvei/rencana';
 
+const UKURAN_IKON_BARIS = 18;
 
 interface KartuRencanaHariIniProps {
   rencanaHariIni: readonly Rencana[];
@@ -54,7 +55,7 @@ export function KartuRencanaHariIni({ rencanaHariIni, jumlahTerlewat, onBuka, on
                 .join(' · ')}
             </Text>
           </View>
-          <ChevronRight size={18} color={DESAIN_PREMIUM.ikonNetral} />
+          <ChevronRight size={UKURAN_IKON_BARIS} color={DESAIN_PREMIUM.ikonNetral} />
         </TouchableOpacity>
       ))}
     </KartuBagian>

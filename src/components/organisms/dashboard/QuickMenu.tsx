@@ -63,6 +63,11 @@ interface MenuItem {
   hideWhenLocked?: boolean;
 }
 
+const UKURAN_IKON_MENU = 20;
+const UKURAN_IKON_GEMBOK = 10;
+const WARNA_IKON_TERKUNCI = '#9ca3af';
+const PERAN_SUPER_ADMIN = 'SUPER_ADMIN';
+
 /** Menu karyawan yang tidak berlaku bagi mitra (mitra tanpa absensi/cuti). */
 const MENU_BUKAN_UNTUK_MITRA: readonly IdMenuCepat[] = ['izin', 'lembur'];
 
@@ -107,7 +112,6 @@ const MENU_ITEMS: MenuItem[] = [
     route: "/(app)/izin",
     requiredFeatures: [AppFeature.IZIN],
   },
-
   {
     id: 'lembur',
     title: "Lembur",
@@ -209,6 +213,7 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 
+/** Kisi menu cepat Beranda: tile berizin bisa dibuka, yang tidak berizin tampil terkunci atau disembunyikan. */
 const QuickMenuComponent = ({
   features = [],
   role,
@@ -220,7 +225,7 @@ const QuickMenuComponent = ({
 
   // Check if user has a specific feature
   const hasFeature = useCallback((requiredFeatures: string[]) => {
-    if (role === "SUPER_ADMIN") return true;
+    if (role === PERAN_SUPER_ADMIN) return true;
     if (isMitra) return true; // Mitra has fixed menus — no permission check needed
     if (requiredFeatures.length === 0) return true;
     return requiredFeatures.some((f) => features.includes(f));
@@ -262,6 +267,9 @@ const QuickMenuComponent = ({
         {processedMenuItems.map((item) => (
           <TouchableOpacity
             key={item.id}
+            accessibilityRole="button"
+            accessibilityLabel={item.title}
+            accessibilityHint={item.enabled ? undefined : 'Terkunci, butuh izin akses'}
             onPress={() => handleMenuPress(item)}
             style={tw`w-[31%] mb-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm items-center ${!item.enabled ? "opacity-50" : ""}`}
           >
@@ -269,14 +277,14 @@ const QuickMenuComponent = ({
               style={tw`h-10 w-10 rounded-lg ${item.enabled ? item.color : "bg-gray-100"} items-center justify-center mb-2 relative`}
             >
               <item.icon
-                size={20}
-                color={item.enabled ? item.iconColor : "#9ca3af"}
+                size={UKURAN_IKON_MENU}
+                color={item.enabled ? item.iconColor : WARNA_IKON_TERKUNCI}
               />
               {!item.enabled && (
                 <View
                   style={tw`absolute -bottom-1 -right-1 bg-gray-400 rounded-full p-0.5`}
                 >
-                  <Lock size={10} color="white" />
+                  <Lock size={UKURAN_IKON_GEMBOK} color="white" />
                 </View>
               )}
             </View>

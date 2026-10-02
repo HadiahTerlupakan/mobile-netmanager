@@ -9,7 +9,7 @@ const SATU_JUTA = 1_000_000;
 const SATU_RIBU = 1_000;
 
 /** Angka dari nominal server (bisa string BigInt); tak terbaca → 0. */
-function keAngka(nilai: string | number | null | undefined): number {
+export function keAngka(nilai: string | number | null | undefined): number {
   const angka = Number(nilai ?? 0);
   return Number.isFinite(angka) ? angka : 0;
 }

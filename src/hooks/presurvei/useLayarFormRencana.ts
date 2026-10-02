@@ -34,6 +34,12 @@ function tanggalAwalForm(tanggalDiminta: string | null, hariIni: string): string
   return tanggalDiminta && tanggalDiminta >= hariIni ? tanggalDiminta : hariIni;
 }
 
+/** Kosongkan form menjadi rencana baru bertanggal `tanggalAwalForm` (dipanggil saat layar difokuskan). */
+function resetKeRencanaBaru(reset: FormRencana['reset'], tanggalDiminta: string | null): void {
+  const hariIniSaatFokus = keTanggalKalender(new Date());
+  reset(nilaiFormRencanaBaru(tanggalAwalForm(tanggalDiminta, hariIniSaatFokus)), null);
+}
+
 /**
  * Logika layar Buat Rencana. Form di-reset setiap kali layar difokuskan
  * (Tabs mempertahankan instance layar). Online saja: selama offline tombol
@@ -49,8 +55,7 @@ export function useLayarBuatRencana(isAktif: boolean, tanggalDiminta: string | n
 
   useFocusEffect(useCallback(() => {
     if (!isAktif) return;
-    const hariIniSaatFokus = keTanggalKalender(new Date());
-    reset(nilaiFormRencanaBaru(tanggalAwalForm(tanggalDiminta, hariIniSaatFokus)), null);
+    resetKeRencanaBaru(reset, tanggalDiminta);
   }, [isAktif, reset, tanggalDiminta]));
 
   const simpan = () => {
@@ -104,8 +109,7 @@ export function useLayarTugaskanRencana(
 
   useFocusEffect(useCallback(() => {
     if (!isAktif) return;
-    const hariIniSaatFokus = keTanggalKalender(new Date());
-    reset(nilaiFormRencanaBaru(tanggalAwalForm(tanggalDiminta, hariIniSaatFokus)), null);
+    resetKeRencanaBaru(reset, tanggalDiminta);
     setSalesId(salesIdAwal);
     setKesalahanSales(undefined);
   }, [isAktif, reset, salesIdAwal, tanggalDiminta]));

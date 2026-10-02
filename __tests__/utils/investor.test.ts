@@ -5,6 +5,7 @@ import {
   formatPersen,
   formatRupiah,
   isAkunInvestor,
+  labelBatangBulanProyek,
   labelBulanProyek,
   labelPeriode,
   tampilanStatus,
@@ -43,6 +44,14 @@ describe('utilitas investor', () => {
     expect(labelBulanProyek(1, '2026-06-01T00:00:00.000Z')).toBe('Bulan ke-1 · Jun 2026');
     expect(labelBulanProyek(13, '2026-06-01T00:00:00.000Z')).toBe('Bulan ke-13 · Jun 2027');
     expect(labelBulanProyek(3, null)).toBe('Bulan ke-3');
+    expect(labelBulanProyek(3, 'bukan-tanggal')).toBe('Bulan ke-3');
+  });
+
+  it('label batang grafik: nama bulan singkat, atau "B<n>" bila tanggal mulai tak diketahui/tak valid', () => {
+    expect(labelBatangBulanProyek(1, '2026-06-01T00:00:00.000Z')).toBe('Jun');
+    expect(labelBatangBulanProyek(13, '2026-06-01T00:00:00.000Z')).toBe('Jun');
+    expect(labelBatangBulanProyek(3, null)).toBe('B3');
+    expect(labelBatangBulanProyek(3, 'bukan-tanggal')).toBe('B3');
   });
 
   it('status yang belum dikenal aplikasi tetap tampil apa adanya', () => {

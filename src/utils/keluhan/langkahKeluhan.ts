@@ -16,11 +16,16 @@ const FORMAT_HARI = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'n
 
 const formatWaktu = (iso: string | null) => (iso ? FORMAT_TANGGAL.format(new Date(iso)) : null);
 
+/** Tanggal jadwal WO singkat, mis. "Sen, 5 Okt". */
+export function formatHariJadwal(iso: string): string {
+  return FORMAT_HARI.format(new Date(iso));
+}
+
 /** Keterangan langkah "Teknisi dijadwalkan": nomor WO, teknisi, dan jadwal. */
 function keteranganJadwal(keluhan: DetailKeluhan): string | null {
   const wo = keluhan.workOrders[0];
   if (!wo) return null;
-  const jadwal = wo.jadwal ? `${FORMAT_HARI.format(new Date(wo.jadwal))}${wo.jamJadwal ? ` ${wo.jamJadwal}` : ''}` : null;
+  const jadwal = wo.jadwal ? `${formatHariJadwal(wo.jadwal)}${wo.jamJadwal ? ` ${wo.jamJadwal}` : ''}` : null;
   return [wo.nomor, wo.namaTeknisi ?? 'teknisi belum ditentukan', jadwal].filter(Boolean).join(' · ');
 }
 

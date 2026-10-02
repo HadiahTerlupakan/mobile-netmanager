@@ -220,3 +220,15 @@ export const formatDateRaw = (
 
 // Re-export dayjs for direct usage when needed
 export { dayjs };
+
+/** Milidetik dalam satu hari. */
+export const MS_SEHARI = 24 * 60 * 60 * 1000;
+
+const PANJANG_DUA_DIGIT_TANGGAL = 2;
+
+/** "YYYY-MM-DD" menurut kalender perangkat (bukan UTC). */
+export function keTanggalKalender(tanggal: Date): string {
+  const bulan = String(tanggal.getMonth() + 1).padStart(PANJANG_DUA_DIGIT_TANGGAL, '0');
+  const hari = String(tanggal.getDate()).padStart(PANJANG_DUA_DIGIT_TANGGAL, '0');
+  return `${tanggal.getFullYear()}-${bulan}-${hari}`;
+}

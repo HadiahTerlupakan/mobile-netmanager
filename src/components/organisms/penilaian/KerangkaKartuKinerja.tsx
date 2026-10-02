@@ -7,6 +7,8 @@ import { KartuHeroGradien } from '@/components/molecules/KartuHeroGradien';
 import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 
 const UKURAN_IKON = 16;
+/** Redup ringan saat kartu ditekan; kartu bergradien tetap terbaca. */
+const OPASITAS_SAAT_DITEKAN = 0.85;
 
 interface KerangkaKartuKinerjaProps {
   judul: string;
@@ -26,7 +28,7 @@ export function KerangkaKartuKinerja({ judul, onBuka, children }: KerangkaKartuK
       accessibilityRole="button"
       accessibilityLabel={`${judul}, buka rincian penilaian`}
       onPress={onBuka}
-      activeOpacity={0.85}
+      activeOpacity={OPASITAS_SAAT_DITEKAN}
       style={tw`mb-3`}
     >
       <KartuHeroGradien>

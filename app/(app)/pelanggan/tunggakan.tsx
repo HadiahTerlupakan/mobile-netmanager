@@ -1,11 +1,12 @@
-import { Stack, useRouter } from "expo-router";
-import { AlertTriangle, ArrowLeft, MessageCircle, ShieldCheck } from "lucide-react-native";
+import { Stack } from "expo-router";
+import { MessageCircle, ShieldCheck } from "lucide-react-native";
 import React from "react";
-import { ActivityIndicator, RefreshControl, SectionList, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, RefreshControl, SectionList, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import tw from "twrnc";
 
-import { EmptyState } from "@/components/atoms/EmptyState";
+import { DaftarKosong } from "@/components/molecules/DaftarKosong";
+import { KepalaLayarDaftar } from "@/components/molecules/KepalaLayarDaftar";
 import { PelangganCard } from "@/components/molecules/PelangganCard";
 import { useAuth } from "@/context/AuthContext";
 import { useTunggakanPelanggan } from "@/hooks/queries/useTunggakanPelanggan";
@@ -32,7 +33,6 @@ function JudulKelompok({ kelompok }: { kelompok: KelompokTunggakan }) {
 export default function TunggakanPelangganScreen() {
   const { warna } = useTemaPersona();
   const { user } = useAuth();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data, isPending, isError, isRefetching, refetch } = useTunggakanPelanggan();
   const kelompok = data?.kelompok ?? [];
@@ -48,17 +48,10 @@ export default function TunggakanPelangganScreen() {
   return (
     <View style={[tw`flex-1`, { paddingTop: insets.top, backgroundColor: DESAIN_PREMIUM.latarLayar }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={tw`flex-row items-center px-4 pt-3 pb-2`}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Kembali" onPress={() => router.back()} style={tw`p-2 -ml-2 mr-1`}>
-          <ArrowLeft size={22} color="#0f172a" />
-        </TouchableOpacity>
-        <View style={tw`flex-1`}>
-          <Text style={tw`text-2xl font-bold text-slate-900`}>Tunggakan pelanggan</Text>
-          <Text style={tw`text-sm text-slate-500 mt-0.5`}>
-            {data ? `${data.total} pelanggan terisolir perlu ditindaklanjuti` : "Pelanggan terisolir karena tunggakan"}
-          </Text>
-        </View>
-      </View>
+      <KepalaLayarDaftar
+        judul="Tunggakan pelanggan"
+        subjudul={data ? `${data.total} pelanggan terisolir perlu ditindaklanjuti` : "Pelanggan terisolir karena tunggakan"}
+      />
 
       {isPending ? (
         <ActivityIndicator style={tw`mt-16`} color={warna.utamaKuat} />
@@ -82,11 +75,12 @@ export default function TunggakanPelangganScreen() {
             />
           )}
           ListEmptyComponent={
-            <EmptyState
-              ikon={isError ? AlertTriangle : ShieldCheck}
-              judul={isError ? "Gagal memuat" : "Tidak ada tunggakan"}
-              pesan={isError ? "Tarik ke bawah untuk mencoba lagi." : "Semua pelanggan Anda membayar tepat waktu."}
-              aksi={isError ? { label: "Coba lagi", onTekan: () => void refetch() } : undefined}
+            <DaftarKosong
+              isError={isError}
+              onCobaLagi={() => void refetch()}
+              ikon={ShieldCheck}
+              judul="Tidak ada tunggakan"
+              pesan="Semua pelanggan Anda membayar tepat waktu."
             />
           }
         />

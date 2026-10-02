@@ -10,6 +10,8 @@ interface LatarGradienProps {
 }
 
 const OPASITAS_ORNAMEN = 0.06;
+/** Ornamen putih samar, sama untuk semua persona. */
+const WARNA_ORNAMEN = '#ffffff';
 /** Ornamen relatif terhadap lebar kartu agar proporsional di semua layar. */
 const ORNAMEN = [
   { cx: 0.92, cy: -0.1, r: 0.38 },
@@ -51,7 +53,7 @@ export function LatarGradien({ dari, ke, isBerornamen = true }: LatarGradienProp
                   cx={ornamen.cx * ukuran.lebar}
                   cy={ornamen.cy * ukuran.tinggi}
                   r={ornamen.r * ukuran.lebar}
-                  fill="#ffffff"
+                  fill={WARNA_ORNAMEN}
                   fillOpacity={OPASITAS_ORNAMEN}
                 />
               ))

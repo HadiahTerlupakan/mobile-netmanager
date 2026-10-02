@@ -86,6 +86,9 @@ export interface BarisTimHariIni {
 
 const NAMA_SALES_CADANGAN = 'Sales';
 
+/** Toast sukses rencana MANDIRI (Buat Rencana, atau menugaskan diri sendiri). */
+export const PESAN_RENCANA_DIBUAT = 'Rencana dibuat';
+
 /**
  * Gabung rekap hari ini (total/selesai) dan rekap rentang lampau (terlewat).
  * Rekap satu hari tidak pernah punya terlewat — terlewat berarti tanggalnya
@@ -132,7 +135,7 @@ export function pesanSuksesTugaskan(
   daftarSales: readonly SalesRencana[],
   penggunaId: string | null,
 ): string {
-  if (salesId === penggunaId) return 'Rencana dibuat';
+  if (salesId === penggunaId) return PESAN_RENCANA_DIBUAT;
   const nama = daftarSales.find((sales) => sales.id === salesId)?.nama ?? NAMA_SALES_CADANGAN;
   return `Penugasan terkirim ke ${nama}`;
 }

@@ -7,6 +7,11 @@ import { useTemaPersona } from '@/theme';
 import type { LangkahKeluhan } from '@/utils/keluhan/langkahKeluhan';
 
 const UKURAN_TITIK = 22;
+const UKURAN_IKON_CENTANG = 12;
+/** slate-300: tepi titik langkah yang belum dicapai. */
+const WARNA_TEPI_BELUM = '#cbd5e1';
+/** slate-200: garis penghubung yang belum dilalui. */
+const WARNA_GARIS_BELUM = '#e2e8f0';
 
 /** Linimasa vertikal penanganan keluhan; langkah aktif berikutnya ditebalkan. */
 export function LinimasaKeluhan({ langkah }: { langkah: LangkahKeluhan[] }) {
@@ -27,13 +32,13 @@ export function LinimasaKeluhan({ langkah }: { langkah: LangkahKeluhan[] }) {
                   { width: UKURAN_TITIK, height: UKURAN_TITIK },
                   item.isSelesai
                     ? { backgroundColor: warna.utamaKuat, borderColor: warna.utamaKuat }
-                    : { backgroundColor: 'white', borderColor: isAktif ? warna.utamaKuat : '#cbd5e1' },
+                    : { backgroundColor: 'white', borderColor: isAktif ? warna.utamaKuat : WARNA_TEPI_BELUM },
                 ]}
               >
-                {item.isSelesai ? <Check size={12} color="white" strokeWidth={3} /> : null}
+                {item.isSelesai ? <Check size={UKURAN_IKON_CENTANG} color="white" strokeWidth={3} /> : null}
               </View>
               {isTerakhir ? null : (
-                <View style={[tw`w-0.5 flex-1 my-0.5`, { backgroundColor: item.isSelesai ? warna.utamaKuat : '#e2e8f0' }]} />
+                <View style={[tw`w-0.5 flex-1 my-0.5`, { backgroundColor: item.isSelesai ? warna.utamaKuat : WARNA_GARIS_BELUM }]} />
               )}
             </View>
             <View style={tw`flex-1 ${isTerakhir ? '' : 'pb-4'}`}>

@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 import { KepalaLayar } from '@/components/molecules/KepalaLayar';
-
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { AksiProspek } from '@/components/organisms/presurvei/AksiProspek';
 import { KartuRincianProspek } from '@/components/organisms/presurvei/KartuRincianProspek';

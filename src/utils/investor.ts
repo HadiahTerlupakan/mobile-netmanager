@@ -1,4 +1,5 @@
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
+import { keAngka } from '@/utils/rupiah';
 
 import type { User } from '@/context/AuthContext';
 import { PERAN_INVESTOR, type TampilanStatus } from '@/constants/investor';
@@ -10,7 +11,6 @@ export { formatRupiah, formatRupiahRingkas } from './rupiah';
 export function isAkunInvestor(user: Pick<User, 'role'> | null | undefined): boolean {
   return user?.role === PERAN_INVESTOR;
 }
-
 
 /** Persen dengan maksimal dua angka di belakang koma, gaya Indonesia (12,5%). */
 export function formatPersen(nilai: number | null | undefined): string {
@@ -26,14 +26,25 @@ export function tampilanStatus(
   return tabel[status] ?? { label: status, nada: 'netral' };
 }
 
+/** Tanggal bulan ke-n proyek (bulan ke-1 = bulan mulai); null bila tanggal mulai tak diketahui/tak valid. */
+function tanggalBulanKe(bulanKe: number, tanggalMulai: string | null): Dayjs | null {
+  if (!tanggalMulai || !dayjs(tanggalMulai).isValid()) return null;
+  return dayjs(tanggalMulai).add(bulanKe - 1, 'month');
+}
+
 /**
  * Label capaian bulan ke-n proyek: "Bulan ke-3 · Okt 2026" bila tanggal mulai
  * proyek diketahui, selain itu "Bulan ke-3".
  */
 export function labelBulanProyek(bulanKe: number, tanggalMulai: string | null): string {
   const label = `Bulan ke-${bulanKe}`;
-  if (!tanggalMulai || !dayjs(tanggalMulai).isValid()) return label;
-  return `${label} · ${dayjs(tanggalMulai).add(bulanKe - 1, 'month').format('MMM YYYY')}`;
+  const tanggal = tanggalBulanKe(bulanKe, tanggalMulai);
+  return tanggal ? `${label} · ${tanggal.format('MMM YYYY')}` : label;
+}
+
+/** Label singkat batang grafik bulan ke-n: "Okt" bila tanggal mulai diketahui, selain itu "B3". */
+export function labelBatangBulanProyek(bulanKe: number, tanggalMulai: string | null): string {
+  return tanggalBulanKe(bulanKe, tanggalMulai)?.format('MMM') ?? `B${bulanKe}`;
 }
 
 /**
@@ -49,11 +60,6 @@ export function labelPeriode(mulai: string, selesai: string): string {
 }
 
 const PERSEN_PENUH = 100;
-
-function keAngka(nilai: string | number | null | undefined): number {
-  const angka = Number(nilai ?? 0);
-  return Number.isFinite(angka) ? angka : 0;
-}
 
 /**
  * Bagian modal yang sudah kembali, 0–100 (dibatasi 100). Modal 0 atau tak

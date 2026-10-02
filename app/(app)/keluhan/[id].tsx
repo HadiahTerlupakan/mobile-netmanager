@@ -19,6 +19,12 @@ import { pesanKabarKeluhan, susunLangkahKeluhan } from '@/utils/keluhan/langkahK
 import { hubungiKontak } from '@/utils/kontak';
 
 const BALASAN_MAKS = 2000;
+const UKURAN_IKON_KIRIM = 18;
+const UKURAN_IKON_KABARI = 16;
+/** slate-400 */
+const WARNA_PLACEHOLDER = '#94a3b8';
+/** slate-300: tombol kirim nonaktif. */
+const WARNA_KIRIM_NONAKTIF = '#cbd5e1';
 
 /** Kotak balas helpdesk di bawah layar; nonaktif untuk keluhan yang sudah ditutup. */
 function KotakBalas({ keluhan }: { keluhan: DetailKeluhan }) {
@@ -38,7 +44,7 @@ function KotakBalas({ keluhan }: { keluhan: DetailKeluhan }) {
         value={pesan}
         onChangeText={setPesan}
         placeholder={keluhan.status === 'WAITING_CUSTOMER' ? 'Jawab pertanyaan helpdesk…' : 'Tambah info untuk helpdesk…'}
-        placeholderTextColor="#94a3b8"
+        placeholderTextColor={WARNA_PLACEHOLDER}
         multiline
         maxLength={BALASAN_MAKS}
         style={tw`flex-1 max-h-28 bg-slate-100 rounded-2xl px-3 py-2 text-slate-900`}
@@ -49,9 +55,9 @@ function KotakBalas({ keluhan }: { keluhan: DetailKeluhan }) {
         accessibilityState={{ disabled: !isBolehKirim }}
         disabled={!isBolehKirim}
         onPress={() => balas.mutate(pesan.trim())}
-        style={[tw`ml-2 w-10 h-10 rounded-full items-center justify-center`, { backgroundColor: isBolehKirim ? warna.utamaKuat : '#cbd5e1' }]}
+        style={[tw`ml-2 w-10 h-10 rounded-full items-center justify-center`, { backgroundColor: isBolehKirim ? warna.utamaKuat : WARNA_KIRIM_NONAKTIF }]}
       >
-        {balas.isPending ? <ActivityIndicator size="small" color="white" /> : <Send size={18} color="white" />}
+        {balas.isPending ? <ActivityIndicator size="small" color="white" /> : <Send size={UKURAN_IKON_KIRIM} color="white" />}
       </TouchableOpacity>
     </View>
   );
@@ -82,7 +88,7 @@ function RingkasanKeluhan({ keluhan, namaSales }: { keluhan: DetailKeluhan; nama
           onPress={() => hubungiKontak(noTelp, pesanKabarKeluhan(keluhan, namaSales))}
           style={tw`mt-3 flex-row items-center justify-center bg-utama-sangat-muda py-2.5 rounded-full`}
         >
-          <MessageCircle size={16} color={warna.utamaKuat} />
+          <MessageCircle size={UKURAN_IKON_KABARI} color={warna.utamaKuat} />
           <Text style={tw`font-semibold text-utama-kuat text-sm ml-1.5`}>Kabari pelanggan</Text>
         </TouchableOpacity>
       ) : null}

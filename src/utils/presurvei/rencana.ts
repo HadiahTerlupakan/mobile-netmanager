@@ -1,4 +1,5 @@
 import type { Rencana } from '@/types/presurvei';
+import { keTanggalKalender } from '@/utils/date';
 import type { KegiatanMenunggu } from './antreanKegiatan';
 
 /**
@@ -10,12 +11,11 @@ const PANJANG_DUA_DIGIT = 2;
 /** Jumlah rencana tertunda yang ditampilkan di kartu Beranda. */
 export const JUMLAH_RENCANA_BERIKUTNYA = 3;
 
-const duaDigit = (angka: number): string => String(angka).padStart(PANJANG_DUA_DIGIT, '0');
+/** Angka dua digit berawalan nol, mis. 7 → "07" (tanggal dan jam). */
+export const duaDigit = (angka: number): string => String(angka).padStart(PANJANG_DUA_DIGIT, '0');
 
-/** Tanggal kalender LOKAL perangkat sebagai "YYYY-MM-DD" (format `tanggal` rencana). */
-export function keTanggalKalender(tanggal: Date): string {
-  return `${tanggal.getFullYear()}-${duaDigit(tanggal.getMonth() + 1)}-${duaDigit(tanggal.getDate())}`;
-}
+/** Dipertahankan agar impor lama dari modul ini tetap jalan. */
+export { keTanggalKalender };
 
 /** Tanggal rencana (format `pola`) disertai jam bila ada, mis. "27 Sep · 13:30". */
 export function labelWaktuRencana(

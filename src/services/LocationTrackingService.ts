@@ -8,6 +8,7 @@
  */
 
 import { isAxiosError } from 'axios';
+import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { Storage } from '@/utils/storage';
 import { calculateDistance } from '@/utils/geo';
 import { getLocationConfig } from './locationTrackingConfig';
@@ -48,6 +49,7 @@ async function ambilTokenSesi(): Promise<string | null> {
     return tersimpan;
 }
 
+/** Galat 401: token sesi ditolak server. */
 function isTidakTerautentikasi(error: unknown): boolean {
     return isAxiosError(error) && error.response?.status === HTTP_UNAUTHORIZED;
 }
@@ -333,7 +335,7 @@ export class LocationTrackingService {
             const response = await kirimDenganSesi(() =>
                 api.post(`/api/mobile/location`, locationData, {
                     headers: { 'Content-Type': 'application/json' },
-                    timeout: 10000,
+                    timeout: HTTP_TIMEOUTS.short,
                     // 401 ditangani di sini (refresh sekali), bukan logout global
                     // — task background tidak boleh mengeluarkan pengguna.
                     skipGlobalAuthHandler: true,
@@ -419,7 +421,7 @@ export class LocationTrackingService {
             const response = await kirimDenganSesi(() =>
                 api.post(`/api/mobile/location`, { locations: pending }, {
                     headers: { 'Content-Type': 'application/json' },
-                    timeout: 30000,
+                    timeout: HTTP_TIMEOUTS.sync,
                     skipGlobalAuthHandler: true,
                 })
             );

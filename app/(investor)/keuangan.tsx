@@ -28,6 +28,7 @@ const OPSI_BAGIAN: readonly OpsiChip<BagianUang>[] = [
 
 const BAGIAN_BAWAAN: BagianUang = 'bagi-hasil';
 
+/** Penjaga tipe nilai `?bagian=` dari tautan notifikasi. */
 function isBagianUang(nilai: unknown): nilai is BagianUang {
   return OPSI_BAGIAN.some((opsi) => opsi.nilai === nilai);
 }
@@ -53,14 +54,18 @@ export default function KeuanganInvestorScreen() {
   useEffect(() => {
     if (isBagianUang(bagianTautan)) setBagian(bagianTautan);
   }, [bagianTautan]);
+
   const [isMenyegarkan, setIsMenyegarkan] = useState(false);
   useSegarkanDataInvestor();
   const Daftar = DAFTAR_PER_BAGIAN[bagian];
 
   const segarkan = async () => {
     setIsMenyegarkan(true);
-    await queryClient.invalidateQueries({ queryKey: queryKeys.investor.all });
-    setIsMenyegarkan(false);
+    try {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.investor.all });
+    } finally {
+      setIsMenyegarkan(false);
+    }
   };
 
   return (

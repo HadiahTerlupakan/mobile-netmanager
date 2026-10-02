@@ -10,7 +10,7 @@ interface JudulBagianProps {
   aksi?: { label: string; onTekan: () => void };
 }
 
-/** Judul bagian layar investor dengan tautan opsional di kanan. */
+/** Judul bagian layar (beranda, investor, presurvei) dengan tautan opsional di kanan. */
 export function JudulBagian({ judul, aksi }: JudulBagianProps) {
   const { tw: twTema } = useTemaPersona();
   return (

@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 import { KepalaLayar } from '@/components/molecules/KepalaLayar';
-
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { AksiRencana } from '@/components/organisms/presurvei/AksiRencana';
 import { KartuRincianRencana } from '@/components/organisms/presurvei/KartuRincianRencana';
@@ -15,7 +14,6 @@ import { AppFeature } from '@/constants/features';
 import { useLayarRincianRencana } from '@/hooks/presurvei/useLayarRincianRencana';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { hakAksesRencana } from '@/utils/presurvei/timRencana';
-
 
 /** Rincian rencana kunjungan: isi, laporan bila selesai, dan aksinya. Tujuan deep-link penugasan. */
 export default function RincianRencanaScreen() {

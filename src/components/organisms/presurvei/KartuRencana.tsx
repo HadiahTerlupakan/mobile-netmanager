@@ -5,7 +5,7 @@ import { useTemaPersona } from '@/theme';
 import { LABEL_JENIS_KEGIATAN, type RencanaStatusTampil } from '@/constants/presurvei';
 import type { Rencana } from '@/types/presurvei';
 import { formatDate } from '@/utils/date';
-import { hurufAwalNama } from '@/utils/presurvei/timRencana';
+import { AvatarAnggota } from './AvatarAnggota';
 import { IKON_JENIS_RENCANA } from './ikonJenisRencana';
 import { LencanaStatusRencana } from './LencanaStatusRencana';
 
@@ -56,9 +56,7 @@ function BarisSales({ nama }: { nama: string | null }) {
   const { tw } = useTemaPersona();
   return (
     <View style={tw`flex-row items-center mb-1.5`}>
-      <View style={tw`w-5 h-5 rounded-full bg-utama-sangat-muda items-center justify-center mr-1.5`}>
-        <Text style={tw`text-[10px] font-bold text-utama-kuat`}>{hurufAwalNama(nama)}</Text>
-      </View>
+      <AvatarAnggota nama={nama} ukuran="mini" />
       <Text style={tw`text-xs font-semibold text-gray-700 flex-1`} numberOfLines={1}>
         {nama ?? NAMA_SALES_KOSONG}
       </Text>
