@@ -72,7 +72,9 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Tes unit
-        run: npx jest --ci
+        # Worker dibatasi: di VM CI 16 vCPU beberapa job berbagi CPU; tanpa batas jest
+        # membuka ~15 worker per job dan tes ber-timeout 5 dtk tumbang karena antre CPU.
+        run: npx jest --ci --maxWorkers=4
 
       # Publish lewat `scripts/publish-update.sh`. OTA proyek ini TIDAK memakai
       # EAS Update: `app.config.ts` mengarahkan `updates.url` ke
