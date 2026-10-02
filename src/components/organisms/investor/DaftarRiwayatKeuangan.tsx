@@ -10,10 +10,21 @@ import {
   usePencairanInvestor,
   useSetoranModalInvestor,
 } from '@/hooks/queries/useInvestor';
+import type { BagiHasilInvestor } from '@/types/investor';
 import { formatDate } from '@/utils/date';
 import { formatPersen, formatRupiah, labelPeriode, tampilanStatus } from '@/utils/investor';
 
 const FORMAT_TANGGAL = 'd MMMM yyyy';
+
+/** Rincian nominal (bagi hasil + pengembalian modal) dan tanggal dibayar. */
+function catatanBagiHasil(bagi: BagiHasilInvestor): string | null {
+  const rincian =
+    bagi.capitalReturnAmount > 0
+      ? `Bagi hasil ${formatRupiah(bagi.shareAmount)} + pengembalian modal ${formatRupiah(bagi.capitalReturnAmount)}`
+      : null;
+  const dibayar = bagi.paidAt ? `Dibayar ${formatDate(bagi.paidAt, FORMAT_TANGGAL)}` : null;
+  return [rincian, dibayar].filter(Boolean).join(' · ') || null;
+}
 
 /** Riwayat bagi hasil per periode. */
 export function DaftarBagiHasil() {
@@ -29,11 +40,11 @@ export function DaftarBagiHasil() {
       {data.map((bagi) => (
         <BarisRiwayatUang
           key={bagi.id}
-          judul={labelPeriode(bagi.periodStart, bagi.periodEnd)}
-          tanggal={`Bagian saya ${formatPersen(bagi.sharePercent)} dari laba ${formatRupiah(bagi.netProfit)}`}
-          nominal={formatRupiah(bagi.shareAmount)}
+          judul={bagi.projectName ?? 'Bagi hasil'}
+          tanggal={`${labelPeriode(bagi.periodStart, bagi.periodEnd)} · bagian saya ${formatPersen(bagi.sharePercent)} dari laba ${formatRupiah(bagi.netProfit)}`}
+          nominal={formatRupiah(bagi.shareAmount + bagi.capitalReturnAmount)}
           status={tampilanStatus(STATUS_BAGI_HASIL, bagi.status)}
-          catatan={bagi.paidAt ? `Dibayar ${formatDate(bagi.paidAt, FORMAT_TANGGAL)}` : null}
+          catatan={catatanBagiHasil(bagi)}
         />
       ))}
     </KeadaanDaftar>

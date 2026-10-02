@@ -36,6 +36,10 @@ function IsiRincian({ proyek }: { proyek: RincianProyekInvestor }) {
         <KartuAngka label="Bagian bagi hasil saya" nilai={formatPersen(proyek.profitSharePercent)} />
       </View>
       <View style={tw`flex-row gap-3 mt-3`}>
+        <KartuAngka label="Bagi hasil saya dari proyek ini" nilai={formatRupiah(proyek.myTotalProfitShare)} />
+        <KartuAngka label="Modal saya yang sudah kembali" nilai={formatRupiah(proyek.myTotalCapitalReturn)} />
+      </View>
+      <View style={tw`flex-row gap-3 mt-3`}>
         <KartuAngka
           label="Pelanggan aktif"
           nilai={`${pelanggan.active} orang`}
@@ -57,7 +61,10 @@ function IsiRincian({ proyek }: { proyek: RincianProyekInvestor }) {
             <View style={tw`flex-1`}>
               <Text style={tw`font-semibold text-gray-900`}>{labelBulanProyek(bulan.month, proyek.startDate)}</Text>
               <Text style={tw`text-sm text-gray-900`}>Pendapatan {formatRupiah(bulan.achievedRevenue)}</Text>
-              <Text style={tw`text-xs text-gray-500 mt-0.5`}>Biaya operasional {formatRupiah(bulan.opex)}</Text>
+              <Text style={tw`text-xs text-gray-500 mt-0.5`}>Biaya operasional {formatRupiah(bulan.opexUsed)}</Text>
+              <Text style={tw`text-sm text-gray-900 mt-1`}>
+                Bagian saya: bagi hasil {formatRupiah(bulan.myProfitShare)} + modal kembali {formatRupiah(bulan.myCapitalReturn)}
+              </Text>
             </View>
           </View>
         ))

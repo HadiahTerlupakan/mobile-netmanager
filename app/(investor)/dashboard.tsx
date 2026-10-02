@@ -19,10 +19,19 @@ function IsiBeranda({ ringkasan }: { ringkasan: RingkasanInvestor }) {
   const pelanggan = ringkasan.subscribers;
   return (
     <View style={tw`px-4`}>
-      <KartuSaldoModal saldo={ringkasan.balance} bagiHasilSiapDibayar={ringkasan.profitShareAwaitingPayment} />
+      <KartuSaldoModal
+        modalDiProyek={ringkasan.totalInvestment}
+        jumlahProyek={ringkasan.activeProjectsCount}
+        uangDiterima={ringkasan.balance.totalPayout}
+        siapDibayar={ringkasan.amountAwaitingPayment}
+      />
 
       <View style={tw`flex-row gap-3 mt-4`}>
-        <KartuAngka label="Pendapatan proyek bagian saya" nilai={formatRupiah(ringkasan.totalActualRevenue)} />
+        <KartuAngka
+          label="Bagi hasil saya sejauh ini"
+          nilai={formatRupiah(ringkasan.totalActualRevenue)}
+          keterangan={`Modal kembali ${formatRupiah(ringkasan.totalCapitalReturned)}`}
+        />
         <KartuAngka
           label="Pelanggan aktif"
           nilai={`${pelanggan.active} orang`}

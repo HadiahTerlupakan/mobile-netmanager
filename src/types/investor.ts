@@ -18,12 +18,16 @@ export interface SaldoInvestor {
 export interface RingkasanInvestor {
   totalInvestment: string;
   totalProjectedRevenue: string;
+  /** Bagi hasil milik saya dari bulan-bulan aktual semua proyek (hitungan RAB). */
   totalActualRevenue: string;
+  /** Modal yang sudah kembali ke saya dari bulan-bulan aktual (hitungan RAB). */
+  totalCapitalReturned: string;
   activeProjectsCount: number;
   projects: { id: string; name: string; status: string; siteName: string }[];
   subscribers: PelangganProyekInvestor;
   balance: SaldoInvestor;
-  profitShareAwaitingPayment: number;
+  /** Bagi hasil disetujui + pengembalian modalnya yang belum dibayar. */
+  amountAwaitingPayment: number;
 }
 
 /** Satu proyek di daftar proyek investor. */
@@ -47,6 +51,12 @@ export interface CapaianBulananProyek {
   year: number;
   achievedRevenue: string;
   opex: string;
+  /** Biaya operasional yang dipakai hitungan RAB bulan ini. */
+  opexUsed: number;
+  /** Bagi hasil milik saya bulan ini. */
+  myProfitShare: number;
+  /** Pengembalian modal milik saya bulan ini. */
+  myCapitalReturn: number;
 }
 
 /** `GET /api/mobile/investor/projects/:id`. */
@@ -56,6 +66,8 @@ export interface RincianProyekInvestor extends ProyekInvestor {
   targetSubscribers: number | null;
   estimatedCurrentRevenue: string;
   actualAchievements: CapaianBulananProyek[];
+  myTotalProfitShare: number;
+  myTotalCapitalReturn: number;
   subscribers: PelangganProyekInvestor;
 }
 
@@ -73,11 +85,15 @@ export interface SetoranModalInvestor {
 /** Bagi hasil satu periode. */
 export interface BagiHasilInvestor {
   id: string;
+  /** Proyek sumber; null untuk bagi hasil lama berbasis setoran. */
+  projectName: string | null;
   periodStart: string;
   periodEnd: string;
   netProfit: number;
   sharePercent: number;
   shareAmount: number;
+  /** Pengembalian modal yang dibayar bersama bagi hasil ini. */
+  capitalReturnAmount: number;
   status: string;
   paidAt: string | null;
 }
