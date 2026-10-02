@@ -132,6 +132,21 @@ describe('tentukanPersonaTema', () => {
     expect(PALET_PERSONA.INVESTOR.utamaKuat).toBe('#047857');
   });
 
+  it('kepala sales (lingkup rencana TIM/SEMUA) memakai tema fuchsia, sales tim tetap biru', () => {
+    const sales = { role: 'KEPALA SALES', employeeType: 'KARYAWAN' as const, persona: 'SALES' as const };
+    expect(tentukanPersonaTema({ ...sales, lingkupRencana: 'TIM' })).toBe('KEPALA_SALES');
+    expect(tentukanPersonaTema({ ...sales, lingkupRencana: 'SEMUA' })).toBe('KEPALA_SALES');
+    expect(tentukanPersonaTema({ ...sales, lingkupRencana: 'SENDIRI' })).toBe('KARYAWAN_SALES');
+    expect(tentukanPersonaTema(sales)).toBe('KARYAWAN_SALES');
+    expect(PALET_PERSONA.KEPALA_SALES.utamaKuat).not.toBe(PALET_PERSONA.KARYAWAN_SALES.utamaKuat);
+  });
+
+  it('lingkup TIM pada persona non-sales tidak mengubah warnanya (mis. direktur)', () => {
+    expect(
+      tentukanPersonaTema({ role: 'DIREKTUR', employeeType: 'KARYAWAN', persona: 'DIREKTUR', lingkupRencana: 'SEMUA' }),
+    ).toBe('KARYAWAN_DIREKTUR');
+  });
+
   it('pelanggan memakai tema bawaan', () => {
     expect(tentukanPersonaTema({ role: 'CUSTOMER' })).toBe('KARYAWAN_SALES');
   });

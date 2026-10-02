@@ -1,10 +1,8 @@
 import React from 'react';
-import { Text, View } from 'react-native';
-import tw from 'twrnc';
 
 import type { PenilaianKepala } from '@/types/penilaian';
 import { daftarIndikatorKepala, formatSkor, indikatorTerlemah } from '@/utils/presurvei/penilaianKinerja';
-import { KerangkaKartuKinerja } from './KerangkaKartuKinerja';
+import { KerangkaKartuKinerja, PetunjukPerhatianGelap } from './KerangkaKartuKinerja';
 import { SkorDanPredikat } from './SkorDanPredikat';
 
 interface KartuKinerjaTimProps {
@@ -16,14 +14,7 @@ interface KartuKinerjaTimProps {
 function PetunjukPerhatian({ penilaian }: { penilaian: PenilaianKepala }) {
   const terlemah = indikatorTerlemah(daftarIndikatorKepala(penilaian.indikator));
   if (terlemah === null) return null;
-  return (
-    <View style={tw`rounded-xl bg-amber-50 px-3 py-2 mt-3`}>
-      <Text style={tw`text-xs text-amber-800`}>
-        <Text style={tw`font-semibold`}>Perlu perhatian: </Text>
-        {`${terlemah.label} (${formatSkor(terlemah.nilai)})`}
-      </Text>
-    </View>
-  );
+  return <PetunjukPerhatianGelap teks={`${terlemah.label} (${formatSkor(terlemah.nilai)})`} />;
 }
 
 /** Beranda kepala sales: skor kepala, predikat, jumlah anggota, dan indikator terlemah. */
@@ -34,6 +25,7 @@ export function KartuKinerjaTim({ penilaian, onBuka }: KartuKinerjaTimProps) {
         skor={penilaian.skor}
         predikat={penilaian.predikat}
         keterangan={`${penilaian.jumlahAnggota} anggota tim`}
+        isDiAtasGelap
       />
       <PetunjukPerhatian penilaian={penilaian} />
     </KerangkaKartuKinerja>

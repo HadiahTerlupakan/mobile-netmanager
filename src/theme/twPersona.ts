@@ -29,7 +29,7 @@ const twPerPersona = new Map<PersonaTema, TailwindFn>();
 
 /**
  * Instans twrnc untuk persona — dibuat sekali lalu dipakai ulang supaya cache
- * gaya twrnc tetap hangat (maksimal tujuh instans seumur aplikasi).
+ * gaya twrnc tetap hangat (maksimal sembilan instans seumur aplikasi).
  */
 export function ambilTwPersona(persona: PersonaTema): TailwindFn {
   const tersimpan = twPerPersona.get(persona);

@@ -163,8 +163,10 @@ export function useProfileSync({ enableBackgroundSync = false }: UseProfileSyncO
         // Profil tanpa `persona` (server lama) tidak menghapus persona dari login.
         const persona = profileData.persona ?? user.persona;
         const hasPersonaChanged = user.persona !== persona;
+        const lingkupRencana = profileData.lingkupRencana ?? user.lingkupRencana;
+        const hasLingkupChanged = user.lingkupRencana !== lingkupRencana;
 
-        if (hasNameChanged || hasFeaturesChanged || hasImageChanged || hasLeaveStatusChanged || hasVerificationChanged || hasPersonaChanged) {
+        if (hasNameChanged || hasFeaturesChanged || hasImageChanged || hasLeaveStatusChanged || hasVerificationChanged || hasPersonaChanged || hasLingkupChanged) {
             logger.info('[useProfileSync] Syncing fresh profile data to AuthContext');
 
             const updatedUser: User = {
@@ -175,6 +177,7 @@ export function useProfileSync({ enableBackgroundSync = false }: UseProfileSyncO
                 isOnLeave: profileData.isOnLeave,
                 requiresFaceVerification: profileData.requiresFaceVerification,
                 persona,
+                lingkupRencana,
             };
 
             updateUser(updatedUser);

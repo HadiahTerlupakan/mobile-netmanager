@@ -10,6 +10,7 @@ import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { SecureStorage, Storage } from '@/utils/storage';
 import { queryClient } from '@/lib/queryClient';
+import type { LingkupRencana } from '@/constants/presurvei';
 import type { PersonaKaryawanServer } from '@/utils/persona';
 import { isAkunInvestor } from '@/utils/investor';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -31,6 +32,8 @@ export type User = {
     isSales?: boolean;
     /** Persona karyawan dari server (login, `/me`, profil). Mitra & server lama tidak mengirimnya. */
     persona?: PersonaKaryawanServer;
+    /** Lingkup rencana dari profil; TIM/SEMUA = kepala sales/admin (tema kepala sales). */
+    lingkupRencana?: LingkupRencana;
     image?: string | null;
     workDays?: string | null;
     workingHourMode?: string | null;

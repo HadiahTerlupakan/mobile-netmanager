@@ -5,7 +5,7 @@ import tw from 'twrnc';
 import type { PenilaianKepala } from '@/types/penilaian';
 import { formatSkor, gayaPredikat, labelPredikat, predikatDariNilai } from '@/utils/presurvei/penilaianKinerja';
 import { ringkasKepala, type SebaranPredikat } from '@/utils/presurvei/tampilanPenilaian';
-import { KerangkaKartuKinerja } from './KerangkaKartuKinerja';
+import { KerangkaKartuKinerja, PetunjukPerhatianGelap } from './KerangkaKartuKinerja';
 import { SkorDanPredikat } from './SkorDanPredikat';
 
 interface KartuKinerjaTimSalesProps {
@@ -41,15 +41,11 @@ export function KartuKinerjaTimSales({ kepala, onBuka }: KartuKinerjaTimSalesPro
         skor={ringkasan.rataRataSkor}
         predikat={predikatDariNilai(ringkasan.rataRataSkor)}
         keterangan={`Rata-rata ${ringkasan.jumlah} kepala sales`}
+        isDiAtasGelap
       />
       <SebaranRingkas sebaran={ringkasan.sebaran} />
       {ringkasan.terendah ? (
-        <View style={tw`rounded-xl bg-amber-50 px-3 py-2 mt-3`}>
-          <Text style={tw`text-xs text-amber-800`}>
-            <Text style={tw`font-semibold`}>Perlu perhatian: </Text>
-            {`${ringkasan.terendah.nama} (${formatSkor(ringkasan.terendah.skor)})`}
-          </Text>
-        </View>
+        <PetunjukPerhatianGelap teks={`${ringkasan.terendah.nama} (${formatSkor(ringkasan.terendah.skor)})`} />
       ) : null}
     </KerangkaKartuKinerja>
   );

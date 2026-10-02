@@ -1,13 +1,17 @@
 import type { User } from '@/context/AuthContext';
 import { PERAN_INVESTOR } from '@/constants/investor';
+import { isPemberiTugas } from '@/utils/presurvei/timRencana';
 import { tentukanPersona, type Persona } from '@/utils/persona';
 
+/** Tema khusus kepala sales: persona tetap SALES (tata letak sama), hanya warnanya beda. */
+export const TEMA_KEPALA_SALES = 'KEPALA_SALES';
+
 /**
- * Pemilik tema: persona karyawan/mitra, atau investor. Investor bukan
+ * Pemilik tema: persona karyawan/mitra, investor, atau kepala sales. Investor bukan
  * `Persona` karena punya grup layar sendiri (`app/(investor)`) dan tidak
  * memakai Beranda/tab karyawan.
  */
-export type PersonaTema = Persona | typeof PERAN_INVESTOR;
+export type PersonaTema = Persona | typeof PERAN_INVESTOR | typeof TEMA_KEPALA_SALES;
 
 /**
  * Warna IDENTITAS satu persona: tombol utama, tab aktif, tautan, header aksen,
@@ -154,6 +158,23 @@ const WARNA_ZAMRUD: WarnaTemaPersona = {
   gradienAkhir: '#022c22',
 };
 
+/** Fuchsia tua — kepala sales (Head of Sales & Marketing), beda dari biru sales tim. */
+const WARNA_FUCHSIA: WarnaTemaPersona = {
+  utama: '#c026d3',
+  utamaKuat: '#a21caf',
+  utamaGelap: '#86198f',
+  utamaPekat: '#701a75',
+  utamaTerang: '#d946ef',
+  utamaLembut: '#e879f9',
+  utamaPucat: '#f0abfc',
+  utamaGaris: '#f5d0fe',
+  utamaMuda: '#fae8ff',
+  utamaSangatMuda: '#fdf4ff',
+  teksDiAtasUtama: PUTIH,
+  gradienAwal: '#86198f',
+  gradienAkhir: '#2e0530',
+};
+
 /** Palet per persona. Mitra memakai biru yang selama ini tampil di layar mitra. */
 export const PALET_PERSONA: Readonly<Record<PersonaTema, WarnaTemaPersona>> = {
   KARYAWAN_SALES: WARNA_BIRU,
@@ -164,6 +185,7 @@ export const PALET_PERSONA: Readonly<Record<PersonaTema, WarnaTemaPersona>> = {
   MITRA_SALES: WARNA_BIRU,
   MITRA_TEKNISI: WARNA_BIRU,
   INVESTOR: WARNA_ZAMRUD,
+  KEPALA_SALES: WARNA_FUCHSIA,
 };
 
 /** Persona yang dipakai saat belum login atau bukan karyawan/mitra (pelanggan). */
@@ -182,9 +204,12 @@ export function ambilTemaPersona(persona: PersonaTema): TemaPersona {
  * belum dimuat sebagai teknisi untuk tata letak.
  */
 export function tentukanPersonaTema(
-  user: Pick<User, 'role' | 'employeeType' | 'isSales' | 'persona'> | null | undefined,
+  user: Pick<User, 'role' | 'employeeType' | 'isSales' | 'persona' | 'lingkupRencana'> | null | undefined,
 ): PersonaTema {
   if (!user || user.role === PERAN_PELANGGAN) return PERSONA_TEMA_BAWAAN;
   if (user.role === PERAN_INVESTOR) return PERAN_INVESTOR;
-  return tentukanPersona(user);
+  const persona = tentukanPersona(user);
+  // Kepala sales/admin penjualan (lingkup rencana TIM/SEMUA) dibedakan warnanya dari sales tim.
+  if (persona === 'KARYAWAN_SALES' && isPemberiTugas(user.lingkupRencana)) return TEMA_KEPALA_SALES;
+  return persona;
 }
