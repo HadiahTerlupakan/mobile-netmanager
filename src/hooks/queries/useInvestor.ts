@@ -3,8 +3,11 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryClient';
 import { InvestorService } from '@/services/InvestorService';
 
-/** Angka keuangan investor berubah paling cepat harian; segar beberapa menit cukup. */
-const WAKTU_SEGAR_INVESTOR_MS = 5 * 60_000;
+/**
+ * Angka keuangan investor harus sama di semua layar; dianggap segar sebentar
+ * saja lalu dimuat ulang oleh `useSegarkanDataInvestor` saat layar dibuka.
+ */
+const WAKTU_SEGAR_INVESTOR_MS = 30_000;
 const HALAMAN_PERTAMA = 1;
 
 /** Ringkasan Beranda investor. */
