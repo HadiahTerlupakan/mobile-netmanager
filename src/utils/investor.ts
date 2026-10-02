@@ -59,3 +59,48 @@ export function labelPeriode(mulai: string, selesai: string): string {
   if (isSatuBulan) return formatDate(mulai, 'MMMM yyyy');
   return `${formatDate(mulai, 'd MMM yyyy')} – ${formatDate(selesai, 'd MMM yyyy')}`;
 }
+
+const PERSEN_PENUH = 100;
+const SATU_MILIAR = 1_000_000_000;
+const SATU_JUTA = 1_000_000;
+const SATU_RIBU = 1_000;
+
+function keAngka(nilai: string | number | null | undefined): number {
+  const angka = Number(nilai ?? 0);
+  return Number.isFinite(angka) ? angka : 0;
+}
+
+/**
+ * Bagian modal yang sudah kembali, 0–100 (dibatasi 100). Modal 0 atau tak
+ * terbaca dianggap 0% agar tidak membagi dengan nol.
+ */
+export function hitungPersenModalKembali(
+  modalKembali: string | number | null | undefined,
+  modal: string | number | null | undefined,
+): number {
+  const total = keAngka(modal);
+  if (total <= 0) return 0;
+  return Math.min(PERSEN_PENUH, Math.max(0, (keAngka(modalKembali) / total) * PERSEN_PENUH));
+}
+
+/** Imbal hasil bagi hasil terhadap modal (persen, bisa di atas 100). */
+export function hitungImbalHasil(
+  bagiHasil: string | number | null | undefined,
+  modal: string | number | null | undefined,
+): number {
+  const total = keAngka(modal);
+  if (total <= 0) return 0;
+  return (keAngka(bagiHasil) / total) * PERSEN_PENUH;
+}
+
+/** Rupiah ringkas untuk sumbu grafik: "Rp 4,5 jt", "Rp 850 rb". */
+export function formatRupiahRingkas(nilai: string | number | null | undefined): string {
+  const angka = keAngka(nilai);
+  const mutlak = Math.abs(angka);
+  const format = (n: number, satuan: string) =>
+    `Rp ${n.toLocaleString('id-ID', { maximumFractionDigits: 1 })} ${satuan}`;
+  if (mutlak >= SATU_MILIAR) return format(angka / SATU_MILIAR, 'M');
+  if (mutlak >= SATU_JUTA) return format(angka / SATU_JUTA, 'jt');
+  if (mutlak >= SATU_RIBU) return format(angka / SATU_RIBU, 'rb');
+  return `Rp ${angka.toLocaleString('id-ID')}`;
+}

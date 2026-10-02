@@ -14,7 +14,13 @@ let mockParam: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn() }),
   useLocalSearchParams: () => mockParam,
+  useFocusEffect: jest.fn(),
 }));
+jest.mock('react-native-svg', () => {
+  const { View } = require('react-native');
+  const Kosong = () => null;
+  return { __esModule: true, default: View, Defs: Kosong, LinearGradient: Kosong, Stop: Kosong, Rect: Kosong, Circle: Kosong };
+});
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'inv-1', name: 'Budi Santoso', role: 'INVESTOR' } }),
 }));
@@ -81,14 +87,16 @@ describe('layar investor', () => {
 
     expect(layar.getByText('Budi Santoso')).toBeTruthy();
     expect(layar.getByText(rp('50.000.000'))).toBeTruthy();
-    expect(layar.getByText('Modal saya di proyek')).toBeTruthy();
-    expect(layar.getByText('Ikut di 1 proyek')).toBeTruthy();
+    expect(layar.getByText('Total modal investasi')).toBeTruthy();
+    expect(layar.getByText('Di 1 proyek')).toBeTruthy();
     expect(layar.getByText(rp('2.000.000'))).toBeTruthy();
     expect(layar.getByText(rp('750.000'))).toBeTruthy();
     expect(layar.getByText('35 orang')).toBeTruthy();
-    expect(layar.getByText('Bagi hasil saya sejauh ini')).toBeTruthy();
+    expect(layar.getByText('Total bagi hasil')).toBeTruthy();
     expect(layar.getByText(rp('1.250.000'))).toBeTruthy();
-    expect(layar.getByText(/^Modal kembali Rp.900\.000$/)).toBeTruthy();
+    // Imbal hasil 1,25 jt / 50 jt = 2,5%; modal kembali 900 rb / 50 jt ≈ 2%
+    expect(layar.getByText('2,5%')).toBeTruthy();
+    expect(layar.getByText(/^Rp.900\.000 · 2%$/)).toBeTruthy();
     expect(layar.getByText('Jualan ke pelanggan')).toBeTruthy();
 
     fireEvent.press(layar.getByLabelText('Proyek Jaringan Desa Sukamaju'));
@@ -200,10 +208,18 @@ describe('layar investor', () => {
 
     expect(mockRincian).toHaveBeenCalledWith('rab-1');
     expect(layar.getByText('30%')).toBeTruthy();
-    expect(layar.getByText(rp('900.000'))).toBeTruthy();
-    expect(layar.getByText(rp('1.800.000'))).toBeTruthy();
+    // Total bagi hasil 900 rb juga = total bulan ke-2; modal kembali 1,8 jt juga = baris bulan ke-3
+    expect(layar.getAllByText(rp('900.000')).length).toBeGreaterThanOrEqual(1);
+    expect(layar.getAllByText(rp('1.800.000')).length).toBeGreaterThanOrEqual(1);
     const judulBulan = layar.getAllByText(/^Bulan ke-/).map((t) => t.props.children);
     expect(judulBulan).toEqual(['Bulan ke-3 · Agt 2026', 'Bulan ke-2 · Jul 2026']);
-    expect(layar.getByText(/^Bagian saya: bagi hasil Rp.600\.000 \+ modal kembali Rp.1\.200\.000$/)).toBeTruthy();
+    // Bulan ke-3: bagi hasil 600 rb + modal kembali 1,2 jt = 1,8 jt untuk saya
+    expect(layar.getByText(/^\+Rp.1\.800\.000$/)).toBeTruthy();
+    expect(layar.getByText(/^\+Rp.900\.000$/)).toBeTruthy();
+    expect(layar.getByText(rp('1.200.000'))).toBeTruthy();
+    expect(layar.getAllByText('Total untuk saya')).toHaveLength(2);
+    // 1,8 jt dari 6 jt modal = 30% kembali, sisa 4,2 jt
+    expect(layar.getByText('30% modal kembali')).toBeTruthy();
+    expect(layar.getByText(/^Sisa Rp.4\.200\.000$/)).toBeTruthy();
   });
 });

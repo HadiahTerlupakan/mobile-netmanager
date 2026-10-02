@@ -54,3 +54,17 @@ export const STATUS_PROYEK: Readonly<Record<string, TampilanStatus>> = {
   PENGGELARAN_JARINGAN: { label: 'Pasang jaringan', nada: 'menunggu' },
   PENJUALAN: { label: 'Jualan ke pelanggan', nada: 'berhasil' },
 };
+
+/**
+ * Warna tampilan investor bergaya private banking: kartu utama hijau zamrud
+ * pekat ke hijau-hitam, aksen emas untuk angka imbal hasil.
+ */
+export const DESAIN_INVESTOR = {
+  gradienAwal: '#065f46',
+  gradienAkhir: '#022c22',
+  aksenEmas: '#fbbf24',
+  teksLembutDiAtasGelap: '#a7f3d0',
+  garisDiAtasGelap: 'rgba(255,255,255,0.12)',
+  latarLayar: '#f8fafc',
+  ikonNetral: '#64748b',
+} as const;

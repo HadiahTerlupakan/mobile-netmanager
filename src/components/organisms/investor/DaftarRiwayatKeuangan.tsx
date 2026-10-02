@@ -1,3 +1,4 @@
+import { ArrowDownLeft, Landmark, TrendingUp } from 'lucide-react-native';
 import React from 'react';
 import { ActivityIndicator, TouchableOpacity, Text } from 'react-native';
 import tw from 'twrnc';
@@ -40,6 +41,7 @@ export function DaftarBagiHasil() {
       {data.map((bagi) => (
         <BarisRiwayatUang
           key={bagi.id}
+          ikon={TrendingUp}
           judul={bagi.projectName ?? 'Bagi hasil'}
           tanggal={`${labelPeriode(bagi.periodStart, bagi.periodEnd)} · bagian saya ${formatPersen(bagi.sharePercent)} dari laba ${formatRupiah(bagi.netProfit)}`}
           nominal={formatRupiah(bagi.shareAmount + bagi.capitalReturnAmount)}
@@ -65,6 +67,7 @@ export function DaftarSetoranModal() {
       {data.map((setoran) => (
         <BarisRiwayatUang
           key={setoran.id}
+          ikon={Landmark}
           judul={JENIS_SETORAN[setoran.depositType] ?? setoran.depositType}
           tanggal={formatDate(setoran.date, FORMAT_TANGGAL)}
           nominal={formatRupiah(setoran.amount)}
@@ -92,6 +95,7 @@ export function DaftarPencairan() {
       {daftar.map((cair) => (
         <BarisRiwayatUang
           key={cair.id}
+          ikon={ArrowDownLeft}
           judul="Uang dikirim ke saya"
           tanggal={formatDate(cair.date, FORMAT_TANGGAL)}
           nominal={formatRupiah(cair.amount)}

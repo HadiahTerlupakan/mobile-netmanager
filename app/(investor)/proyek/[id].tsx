@@ -1,22 +1,123 @@
+import dayjs from 'dayjs';
 import { useLocalSearchParams } from 'expo-router';
+import { MapPin, ReceiptText, Users } from 'lucide-react-native';
 import React from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
+import { LatarGradien } from '@/components/atoms/LatarGradien';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { KepalaLayar } from '@/components/molecules/KepalaLayar';
 import { LencanaStatus } from '@/components/molecules/LencanaStatus';
+import { BarisCapaianBulanan } from '@/components/organisms/investor/BarisCapaianBulanan';
+import { BilahKemajuan } from '@/components/organisms/investor/BilahKemajuan';
+import {
+  GrafikPendapatanBulanan,
+  type BatangBulanan,
+} from '@/components/organisms/investor/GrafikPendapatanBulanan';
+import { JudulBagian } from '@/components/organisms/investor/JudulBagian';
 import { KartuAngka } from '@/components/organisms/investor/KartuAngka';
 import { KeadaanDaftar } from '@/components/organisms/investor/KeadaanDaftar';
-import { STATUS_PROYEK } from '@/constants/investor';
+import { DESAIN_INVESTOR, STATUS_PROYEK } from '@/constants/investor';
 import { useRincianProyekInvestor } from '@/hooks/queries/useInvestor';
+import { useSegarkanDataInvestor } from '@/hooks/useSegarkanDataInvestor';
+import { useTemaPersona } from '@/theme';
 import type { CapaianBulananProyek, RincianProyekInvestor } from '@/types/investor';
-import { formatPersen, formatRupiah, labelBulanProyek, tampilanStatus } from '@/utils/investor';
+import {
+  formatPersen,
+  formatRupiah,
+  hitungPersenModalKembali,
+  labelBulanProyek,
+  tampilanStatus,
+} from '@/utils/investor';
+
+/** Jumlah bulan terakhir yang digambar di grafik. */
+const BULAN_DI_GRAFIK = 6;
+const UKURAN_IKON_LOKASI = 13;
+const GAYA_ANGKA = { fontVariant: ['tabular-nums' as const] };
 
 /** Capaian bulanan terbaru dulu (bulan ke-n terbesar). */
 function urutkanTerbaru(daftar: CapaianBulananProyek[]): CapaianBulananProyek[] {
   return [...daftar].sort((a, b) => b.month - a.month);
+}
+
+/** Batang grafik untuk beberapa bulan terakhir, urut lama → baru. */
+function susunBatang(terbaruDulu: CapaianBulananProyek[], tanggalMulai: string | null): BatangBulanan[] {
+  return terbaruDulu
+    .slice(0, BULAN_DI_GRAFIK)
+    .reverse()
+    .map((bulan) => ({
+      kunci: bulan.id,
+      label: tanggalMulai ? dayjs(tanggalMulai).add(bulan.month - 1, 'month').format('MMM') : `B${bulan.month}`,
+      pendapatan: Number(bulan.achievedRevenue) || 0,
+      bagianSaya: bulan.myProfitShare + bulan.myCapitalReturn,
+    }));
+}
+
+function KepalaProyek({ proyek }: { proyek: RincianProyekInvestor }) {
+  const teksLembut = { color: DESAIN_INVESTOR.teksLembutDiAtasGelap };
+  return (
+    <View style={tw`rounded-3xl overflow-hidden`}>
+      <LatarGradien dari={DESAIN_INVESTOR.gradienAwal} ke={DESAIN_INVESTOR.gradienAkhir} />
+      <View style={tw`p-5`}>
+        <LencanaStatus status={tampilanStatus(STATUS_PROYEK, proyek.status)} />
+        <Text style={tw`text-xl font-bold text-white mt-3`}>{proyek.name}</Text>
+        {proyek.siteName ? (
+          <View style={tw`flex-row items-center mt-1`}>
+            <MapPin size={UKURAN_IKON_LOKASI} color={DESAIN_INVESTOR.teksLembutDiAtasGelap} />
+            <Text style={[tw`text-xs ml-1`, teksLembut]}>{proyek.siteName}</Text>
+          </View>
+        ) : null}
+        {proyek.description ? <Text style={[tw`text-sm mt-3`, teksLembut]}>{proyek.description}</Text> : null}
+        <View style={[tw`flex-row mt-5 pt-4 border-t`, { borderColor: DESAIN_INVESTOR.garisDiAtasGelap }]}>
+          <View style={tw`flex-1`}>
+            <Text style={[tw`text-xs`, teksLembut]}>Modal saya</Text>
+            <Text style={[tw`text-lg font-bold text-white mt-0.5`, GAYA_ANGKA]}>
+              {formatRupiah(proyek.investmentAmount)}
+            </Text>
+          </View>
+          <View style={tw`items-end`}>
+            <Text style={[tw`text-xs`, teksLembut]}>Porsi bagi hasil</Text>
+            <Text style={[tw`text-lg font-bold mt-0.5`, GAYA_ANGKA, { color: DESAIN_INVESTOR.aksenEmas }]}>
+              {formatPersen(proyek.profitSharePercent)}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function KartuPengembalian({ proyek }: { proyek: RincianProyekInvestor }) {
+  const { warna } = useTemaPersona();
+  const persen = hitungPersenModalKembali(proyek.myTotalCapitalReturn, proyek.investmentAmount);
+  const sisaModal = Math.max(0, Number(proyek.investmentAmount) - proyek.myTotalCapitalReturn);
+  return (
+    <View style={tw`bg-white rounded-2xl p-4 border border-slate-200/70`}>
+      <View style={tw`flex-row`}>
+        <View style={tw`flex-1`}>
+          <Text style={tw`text-xs font-medium text-slate-500`}>Bagi hasil saya</Text>
+          <Text style={[tw`text-lg font-bold text-slate-900 mt-0.5`, GAYA_ANGKA]}>
+            {formatRupiah(proyek.myTotalProfitShare)}
+          </Text>
+        </View>
+        <View style={tw`flex-1 items-end`}>
+          <Text style={tw`text-xs font-medium text-slate-500`}>Modal sudah kembali</Text>
+          <Text style={[tw`text-lg font-bold text-slate-900 mt-0.5`, GAYA_ANGKA]}>
+            {formatRupiah(proyek.myTotalCapitalReturn)}
+          </Text>
+        </View>
+      </View>
+      <View style={tw`mt-4`}>
+        <BilahKemajuan persen={persen} warnaIsi={warna.utamaKuat} warnaLatar={warna.utamaSangatMuda} />
+        <View style={tw`flex-row justify-between mt-2`}>
+          <Text style={tw`text-xs font-semibold text-slate-700`}>{formatPersen(Math.round(persen))} modal kembali</Text>
+          <Text style={[tw`text-xs text-slate-500`, GAYA_ANGKA]}>Sisa {formatRupiah(sisaModal)}</Text>
+        </View>
+      </View>
+    </View>
+  );
 }
 
 function IsiRincian({ proyek }: { proyek: RincianProyekInvestor }) {
@@ -24,50 +125,43 @@ function IsiRincian({ proyek }: { proyek: RincianProyekInvestor }) {
   const capaian = urutkanTerbaru(proyek.actualAchievements);
   return (
     <View style={tw`px-4 pt-4`}>
-      <Text style={tw`text-xl font-bold text-gray-900`}>{proyek.name}</Text>
-      {proyek.siteName ? <Text style={tw`text-sm text-gray-500 mt-0.5`}>{proyek.siteName}</Text> : null}
-      <View style={tw`mt-2`}>
-        <LencanaStatus status={tampilanStatus(STATUS_PROYEK, proyek.status)} />
-      </View>
-      {proyek.description ? <Text style={tw`text-sm text-gray-700 mt-3`}>{proyek.description}</Text> : null}
+      <KepalaProyek proyek={proyek} />
 
-      <View style={tw`flex-row gap-3 mt-4`}>
-        <KartuAngka label="Modal saya di proyek ini" nilai={formatRupiah(proyek.investmentAmount)} />
-        <KartuAngka label="Bagian bagi hasil saya" nilai={formatPersen(proyek.profitSharePercent)} />
-      </View>
-      <View style={tw`flex-row gap-3 mt-3`}>
-        <KartuAngka label="Bagi hasil saya dari proyek ini" nilai={formatRupiah(proyek.myTotalProfitShare)} />
-        <KartuAngka label="Modal saya yang sudah kembali" nilai={formatRupiah(proyek.myTotalCapitalReturn)} />
-      </View>
-      <View style={tw`flex-row gap-3 mt-3`}>
+      <JudulBagian judul="Pengembalian untuk saya" />
+      <KartuPengembalian proyek={proyek} />
+
+      <JudulBagian judul="Pelanggan" />
+      <View style={tw`flex-row gap-3`}>
         <KartuAngka
+          ikon={Users}
           label="Pelanggan aktif"
           nilai={`${pelanggan.active} orang`}
           keterangan={proyek.targetSubscribers ? `Target ${proyek.targetSubscribers} orang` : undefined}
         />
         <KartuAngka
-          label="Sudah bayar bulan ini"
+          ikon={ReceiptText}
+          label="Bayar bulan ini"
           nilai={`${pelanggan.paying} orang`}
           keterangan={`Perkiraan pendapatan ${formatRupiah(proyek.estimatedCurrentRevenue)}`}
         />
       </View>
 
-      <Text style={tw`text-base font-bold text-gray-900 mt-6 mb-3`}>Hasil per bulan</Text>
+      <JudulBagian judul="Hasil per bulan" />
       {capaian.length === 0 ? (
-        <Text style={tw`text-gray-500`}>Belum ada laporan bulanan.</Text>
+        <Text style={tw`text-slate-500`}>Belum ada laporan bulanan.</Text>
       ) : (
-        capaian.map((bulan) => (
-          <View key={bulan.id} style={tw`flex-row bg-white rounded-xl p-4 border border-gray-100 mb-2`}>
-            <View style={tw`flex-1`}>
-              <Text style={tw`font-semibold text-gray-900`}>{labelBulanProyek(bulan.month, proyek.startDate)}</Text>
-              <Text style={tw`text-sm text-gray-900`}>Pendapatan {formatRupiah(bulan.achievedRevenue)}</Text>
-              <Text style={tw`text-xs text-gray-500 mt-0.5`}>Biaya operasional {formatRupiah(bulan.opexUsed)}</Text>
-              <Text style={tw`text-sm text-gray-900 mt-1`}>
-                Bagian saya: bagi hasil {formatRupiah(bulan.myProfitShare)} + modal kembali {formatRupiah(bulan.myCapitalReturn)}
-              </Text>
-            </View>
+        <>
+          <GrafikPendapatanBulanan batang={susunBatang(capaian, proyek.startDate)} />
+          <View style={tw`mt-3`}>
+            {capaian.map((bulan) => (
+              <BarisCapaianBulanan
+                key={bulan.id}
+                judul={labelBulanProyek(bulan.month, proyek.startDate)}
+                capaian={bulan}
+              />
+            ))}
           </View>
-        ))
+        </>
       )}
     </View>
   );
@@ -77,10 +171,11 @@ function IsiRincian({ proyek }: { proyek: RincianProyekInvestor }) {
 export default function RincianProyekInvestorScreen() {
   const { id = '' } = useLocalSearchParams<{ id: string }>();
   const { data, isLoading, isError, isRefetching, refetch } = useRincianProyekInvestor(id);
+  useSegarkanDataInvestor();
 
   return (
     <ScreenErrorBoundary screenName="RincianProyekInvestor">
-      <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top', 'bottom']}>
+      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_INVESTOR.latarLayar }]} edges={['top', 'bottom']}>
         <KepalaLayar judul="Rincian Proyek" />
         <ScrollView
           contentContainerStyle={tw`pb-8`}

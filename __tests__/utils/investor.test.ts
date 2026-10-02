@@ -50,3 +50,31 @@ describe('utilitas investor', () => {
     expect(tampilanStatus(STATUS_SETORAN, 'DIAUDIT')).toEqual({ label: 'DIAUDIT', nada: 'netral' });
   });
 });
+
+describe('hitungan pengembalian investor', () => {
+  const {
+    formatRupiahRingkas,
+    hitungImbalHasil,
+    hitungPersenModalKembali,
+  } = require('@/utils/investor') as typeof import('@/utils/investor');
+
+  it('persen modal kembali dibatasi 0–100 dan aman untuk modal 0', () => {
+    expect(hitungPersenModalKembali(2700000, '6000000')).toBe(45);
+    expect(hitungPersenModalKembali(9000000, 6000000)).toBe(100);
+    expect(hitungPersenModalKembali(100, 0)).toBe(0);
+    expect(hitungPersenModalKembali('bukan angka', 6000000)).toBe(0);
+  });
+
+  it('imbal hasil = bagi hasil / modal', () => {
+    expect(hitungImbalHasil('1350000', '6000000')).toBeCloseTo(22.5);
+    expect(hitungImbalHasil(1, null)).toBe(0);
+  });
+
+  it('rupiah ringkas untuk grafik', () => {
+    expect(formatRupiahRingkas(4500001)).toBe('Rp 4,5 jt');
+    expect(formatRupiahRingkas('12500001')).toBe('Rp 12,5 jt');
+    expect(formatRupiahRingkas(850000)).toBe('Rp 850 rb');
+    expect(formatRupiahRingkas(2_000_000_000)).toBe('Rp 2 M');
+    expect(formatRupiahRingkas(500)).toBe('Rp 500');
+  });
+});

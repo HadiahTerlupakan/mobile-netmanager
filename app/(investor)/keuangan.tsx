@@ -13,6 +13,8 @@ import {
   DaftarPencairan,
   DaftarSetoranModal,
 } from '@/components/organisms/investor/DaftarRiwayatKeuangan';
+import { DESAIN_INVESTOR } from '@/constants/investor';
+import { useSegarkanDataInvestor } from '@/hooks/useSegarkanDataInvestor';
 import { queryKeys } from '@/lib/queryClient';
 
 type BagianUang = 'bagi-hasil' | 'diterima' | 'modal';
@@ -51,6 +53,7 @@ export default function KeuanganInvestorScreen() {
     if (isBagianUang(bagianTautan)) setBagian(bagianTautan);
   }, [bagianTautan]);
   const [isMenyegarkan, setIsMenyegarkan] = useState(false);
+  useSegarkanDataInvestor();
   const Daftar = DAFTAR_PER_BAGIAN[bagian];
 
   const segarkan = async () => {
@@ -61,12 +64,15 @@ export default function KeuanganInvestorScreen() {
 
   return (
     <ScreenErrorBoundary screenName="KeuanganInvestor">
-      <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
+      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_INVESTOR.latarLayar }]} edges={['top']}>
         <ScrollView
           contentContainerStyle={tw`px-4 pb-8`}
           refreshControl={<RefreshControl refreshing={isMenyegarkan} onRefresh={() => void segarkan()} />}
         >
-          <Text style={tw`text-2xl font-bold text-gray-900 pt-4 pb-4`}>Uang Saya</Text>
+          <View style={tw`pt-4 pb-5`}>
+            <Text style={tw`text-2xl font-bold text-slate-900`}>Uang Saya</Text>
+            <Text style={tw`text-sm text-slate-500 mt-0.5`}>Bagi hasil, pencairan, dan setoran modal</Text>
+          </View>
           <SegmenPilihan opsi={OPSI_BAGIAN} terpilih={bagian} onPilih={setBagian} />
           <View style={tw`mt-4`}>
             <Daftar />
