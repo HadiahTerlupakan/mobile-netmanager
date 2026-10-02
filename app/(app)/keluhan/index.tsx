@@ -42,12 +42,13 @@ function SaringanSales({
     </TouchableOpacity>
   );
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tw`px-4 pb-2`}>
+    // flexGrow 0: tanpa ini ScrollView horizontal mengisi sisa tinggi layar dan chip ikut memanjang.
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={tw`flex-grow-0`} contentContainerStyle={tw`px-4 pb-2 items-center`}>
       {chip('semua', 'Semua sales', terpilih === undefined, () => onPilih(undefined))}
       {ringkasan.map((item) =>
         chip(
           item.salesId ?? 'tanpa',
-          `${item.namaSales} · ${item.jumlahTerbuka}`,
+          `${item.namaSales} · ${item.jumlahTerbuka} berjalan`,
           item.salesId !== null && terpilih === item.salesId,
           item.salesId ? () => onPilih(item.salesId as string) : undefined,
         ),

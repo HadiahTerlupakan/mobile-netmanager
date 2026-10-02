@@ -81,7 +81,7 @@ export default function PelangganSayaScreen() {
             returnKeyType="search"
           />
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={tw`mt-2 -mx-4`} contentContainerStyle={tw`px-4`}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={tw`mt-2 -mx-4 flex-grow-0`} contentContainerStyle={tw`px-4 items-center`}>
           <View style={tw`flex-row`}>
             <PilihanChip opsi={OPSI_STATUS} terpilih={status} onPilih={setStatus} />
           </View>
