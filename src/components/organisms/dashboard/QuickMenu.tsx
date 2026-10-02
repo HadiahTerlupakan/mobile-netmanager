@@ -12,8 +12,10 @@ import {
   LucideIcon,
   Map,
   MessageCircle,
+  MessageSquareWarning,
   PackageMinus,
   ReceiptText,
+  Users,
   WifiOff
 } from "lucide-react-native";
 import React, { useCallback, useMemo } from "react";
@@ -32,13 +34,15 @@ export type IdMenuCepat =
   | 'canvasing'
   | 'isolir'
   | 'presurvei'
-  | 'tunggakan';
+  | 'tunggakan'
+  | 'pelanggan-saya'
+  | 'keluhan';
 
 interface QuickMenuProps {
   features?: string[];
   role?: string;
   isMitra?: boolean;
-  /** Bila diisi, hanya menu ini yang tampil (izin tetap diperiksa). */
+  /** Bila diisi, hanya menu ini yang tampil, sesuai urutannya (izin tetap diperiksa). */
   menuIds?: readonly IdMenuCepat[];
   /** Sembunyikan semua menu yang tidak berizin (bukan tampil terkunci). */
   isSembunyikanTerkunci?: boolean;
@@ -181,6 +185,28 @@ const MENU_ITEMS: MenuItem[] = [
     requiredFeatures: [AppFeature.PRESURVEI],
     internalOnly: true,
   },
+  {
+    id: 'pelanggan-saya',
+    title: "Pelanggan Saya",
+    subtitle: "Kontak & status",
+    icon: Users,
+    color: "bg-indigo-50",
+    iconColor: "#4f46e5",
+    route: "/(app)/pelanggan/saya",
+    requiredFeatures: [AppFeature.PRESURVEI],
+    internalOnly: true,
+  },
+  {
+    id: 'keluhan',
+    title: "Keluhan",
+    subtitle: "Lapor & pantau",
+    icon: MessageSquareWarning,
+    color: "bg-amber-50",
+    iconColor: "#d97706",
+    route: "/(app)/keluhan",
+    requiredFeatures: [AppFeature.PRESURVEI],
+    internalOnly: true,
+  },
 ];
 
 const QuickMenuComponent = ({
@@ -205,6 +231,8 @@ const QuickMenuComponent = ({
       MENU_ITEMS
         .filter((item) => !isMitra || (!item.internalOnly && !MENU_BUKAN_UNTUK_MITRA.includes(item.id)))
         .filter((item) => menuIds === undefined || menuIds.includes(item.id))
+        // Urutan tile mengikuti menuIds bila diberikan (menu terpenting persona di depan).
+        .sort((a, b) => (menuIds ? menuIds.indexOf(a.id) - menuIds.indexOf(b.id) : 0))
         .map((item) => ({
           ...item,
           enabled: hasFeature(item.requiredFeatures),

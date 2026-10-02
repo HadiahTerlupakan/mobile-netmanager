@@ -87,7 +87,7 @@ describe('KaryawanSalesDashboardScreen', () => {
     mockPropsHeader = {};
   });
 
-  it('menu cepat sales: Chat, Izin/Cuti, Kalender Libur — tanpa Lembur', () => {
+  it('menu cepat sales: Pelanggan saya, Keluhan, Tunggakan, Chat, Izin/Cuti, Kalender Libur — tanpa Lembur', () => {
     mockUseAuth.mockReturnValue(sales(['m_chat', 'm_izin']));
 
     render(<KaryawanSalesDashboardScreen />);
@@ -96,7 +96,7 @@ describe('KaryawanSalesDashboardScreen', () => {
       features: ['m_chat', 'm_izin'],
       role: 'SALES',
       isMitra: false,
-      menuIds: ['tunggakan', 'chat', 'izin', 'holidays'],
+      menuIds: ['pelanggan-saya', 'keluhan', 'tunggakan', 'chat', 'izin', 'holidays'],
     });
   });
 

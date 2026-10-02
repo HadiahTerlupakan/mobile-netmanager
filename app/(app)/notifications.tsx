@@ -19,6 +19,7 @@ import {
   CalendarCheck,
   Clock,
   Megaphone,
+  MessageSquareWarning,
   Package,
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useRef } from "react";
@@ -72,6 +73,8 @@ const NotificationItem = React.memo(({ item, onPress }: { item: Notification, on
         return <Megaphone size={20} color="#ec4899" />;
       case "PRESURVEI_RENCANA":
         return <CalendarCheck size={20} color="#2563eb" />;
+      case "KELUHAN":
+        return <MessageSquareWarning size={20} color="#d97706" />;
       default:
         return <Bell size={20} color="#6b7280" />;
     }
@@ -236,6 +239,9 @@ export default function NotificationsScreen() {
       case "INVENTORY": router.push("/(app)/barang"); break;
       case "PRESURVEI_RENCANA":
         router.push(notification.sourceId ? `/(app)/presurvei/rencana/${notification.sourceId}` as Href : "/(app)/presurvei");
+        break;
+      case "KELUHAN":
+        router.push(notification.sourceId ? `/(app)/keluhan/${notification.sourceId}` as Href : "/(app)/keluhan");
         break;
       default: router.push("/(app)/dashboard"); break;
     }

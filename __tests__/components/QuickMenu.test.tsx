@@ -85,6 +85,22 @@ describe('QuickMenu', () => {
     expect(queryByText('Presurvei')).toBeNull();
   });
 
+  it('urutan tile mengikuti menuIds; Pelanggan Saya & Keluhan membuka layarnya', () => {
+    const { getAllByText, getByText } = renderMenu({
+      isMitra: false,
+      features: [AppFeature.CHAT, AppFeature.PRESURVEI],
+      menuIds: ['keluhan', 'pelanggan-saya', 'chat'],
+    });
+
+    const judul = getAllByText(/^(Keluhan|Pelanggan Saya|Chat)$/).map((node) => node.props.children);
+    expect(judul).toEqual(['Keluhan', 'Pelanggan Saya', 'Chat']);
+
+    fireEvent.press(getByText('Keluhan'));
+    expect(mockPush).toHaveBeenCalledWith('/(app)/keluhan');
+    fireEvent.press(getByText('Pelanggan Saya'));
+    expect(mockPush).toHaveBeenCalledWith('/(app)/pelanggan/saya');
+  });
+
   it('mitra tetap tidak melihat Izin & Cuti dan Lembur', () => {
     // Dulu disaring lewat judul (QuickMenu.tsx:147); kini lewat id.
     const { queryByText } = renderMenu({ isMitra: true, features: [] });

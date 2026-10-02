@@ -1,3 +1,4 @@
+import type { HalamanPelangganSaya, StatusPelangganSaya } from "@/types/pelangganSaya";
 import type { RingkasanTunggakan } from "@/types/tunggakan";
 import api from "./api";
 
@@ -60,4 +61,17 @@ export async function ambilTunggakanPelanggan(): Promise<RingkasanTunggakan> {
     "/api/mobile/pelanggan/tunggakan",
   );
   return (response.data.data ?? response.data) as RingkasanTunggakan;
+}
+
+/** Satu halaman pelanggan yang dipegang sales (lingkup diri/tim/semua diputuskan server). */
+export async function ambilPelangganSaya(params: {
+  cari?: string;
+  status?: StatusPelangganSaya;
+  page: number;
+  limit: number;
+}): Promise<HalamanPelangganSaya> {
+  const response = await api.get<{ data: HalamanPelangganSaya }>("/api/mobile/pelanggan/saya", {
+    params: Object.fromEntries(Object.entries(params).filter(([, nilai]) => nilai !== undefined && nilai !== "")),
+  });
+  return response.data.data;
 }

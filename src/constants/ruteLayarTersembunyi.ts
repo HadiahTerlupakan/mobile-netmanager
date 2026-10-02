@@ -19,6 +19,11 @@ export const RUTE_LAYAR_TERSEMBUNYI: readonly RuteLayarTersembunyi[] = [
   { nama: 'topology-map', isLayarPenuh: false },
   { nama: 'pelanggan/isolir', isLayarPenuh: false },
   { nama: 'pelanggan/tunggakan', isLayarPenuh: true },
+  { nama: 'pelanggan/saya', isLayarPenuh: true },
+  // Keluhan pelanggan lewat sales — dibuka dari menu cepat / notifikasi
+  { nama: 'keluhan/index', isLayarPenuh: true },
+  { nama: 'keluhan/lapor', isLayarPenuh: true },
+  { nama: 'keluhan/[id]', isLayarPenuh: true },
   { nama: 'complete-work-order/[id]', isLayarPenuh: true },
   { nama: 'kembalikan-barang/[id]', isLayarPenuh: true },
   // Chat — dibuka dari menu cepat

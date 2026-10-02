@@ -3,11 +3,10 @@ import React, { memo } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import tw from "twrnc";
 
-import { DESAIN_PREMIUM, GAYA_ANGKA_TABULAR, useTemaPersona } from "@/theme";
+import { TombolIkonBulat as TombolIkon } from "@/components/molecules/TombolIkonBulat";
+import { GAYA_ANGKA_TABULAR, useTemaPersona } from "@/theme";
 import { formatDate } from "@/utils/date";
 import { bukaAlamatDiPeta, hariLewatJatuhTempo, hubungiKontak } from "@/utils/kontak";
-
-const UKURAN_IKON = 16;
 
 /** Data minimal kartu: cocok untuk daftar isolir maupun daftar tunggakan sales. */
 export interface DataKartuPelanggan {
@@ -27,20 +26,6 @@ interface PelangganCardProps {
   pelanggan: DataKartuPelanggan;
   /** Tombol utama kartu, mis. "Ajukan WO" (teknisi) atau "Ingatkan" (sales). */
   aksi: { label: string; ikon: LucideIcon; onTekan: () => void; isNonaktif?: boolean };
-}
-
-/** Tombol ikon bulat kecil (telepon, peta). */
-function TombolIkon({ ikon: Ikon, label, onTekan }: { ikon: LucideIcon; label: string; onTekan: () => void }) {
-  return (
-    <TouchableOpacity
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onTekan}
-      style={tw`w-9 h-9 rounded-full bg-slate-100 items-center justify-center ml-2`}
-    >
-      <Ikon size={UKURAN_IKON} color={DESAIN_PREMIUM.ikonNetral} />
-    </TouchableOpacity>
-  );
 }
 
 /**
