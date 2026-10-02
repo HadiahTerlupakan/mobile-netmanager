@@ -181,9 +181,9 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Tes unit
-        # Worker dibatasi: di VM CI 16 vCPU beberapa job berbagi CPU; tanpa batas jest
-        # membuka ~15 worker per job dan tes ber-timeout 5 dtk tumbang karena antre CPU.
-        run: npx jest --ci --maxWorkers=4
+        # 50% core: runner GitHub (2 vCPU) tetap 1 worker; di runner sendiri bercore banyak
+        # yang berbagi CPU antar-job, jest tidak membuka worker sebanyak core (tes timeout).
+        run: npx jest --ci --maxWorkers=50%
 
       # Play sendiri yang menegakkan aturan "lebih besar dari setiap bundle yang
       # pernah diunggah", jadi angkanya dihitung dari daftar bundle di sana.
