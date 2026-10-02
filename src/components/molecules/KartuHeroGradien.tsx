@@ -18,7 +18,7 @@ interface KartuHeroGradienProps {
 export function KartuHeroGradien({ children, style }: KartuHeroGradienProps) {
   const { warna } = useTemaPersona();
   return (
-    <View style={[tw`rounded-3xl overflow-hidden`, style]}>
+    <View style={[tw`rounded-3xl overflow-hidden`, { backgroundColor: warna.gradienAkhir }, style]}>
       <LatarGradien dari={warna.gradienAwal} ke={warna.gradienAkhir} />
       <View style={tw`p-5`}>{children}</View>
     </View>
