@@ -1,9 +1,8 @@
-import { MapPin, Phone, Wifi, WifiOff, Wrench } from "lucide-react-native";
+import { MapPin, Phone, Wifi, WifiOff, type LucideIcon } from "lucide-react-native";
 import React, { memo } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import tw from "twrnc";
 
-import { MobilePelanggan } from "@/services/PelangganService";
 import { DESAIN_PREMIUM, useTemaPersona } from "@/theme";
 import { formatDate } from "@/utils/date";
 import { bukaAlamatDiPeta, hariLewatJatuhTempo, hubungiKontak } from "@/utils/kontak";
@@ -11,9 +10,24 @@ import { bukaAlamatDiPeta, hariLewatJatuhTempo, hubungiKontak } from "@/utils/ko
 const UKURAN_IKON = 14;
 const WARNA_ISOLIR = "#e11d48";
 
+/** Data minimal kartu: cocok untuk daftar isolir maupun daftar tunggakan sales. */
+export interface DataKartuPelanggan {
+  nama: string;
+  idPelanggan: string;
+  username?: string | null;
+  siteName: string | null;
+  paket: string | null;
+  jatuhTempo: string;
+  noTelp: string | null;
+  alamat: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 interface PelangganCardProps {
-  pelanggan: MobilePelanggan;
-  onRequestWorkOrder: (pelanggan: MobilePelanggan) => void;
+  pelanggan: DataKartuPelanggan;
+  /** Tombol utama kartu, mis. "Ajukan work order" (teknisi) atau "Ingatkan via WhatsApp" (sales). */
+  aksi: { label: string; ikon: LucideIcon; onTekan: () => void; isNonaktif?: boolean };
 }
 
 function BarisKontak({ ikon: Ikon, teks, warna, onTekan }: { ikon: typeof Phone; teks: string; warna?: string; onTekan: () => void }) {
@@ -29,9 +43,10 @@ function BarisKontak({ ikon: Ikon, teks, warna, onTekan }: { ikon: typeof Phone;
 
 /**
  * Kartu pelanggan terisolir: identitas, paket, berapa hari lewat jatuh
- * tempo, kontak (ketuk = WhatsApp), alamat (ketuk = peta), dan Ajukan WO.
+ * tempo, kontak (ketuk = WhatsApp), alamat (ketuk = peta), dan satu aksi utama.
  */
-export const PelangganCard = memo(({ pelanggan, onRequestWorkOrder }: PelangganCardProps) => {
+export const PelangganCard = memo(({ pelanggan, aksi }: PelangganCardProps) => {
+  const IkonAksi = aksi.ikon;
   const { tw: twTema, warna } = useTemaPersona();
   const hariLewat = hariLewatJatuhTempo(pelanggan.jatuhTempo);
   const identitas = [pelanggan.idPelanggan, pelanggan.username, pelanggan.siteName].filter(Boolean).join(" · ");
@@ -77,12 +92,13 @@ export const PelangganCard = memo(({ pelanggan, onRequestWorkOrder }: PelangganC
 
       <TouchableOpacity
         accessibilityRole="button"
-        accessibilityLabel={`Ajukan work order untuk ${pelanggan.nama}`}
-        onPress={() => onRequestWorkOrder(pelanggan)}
-        style={twTema`mt-4 flex-row items-center justify-center bg-utama-sangat-muda py-3 rounded-xl`}
+        accessibilityLabel={`${aksi.label} untuk ${pelanggan.nama}`}
+        onPress={aksi.onTekan}
+        disabled={aksi.isNonaktif}
+        style={twTema`mt-4 flex-row items-center justify-center bg-utama-sangat-muda py-3 rounded-xl ${aksi.isNonaktif ? "opacity-50" : ""}`}
       >
-        <Wrench size={UKURAN_IKON} color={warna.utamaKuat} />
-        <Text style={twTema`font-bold text-utama-kuat text-sm ml-2`}>Ajukan work order</Text>
+        <IkonAksi size={UKURAN_IKON} color={warna.utamaKuat} />
+        <Text style={twTema`font-bold text-utama-kuat text-sm ml-2`}>{aksi.label}</Text>
       </TouchableOpacity>
     </View>
   );

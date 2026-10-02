@@ -10,9 +10,10 @@ export function nomorWhatsApp(nomor: string): string {
   return angka;
 }
 
-/** Buka WhatsApp ke nomor itu; tanpa WhatsApp jatuh ke panggilan telepon biasa. */
-export function hubungiKontak(nomor: string): void {
-  Linking.openURL(`whatsapp://send?phone=${nomorWhatsApp(nomor)}`).catch(() => {
+/** Buka WhatsApp ke nomor itu (opsional dengan pesan); tanpa WhatsApp jatuh ke panggilan telepon biasa. */
+export function hubungiKontak(nomor: string, pesan?: string): void {
+  const teks = pesan ? `&text=${encodeURIComponent(pesan)}` : "";
+  Linking.openURL(`whatsapp://send?phone=${nomorWhatsApp(nomor)}${teks}`).catch(() => {
     void Linking.openURL(`tel:${nomor}`);
   });
 }
@@ -30,4 +31,21 @@ export function hariLewatJatuhTempo(jatuhTempo: string, sekarang: Date = new Dat
   if (Number.isNaN(tempo.getTime())) return 0;
   const awalHari = (waktu: Date) => Date.UTC(waktu.getFullYear(), waktu.getMonth(), waktu.getDate());
   return Math.max(0, Math.round((awalHari(sekarang) - awalHari(tempo)) / MS_SEHARI));
+}
+
+/** Pesan pengingat pembayaran untuk pelanggan terisolir (dikirim sales lewat WhatsApp). */
+export function pesanPengingatTunggakan(masukan: {
+  nama: string;
+  idPelanggan: string;
+  paket: string | null;
+  jatuhTempo: string;
+  namaSales: string;
+}): string {
+  const tempo = new Date(masukan.jatuhTempo).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const paket = masukan.paket ? ` paket ${masukan.paket}` : '';
+  return [
+    `Halo Bapak/Ibu ${masukan.nama},`,
+    `Saya ${masukan.namaSales}. Tagihan internet${paket} (ID ${masukan.idPelanggan}) jatuh tempo ${tempo} belum kami terima, sehingga layanan sementara terisolir.`,
+    'Setelah pembayaran diterima, layanan otomatis aktif kembali. Bila sudah membayar, mohon abaikan pesan ini. Terima kasih.',
+  ].join('\n\n');
 }

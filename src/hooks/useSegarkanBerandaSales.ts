@@ -1,12 +1,18 @@
+import { KUNCI_TUNGGAKAN } from '@/hooks/queries/useTunggakanPelanggan';
 import { queryKeys } from '@/lib/queryClient';
 import { useSegarkanBeranda } from './useSegarkanBeranda';
 
 /**
  * Kueri Beranda sales. Statistik Beranda (`dashboard`) untuk kartu pencairan
  * bonus canvasing; `presurvei.all` mencakup ringkasan, rencana hari
- * ini/terlewat, dan rekap tim.
+ * ini/terlewat, dan rekap tim; tunggakan pelanggan untuk kartu Tunggakan.
  */
-const KUNCI_BERANDA_SALES = [queryKeys.presurvei.all, queryKeys.attendance.all, queryKeys.dashboard.all] as const;
+const KUNCI_BERANDA_SALES = [
+  queryKeys.presurvei.all,
+  queryKeys.attendance.all,
+  queryKeys.dashboard.all,
+  KUNCI_TUNGGAKAN,
+] as const;
 
 /**
  * Tarik-untuk-segarkan Beranda sales. Profil ikut dimuat ulang supaya izin

@@ -1,6 +1,6 @@
 import { FlashList } from "@shopify/flash-list";
 import { Stack, useRouter } from "expo-router";
-import { AlertTriangle, Search, ShieldCheck, X } from "lucide-react-native";
+import { AlertTriangle, Search, ShieldCheck, Wrench, X } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, RefreshControl, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -83,7 +83,10 @@ export default function PelangganIsolirScreen() {
         data={pelanggans}
         keyExtractor={(item: MobilePelanggan) => item.id}
         renderItem={({ item }: { item: MobilePelanggan }) => (
-          <PelangganCard pelanggan={item} onRequestWorkOrder={handleRequestWorkOrder} />
+          <PelangganCard
+            pelanggan={item}
+            aksi={{ label: "Ajukan work order", ikon: Wrench, onTekan: () => handleRequestWorkOrder(item) }}
+          />
         )}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.5}

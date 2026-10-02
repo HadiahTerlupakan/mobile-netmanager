@@ -24,3 +24,21 @@ describe('hariLewatJatuhTempo', () => {
     expect(hariLewatJatuhTempo('bukan-tanggal', sekarang)).toBe(0);
   });
 });
+
+describe('pesanPengingatTunggakan', () => {
+  const { pesanPengingatTunggakan } = require('@/utils/kontak') as typeof import('@/utils/kontak');
+
+  it('menyebut nama, sales, paket, ID, dan jatuh tempo', () => {
+    const pesan = pesanPengingatTunggakan({
+      nama: 'Budi',
+      idPelanggan: '12345678',
+      paket: '20 Mbps',
+      jatuhTempo: '2026-09-25T00:00:00.000Z',
+      namaSales: 'Ani',
+    });
+    expect(pesan).toContain('Halo Bapak/Ibu Budi');
+    expect(pesan).toContain('Saya Ani');
+    expect(pesan).toContain('paket 20 Mbps (ID 12345678)');
+    expect(pesan).toContain('September 2026');
+  });
+});

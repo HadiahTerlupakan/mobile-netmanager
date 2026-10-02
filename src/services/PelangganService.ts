@@ -1,3 +1,4 @@
+import type { RingkasanTunggakan } from "@/types/tunggakan";
 import api from "./api";
 
 /** Pelanggan versi ringkas yang dikirim endpoint mobile. */
@@ -52,3 +53,11 @@ export const PelangganService = {
     return { data: response.data.data, meta: response.data.meta };
   },
 };
+
+/** Pelanggan isolir yang perlu ditindaklanjuti sales (lingkup diri/tim/semua diputuskan server). */
+export async function ambilTunggakanPelanggan(): Promise<RingkasanTunggakan> {
+  const response = await api.get<{ data?: RingkasanTunggakan } & Partial<RingkasanTunggakan>>(
+    "/api/mobile/pelanggan/tunggakan",
+  );
+  return (response.data.data ?? response.data) as RingkasanTunggakan;
+}

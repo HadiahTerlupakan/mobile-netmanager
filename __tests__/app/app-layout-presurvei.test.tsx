@@ -113,6 +113,7 @@ const SIDIK_TERSEMBUNYI = [
   ['notifications', null, null],
   ['topology-map', null, null],
   ['pelanggan/isolir', null, null],
+  ['pelanggan/tunggakan', null, 'none'],
   ['complete-work-order/[id]', null, 'none'],
   ['kembalikan-barang/[id]', null, 'none'],
   ['chat/index', null, null],

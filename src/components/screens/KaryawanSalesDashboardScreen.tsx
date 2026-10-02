@@ -8,6 +8,7 @@ import { KepalaSapaan } from '@/components/molecules/KepalaSapaan';
 import { BagianPencairanCanvasing } from '@/components/organisms/dashboard/BagianPencairanCanvasing';
 import { BagianPresurveiBeranda } from '@/components/organisms/dashboard/BagianPresurveiBeranda';
 import { BerandaModeCuti } from '@/components/organisms/dashboard/BerandaModeCuti';
+import { KartuTunggakanBeranda } from '@/components/organisms/dashboard/KartuTunggakanBeranda';
 import { KartuAbsenHariIni } from '@/components/organisms/dashboard/KartuAbsenHariIni';
 import { QuickMenu, type IdMenuCepat } from '@/components/organisms/dashboard/QuickMenu';
 import { AppFeature } from '@/constants/features';
@@ -52,6 +53,7 @@ export function KaryawanSalesDashboardScreen() {
         {punyaFitur(user, AppFeature.ABSENSI) ? <KartuAbsenHariIni /> : null}
         <View style={tw`px-4`}>
           <BagianPresurveiBeranda isPresurveiAktif={punyaFitur(user, AppFeature.PRESURVEI)} />
+          <KartuTunggakanBeranda isAktif={punyaFitur(user, AppFeature.PRESURVEI)} />
         </View>
         {bolehCanvasing(user) ? <BagianPencairanCanvasing /> : null}
         <QuickMenu features={user?.features ?? []} role={user?.role} isMitra={false} menuIds={MENU_CEPAT_SALES} />

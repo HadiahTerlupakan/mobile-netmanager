@@ -52,6 +52,7 @@ jest.mock('@/components/organisms/dashboard/BerandaModeCuti', () => {
     ),
   };
 });
+jest.mock('@/components/organisms/dashboard/KartuTunggakanBeranda', () => ({ KartuTunggakanBeranda: () => null }));
 jest.mock('@/components/molecules/KepalaSapaan', () => ({
   KepalaSapaan: (props: typeof mockPropsHeader) => {
     mockPropsHeader = props;
