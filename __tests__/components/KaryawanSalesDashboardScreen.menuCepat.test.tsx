@@ -23,6 +23,7 @@ jest.mock('@/components/organisms/dashboard/BagianPresurveiBeranda', () => ({ Ba
 jest.mock('@/components/organisms/dashboard/KartuAbsenHariIni', () => ({ KartuAbsenHariIni: () => null }));
 jest.mock('@/components/organisms/dashboard/BagianPencairanCanvasing', () => ({ BagianPencairanCanvasing: () => null }));
 jest.mock('@/components/molecules/KepalaSapaan', () => ({ KepalaSapaan: () => null }));
+jest.mock('@/components/organisms/dashboard/DashboardHeader', () => ({ DashboardHeader: () => null }));
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: unknown }) => children,
 }));

@@ -169,7 +169,7 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     expect(getByText('kartu-wo:7/4')).toBeTruthy();
     expect(getByText('kartu-canvasing:5/3')).toBeTruthy();
     expect(getByText('statistik:Tiket Selesai:2/9/31')).toBeTruthy();
-    expect(queryByText('Target & Pencairan')).toBeNull();
+    expect(queryByText('Bonus canvasing')).toBeNull();
     expect(getByText('Tono Profil')).toBeTruthy();
   });
 
@@ -191,7 +191,7 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     const { getByText, queryByText } = renderBeranda(TEKNISI);
 
     expect(getByText('statistik:Canvasing Selesai:3/8/21')).toBeTruthy();
-    expect(queryByText('Target & Pencairan')).toBeNull();
+    expect(queryByText('Bonus canvasing')).toBeNull();
     expect(queryByText(/kartu-wo/)).toBeNull();
   });
 
@@ -212,7 +212,7 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     };
     const { getByText } = renderBeranda(TEKNISI);
 
-    expect(getByText('Target & Pencairan')).toBeTruthy();
+    expect(getByText('Bonus canvasing')).toBeTruthy();
   });
 
   it('kartu canvasing ditekan teknisi berizin: membuka canvasing tanpa jadi sales', () => {
@@ -277,7 +277,7 @@ describe('Beranda teknisi karyawan (regresi)', () => {
 });
 
 /**
- * Kartu "Target & Pencairan" hanya dirender untuk `user.isSales`. Sebelum
+ * Kartu "Bonus canvasing" hanya dirender untuk `user.isSales`. Sebelum
  * Task 19 kartu ini terjangkau oleh sales karyawan lewat Beranda bawaan
  * (test ini semula merender lewat `Dashboard` dan hijau di kode lama). Sejak
  * Task 19 sales karyawan mendapat Beranda sendiri, jadi layar teknisi
@@ -291,7 +291,7 @@ const renderLayarLama = (user: Record<string, unknown>) => {
   return render(<KaryawanTeknisiDashboardScreen />);
 };
 
-describe('Kartu Target & Pencairan canvasing (regresi)', () => {
+describe('Kartu Bonus canvasing (regresi)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockProfil = { profileData: profilDengan(['m_canvasing']), isPending: false };
@@ -303,9 +303,9 @@ describe('Kartu Target & Pencairan canvasing (regresi)', () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const { getByText, getByLabelText } = renderLayarLama(SALES_LAMA);
 
-    expect(getByText('Target & Pencairan')).toBeTruthy();
-    expect(getByText('AKUMULASI')).toBeTruthy();
-    expect(getByText('Progress Pencairan')).toBeTruthy();
+    expect(getByText('Bonus canvasing')).toBeTruthy();
+    expect(getByText('Akumulasi')).toBeTruthy();
+    expect(getByText('Poin siap dicairkan')).toBeTruthy();
     expect(getByText('12 / 10')).toBeTruthy();
 
     fireEvent.press(getByLabelText('Cairkan komisi'));
@@ -347,12 +347,12 @@ describe('Kartu Target & Pencairan canvasing (regresi)', () => {
     mockStats = { data: { ...STATS, targetSchema: 'MONTHLY_RESET', canvasingTarget: undefined }, isPending: false };
     const { getByText, queryByLabelText } = renderLayarLama(SALES_LAMA);
 
-    expect(getByText('BULANAN')).toBeTruthy();
-    expect(getByText('Progress Bulan Ini')).toBeTruthy();
+    expect(getByText('Bulanan')).toBeTruthy();
+    expect(getByText('Poin bulan ini')).toBeTruthy();
     expect(getByText('12 / 30')).toBeTruthy();
     expect(queryByLabelText('Cairkan komisi')).toBeNull();
     expect(
-      getByText('Target Anda direset otomatis setiap awal bulan. Bonus akan diproses langsung oleh Admin.'),
+      getByText('Poin direset otomatis setiap awal bulan. Bonus diproses langsung oleh admin.'),
     ).toBeTruthy();
   });
 });

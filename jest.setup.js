@@ -99,3 +99,10 @@ jest.mock('expo-file-system/legacy', () => ({
   makeDirectoryAsync: jest.fn(() => Promise.resolve()),
   readDirectoryAsync: jest.fn(() => Promise.resolve([])),
 }));
+
+// expo-image memuat modul native (EventEmitter) yang tidak ada di Jest; gambar
+// cukup dirender sebagai View. Test yang butuh perilaku khusus boleh me-mock ulang.
+jest.mock('expo-image', () => {
+  const { View } = require('react-native');
+  return { Image: View };
+});

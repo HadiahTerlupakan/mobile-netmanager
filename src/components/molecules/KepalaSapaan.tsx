@@ -1,8 +1,8 @@
+import { Image } from 'expo-image';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
-import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import NotificationBell from '@/components/molecules/NotificationBell';
 import { useTemaPersona } from '@/theme';
 import { urlGambarTenant } from '@/utils/urlGambarTenant';
@@ -47,7 +47,7 @@ export function KepalaSapaan({ nama, gambar, onTekanProfil, isLonceng = false }:
       ) : null}
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Buka profil" onPress={onTekanProfil}>
         {urlFoto ? (
-          <ImageWithCache source={urlFoto} style={tw`w-11 h-11 rounded-full`} contentFit="cover" />
+          <Image source={{ uri: urlFoto }} style={tw`w-11 h-11 rounded-full`} contentFit="cover" cachePolicy="memory-disk" />
         ) : (
           <View style={twTema`w-11 h-11 rounded-full bg-utama-kuat items-center justify-center`}>
             <Text style={tw`text-base font-bold text-white`}>{nama.charAt(0).toUpperCase() || 'K'}</Text>
