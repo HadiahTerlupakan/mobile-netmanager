@@ -77,4 +77,6 @@ export interface MuatanLaporKeluhan {
   prioritas: PrioritasKeluhan;
   subjek: string;
   deskripsi: string;
+  /** URL hasil unggah (`/api/mobile/upload` tipe tickets), minimal satu. */
+  foto: string[];
 }

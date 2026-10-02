@@ -16,7 +16,8 @@ export type UploadType =
   | 'inventory-keluar'
   | 'marketing/point-claims'
   | 'marketing' // Added for Canvasing
-  | 'presurvei'; // Foto bukti kegiatan presurvei
+  | 'presurvei' // Foto bukti kegiatan presurvei
+  | 'tickets'; // Foto keluhan pelanggan yang dilaporkan sales
 
 export interface UploadProgress {
   total: number;

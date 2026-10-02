@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/atoms/EmptyState';
 import { KartuFormulir } from '@/components/atoms/KartuFormulir';
 import { IsianTeks } from '@/components/molecules/IsianTeks';
 import { JudulIsian } from '@/components/molecules/JudulIsian';
+import { BlokFoto } from '@/components/molecules/BlokFoto';
 import { KepalaLayar } from '@/components/molecules/KepalaLayar';
 import { PilihanChip } from '@/components/molecules/PilihanChip';
 import { SegmenPilihan } from '@/components/molecules/SegmenPilihan';
@@ -15,9 +16,10 @@ import { PILIHAN_KATEGORI_KELUHAN, PILIHAN_PRIORITAS_KELUHAN } from '@/constants
 import { useLaporKeluhan } from '@/hooks/queries/useKeluhan';
 import { useIsOnline } from '@/hooks/useIsOnline';
 import { useTemaPersona } from '@/theme';
+import { ambilFotoKeluhan, PESAN_IZIN_FOTO_DITOLAK, type SumberFoto } from '@/utils/keluhan/ambilFotoKeluhan';
 import {
   DESKRIPSI_MAKS,
-  keMuatanLaporKeluhan,
+  FOTO_KELUHAN_MAKS,
   NILAI_FORM_KELUHAN_BARU,
   periksaFormKeluhan,
   SUBJEK_MAKS,
@@ -25,7 +27,7 @@ import {
   type KesalahanFormKeluhan,
   type NilaiFormKeluhan,
 } from '@/utils/keluhan/formKeluhan';
-import { presentSuccessMessage } from '@/utils/errorPresenter';
+import { presentErrorMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 
 const OPSI_KATEGORI = PILIHAN_KATEGORI_KELUHAN.map(({ nilai, label }) => ({ nilai, label }));
 const OPSI_PRIORITAS = PILIHAN_PRIORITAS_KELUHAN.map(({ nilai, label }) => ({ nilai, label }));
@@ -59,12 +61,26 @@ export default function LaporKeluhanScreen() {
   const ubah = <K extends keyof NilaiFormKeluhan>(kunci: K, isian: NilaiFormKeluhan[K]) =>
     setNilai((sebelum) => ({ ...sebelum, [kunci]: isian }));
 
+  const tambahFoto = async (sumber: SumberFoto) => {
+    const hasil = await ambilFotoKeluhan(sumber);
+    if (hasil.status === 'izin-ditolak') {
+      presentErrorMessage(PESAN_IZIN_FOTO_DITOLAK[sumber], 'Izin dibutuhkan');
+      return;
+    }
+    if (hasil.status !== 'ok') return;
+    setNilai((sebelum) => ({ ...sebelum, fotoLokal: [...sebelum.fotoLokal, hasil.uri].slice(0, FOTO_KELUHAN_MAKS) }));
+    setKesalahan((sebelum) => ({ ...sebelum, foto: undefined }));
+  };
+
+  const hapusFoto = (uri: string) =>
+    setNilai((sebelum) => ({ ...sebelum, fotoLokal: sebelum.fotoLokal.filter((item) => item !== uri) }));
+
   const kirim = () => {
     if (!pelangganId || !isOnline || lapor.isPending) return;
     const hasilPeriksa = periksaFormKeluhan(nilai);
     setKesalahan(hasilPeriksa);
     if (Object.keys(hasilPeriksa).length > 0) return;
-    lapor.mutate(keMuatanLaporKeluhan(pelangganId, nilai));
+    lapor.mutate({ pelangganId, nilai });
   };
 
   if (!pelangganId) {
@@ -144,6 +160,20 @@ export default function LaporKeluhanScreen() {
           />
         </KartuFormulir>
 
+        <BlokFoto
+          judul="Foto"
+          isWajib
+          petunjuk="Lampu modem, layar speedtest, kabel, atau foto yang dikirim pelanggan."
+          fotoLokal={nilai.fotoLokal}
+          jumlahMaks={FOTO_KELUHAN_MAKS}
+          tombolTambah={[
+            { label: 'Kamera', onTekan: () => void tambahFoto('kamera') },
+            { label: 'Galeri', onTekan: () => void tambahFoto('galeri') },
+          ]}
+          onHapus={hapusFoto}
+          kesalahan={kesalahan.foto}
+        />
+
         <KartuFormulir>
           <JudulIsian judul="Tingkat urgensi" isWajib petunjuk="Darurat hanya untuk pelanggan bisnis / banyak pelanggan terdampak." />
           <SegmenPilihan opsi={OPSI_PRIORITAS} terpilih={nilai.prioritas} onPilih={(prioritas) => ubah('prioritas', prioritas)} />
@@ -159,7 +189,7 @@ export default function LaporKeluhanScreen() {
           onPress={kirim}
           style={tw`rounded-xl py-3 items-center ${isBolehKirim ? 'bg-utama-kuat' : 'bg-gray-400'}`}
         >
-          <Text style={tw`text-white font-bold`}>{lapor.isPending ? 'Mengirim…' : 'Kirim ke helpdesk'}</Text>
+          <Text style={tw`text-white font-bold`}>{lapor.isPending ? 'Mengunggah foto & mengirim…' : 'Kirim ke helpdesk'}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

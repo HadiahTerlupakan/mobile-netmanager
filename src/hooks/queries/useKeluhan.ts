@@ -2,7 +2,9 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 
 import { KUNCI_PELANGGAN_SAYA } from '@/hooks/queries/usePelangganSaya';
 import { KeluhanService } from '@/services/KeluhanService';
-import type { KelompokStatusKeluhan, MuatanLaporKeluhan } from '@/types/keluhan';
+import { uploadService } from '@/services/UploadService';
+import type { KelompokStatusKeluhan } from '@/types/keluhan';
+import { keMuatanLaporKeluhan, type NilaiFormKeluhan } from '@/utils/keluhan/formKeluhan';
 import { presentAppError } from '@/utils/errorPresenter';
 
 /** Awalan kunci cache keluhan (daftar & detail). */
@@ -10,6 +12,7 @@ export const KUNCI_KELUHAN = ['keluhan'] as const;
 const UKURAN_HALAMAN = 20;
 const HALAMAN_PERTAMA = 1;
 const WAKTU_SEGAR_MS = 30_000;
+const TIPE_UNGGAH_KELUHAN = 'tickets';
 // Online saja & tanpa ulang otomatis: onError di sini yang menampilkan pesan.
 const OPSI_MUTASI = { retry: false, meta: { skipGlobalErrorToast: true } } as const;
 
@@ -34,12 +37,16 @@ export function useDetailKeluhan(id: string | undefined) {
   });
 }
 
-/** Catat keluhan baru; segarkan daftar keluhan & pelanggan saya setelah berhasil. */
+/** Unggah foto lalu catat keluhan baru; segarkan daftar keluhan & pelanggan saya setelah berhasil. */
 export function useLaporKeluhan(onBerhasil: (hasil: { id: string; nomor: string }) => void) {
   const queryClient = useQueryClient();
   return useMutation({
     ...OPSI_MUTASI,
-    mutationFn: (muatan: MuatanLaporKeluhan) => KeluhanService.lapor(muatan),
+    // Foto diunggah dulu (tipe tickets), baru keluhan dikirim dengan URL-nya.
+    mutationFn: async ({ pelangganId, nilai }: { pelangganId: string; nilai: NilaiFormKeluhan }) => {
+      const foto = await Promise.all(nilai.fotoLokal.map((uri) => uploadService.uploadFile(uri, TIPE_UNGGAH_KELUHAN)));
+      return KeluhanService.lapor(keMuatanLaporKeluhan(pelangganId, nilai, foto));
+    },
     onSuccess: (hasil) => {
       void queryClient.invalidateQueries({ queryKey: KUNCI_KELUHAN });
       void queryClient.invalidateQueries({ queryKey: KUNCI_PELANGGAN_SAYA });
