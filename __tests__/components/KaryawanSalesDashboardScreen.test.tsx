@@ -9,7 +9,7 @@ const mockRefetchProfile = jest.fn(async () => undefined);
 const mockUseSegarkan = jest.fn();
 let mockPropsMenu: Record<string, unknown> = {};
 let mockPropsPresurvei: { isPresurveiAktif?: boolean } = {};
-let mockPropsHeader: { userName?: string; userImage?: string | null; onProfilePress?: () => void } = {};
+let mockPropsHeader: { nama?: string; gambar?: string | null; onTekanProfil?: () => void; isLonceng?: boolean } = {};
 
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => mockUseAuth() }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
@@ -52,8 +52,8 @@ jest.mock('@/components/organisms/dashboard/BerandaModeCuti', () => {
     ),
   };
 });
-jest.mock('@/components/organisms/dashboard/DashboardHeader', () => ({
-  DashboardHeader: (props: typeof mockPropsHeader) => {
+jest.mock('@/components/molecules/KepalaSapaan', () => ({
+  KepalaSapaan: (props: typeof mockPropsHeader) => {
     mockPropsHeader = props;
     return null;
   },
@@ -129,10 +129,11 @@ describe('KaryawanSalesDashboardScreen', () => {
     mockUseAuth.mockReturnValue(sales([]));
 
     render(<KaryawanSalesDashboardScreen />);
-    mockPropsHeader.onProfilePress?.();
+    mockPropsHeader.onTekanProfil?.();
 
-    expect(mockPropsHeader.userName).toBe('Sari');
-    expect(mockPropsHeader.userImage).toBe('uploads/sari.jpg');
+    expect(mockPropsHeader.nama).toBe('Sari');
+    expect(mockPropsHeader.gambar).toBe('uploads/sari.jpg');
+    expect(mockPropsHeader.isLonceng).toBe(true);
     expect(mockPush).toHaveBeenCalledWith('/(app)/profile');
   });
 

@@ -16,6 +16,8 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParam,
   useFocusEffect: jest.fn(),
 }));
+jest.mock('@/components/atoms/ImageWithCache', () => ({ ImageWithCache: () => null }));
+jest.mock('@/components/molecules/NotificationBell', () => ({ __esModule: true, default: () => null }));
 jest.mock('react-native-svg', () => {
   const { View } = require('react-native');
   const Kosong = () => null;

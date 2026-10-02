@@ -15,7 +15,7 @@ export function JudulBagian({ judul, aksi }: JudulBagianProps) {
   const { tw: twTema } = useTemaPersona();
   return (
     <View style={tw`flex-row items-center justify-between mt-7 mb-3`}>
-      <Text style={tw`text-base font-bold text-slate-900`}>{judul}</Text>
+      <Text style={tw`flex-1 mr-3 text-base font-bold text-slate-900`}>{judul}</Text>
       {aksi ? (
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={aksi.label} onPress={aksi.onTekan}>
           <Text style={twTema`text-sm font-semibold text-utama-kuat`}>{aksi.label}</Text>

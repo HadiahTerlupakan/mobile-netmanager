@@ -1,7 +1,8 @@
 import { BellRing, CheckCircle2, ChevronRight } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { useTemaPersona } from '@/theme';
+import { KartuBagian, LencanaJudul } from '@/components/molecules/KartuBagian';
+import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 
 import { LABEL_STATUS_PROSPEK } from '@/constants/presurvei';
 import type { ProspekPerluFollowUp } from '@/types/presurvei';
@@ -12,7 +13,6 @@ interface DaftarPerluFollowUpProps {
   onBuka: (id: string) => void;
 }
 
-const WARNA_ABU = '#9ca3af';
 
 /** Huruf awal nama prospek untuk avatar ringkas. */
 function hurufAwal(nama: string): string {
@@ -23,20 +23,13 @@ function hurufAwal(nama: string): string {
 export function DaftarPerluFollowUp({ prospek, onBuka }: DaftarPerluFollowUpProps) {
   const { tw } = useTemaPersona();
   return (
-    <View style={tw`bg-white rounded-2xl p-4 mb-4 border border-gray-100 shadow-sm`}>
-      <View style={tw`flex-row items-center justify-between mb-2`}>
-        <View style={tw`flex-row items-center`}>
-          <BellRing size={18} color="#111827" />
-          <Text style={tw`font-bold text-gray-900 ml-2`}>Perlu di-follow-up</Text>
-        </View>
-        {prospek.length > 0 ? (
-          <View style={tw`bg-rose-50 rounded-full px-2.5 py-1`}>
-            <Text style={tw`text-[11px] font-semibold text-rose-600`}>{`${prospek.length} prospek`}</Text>
-          </View>
-        ) : null}
-      </View>
+    <KartuBagian
+      judul="Perlu di-follow-up"
+      ikon={BellRing}
+      kanan={prospek.length > 0 ? <LencanaJudul teks={`${prospek.length} prospek`} nada="bahaya" /> : null}
+    >
       {prospek.length === 0 ? (
-        <View style={tw`flex-row items-center rounded-xl bg-emerald-50 px-3 py-3 mt-1`}>
+        <View style={tw`flex-row items-center rounded-xl bg-emerald-50 px-3 py-3`}>
           <CheckCircle2 size={18} color="#059669" />
           <Text style={tw`text-sm text-emerald-700 ml-2`}>Tidak ada prospek yang menunggu.</Text>
         </View>
@@ -57,9 +50,9 @@ export function DaftarPerluFollowUp({ prospek, onBuka }: DaftarPerluFollowUpProp
               {`${LABEL_STATUS_PROSPEK[item.status]} · terakhir ${formatDate(item.sentuhanTerakhir, 'dd MMM')}`}
             </Text>
           </View>
-          <ChevronRight size={18} color={WARNA_ABU} />
+          <ChevronRight size={18} color={DESAIN_PREMIUM.ikonNetral} />
         </TouchableOpacity>
       ))}
-    </View>
+    </KartuBagian>
   );
 }

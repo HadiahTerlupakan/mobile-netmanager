@@ -33,7 +33,6 @@ const JALUR_DI_LUAR_JANGKAUAN: RegExp[] = [
 const PENGECUALIAN_MAKNA: Record<string, string> = {
   'app/(app)/marketing/canvasing/index.tsx': 'kartu statistik "Win Rate" berwarna seri, sejajar emerald/amber',
   'app/(app)/notifications.tsx': 'warna ikon per jenis notifikasi',
-  'src/components/organisms/dashboard/KartuKegiatanHariIni.tsx': 'warna jenis kegiatan "Kunjungan"',
   'src/components/organisms/dashboard/QuickMenu.tsx': 'warna kategori per item menu (Canvasing)',
   'src/components/organisms/topology/DeviceDetailModal.tsx': 'warna jenis perangkat ODC',
   'src/components/organisms/topology/WebMapView.tsx': 'warna penanda ODC di peta',

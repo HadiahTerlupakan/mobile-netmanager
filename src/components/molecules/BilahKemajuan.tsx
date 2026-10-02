@@ -8,13 +8,15 @@ interface BilahKemajuanProps {
   warnaIsi: string;
   warnaLatar: string;
   tinggi?: number;
+  /** testID pada bagian isi (lebarnya = persen). */
+  testID?: string;
 }
 
 const TINGGI_BAWAAN = 8;
 const PERSEN_PENUH = 100;
 
 /** Bilah kemajuan horizontal, mis. bagian modal yang sudah kembali. */
-export function BilahKemajuan({ persen, warnaIsi, warnaLatar, tinggi = TINGGI_BAWAAN }: BilahKemajuanProps) {
+export function BilahKemajuan({ persen, warnaIsi, warnaLatar, tinggi = TINGGI_BAWAAN, testID }: BilahKemajuanProps) {
   const lebar = Math.min(PERSEN_PENUH, Math.max(0, persen));
   return (
     <View
@@ -22,7 +24,7 @@ export function BilahKemajuan({ persen, warnaIsi, warnaLatar, tinggi = TINGGI_BA
       accessibilityValue={{ min: 0, max: PERSEN_PENUH, now: Math.round(lebar) }}
       style={[tw`w-full rounded-full overflow-hidden`, { height: tinggi, backgroundColor: warnaLatar }]}
     >
-      <View style={[tw`h-full rounded-full`, { width: `${lebar}%`, backgroundColor: warnaIsi }]} />
+      <View testID={testID} style={[tw`h-full rounded-full`, { width: `${lebar}%`, backgroundColor: warnaIsi }]} />
     </View>
   );
 }

@@ -3,6 +3,7 @@ import React from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import tw from 'twrnc';
 
+import { JudulBagian } from '@/components/molecules/JudulBagian';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { RUTE_BUAT_RENCANA, ruteRincianProspek, ruteRincianRencana } from '@/constants/rutePresurvei';
 import { useLingkupRencana } from '@/hooks/presurvei/useLingkupRencana';
@@ -27,10 +28,10 @@ interface BagianPresurveiBerandaProps {
 }
 
 /**
- * Ringkasan presurvei di Beranda sales: rencana hari ini (milik sendiri),
- * tim hari ini (khusus pemberi tugas), kinerja bulan ini (kartu tim bagi
- * kepala sales, kartu pribadi bagi sales), kegiatan hari ini, target, perlu
- * follow-up. Query rencana berbagi cache dengan sub-tab Rencana (Saya).
+ * Ringkasan presurvei di Beranda sales: kinerja bulan ini di atas (kartu
+ * sorotan pribadi bagi sales, kartu tim bagi kepala sales), lalu aktivitas
+ * hari ini (rencana milik sendiri, tim bagi pemberi tugas, kegiatan) serta
+ * target & prospek yang perlu di-follow-up. Query rencana berbagi cache dengan sub-tab Rencana (Saya).
  * 403 tampil sebagai "belum aktif" tanpa toast global — toast diredam oleh
  * `meta.silentToastStatuses` di `useRingkasanPresurvei` (Review Focus #4).
  */
@@ -50,6 +51,8 @@ export function BagianPresurveiBeranda({ isPresurveiAktif }: BagianPresurveiBera
   }
   return (
     <View>
+      <BagianKinerjaBeranda isPresurveiAktif={isPresurveiAktif} />
+      <JudulBagian judul="Aktivitas hari ini" />
       <KartuRencanaHariIni
         rencanaHariIni={rencanaHariIni.data?.data ?? []}
         jumlahTerlewat={rencanaTerlewat.data?.meta.total ?? 0}
@@ -57,11 +60,11 @@ export function BagianPresurveiBeranda({ isPresurveiAktif }: BagianPresurveiBera
         onBuat={() => router.push(RUTE_BUAT_RENCANA)}
       />
       {lingkup.isPemberiTugas ? <BagianTimHariIni /> : null}
-      <BagianKinerjaBeranda isPresurveiAktif={isPresurveiAktif} />
       <KartuKegiatanHariIni
         rekap={rekapKegiatanHariIni(ringkasan.data.kegiatanHariIni)}
         jumlahMenunggu={antrean.data?.filter((kegiatan) => kegiatan.status !== 'FAILED').length ?? 0}
       />
+      <JudulBagian judul="Target dan prospek" />
       <KartuTargetBulanIni target={ringkasan.data.target} />
       <DaftarPerluFollowUp prospek={ringkasan.data.perluFollowUp} onBuka={(id) => router.push(ruteRincianProspek(id))} />
     </View>

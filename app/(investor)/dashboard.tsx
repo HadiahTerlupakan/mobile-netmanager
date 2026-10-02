@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
 import { ReceiptText, Users } from 'lucide-react-native';
 import React from 'react';
-import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
+import { KepalaSapaan } from '@/components/molecules/KepalaSapaan';
 import { JudulBagian } from '@/components/molecules/JudulBagian';
 import { KartuAngka } from '@/components/molecules/KartuAngka';
 import { KartuPortofolio } from '@/components/organisms/investor/KartuPortofolio';
@@ -14,44 +15,10 @@ import { KeadaanDaftar } from '@/components/organisms/investor/KeadaanDaftar';
 import { useAuth } from '@/context/AuthContext';
 import { useRingkasanInvestor } from '@/hooks/queries/useInvestor';
 import { useSegarkanDataInvestor } from '@/hooks/useSegarkanDataInvestor';
-import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
+import { DESAIN_PREMIUM } from '@/theme';
 import type { RingkasanInvestor } from '@/types/investor';
 import { formatDate } from '@/utils/date';
 import { formatPersen } from '@/utils/investor';
-
-const JAM_SIANG = 11;
-const JAM_SORE = 15;
-const JAM_MALAM = 18;
-
-/** Sapaan menurut jam perangkat. */
-function sapaan(jam: number): string {
-  if (jam < JAM_SIANG) return 'Selamat pagi';
-  if (jam < JAM_SORE) return 'Selamat siang';
-  if (jam < JAM_MALAM) return 'Selamat sore';
-  return 'Selamat malam';
-}
-
-function KepalaBeranda({ nama, onTekanProfil }: { nama: string; onTekanProfil: () => void }) {
-  const { tw: twTema } = useTemaPersona();
-  return (
-    <View style={tw`flex-row items-center px-4 pt-4 pb-5`}>
-      <View style={tw`flex-1`}>
-        <Text style={tw`text-sm text-slate-500`}>{sapaan(new Date().getHours())},</Text>
-        <Text style={tw`text-2xl font-bold text-slate-900`} numberOfLines={1}>
-          {nama}
-        </Text>
-      </View>
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel="Buka profil"
-        onPress={onTekanProfil}
-        style={twTema`w-11 h-11 rounded-full bg-utama-kuat items-center justify-center`}
-      >
-        <Text style={tw`text-base font-bold text-white`}>{nama.charAt(0).toUpperCase() || 'I'}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 function IsiBeranda({ ringkasan }: { ringkasan: RingkasanInvestor }) {
   const router = useRouter();
@@ -120,7 +87,11 @@ export default function BerandaInvestorScreen() {
           contentContainerStyle={tw`pb-8`}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />}
         >
-          <KepalaBeranda nama={user?.name ?? 'Investor'} onTekanProfil={() => router.push('/(investor)/profile')} />
+          <KepalaSapaan
+            nama={user?.name ?? 'Investor'}
+            gambar={user?.image}
+            onTekanProfil={() => router.push('/(investor)/profile')}
+          />
           <KeadaanDaftar
             isMemuat={isLoading}
             isGalat={isError}
