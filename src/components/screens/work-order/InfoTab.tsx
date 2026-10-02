@@ -1,4 +1,6 @@
 import { WorkOrder } from '@/types/work-order';
+import { LencanaStatus } from '@/components/molecules/LencanaStatus';
+import { PRIORITAS_MENDESAK, PRIORITAS_WORK_ORDER, labelKodeWo, statusWorkOrder } from '@/constants/workOrder';
 import { formatDate } from '@/utils/date';
 import {
   Calendar,
@@ -67,31 +69,13 @@ export const InfoTab = React.memo(function InfoTab({
               Jadwal & Status
             </Text>
             <Text
-              style={tw`text-xs font-bold ${wo.priority === "URGENT" ? "text-red-600" : "text-gray-500"}`}
+              style={tw`text-xs font-bold ${PRIORITAS_MENDESAK.includes(wo.priority) ? "text-red-600" : "text-gray-500"}`}
             >
-              {wo.priority}
+              {`Prioritas ${labelKodeWo(PRIORITAS_WORK_ORDER, wo.priority).toLowerCase()}`}
             </Text>
           </View>
           <View style={tw`flex-row items-center justify-between`}>
-            <View
-              style={tw`px-3 py-1 rounded-full ${wo.status === "IN_PROGRESS"
-                ? "bg-blue-100"
-                : wo.status === "COMPLETED"
-                  ? "bg-green-100"
-                  : "bg-gray-100"
-                }`}
-            >
-              <Text
-                style={tw`font-bold ${wo.status === "IN_PROGRESS"
-                  ? "text-blue-700"
-                  : wo.status === "COMPLETED"
-                    ? "text-green-700"
-                    : "text-gray-700"
-                  }`}
-              >
-                {wo.status}
-              </Text>
-            </View>
+            <LencanaStatus status={statusWorkOrder(wo.status)} />
             {wo.scheduledDate && (
               <View style={tw`flex-row items-center bg-gray-50 px-3 py-1 rounded-lg`}>
                 <Calendar size={14} color="#6b7280" style={tw`mr-1`} />

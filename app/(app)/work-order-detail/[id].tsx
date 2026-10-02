@@ -1,4 +1,5 @@
 import { ImageViewerModal } from '@/components/molecules/ImageViewerModal';
+import { TIPE_WORK_ORDER, labelKodeWo } from '@/constants/workOrder';
 import LoadingModal from "@/components/molecules/LoadingModal";
 import { WorkOrderDetailSkeleton } from '@/components/molecules/WorkOrderDetailSkeleton';
 import {
@@ -529,7 +530,7 @@ export default function WorkOrderDetailScreen() {
           <Text style={tw`font-bold text-lg text-gray-800`} numberOfLines={1}>
             {wo.workOrderNumber}
           </Text>
-          <Text style={tw`text-xs text-gray-500`}>{wo.type}</Text>
+          <Text style={tw`text-xs text-gray-500`}>{labelKodeWo(TIPE_WORK_ORDER, wo.type)}</Text>
         </View>
       </View>
 
@@ -694,7 +695,7 @@ export default function WorkOrderDetailScreen() {
                 style={tw`flex-1 bg-yellow-100 py-3.5 rounded-xl items-center flex-row justify-center border border-yellow-200`}
               >
                 <Pause size={20} color="#854d0e" style={tw`mr-2`} />
-                <Text style={tw`font-bold text-yellow-800`}>Pause</Text>
+                <Text style={tw`font-bold text-yellow-800`}>Tunda</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => handleUpdateStatus("COMPLETE")}

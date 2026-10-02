@@ -29,7 +29,9 @@ const WO = {
 };
 
 describe('KartuWorkOrder', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
   it('menampilkan status, tipe, dan prioritas berlabel Indonesia', () => {
     const { getByText } = render(<KartuWorkOrder item={WO} />);
