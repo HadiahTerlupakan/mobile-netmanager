@@ -22,59 +22,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import api from "@/services/api";
 import { useTemaPersona } from "@/theme";
 
-export type DeviceType =
-  | "otb"
-  | "odc"
-  | "odp"
-  | "joinbox"
-  | "pole"
-  | "pelanggan"
-  | "kmz";
+import type { DeviceData, DeviceType } from "./topologyTypes";
 
-export interface DeviceData {
-  id: string;
-  name?: string;
-  nama?: string;
-  idPelanggan?: string;
-  location?: string | null;
-  alamat?: string | null;
-  latitude: number;
-  longitude: number;
-  notes?: string | null;
-  status?: string;
-  cableSlack?: boolean;
-  images?: string[];
-  siteName?: string;
-  odpOutputCount?: number;
-  splitter?: string;
-  capacity?: number;
-  usedSlots?: number;
-  pppoe?: string;
-  serialNumber?: string;
-  attenuationInput?: string | number;
-  attenuationOutput?: string | number;
-  inputCoreColor?: string;
-  photo?: string;
-  parent?: {
-    id: string;
-    name?: string;
-    type?: string;
-  };
-  // Specific device fields
-  otbCore?: {
-    otb?: { name: string };
-    tubeColor: string;
-    coreColor: string;
-  };
-  odcOutput?: {
-    odc?: { name: string };
-    tubeColor: string;
-    coreColor: string;
-  };
-  odp?: {
-    name: string;
-  };
-}
+// Tipe dipindah ke topologyTypes; di-re-export agar import lama tetap berlaku.
+export type { DeviceData, DeviceType };
 
 interface DeviceDetailModalProps {
   visible: boolean;

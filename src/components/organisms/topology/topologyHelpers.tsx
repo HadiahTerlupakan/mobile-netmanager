@@ -1,30 +1,32 @@
 /**
- * Pure helpers untuk layar topology-map.
- * Diekstrak dari app/(app)/topology-map.tsx agar screen tidak jadi god file.
- * Semua fungsi di sini murni (tanpa state) → behavior identik dengan sebelumnya.
+ * Helper presentasi layar topology-map: warna & ikon perangkat, warna garis,
+ * serta builder GeoJSON/marker yang bergantung pada palet perangkat.
+ * Semua fungsi di sini murni (tanpa state).
  */
 import React from "react";
 import { Box, Disc, Flag, Home, MapPin, Server, Square } from "lucide-react-native";
-import { DeviceType } from "./DeviceDetailModal";
-import { TopologyData, VisibilityState } from "./topologyTypes";
+import {
+  ConnectionLineFeature,
+  DeviceFeature,
+  DeviceType,
+  GeoJSONFeatureCollection,
+  InventoryDeviceType,
+  TopologyData,
+  TopologyNode,
+  VisibilityState,
+  WebTopologyDevice,
+} from "./topologyTypes";
 import { calculateDistance } from "@/utils/geo";
-import { logger } from "@/utils/logger";
+import { DEFAULT_LINE_COLOR, normalizeWaypoint, parseEdgeWaypoints } from "@/utils/topology/topologyGeo";
+import {
+  getDeviceDisplayName,
+  getInventoryDevices,
+  InventoryDeviceRecord,
+  mapNodeTypeToDeviceType,
+} from "@/utils/topology/topologyDevices";
 
-// GeoJSON types
-export type GeoJSONFeature = {
-  type: "Feature";
-  id?: string | number;
-  properties: Record<string, any>;
-  geometry: {
-    type: string;
-    coordinates: number[] | number[][] | number[][][];
-  };
-};
-
-export type GeoJSONFeatureCollection = {
-  type: "FeatureCollection";
-  features: GeoJSONFeature[];
-};
+// Tipe GeoJSON kini tinggal di topologyTypes; di-re-export agar import lama tetap berlaku.
+export type { GeoJSONFeature, GeoJSONFeatureCollection } from "./topologyTypes";
 
 export const MARKER_COLORS: Record<DeviceType, string> = {
   otb: "#9333ea", // Purple
@@ -35,6 +37,29 @@ export const MARKER_COLORS: Record<DeviceType, string> = {
   pelanggan: "#ea580c", // Orange
   kmz: "#6366f1", // indigo
 };
+
+/** Warna garis per segmen jaringan. */
+export const LINE_COLORS = {
+  feeder: "#D946EF", // Server/OTB/OLT ↔ ODC
+  distribution: "#00FFFF", // ODC ↔ ODP
+  drop: "#39FF14", // ODP ↔ Pelanggan/ONT
+} as const;
+
+/** Urutan gambar koleksi inventaris di peta (dipertahankan dari implementasi lama). */
+const DRAW_INVENTORY_ORDER: InventoryDeviceType[] = [
+  "otb",
+  "odc",
+  "odp",
+  "joinbox",
+  "pole",
+  "pelanggan",
+];
+
+const HEAD_END_TYPES = ["otb", "server", "olt"];
+const CUSTOMER_END_TYPES = ["pelanggan", "ont"];
+const RANDOM_ID_RADIX = 36;
+const RANDOM_ID_START = 2;
+const RANDOM_ID_END = 11;
 
 /** Ikon marker per tipe perangkat. */
 export const getDeviceIcon = (type: DeviceType, size: number = 16, color: string = "white") => {
@@ -56,289 +81,187 @@ export const getDeviceIcon = (type: DeviceType, size: number = 16, color: string
   }
 };
 
+/** True bila salah satu ujung bertipe `a` dan ujung lain bertipe `b`. */
+const connectsTypes = (source: string, target: string, a: string[], b: string[]): boolean =>
+  (a.includes(source) && b.includes(target)) || (a.includes(target) && b.includes(source));
+
 /** Warna garis koneksi berdasarkan pasangan tipe perangkat (feeder/distribution/drop). */
 export const getLineColor = (sourceType: string, targetType: string, defaultColor?: string): string => {
-  const s = sourceType?.toLowerCase() || "";
-  const t = targetType?.toLowerCase() || "";
+  const source = sourceType?.toLowerCase() || "";
+  const target = targetType?.toLowerCase() || "";
 
-  // Feeder: Server/OTB -> ODC (Purple)
-  if (
-    ((s === "otb" || s === "server" || s === "olt") && t === "odc") ||
-    ((t === "otb" || t === "server" || t === "olt") && s === "odc")
-  ) {
-    return "#D946EF";
-  }
+  if (connectsTypes(source, target, HEAD_END_TYPES, ["odc"])) return LINE_COLORS.feeder;
+  if (connectsTypes(source, target, ["odc"], ["odp"])) return LINE_COLORS.distribution;
+  if (connectsTypes(source, target, ["odp"], CUSTOMER_END_TYPES)) return LINE_COLORS.drop;
+  return defaultColor || DEFAULT_LINE_COLOR;
+};
 
-  // Distribution: ODC -> ODP (Blue)
-  if (
-    (s === "odc" && t === "odp") ||
-    (t === "odc" && s === "odp")
-  ) {
-    return "#00FFFF";
-  }
+/** ID acak untuk perangkat tanpa id (data rusak) agar tetap bisa digambar. */
+const createFallbackId = (prefix: string): string =>
+  `${prefix}-${Math.random().toString(RANDOM_ID_RADIX).slice(RANDOM_ID_START, RANDOM_ID_END)}`;
 
-  // Drop: ODP -> Pelanggan (Green)
-  if (
-    (s === "odp" && (t === "pelanggan" || t === "ont")) ||
-    (t === "odp" && (s === "pelanggan" || s === "ont"))
-  ) {
-    return "#39FF14";
-  }
+const toInventoryFeature = (device: InventoryDeviceRecord, type: DeviceType): DeviceFeature => {
+  const safeId = device.id ? String(device.id) : createFallbackId(`fallback-${type}`);
+  return {
+    type: "Feature",
+    id: type + "-" + safeId,
+    properties: {
+      id: safeId,
+      originalId: device.id,
+      type,
+      color: MARKER_COLORS[type],
+      name: getDeviceDisplayName(device, "Tanpa Nama"),
+      source: "inventory",
+      notes: device.notes,
+      capacity: device.capacity,
+      splitter: device.splitter,
+      serialNumber: device.serialNumber,
+      pppoe: device.pppoe,
+      attenuationIn: device.attenuationInput,
+      attenuationOut: device.attenuationOutput,
+      usedSlots: device.usedSlots,
+      inputCoreColor: device.inputCoreColor,
+      photo: device.photo,
+      parent: device.parent,
+    },
+    geometry: { type: "Point", coordinates: [device.longitude, device.latitude] },
+  };
+};
 
-  return defaultColor || "#FF0000";
+const toNodeFeature = (node: TopologyNode, type: DeviceType): DeviceFeature => {
+  const safeId = node.nodeId ? String(node.nodeId) : createFallbackId("node-fallback");
+  return {
+    type: "Feature",
+    id: `node-${safeId}`,
+    properties: {
+      id: safeId,
+      originalId: node.nodeId,
+      type,
+      color: MARKER_COLORS[type],
+      name: node.name || "Node Tanpa Nama",
+      source: "mapping-node",
+      originalType: node.type || "unknown",
+      notes: node.notes,
+      description: node.description,
+      capacity: node.capacity,
+      splitter: node.splitter,
+      serialNumber: node.serialNumber,
+      pppoe: node.pppoe,
+      attenuationIn: node.attenuationIn,
+      attenuationOut: node.attenuationOut,
+      usedSlots: node.usedSlots,
+      inputCoreColor: node.inputCoreColor,
+      photo: node.photo,
+      parent: node.parent,
+    },
+    geometry: { type: "Point", coordinates: [node.longitude, node.latitude] },
+  };
 };
 
 /**
  * Bangun FeatureCollection titik perangkat dari data topologi, menghormati
- * state visibility. Fungsi murni — dulu inline useMemo di topology-map.
+ * state visibility. Perangkat tanpa koordinat dilewati.
  */
 export const buildDevicesGeoJson = (
   data: TopologyData | null | undefined,
   visibility: VisibilityState,
-): GeoJSONFeatureCollection => {
+): GeoJSONFeatureCollection<DeviceFeature> => {
   if (!data) return { type: "FeatureCollection", features: [] };
 
-  const features: GeoJSONFeature[] = [];
-  const addFeature = (d: any, type: DeviceType, color: string) => {
-    // PERMISIF: Skip hanya jika koordinat null/0
-    if (!d.longitude || !d.latitude) return;
-
-    // PERMISIF: Fallback ID jika data.id kosong
-    const safeId = d.id ? String(d.id) : `fallback-${type}-${Math.random().toString(36).substr(2, 9)}`;
-
-    features.push({
-      type: "Feature",
-      id: type + "-" + safeId,
-      properties: {
-        id: safeId,
-        originalId: d.id, // STORE ORIGINAL ID
-        type: type,
-        color: color || "#9ca3af",
-        name: d.name || d.nama || d.idPelanggan || "Tanpa Nama",
-        source: "inventory",
-        // Map all details for the modal
-        notes: d.notes,
-        capacity: d.capacity,
-        splitter: d.splitter,
-        serialNumber: d.serialNumber,
-        pppoe: d.pppoe,
-        attenuationIn: d.attenuationInput,
-        attenuationOut: d.attenuationOutput,
-        usedSlots: d.usedSlots,
-        inputCoreColor: d.inputCoreColor,
-        photo: d.photo,
-        parent: d.parent,
-      },
-      geometry: {
-        type: "Point",
-        coordinates: [d.longitude, d.latitude],
-      },
+  const features: DeviceFeature[] = [];
+  DRAW_INVENTORY_ORDER.filter((type) => visibility[type]).forEach((type) => {
+    getInventoryDevices(data, type).forEach((device) => {
+      if (!device.longitude || !device.latitude) return;
+      features.push(toInventoryFeature(device, type));
     });
-  };
+  });
 
-  if (visibility.otb)
-    data.otbs.forEach((d) => addFeature(d, "otb", MARKER_COLORS.otb));
-  if (visibility.odc)
-    data.odcs.forEach((d) => addFeature(d, "odc", MARKER_COLORS.odc));
-  if (visibility.odp)
-    data.odps.forEach((d) => addFeature(d, "odp", MARKER_COLORS.odp));
-  if (visibility.joinbox)
-    data.joinboxes.forEach((d) =>
-      addFeature(d, "joinbox", MARKER_COLORS.joinbox),
-    );
-  if (visibility.pole)
-    data.poles.forEach((d) => addFeature(d, "pole", MARKER_COLORS.pole));
-  if (visibility.pelanggan)
-    data.pelanggans.forEach((d) =>
-      addFeature(d, "pelanggan", MARKER_COLORS.pelanggan),
-    );
-
-  // Render nodes from MappingNode
-  if (data.nodes) {
-    data.nodes.forEach((node) => {
-      // PERMISIF: Cek koordinat
-      if (!node.longitude || !node.latitude) return;
-
-      // PERMISIF: Fallback ID
-      const safeId = node.nodeId ? String(node.nodeId) : `node-fallback-${Math.random().toString(36).substr(2, 9)}`;
-
-      let mappedType: DeviceType = "pole"; // Default fallback
-      let color = MARKER_COLORS.pole;
-
-      // Map node types to device types and colors
-      if (node.type) {
-        switch (node.type.toLowerCase()) {
-          case "server":
-            mappedType = "otb"; // Icon Server, Warna Ungu
-            color = MARKER_COLORS.otb;
-            break;
-          case "odc":
-            mappedType = "odc"; // Icon Box, Warna Biru
-            color = MARKER_COLORS.odc;
-            break;
-          case "odp":
-            mappedType = "odp"; // Icon Disc, Warna Cyan
-            color = MARKER_COLORS.odp;
-            break;
-          case "ont":
-            mappedType = "pelanggan"; // Icon Home, Warna Oranye
-            color = MARKER_COLORS.pelanggan;
-            break;
-        }
-      }
-
-      if (mappedType && visibility[mappedType]) {
-        features.push({
-          type: "Feature",
-          id: `node-${safeId}`,
-          properties: {
-            id: safeId,
-            originalId: node.nodeId, // STORE ORIGINAL ID
-            type: mappedType,
-            color: color,
-            name: node.name || "Node Tanpa Nama",
-            source: "mapping-node",
-            originalType: node.type || "unknown",
-            // Map all details for the modal
-            notes: node.notes, // Use notes from backend
-            description: node.description, // Fallback
-            capacity: node.capacity,
-            splitter: node.splitter,
-            serialNumber: node.serialNumber, // Note: node.serialNumber (camelCase)
-            pppoe: node.pppoe,
-            attenuationIn: node.attenuationIn,
-            attenuationOut: node.attenuationOut,
-            usedSlots: node.usedSlots,
-            inputCoreColor: node.inputCoreColor,
-            photo: node.photo,
-            parent: node.parent,
-          },
-          geometry: {
-            type: "Point",
-            coordinates: [node.longitude, node.latitude],
-          },
-        });
-      }
-    });
-  }
+  data.nodes?.forEach((node) => {
+    if (!node.longitude || !node.latitude) return;
+    const mappedType = mapNodeTypeToDeviceType(node.type);
+    if (visibility[mappedType]) features.push(toNodeFeature(node, mappedType));
+  });
 
   return { type: "FeatureCollection", features };
 };
 
 /**
  * Bangun FeatureCollection garis koneksi antar-perangkat dari edges,
- * memakai titik-titik yang sudah terlihat (deviceFeatures). Fungsi murni.
+ * memakai titik-titik yang sudah terlihat (deviceFeatures).
  */
 export const buildConnectionLines = (
   data: TopologyData | null | undefined,
-  deviceFeatures: GeoJSONFeature[],
+  deviceFeatures: DeviceFeature[],
   linesVisible: boolean,
-): GeoJSONFeatureCollection => {
-  if (!data || !data.edges) return { type: "FeatureCollection", features: [] };
+): GeoJSONFeatureCollection<ConnectionLineFeature> => {
+  if (!data || !data.edges || !linesVisible) return { type: "FeatureCollection", features: [] };
 
-  const features: GeoJSONFeature[] = [];
+  const findFeature = (originalId: string) =>
+    deviceFeatures.find((feature) => String(feature.properties?.originalId) === originalId);
 
-  // Use visible features for lookup to ensure we only connect to valid/visible nodes
-  const allFeatures = deviceFeatures;
-
-  if (!linesVisible) return { type: "FeatureCollection", features: [] };
-
+  const features: ConnectionLineFeature[] = [];
   data.edges.forEach((edge) => {
     if (!edge) return;
 
-    // 1. Loose ID Comparison (String vs String)
-    const sourceIdStr = String(edge.source);
-    const targetIdStr = String(edge.target);
+    const sourceFeature = findFeature(String(edge.source));
+    const targetFeature = findFeature(String(edge.target));
+    // Node tidak ketemu (terfilter/corrupt) → lewati garis ini.
+    if (!sourceFeature || !targetFeature) return;
 
-    // Find source and target features by their ORIGINAL ID
-    const sourceFeature = allFeatures.find(f => String(f.properties?.originalId) === sourceIdStr);
-    const targetFeature = allFeatures.find(f => String(f.properties?.originalId) === targetIdStr);
+    const sourceCoords = sourceFeature.geometry.coordinates;
+    const targetCoords = targetFeature.geometry.coordinates;
+    if (!sourceCoords || !targetCoords) return;
 
-    // Safety Check: Jika node tidak ketemu (terfilter/corrupt), skip garis ini
-    if (!sourceFeature || !targetFeature) {
-      return;
-    }
+    const waypoints = parseEdgeWaypoints(edge);
+    const waypointCoords = Array.isArray(waypoints) ? waypoints.map(normalizeWaypoint) : [];
 
-    const sourceCoords = (sourceFeature.geometry as any).coordinates;
-    const targetCoords = (targetFeature.geometry as any).coordinates;
+    const distanceInMeters = Math.round(
+      calculateDistance(sourceCoords[1], sourceCoords[0], targetCoords[1], targetCoords[0]),
+    );
 
-    if (sourceCoords && targetCoords) {
-      let coordinates: number[][] = [];
-
-      // Start with Source
-      coordinates.push(sourceCoords);
-
-      // Handle JSON String Waypoints (Robust Parsing)
-      let waypoints = edge.waypoints;
-
-      if (typeof waypoints === 'string') {
-        try {
-          waypoints = JSON.parse(waypoints);
-        } catch (e) {
-          logger.error(`Failed to parse waypoints for edge ${edge.id || 'unknown'}:`, e);
-          waypoints = [];
-        }
-      }
-
-      // Add Waypoints (if any)
-      if (waypoints && Array.isArray(waypoints)) {
-        const wps = waypoints.map((wp: any) => {
-          let lng, lat;
-
-          if (Array.isArray(wp)) {
-            // Koordinat GeoJSON: Pastikan [Longitude, Latitude]
-            const val0 = Number(wp[0]);
-            const val1 = Number(wp[1]);
-
-            // Deteksi format [Lat, Lng] -> Swap jadi [Lng, Lat]
-            if (Math.abs(val1) > Math.abs(val0) && Math.abs(val1) > 90) {
-              lng = val1;
-              lat = val0;
-            } else {
-              lng = val0;
-              lat = val1;
-            }
-          } else {
-            lng = wp.longitude ?? wp.lng ?? 0;
-            lat = wp.latitude ?? wp.lat ?? 0;
-          }
-          return [Number(lng), Number(lat)];
-        });
-        coordinates.push(...wps);
-      }
-
-      // End with Target
-      coordinates.push(targetCoords);
-
-      // Determine line color from feature types
-      const sourceType = sourceFeature.properties?.type;
-      const targetType = targetFeature.properties?.type;
-      const color = getLineColor(sourceType, targetType, edge.color);
-
-      // Calculate distance for info (bulatkan ke meter — sama seperti implementasi lama)
-      const distance = Math.round(calculateDistance(
-        sourceCoords[1],
-        sourceCoords[0],
-        targetCoords[1],
-        targetCoords[0]
-      ));
-
-      features.push({
-        type: "Feature",
-        properties: {
-          edgeId: edge.id,
-          color: color,
-          sourceName: sourceFeature.properties?.name || "Unknown",
-          targetName: targetFeature.properties?.name || "Unknown",
-          distance: `${distance}m`
-        },
-        geometry: {
-          type: "LineString",
-          coordinates: coordinates,
-        },
-      });
-    }
+    features.push({
+      type: "Feature",
+      properties: {
+        edgeId: edge.id,
+        color: getLineColor(sourceFeature.properties?.type, targetFeature.properties?.type, edge.color),
+        sourceName: sourceFeature.properties?.name || "Unknown",
+        targetName: targetFeature.properties?.name || "Unknown",
+        distance: `${distanceInMeters}m`,
+      },
+      geometry: {
+        type: "LineString",
+        coordinates: [sourceCoords, ...waypointCoords, targetCoords],
+      },
+    });
   });
 
   return { type: "FeatureCollection", features };
+};
+
+/** Marker perangkat untuk WebMapView (inventaris + MappingNode berkoordinat). */
+export const buildWebDevices = (data: TopologyData | null | undefined): WebTopologyDevice[] => {
+  if (!data) return [];
+
+  const devices: WebTopologyDevice[] = [];
+  const addDevice = (device: InventoryDeviceRecord, type: DeviceType) => {
+    if (!device.longitude || !device.latitude) return;
+    devices.push({
+      type,
+      id: device.id || device.nodeId || "",
+      name: getDeviceDisplayName(device, "Unknown"),
+      latitude: device.latitude,
+      longitude: device.longitude,
+      color: MARKER_COLORS[type],
+      properties: device,
+    });
+  };
+
+  DRAW_INVENTORY_ORDER.forEach((type) =>
+    getInventoryDevices(data, type).forEach((device) => addDevice(device, type)),
+  );
+  data.nodes?.forEach((node) =>
+    addDevice({ ...node, id: node.nodeId }, mapNodeTypeToDeviceType(node.type)),
+  );
+
+  return devices;
 };
