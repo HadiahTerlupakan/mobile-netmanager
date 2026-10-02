@@ -50,7 +50,8 @@ export interface CapaianBulananProyek {
   month: number;
   year: number;
   achievedRevenue: string;
-  opex: string;
+  /** OPEX aktual yang diisi admin; null = belum diisi (hitungan memakai OPEX rencana). */
+  opex: string | null;
   /** Biaya operasional yang dipakai hitungan RAB bulan ini. */
   opexUsed: number;
   /** Bagi hasil milik saya bulan ini. */
