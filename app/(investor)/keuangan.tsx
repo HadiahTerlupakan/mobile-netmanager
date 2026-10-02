@@ -5,6 +5,8 @@ import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
+import { DESAIN_PREMIUM } from '@/theme';
+
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import type { OpsiChip } from '@/components/molecules/PilihanChip';
 import { SegmenPilihan } from '@/components/molecules/SegmenPilihan';
@@ -13,7 +15,6 @@ import {
   DaftarPencairan,
   DaftarSetoranModal,
 } from '@/components/organisms/investor/DaftarRiwayatKeuangan';
-import { DESAIN_INVESTOR } from '@/constants/investor';
 import { useSegarkanDataInvestor } from '@/hooks/useSegarkanDataInvestor';
 import { queryKeys } from '@/lib/queryClient';
 
@@ -64,7 +65,7 @@ export default function KeuanganInvestorScreen() {
 
   return (
     <ScreenErrorBoundary screenName="KeuanganInvestor">
-      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_INVESTOR.latarLayar }]} edges={['top']}>
+      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_PREMIUM.latarLayar }]} edges={['top']}>
         <ScrollView
           contentContainerStyle={tw`px-4 pb-8`}
           refreshControl={<RefreshControl refreshing={isMenyegarkan} onRefresh={() => void segarkan()} />}

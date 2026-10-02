@@ -6,16 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
-import { JudulBagian } from '@/components/organisms/investor/JudulBagian';
-import { KartuAngka } from '@/components/organisms/investor/KartuAngka';
+import { JudulBagian } from '@/components/molecules/JudulBagian';
+import { KartuAngka } from '@/components/molecules/KartuAngka';
 import { KartuPortofolio } from '@/components/organisms/investor/KartuPortofolio';
 import { KartuProyekInvestor } from '@/components/organisms/investor/KartuProyekInvestor';
 import { KeadaanDaftar } from '@/components/organisms/investor/KeadaanDaftar';
-import { DESAIN_INVESTOR } from '@/constants/investor';
 import { useAuth } from '@/context/AuthContext';
 import { useRingkasanInvestor } from '@/hooks/queries/useInvestor';
 import { useSegarkanDataInvestor } from '@/hooks/useSegarkanDataInvestor';
-import { useTemaPersona } from '@/theme';
+import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 import type { RingkasanInvestor } from '@/types/investor';
 import { formatDate } from '@/utils/date';
 import { formatPersen } from '@/utils/investor';
@@ -116,7 +115,7 @@ export default function BerandaInvestorScreen() {
 
   return (
     <ScreenErrorBoundary screenName="BerandaInvestor">
-      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_INVESTOR.latarLayar }]} edges={['top']}>
+      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_PREMIUM.latarLayar }]} edges={['top']}>
         <ScrollView
           contentContainerStyle={tw`pb-8`}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />}

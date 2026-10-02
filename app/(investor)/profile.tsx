@@ -4,11 +4,10 @@ import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
-import { LatarGradien } from '@/components/atoms/LatarGradien';
+import { KartuHeroGradien } from '@/components/molecules/KartuHeroGradien';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
-import { DESAIN_INVESTOR } from '@/constants/investor';
 import { useAuth } from '@/context/AuthContext';
-import { useTemaPersona } from '@/theme';
+import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 
 const WARNA_IKON_KELUAR = '#dc2626';
 const UKURAN_IKON = 18;
@@ -36,10 +35,10 @@ function BarisData({ ikon: Ikon, label, nilai, isTerakhir }: DataProfil & { isTe
 
 /** Kartu identitas investor: inisial, nama, dan perusahaan di atas latar gradien. */
 function KartuIdentitas({ nama, perusahaan }: { nama: string; perusahaan?: string | null }) {
+  const { warna } = useTemaPersona();
   return (
-    <View style={tw`rounded-3xl overflow-hidden`}>
-      <LatarGradien dari={DESAIN_INVESTOR.gradienAwal} ke={DESAIN_INVESTOR.gradienAkhir} />
-      <View style={tw`flex-row items-center p-5`}>
+    <KartuHeroGradien>
+      <View style={tw`flex-row items-center`}>
         <View style={tw`w-16 h-16 rounded-full bg-white/15 border border-white/30 items-center justify-center`}>
           <Text style={tw`text-2xl font-bold text-white`}>{nama.charAt(0).toUpperCase() || 'I'}</Text>
         </View>
@@ -47,12 +46,12 @@ function KartuIdentitas({ nama, perusahaan }: { nama: string; perusahaan?: strin
           <Text style={tw`text-xl font-bold text-white`} numberOfLines={1}>
             {nama}
           </Text>
-          <Text style={[tw`text-sm mt-0.5`, { color: DESAIN_INVESTOR.teksLembutDiAtasGelap }]} numberOfLines={1}>
+          <Text style={[tw`text-sm mt-0.5`, { color: warna.utamaGaris }]} numberOfLines={1}>
             Investor{perusahaan ? ` · ${perusahaan}` : ''}
           </Text>
         </View>
       </View>
-    </View>
+    </KartuHeroGradien>
   );
 }
 
@@ -74,7 +73,7 @@ export default function ProfilInvestorScreen() {
 
   return (
     <ScreenErrorBoundary screenName="ProfilInvestor">
-      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_INVESTOR.latarLayar }]} edges={['top']}>
+      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_PREMIUM.latarLayar }]} edges={['top']}>
         <ScrollView contentContainerStyle={tw`px-4 pb-8`}>
           <Text style={tw`text-2xl font-bold text-slate-900 pt-4 pb-5`}>Profil</Text>
           <KartuIdentitas nama={user?.name ?? ''} perusahaan={user?.perusahaan} />

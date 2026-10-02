@@ -4,8 +4,8 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
 import { LencanaStatus } from '@/components/molecules/LencanaStatus';
-import { DESAIN_INVESTOR, STATUS_PROYEK } from '@/constants/investor';
-import { useTemaPersona } from '@/theme';
+import { STATUS_PROYEK } from '@/constants/investor';
+import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 import { tampilanStatus } from '@/utils/investor';
 
 const UKURAN_IKON_LOKASI = 13;
@@ -43,12 +43,12 @@ export function KartuProyekInvestor({ nama, lokasi, status, rincian = [], onTeka
           </Text>
           {lokasi ? (
             <View style={tw`flex-row items-center mt-0.5`}>
-              <MapPin size={UKURAN_IKON_LOKASI} color={DESAIN_INVESTOR.ikonNetral} />
+              <MapPin size={UKURAN_IKON_LOKASI} color={DESAIN_PREMIUM.ikonNetral} />
               <Text style={tw`text-xs text-slate-500 ml-1`}>{lokasi}</Text>
             </View>
           ) : null}
         </View>
-        <ChevronRight size={UKURAN_IKON_PANAH} color={DESAIN_INVESTOR.ikonNetral} />
+        <ChevronRight size={UKURAN_IKON_PANAH} color={DESAIN_PREMIUM.ikonNetral} />
       </View>
       <View style={tw`mt-3`}>
         <LencanaStatus status={tampilanStatus(STATUS_PROYEK, status)} />

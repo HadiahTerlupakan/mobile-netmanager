@@ -6,23 +6,23 @@ import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
-import { LatarGradien } from '@/components/atoms/LatarGradien';
+import { KartuHeroGradien } from '@/components/molecules/KartuHeroGradien';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { KepalaLayar } from '@/components/molecules/KepalaLayar';
 import { LencanaStatus } from '@/components/molecules/LencanaStatus';
 import { BarisCapaianBulanan } from '@/components/organisms/investor/BarisCapaianBulanan';
-import { BilahKemajuan } from '@/components/organisms/investor/BilahKemajuan';
+import { BilahKemajuan } from '@/components/molecules/BilahKemajuan';
 import {
   GrafikPendapatanBulanan,
   type BatangBulanan,
 } from '@/components/organisms/investor/GrafikPendapatanBulanan';
-import { JudulBagian } from '@/components/organisms/investor/JudulBagian';
-import { KartuAngka } from '@/components/organisms/investor/KartuAngka';
+import { JudulBagian } from '@/components/molecules/JudulBagian';
+import { KartuAngka } from '@/components/molecules/KartuAngka';
 import { KeadaanDaftar } from '@/components/organisms/investor/KeadaanDaftar';
-import { DESAIN_INVESTOR, STATUS_PROYEK } from '@/constants/investor';
+import { STATUS_PROYEK } from '@/constants/investor';
 import { useRincianProyekInvestor } from '@/hooks/queries/useInvestor';
 import { useSegarkanDataInvestor } from '@/hooks/useSegarkanDataInvestor';
-import { useTemaPersona } from '@/theme';
+import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
 import type { CapaianBulananProyek, RincianProyekInvestor } from '@/types/investor';
 import {
   formatPersen,
@@ -56,21 +56,20 @@ function susunBatang(terbaruDulu: CapaianBulananProyek[], tanggalMulai: string |
 }
 
 function KepalaProyek({ proyek }: { proyek: RincianProyekInvestor }) {
-  const teksLembut = { color: DESAIN_INVESTOR.teksLembutDiAtasGelap };
+  const { warna } = useTemaPersona();
+  const teksLembut = { color: warna.utamaGaris };
   return (
-    <View style={tw`rounded-3xl overflow-hidden`}>
-      <LatarGradien dari={DESAIN_INVESTOR.gradienAwal} ke={DESAIN_INVESTOR.gradienAkhir} />
-      <View style={tw`p-5`}>
+    <KartuHeroGradien>
         <LencanaStatus status={tampilanStatus(STATUS_PROYEK, proyek.status)} />
         <Text style={tw`text-xl font-bold text-white mt-3`}>{proyek.name}</Text>
         {proyek.siteName ? (
           <View style={tw`flex-row items-center mt-1`}>
-            <MapPin size={UKURAN_IKON_LOKASI} color={DESAIN_INVESTOR.teksLembutDiAtasGelap} />
+            <MapPin size={UKURAN_IKON_LOKASI} color={warna.utamaGaris} />
             <Text style={[tw`text-xs ml-1`, teksLembut]}>{proyek.siteName}</Text>
           </View>
         ) : null}
         {proyek.description ? <Text style={[tw`text-sm mt-3`, teksLembut]}>{proyek.description}</Text> : null}
-        <View style={[tw`flex-row mt-5 pt-4 border-t`, { borderColor: DESAIN_INVESTOR.garisDiAtasGelap }]}>
+        <View style={[tw`flex-row mt-5 pt-4 border-t`, { borderColor: DESAIN_PREMIUM.garisDiAtasGelap }]}>
           <View style={tw`flex-1`}>
             <Text style={[tw`text-xs`, teksLembut]}>Modal saya</Text>
             <Text style={[tw`text-lg font-bold text-white mt-0.5`, GAYA_ANGKA]}>
@@ -79,13 +78,12 @@ function KepalaProyek({ proyek }: { proyek: RincianProyekInvestor }) {
           </View>
           <View style={tw`items-end`}>
             <Text style={[tw`text-xs`, teksLembut]}>Porsi bagi hasil</Text>
-            <Text style={[tw`text-lg font-bold mt-0.5`, GAYA_ANGKA, { color: DESAIN_INVESTOR.aksenEmas }]}>
+            <Text style={[tw`text-lg font-bold mt-0.5`, GAYA_ANGKA, { color: DESAIN_PREMIUM.aksenEmas }]}>
               {formatPersen(proyek.profitSharePercent)}
             </Text>
           </View>
         </View>
-      </View>
-    </View>
+    </KartuHeroGradien>
   );
 }
 
@@ -175,7 +173,7 @@ export default function RincianProyekInvestorScreen() {
 
   return (
     <ScreenErrorBoundary screenName="RincianProyekInvestor">
-      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_INVESTOR.latarLayar }]} edges={['top', 'bottom']}>
+      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_PREMIUM.latarLayar }]} edges={['top', 'bottom']}>
         <KepalaLayar judul="Rincian Proyek" />
         <ScrollView
           contentContainerStyle={tw`pb-8`}

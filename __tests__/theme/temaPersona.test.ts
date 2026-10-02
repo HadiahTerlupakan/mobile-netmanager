@@ -51,9 +51,18 @@ const BIRU_SALES: WarnaTemaPersona = {
   utamaMuda: '#dbeafe',
   utamaSangatMuda: '#eff6ff',
   teksDiAtasUtama: '#ffffff',
+  gradienAwal: '#1e40af',
+  gradienAkhir: '#0b1533',
 };
 
 describe('palet persona', () => {
+  it('teks putih di atas gradien kartu sorotan tetap terbaca (≥ 4.5:1) untuk semua persona', () => {
+    for (const warna of Object.values(PALET_PERSONA)) {
+      expect(hitungRasioKontras('#ffffff', warna.gradienAwal)).toBeGreaterThanOrEqual(4.5);
+      expect(hitungRasioKontras('#ffffff', warna.gradienAkhir)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it('sales tetap biru tailwind persis seperti sebelum tema persona', () => {
     expect(PALET_PERSONA.KARYAWAN_SALES).toEqual(BIRU_SALES);
   });

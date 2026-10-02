@@ -4,10 +4,11 @@ import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
+import { DESAIN_PREMIUM } from '@/theme';
+
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { KartuProyekInvestor } from '@/components/organisms/investor/KartuProyekInvestor';
 import { KeadaanDaftar } from '@/components/organisms/investor/KeadaanDaftar';
-import { DESAIN_INVESTOR } from '@/constants/investor';
 import { useDaftarProyekInvestor } from '@/hooks/queries/useInvestor';
 import { useSegarkanDataInvestor } from '@/hooks/useSegarkanDataInvestor';
 import { formatPersen, formatRupiah, formatRupiahRingkas } from '@/utils/investor';
@@ -21,7 +22,7 @@ export default function DaftarProyekInvestorScreen() {
 
   return (
     <ScreenErrorBoundary screenName="ProyekInvestor">
-      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_INVESTOR.latarLayar }]} edges={['top']}>
+      <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_PREMIUM.latarLayar }]} edges={['top']}>
         <ScrollView
           contentContainerStyle={tw`px-4 pb-8`}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} />}

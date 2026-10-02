@@ -38,6 +38,10 @@ export interface WarnaTemaPersona {
   utamaSangatMuda: string;
   /** Teks/ikon di atas `utamaKuat`. */
   teksDiAtasUtama: string;
+  /** Awal gradien kartu sorotan premium (pojok kiri atas). */
+  gradienAwal: string;
+  /** Akhir gradien kartu sorotan premium — hampir hitam agar teks putih tegas. */
+  gradienAkhir: string;
 }
 
 /** Tema identitas aktif: persona pemiliknya dan palet warnanya. */
@@ -61,6 +65,8 @@ const WARNA_BIRU: WarnaTemaPersona = {
   utamaMuda: '#dbeafe',
   utamaSangatMuda: '#eff6ff',
   teksDiAtasUtama: PUTIH,
+  gradienAwal: '#1e40af',
+  gradienAkhir: '#0b1533',
 };
 
 /** Oranye — teknisi. Putih di atas orange-600 hanya 3.56:1, jadi latar teks memakai orange-700. */
@@ -76,6 +82,8 @@ const WARNA_ORANYE: WarnaTemaPersona = {
   utamaMuda: '#ffedd5',
   utamaSangatMuda: '#fff7ed',
   teksDiAtasUtama: PUTIH,
+  gradienAwal: '#c2410c',
+  gradienAkhir: '#431407',
 };
 
 /** Hijau tosca — staff. Putih di atas teal-600 hanya 3.74:1, jadi latar teks memakai teal-700. */
@@ -91,6 +99,8 @@ const WARNA_TOSCA: WarnaTemaPersona = {
   utamaMuda: '#ccfbf1',
   utamaSangatMuda: '#f0fdfa',
   teksDiAtasUtama: PUTIH,
+  gradienAwal: '#0f766e',
+  gradienAkhir: '#042f2e',
 };
 
 /** Ungu — finance (tailwind violet). */
@@ -106,6 +116,8 @@ const WARNA_UNGU: WarnaTemaPersona = {
   utamaMuda: '#ede9fe',
   utamaSangatMuda: '#f5f3ff',
   teksDiAtasUtama: PUTIH,
+  gradienAwal: '#6d28d9',
+  gradienAkhir: '#2e1065',
 };
 
 /** Indigo — direktur; berangkat dari indigo-700 agar lebih tegas. */
@@ -121,6 +133,8 @@ const WARNA_INDIGO: WarnaTemaPersona = {
   utamaMuda: '#e0e7ff',
   utamaSangatMuda: '#eef2ff',
   teksDiAtasUtama: PUTIH,
+  gradienAwal: '#3730a3',
+  gradienAkhir: '#1e1b4b',
 };
 
 /** Zamrud — investor; berangkat dari emerald-700 agar teks putih tetap terbaca. */
@@ -136,6 +150,8 @@ const WARNA_ZAMRUD: WarnaTemaPersona = {
   utamaMuda: '#d1fae5',
   utamaSangatMuda: '#ecfdf5',
   teksDiAtasUtama: PUTIH,
+  gradienAwal: '#065f46',
+  gradienAkhir: '#022c22',
 };
 
 /** Palet per persona. Mitra memakai biru yang selama ini tampil di layar mitra. */

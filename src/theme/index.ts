@@ -9,3 +9,4 @@ export {
 } from './temaPersona';
 export { ambilTwPersona } from './twPersona';
 export { TemaPersonaProvider, useTemaPersona, type NilaiTemaPersona } from './TemaPersonaContext';
+export { DESAIN_PREMIUM, GAYA_ANGKA_TABULAR } from './desainPremium';
