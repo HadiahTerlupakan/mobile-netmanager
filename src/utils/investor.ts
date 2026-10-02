@@ -39,6 +39,16 @@ export function tampilanStatus(
 }
 
 /**
+ * Label capaian bulan ke-n proyek: "Bulan ke-3 · Okt 2026" bila tanggal mulai
+ * proyek diketahui, selain itu "Bulan ke-3".
+ */
+export function labelBulanProyek(bulanKe: number, tanggalMulai: string | null): string {
+  const label = `Bulan ke-${bulanKe}`;
+  if (!tanggalMulai || !dayjs(tanggalMulai).isValid()) return label;
+  return `${label} · ${dayjs(tanggalMulai).add(bulanKe - 1, 'month').format('MMM YYYY')}`;
+}
+
+/**
  * Label periode bagi hasil. Periode satu bulan penuh → "Agustus 2026";
  * selain itu rentang tanggal "1 Jul 2026 – 30 Sep 2026".
  */

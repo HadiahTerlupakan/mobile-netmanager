@@ -40,7 +40,7 @@ export interface ProyekInvestor {
   createdAt: string;
 }
 
-/** Capaian bulanan proyek. */
+/** Capaian bulanan proyek. `month` = bulan ke-n sejak proyek mulai (bukan bulan kalender). */
 export interface CapaianBulananProyek {
   id: string;
   month: number;
@@ -51,6 +51,8 @@ export interface CapaianBulananProyek {
 
 /** `GET /api/mobile/investor/projects/:id`. */
 export interface RincianProyekInvestor extends ProyekInvestor {
+  /** Awal bulan ke-1 proyek; null bila RAB belum diberi tanggal mulai. */
+  startDate: string | null;
   targetSubscribers: number | null;
   estimatedCurrentRevenue: string;
   actualAchievements: CapaianBulananProyek[];

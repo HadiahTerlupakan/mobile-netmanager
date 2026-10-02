@@ -12,17 +12,11 @@ import { KeadaanDaftar } from '@/components/organisms/investor/KeadaanDaftar';
 import { STATUS_PROYEK } from '@/constants/investor';
 import { useRincianProyekInvestor } from '@/hooks/queries/useInvestor';
 import type { CapaianBulananProyek, RincianProyekInvestor } from '@/types/investor';
-import { formatPersen, formatRupiah, tampilanStatus } from '@/utils/investor';
+import { formatPersen, formatRupiah, labelBulanProyek, tampilanStatus } from '@/utils/investor';
 
-const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
-function labelBulan(capaian: CapaianBulananProyek): string {
-  return `${NAMA_BULAN[capaian.month - 1] ?? capaian.month} ${capaian.year}`;
-}
-
-/** Capaian bulanan terbaru dulu. */
+/** Capaian bulanan terbaru dulu (bulan ke-n terbesar). */
 function urutkanTerbaru(daftar: CapaianBulananProyek[]): CapaianBulananProyek[] {
-  return [...daftar].sort((a, b) => b.year - a.year || b.month - a.month);
+  return [...daftar].sort((a, b) => b.month - a.month);
 }
 
 function IsiRincian({ proyek }: { proyek: RincianProyekInvestor }) {
@@ -60,8 +54,8 @@ function IsiRincian({ proyek }: { proyek: RincianProyekInvestor }) {
       ) : (
         capaian.map((bulan) => (
           <View key={bulan.id} style={tw`flex-row bg-white rounded-xl p-4 border border-gray-100 mb-2`}>
-            <Text style={tw`w-20 font-semibold text-gray-900`}>{labelBulan(bulan)}</Text>
             <View style={tw`flex-1`}>
+              <Text style={tw`font-semibold text-gray-900`}>{labelBulanProyek(bulan.month, proyek.startDate)}</Text>
               <Text style={tw`text-sm text-gray-900`}>Pendapatan {formatRupiah(bulan.achievedRevenue)}</Text>
               <Text style={tw`text-xs text-gray-500 mt-0.5`}>Biaya operasional {formatRupiah(bulan.opex)}</Text>
             </View>
