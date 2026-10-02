@@ -166,3 +166,7 @@ export const ENDPOINT_PENILAIAN_PRESURVEI = '/api/presurvei/penilaian';
  * sales (dirinya + anggota tim), SEMUA = admin (seluruh sales tenant).
  */
 export type LingkupRencana = 'SENDIRI' | 'TIM' | 'SEMUA';
+
+/** Keadaan kosong daftar prospek (sub-tab Prospek & pemilih prospek). */
+export const JUDUL_PROSPEK_KOSONG = 'Belum ada prospek yang cocok';
+export const PESAN_PROSPEK_KOSONG = 'Ketuk "Tambah prospek" di atas untuk menambah.';

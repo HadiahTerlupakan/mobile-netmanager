@@ -97,12 +97,12 @@ describe('PilihProspekModal', () => {
     expect(mockRefetch).toHaveBeenCalledWith();
   });
 
-  it('galat server tidak ditelan menjadi "Belum ada prospek yang cocok. Ketuk tombol biru di atas untuk menambah."', () => {
+  it('galat server tidak ditelan menjadi "Belum ada prospek yang cocok. Ketuk "Tambah prospek" di atas untuk menambah."', () => {
     mockDaftar = { ...DAFTAR_DASAR, isError: true };
     const { getByText, queryByText } = renderModal();
 
     expect(getByText('Daftar prospek gagal dimuat.')).toBeTruthy();
-    expect(queryByText('Belum ada prospek yang cocok. Ketuk tombol biru di atas untuk menambah.')).toBeNull();
+    expect(queryByText('Belum ada prospek yang cocok. Ketuk "Tambah prospek" di atas untuk menambah.')).toBeNull();
   });
 
   it('sedang memuat saat online menampilkan Memuat…', () => {
@@ -116,7 +116,7 @@ describe('PilihProspekModal', () => {
     mockDaftar = { ...DAFTAR_DASAR, data: { pages: [{ data: [] }] } };
     const { getByText } = renderModal();
 
-    expect(getByText('Belum ada prospek yang cocok. Ketuk tombol biru di atas untuk menambah.')).toBeTruthy();
+    expect(getByText('Belum ada prospek yang cocok. Ketuk "Tambah prospek" di atas untuk menambah.')).toBeTruthy();
   });
 
   it('memilih prospek meneruskan item itu, dan Tutup menutup modal', () => {
@@ -189,7 +189,7 @@ describe('PilihProspekModal', () => {
       mockDaftar = { ...DAFTAR_DASAR, data: { pages: [{ data: [] }] } };
       const { getByLabelText, getByText, queryByLabelText } = renderModal();
 
-      expect(getByText('Belum ada prospek yang cocok. Ketuk tombol biru di atas untuk menambah.')).toBeTruthy();
+      expect(getByText('Belum ada prospek yang cocok. Ketuk "Tambah prospek" di atas untuk menambah.')).toBeTruthy();
       fireEvent.press(getByLabelText('Tambah prospek baru'));
 
       expect(getByText('Tambah Prospek')).toBeTruthy();

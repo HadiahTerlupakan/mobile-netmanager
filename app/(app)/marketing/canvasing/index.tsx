@@ -1,4 +1,6 @@
+import { EmptyState } from "@/components/atoms/EmptyState";
 import { CanvasingSkeleton } from "@/components/molecules/CanvasingSkeleton";
+import { Inbox } from "lucide-react-native";
 import { AppFeature } from '@/constants/features';
 import { useAuth } from "@/context/AuthContext";
 import { useApiQuery } from "@/hooks/queries";
@@ -20,7 +22,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import tw from "twrnc";
-import { useTemaPersona } from '@/theme';
+import { KartuPoinCanvasing } from '@/components/organisms/canvasing/KartuPoinCanvasing';
+import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
+
+/** Jarak judul layar dari batas aman atas. */
+const JARAK_ATAS = 16;
 
 interface PointClaim {
   id: string;
@@ -54,23 +60,6 @@ interface UserProfile {
   canvasingTarget?: number;
 }
 
-// Memoized StatBox to prevent re-renders
-const StatBox = React.memo(({ label, value, icon }: { label: string; value: string | number; icon: keyof typeof Ionicons.glyphMap }) => {
-  return (
-    <View style={tw`flex-1 bg-white/10 rounded-2xl p-3 border border-white/10`}>
-      <View style={tw`flex-row items-center mb-1.5`}>
-        <Ionicons name={icon} size={12} color="white" style={tw`opacity-60`} />
-        <Text
-          style={tw`text-[9px] text-white font-bold uppercase ml-1 opacity-70`}
-        >
-          {label}
-        </Text>
-      </View>
-      <Text style={tw`text-white text-lg font-black`}>{value}</Text>
-    </View>
-  );
-});
-StatBox.displayName = 'StatBox';
 
 interface StatusUI {
   color: string;
@@ -101,30 +90,30 @@ const CanvasingItem = React.memo(({
 
   return (
     <View
-      style={tw`bg-white rounded-[24px] p-4 mb-4 shadow-sm border border-slate-100/80`}
+      style={tw`bg-white rounded-2xl p-4 mb-3 border border-slate-200/70`}
     >
       <View style={tw`flex-row justify-between items-start mb-3`}>
         <View style={tw`flex-1 mr-3`}>
-          <Text style={tw`text-lg font-black text-slate-800 mb-0.5 leading-tight tracking-tight`}>
+          <Text style={tw`text-base font-bold text-slate-900 mb-0.5`}>
             {item.nama}
           </Text>
-          <Text style={tw`text-slate-400 font-bold text-[10px] uppercase tracking-widest`}>
-            PAKET {item.paket}
+          <Text style={tw`text-xs text-slate-500`}>
+            Paket {item.paket}
           </Text>
         </View>
-        <View style={tw`px-2.5 py-1 rounded-full flex-row items-center border border-white shadow-sm ${statusUI.bg}`}>
+        <View style={tw`px-2.5 py-1 rounded-full flex-row items-center ${statusUI.bg}`}>
           <Ionicons
             name={statusUI.icon}
             size={12}
             color={tw.color(statusUI.color.replace("text-", ""))}
           />
-          <Text style={tw`ml-1.5 text-[10px] font-black ${statusUI.color} uppercase`}>
+          <Text style={tw`ml-1 text-[11px] font-semibold ${statusUI.color}`}>
             {statusUI.label}
           </Text>
         </View>
       </View>
 
-      <View style={tw`border border-slate-100 bg-slate-50/50 rounded-[16px] p-3 mb-3 flex-row items-center`}>
+      <View style={tw`bg-slate-50 rounded-xl p-3 mb-3 flex-row items-center`}>
         <View style={tw`w-8 h-8 rounded-full bg-white items-center justify-center shadow-sm mr-3 border border-slate-50`}>
           <Ionicons name="location" size={14} color="#64748b" />
         </View>
@@ -136,7 +125,7 @@ const CanvasingItem = React.memo(({
       <View style={tw`flex-row items-center justify-between mt-1 pt-3 border-t border-slate-100`}>
         <View style={tw`flex-row items-center`}>
           <Ionicons name="calendar" size={14} color="#94a3b8" />
-          <Text style={tw`text-[11px] text-slate-400 font-bold ml-1.5 uppercase`}>
+          <Text style={tw`text-xs text-slate-500 ml-1.5`}>
             {new Date(item.createdAt).toLocaleDateString("id-ID", {
               day: "2-digit",
               month: "short",
@@ -278,7 +267,7 @@ export default function CanvasingListScreen() {
     switch (status) {
       case "APPROVED": return { color: "text-emerald-700", bg: "bg-emerald-50", icon: "checkmark-circle", label: "Disetujui" };
       case "REJECTED": return { color: "text-rose-700", bg: "bg-rose-50", icon: "close-circle", label: "Ditolak" };
-      default: return { color: "text-amber-700", bg: "bg-amber-50", icon: "time", label: "Pending" };
+      default: return { color: "text-amber-700", bg: "bg-amber-50", icon: "time", label: "Menunggu" };
     }
   }, []);
 
@@ -341,99 +330,71 @@ export default function CanvasingListScreen() {
     );
   }
 
+  const kepalaDaftar = (
+    <View style={[tw`pb-2`, { paddingTop: insets.top + JARAK_ATAS }]}>
+      <View style={tw`flex-row items-center mb-5`}>
+        <View style={tw`flex-1`}>
+          <Text style={tw`text-2xl font-bold text-slate-900`}>Canvasing</Text>
+          <Text style={tw`text-sm text-slate-500 mt-0.5`}>Pelanggan baru & poin bonus</Text>
+        </View>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Tambah canvasing"
+          onPress={() => router.push("/(app)/marketing/canvasing/create")}
+          style={[tw`flex-row items-center px-4 h-10 rounded-full`, { backgroundColor: warna.utamaKuat }]}
+        >
+          <Ionicons name="add" size={20} color="white" />
+          <Text style={tw`text-white font-semibold ml-1`}>Tambah</Text>
+        </TouchableOpacity>
+      </View>
+
+      <KartuPoinCanvasing
+        ringkasan={{
+          poin: stats.points,
+          jumlahPengajuan: stats.total,
+          target: targetMonthly,
+          disetujui: stats.approved,
+          tingkatBerhasil: stats.rate,
+          menunggu: stats.pending,
+        }}
+      />
+
+      <View style={tw`flex-row items-center bg-white rounded-2xl px-4 mt-4 mb-2 border border-slate-200/70`}>
+        <Ionicons name="search-outline" size={18} color={DESAIN_PREMIUM.ikonNetral} />
+        <TextInput
+          placeholder="Cari pelanggan atau alamat..."
+          placeholderTextColor="#94a3b8"
+          style={tw`flex-1 ml-3 h-11 text-slate-900 text-sm`}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity accessibilityLabel="Hapus pencarian" onPress={() => setSearchQuery("")}>
+            <Ionicons name="close-circle" size={18} color={DESAIN_PREMIUM.ikonNetral} />
+          </TouchableOpacity>
+        )}
+      </View>
+      <Text style={tw`text-base font-bold text-slate-900 mt-4 mb-1`}>Riwayat pengajuan</Text>
+    </View>
+  );
+
   return (
-    <View style={tw`flex-1 bg-slate-50`}>
-      {/* Dynamic Header - Minimalist, blending into the background */}
-      <View style={[tw`px-5 pb-16 bg-slate-900 rounded-b-[40px]`, { paddingTop: insets.top + 16 }]}>
-        <View style={tw`flex-row items-center justify-between mb-6`}>
-          <TouchableOpacity onPress={() => router.back()} style={tw`w-10 h-10 items-center justify-center bg-white/10 rounded-full`}>
-            <Ionicons name="chevron-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={tw`text-lg font-black text-white tracking-widest`}>CANVASING</Text>
-          <TouchableOpacity onPress={() => router.push("/(app)/marketing/canvasing/create")} style={tw`w-10 h-10 items-center justify-center bg-emerald-500 rounded-full shadow-md`}>
-            <Ionicons name="add" size={28} color="white" />
-          </TouchableOpacity>
-        </View>
-        <View style={tw`items-center`}>
-          <Text style={tw`text-slate-400 font-bold tracking-widest text-xs mb-1`}>TOTAL POIN</Text>
-          <View style={tw`flex-row items-end`}>
-            <Text style={tw`text-5xl font-black text-white tracking-tighter`}>{stats.points}</Text>
-            <Text style={tw`text-emerald-400 font-bold mb-2 ml-1`}>PTS</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Floating Target Card Overlapping Header */}
-      <View style={tw`px-5 -mt-10 z-10`}>
-        <View style={tw`bg-white rounded-[32px] p-6 shadow-sm border border-slate-100`}>
-          <View style={tw`flex-row items-center justify-between mb-4`}>
-            <View>
-              <Text style={tw`text-slate-400 text-xs font-bold uppercase`}>Progress Target</Text>
-              <Text style={tw`text-slate-800 text-xl font-black`}>{stats.total} <Text style={tw`text-slate-400 text-sm`}>/ {targetMonthly}</Text></Text>
-            </View>
-            <View style={tw`bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100`}>
-              <Text style={tw`text-emerald-600 font-black text-xs`}>{Math.round(progressPerc)}%</Text>
-            </View>
-          </View>
-
-          {/* Sleek rounded progress bar */}
-          <View style={tw`h-3 bg-slate-100 rounded-full overflow-hidden mb-6`}>
-            <View style={[tw`h-full bg-emerald-500 rounded-full`, { width: `${progressPerc}%` }]} />
-          </View>
-
-          {/* Micro Cards for Sub-stats */}
-          <View style={tw`flex-row justify-between gap-3`}>
-            <View style={tw`flex-1 bg-emerald-50 rounded-2xl p-3 border border-emerald-100/50`}>
-              <Ionicons name="checkmark-circle" size={16} color="#059669" style={tw`mb-1`} />
-              <Text style={tw`text-emerald-800 font-black text-lg`}>{stats.approved}</Text>
-              <Text style={tw`text-emerald-600/70 text-[10px] uppercase font-bold`}>Approved</Text>
-            </View>
-            <View style={tw`flex-1 bg-blue-50 rounded-2xl p-3 border border-blue-100/50`}>
-              <Ionicons name="trending-up" size={16} color="#2563eb" style={tw`mb-1`} />
-              <Text style={tw`text-blue-800 font-black text-lg`}>{stats.rate}%</Text>
-              <Text style={tw`text-blue-600/70 text-[10px] uppercase font-bold`}>Win Rate</Text>
-            </View>
-            <View style={tw`flex-1 bg-amber-50 rounded-2xl p-3 border border-amber-100/50`}>
-              <Ionicons name="hourglass" size={16} color="#d97706" style={tw`mb-1`} />
-              <Text style={tw`text-amber-800 font-black text-lg`}>{stats.pending}</Text>
-              <Text style={tw`text-amber-600/70 text-[10px] uppercase font-bold`}>Pending</Text>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      <View style={tw`bg-white px-5 py-4 shadow-sm z-10`}>
-        <View style={tw`flex-row items-center bg-gray-100 rounded-2xl px-4 py-1`}>
-          <Ionicons name="search-outline" size={18} color="#9ca3af" />
-          <TextInput
-            placeholder="Cari pelanggan atau alamat..."
-            placeholderTextColor="#9ca3af"
-            style={tw`flex-1 ml-3 h-10 text-gray-900 text-sm font-medium`}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Ionicons name="close-circle" size={18} color="#9ca3af" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
+    <View style={[tw`flex-1`, { backgroundColor: DESAIN_PREMIUM.latarLayar }]}>
       <View style={tw`flex-1`}>
         <FlashList
           data={filteredRequests}
           renderItem={renderCanvasingItem}
           keyExtractor={(item: CanvasingRequest) => item.id.toString()}
           removeClippedSubviews={true}
-          contentContainerStyle={tw`p-4 pb-12`}
+          contentContainerStyle={tw`px-4 pb-12`}
+          ListHeaderComponent={kepalaDaftar}
           onEndReached={onLoadMore}
           onEndReachedThreshold={0.5}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={refetch}
-              tintColor="#4338ca"
+              tintColor={warna.utamaKuat}
             />
           }
           ListFooterComponent={
@@ -444,15 +405,16 @@ export default function CanvasingListScreen() {
             ) : null
           }
           ListEmptyComponent={
-            <View style={tw`items-center justify-center py-24`}>
-              <View style={tw`w-24 h-24 bg-gray-100 items-center justify-center rounded-full mb-4`}>
-                <Ionicons name="file-tray-outline" size={48} color="#d1d5db" />
-              </View>
-              <Text style={tw`text-gray-900 font-bold text-lg`}>Tidak Ada Data</Text>
-              <Text style={tw`text-gray-500 text-center mt-2 px-12`}>
-                {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : "Belum ada riwayat canvasing yang diajukan."}
-              </Text>
-            </View>
+            <EmptyState
+              ikon={Inbox}
+              judul={searchQuery ? "Tidak ditemukan" : "Belum ada pengajuan"}
+              pesan={
+                searchQuery
+                  ? `Tidak ada hasil untuk "${searchQuery}".`
+                  : "Ajukan calon pelanggan baru untuk mulai mengumpulkan poin."
+              }
+              aksi={searchQuery ? undefined : { label: "Tambah canvasing", onTekan: () => router.push("/(app)/marketing/canvasing/create") }}
+            />
           }
         />
       </View>

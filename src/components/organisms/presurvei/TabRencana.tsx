@@ -1,9 +1,10 @@
 import { useRouter } from 'expo-router';
-import { Plus } from 'lucide-react-native';
+import { CalendarDays, Plus } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 
 import { useTemaPersona } from '@/theme';
+import { EmptyState } from '@/components/atoms/EmptyState';
 import { NavigasiTanggal } from '@/components/molecules/NavigasiTanggal';
 import { SegmenPilihan } from '@/components/molecules/SegmenPilihan';
 import { ruteBuatRencana, ruteRincianRencana, ruteTugaskanRencana } from '@/constants/rutePresurvei';
@@ -108,9 +109,11 @@ export function TabRencana({ fokusTim = null }: TabRencanaProps) {
   const kosong = harian.isPending ? (
     <ActivityIndicator />
   ) : harian.isError ? null : (
-    <Text style={tw`text-center text-gray-500 mt-8`}>
-      {isTim ? 'Belum ada rencana tim di tanggal ini.' : 'Belum ada rencana di tanggal ini.'}
-    </Text>
+    <EmptyState
+      ikon={CalendarDays}
+      judul={isTim ? 'Belum ada rencana tim di tanggal ini.' : 'Belum ada rencana di tanggal ini.'}
+      pesan="Rencanakan kunjungan agar hari kerja lebih terarah."
+    />
   );
 
   return (

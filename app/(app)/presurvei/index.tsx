@@ -4,7 +4,7 @@ import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
-import { PilihanChip } from '@/components/molecules/PilihanChip';
+import { SegmenPilihan } from '@/components/molecules/SegmenPilihan';
 import { TabKegiatan } from '@/components/organisms/presurvei/TabKegiatan';
 import { TabProspek } from '@/components/organisms/presurvei/TabProspek';
 import { TabRencana } from '@/components/organisms/presurvei/TabRencana';
@@ -12,6 +12,7 @@ import { AppFeature } from '@/constants/features';
 import type { FokusTimRencana } from '@/hooks/presurvei/useTampilanRencana';
 import { useSegarkanPresurveiSetelahSinkron } from '@/hooks/queries/usePresurveiKegiatan';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { DESAIN_PREMIUM } from '@/theme';
 
 type SubTabPresurvei = 'kegiatan' | 'rencana' | 'prospek';
 
@@ -69,10 +70,13 @@ export default function PresurveiScreen() {
   };
 
   return (
-    <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
-      <Text style={tw`text-xl font-bold text-gray-900 px-4 pt-4 pb-2`}>Presurvei</Text>
+    <SafeAreaView style={[tw`flex-1`, { backgroundColor: DESAIN_PREMIUM.latarLayar }]} edges={['top']}>
+      <View style={tw`px-4 pt-4 pb-4`}>
+        <Text style={tw`text-2xl font-bold text-slate-900`}>Presurvei</Text>
+        <Text style={tw`text-sm text-slate-500 mt-0.5`}>Kegiatan, rencana kunjungan, dan prospek</Text>
+      </View>
       <View style={tw`px-4 mb-3`}>
-        <PilihanChip opsi={OPSI_SUB_TAB} terpilih={subTab} onPilih={pilihSubTab} />
+        <SegmenPilihan opsi={OPSI_SUB_TAB} terpilih={subTab} onPilih={pilihSubTab} />
       </View>
       {renderKonten()}
     </SafeAreaView>

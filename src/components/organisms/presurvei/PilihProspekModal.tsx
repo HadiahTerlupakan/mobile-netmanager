@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTemaPersona } from '@/theme';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
-import { LABEL_STATUS_PROSPEK } from '@/constants/presurvei';
+import { JUDUL_PROSPEK_KOSONG, LABEL_STATUS_PROSPEK, PESAN_PROSPEK_KOSONG } from '@/constants/presurvei';
 import { useCariProspek } from '@/hooks/presurvei/useCariProspek';
 import type { ProspekListItem } from '@/types/presurvei';
 import { FormTambahProspek } from './FormTambahProspek';
@@ -76,7 +76,7 @@ function DaftarPilihProspek({ onPilih }: Pick<PilihProspekModalProps, 'onPilih'>
             />
           ) : (
             <Text style={tw`text-center text-gray-500 mt-6`}>
-              {keadaan === 'memuat' ? 'Memuat…' : 'Belum ada prospek yang cocok. Ketuk tombol biru di atas untuk menambah.'}
+              {keadaan === 'memuat' ? 'Memuat…' : `${JUDUL_PROSPEK_KOSONG}. ${PESAN_PROSPEK_KOSONG}`}
             </Text>
           )
         }

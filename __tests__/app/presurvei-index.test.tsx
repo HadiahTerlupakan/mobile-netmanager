@@ -210,7 +210,8 @@ describe('Tab Presurvei', () => {
     const { getByText, getByLabelText } = renderLayar();
 
     fireEvent.press(getByText('Prospek'));
-    expect(getByText('Belum ada prospek yang cocok. Ketuk tombol biru di atas untuk menambah.')).toBeTruthy();
+    expect(getByText('Belum ada prospek yang cocok')).toBeTruthy();
+    expect(getByText('Ketuk "Tambah prospek" di atas untuk menambah.')).toBeTruthy();
     fireEvent.press(getByLabelText('Tambah prospek'));
 
     expect(mockPush).toHaveBeenCalledWith('/(app)/presurvei/prospek/baru');

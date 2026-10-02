@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import { ClipboardList } from 'lucide-react-native';
 import { ActivityIndicator, FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 
 import { useTemaPersona } from '@/theme';
+import { EmptyState } from '@/components/atoms/EmptyState';
 import { NavigasiTanggal } from '@/components/molecules/NavigasiTanggal';
 import { RUTE_CATAT_KEGIATAN } from '@/constants/rutePresurvei';
 import { useKegiatanHarian, useKegiatanMenungguKirim } from '@/hooks/queries/usePresurveiKegiatan';
@@ -56,7 +58,11 @@ export function TabKegiatan() {
           kegiatan.isPending ? (
             <ActivityIndicator />
           ) : (
-            <Text style={tw`text-center text-gray-500 mt-8`}>Belum ada kegiatan di tanggal ini.</Text>
+            <EmptyState
+              ikon={ClipboardList}
+              judul="Belum ada kegiatan di tanggal ini."
+              pesan="Catat kunjungan, survei, atau telepon dengan tombol di atas."
+            />
           )
         }
       />

@@ -1,12 +1,21 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import { Users } from 'lucide-react-native';
 import { FlatList, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import tw from 'twrnc';
+
+import { EmptyState } from '@/components/atoms/EmptyState';
 
 import { PilihanChip } from '@/components/molecules/PilihanChip';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { SegmenPilihan } from '@/components/molecules/SegmenPilihan';
-import { JEDA_CARI_PROSPEK_MS, LABEL_STATUS_PROSPEK, PROSPEK_STATUSES } from '@/constants/presurvei';
+import {
+  JEDA_CARI_PROSPEK_MS,
+  JUDUL_PROSPEK_KOSONG,
+  LABEL_STATUS_PROSPEK,
+  PESAN_PROSPEK_KOSONG,
+  PROSPEK_STATUSES,
+} from '@/constants/presurvei';
 import { RUTE_TAMBAH_PROSPEK, ruteRincianProspek } from '@/constants/rutePresurvei';
 import { useDaftarProspek } from '@/hooks/queries/usePresurveiProspek';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -67,9 +76,11 @@ export function TabProspek() {
           refreshControl={<RefreshControl refreshing={daftar.isRefetching} onRefresh={() => void daftar.refetch()} />}
           contentContainerStyle={tw`pb-24`}
           ListEmptyComponent={
-            <Text style={tw`text-center text-gray-500 mt-8`}>
-              {daftar.isPending ? 'Memuat…' : 'Belum ada prospek yang cocok. Ketuk tombol biru di atas untuk menambah.'}
-            </Text>
+            daftar.isPending ? (
+              <Text style={tw`text-center text-slate-500 mt-8`}>Memuat…</Text>
+            ) : (
+              <EmptyState ikon={Users} judul={JUDUL_PROSPEK_KOSONG} pesan={PESAN_PROSPEK_KOSONG} />
+            )
           }
         />
       )}
