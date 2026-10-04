@@ -1,5 +1,6 @@
 import type { DetailPengesahanSaya, RingkasanPengesahan } from '@/types/pengesahan';
 import { formatDate } from '@/utils/date';
+import { getHttpStatus } from '@/lib/queryErrorReporting';
 
 const FORMAT_TANGGAL_BERLAKU = 'dd MMM yyyy';
 const PERSEN_PENUH = 100;
@@ -35,4 +36,11 @@ export function pesanKeadaanSurat(surat: DetailPengesahanSaya): string | null {
   if (surat.mySignerStatus === 'SIGNED') return 'Anda sudah menandatangani surat ini.';
   if (surat.mySignerStatus === 'DECLINED') return 'Anda menolak menandatangani surat ini.';
   return surat.canSign ? null : 'Belum giliran Anda menandatangani.';
+}
+
+const HTTP_TIDAK_DITEMUKAN = 404;
+
+/** Surat sudah tidak ada atau tidak lagi menunjuk saya (server membalas 404). */
+export function isSuratTidakDitemukan(error: unknown): boolean {
+  return getHttpStatus(error) === HTTP_TIDAK_DITEMUKAN;
 }

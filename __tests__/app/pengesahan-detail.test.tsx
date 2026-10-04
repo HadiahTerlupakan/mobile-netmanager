@@ -44,10 +44,11 @@ const SURAT: DetailPengesahanSaya = {
   ],
 };
 
-const kueri = (surat: DetailPengesahanSaya | undefined) => ({
+const kueri = (surat: DetailPengesahanSaya | undefined, error: unknown = null) => ({
   data: surat,
+  error,
   isPending: false,
-  isError: false,
+  isError: error !== null,
   isRefetching: false,
   refetch: jest.fn(),
 });
@@ -91,6 +92,23 @@ describe('Detail pengesahan', () => {
 
     expect(queryByText('Lihat dokumen')).toBeNull();
     expect(queryByText('Tanda tangani')).toBeNull();
+  });
+
+  // Surat ditarik saat layar terbuka: data lama di cache tidak boleh tetap tampil.
+  it('404 saat memuat ulang: data lama disembunyikan, tampil surat tidak ditemukan', () => {
+    mockDetail.mockReturnValue(kueri(SURAT, { response: { status: 404 } }));
+    const { getByText, queryByText } = render(<RuteDetailPengesahan />);
+
+    expect(getByText('Surat tidak ditemukan')).toBeTruthy();
+    expect(queryByText('Surat tugas instalasi')).toBeNull();
+    expect(queryByText('Tanda tangani')).toBeNull();
+  });
+
+  it('gangguan jaringan tanpa data: pesan gagal memuat', () => {
+    mockDetail.mockReturnValue(kueri(undefined, new Error('Network Error')));
+    const { getByText } = render(<RuteDetailPengesahan />);
+
+    expect(getByText('Gagal memuat surat')).toBeTruthy();
   });
 
   it('surat tidak ditemukan (404 / bukan milik saya): keadaan kosong', () => {

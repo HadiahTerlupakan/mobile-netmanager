@@ -4,6 +4,7 @@ import { queryKeys } from '@/lib/queryClient';
 import { PengesahanService } from '@/services/PengesahanService';
 import type { HasilTandaTanganPengesahan, KelompokPengesahan } from '@/types/pengesahan';
 import { presentAppError } from '@/utils/errorPresenter';
+import { isSuratTidakDitemukan } from '@/utils/pengesahan/tampilanPengesahan';
 
 const UKURAN_HALAMAN = 20;
 const HALAMAN_PERTAMA = 1;
@@ -11,6 +12,9 @@ const WAKTU_SEGAR_MS = 30_000;
 const WAKTU_SEGAR_RINGKASAN_MS = 60_000;
 /** Server lama (endpoint belum ada) / akun tanpa akses: menu cukup tersembunyi, tanpa toast. */
 const STATUS_RINGKASAN_DIREDAM = [403, 404];
+const MAKS_ULANG_DETAIL = 2;
+/** 404 detail = surat ditarik / bukan milik saya; layar menampilkannya, tanpa toast. */
+const STATUS_DETAIL_DIREDAM = [404];
 // Online saja & tanpa ulang otomatis: onError di sini yang menampilkan pesan.
 const OPSI_MUTASI = { retry: false, meta: { skipGlobalErrorToast: true } } as const;
 
@@ -42,6 +46,8 @@ export function useDetailPengesahan(id: string | undefined) {
     queryFn: () => PengesahanService.detail(id as string),
     enabled: Boolean(id),
     staleTime: WAKTU_SEGAR_MS,
+    retry: (jumlahGagal, galat) => !isSuratTidakDitemukan(galat) && jumlahGagal < MAKS_ULANG_DETAIL,
+    meta: { silentToastStatuses: STATUS_DETAIL_DIREDAM },
   });
 }
 

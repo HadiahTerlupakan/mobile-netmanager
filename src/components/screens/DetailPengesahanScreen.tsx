@@ -14,13 +14,17 @@ import { ruteTandaTanganPengesahan, ruteTolakPengesahan } from '@/constants/rute
 import { useLihatDokumenPengesahan } from '@/hooks/pengesahan/useLihatDokumenPengesahan';
 import { useDetailPengesahan } from '@/hooks/queries/usePengesahan';
 import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
+import { isSuratTidakDitemukan } from '@/utils/pengesahan/tampilanPengesahan';
 
 /** Detail surat pengesahan: ringkasan, penanda tangan, lihat dokumen, tanda tangani / tolak. */
 export function DetailPengesahanScreen() {
   const { warna } = useTemaPersona();
   const router = useRouter();
   const { id = '' } = useLocalSearchParams<{ id: string }>();
-  const { data: surat, isPending, isError, isRefetching, refetch } = useDetailPengesahan(id);
+  const { data, error, isPending, isError, isRefetching, refetch } = useDetailPengesahan(id);
+  // Data lama di cache tidak boleh tetap tampil setelah server menyatakan surat sudah tidak ada.
+  const isTidakDitemukan = isSuratTidakDitemukan(error);
+  const surat = isTidakDitemukan ? undefined : data;
   const lihatDokumen = useLihatDokumenPengesahan(id);
 
   return (
@@ -31,8 +35,8 @@ export function DetailPengesahanScreen() {
       ) : !surat ? (
         <EmptyState
           ikon={AlertTriangle}
-          judul={isError ? 'Gagal memuat surat' : 'Surat tidak ditemukan'}
-          pesan={isError ? 'Periksa koneksi lalu coba lagi.' : 'Surat ini tidak ditujukan kepada Anda.'}
+          judul={isError && !isTidakDitemukan ? 'Gagal memuat surat' : 'Surat tidak ditemukan'}
+          pesan={isError && !isTidakDitemukan ? 'Periksa koneksi lalu coba lagi.' : 'Surat ini sudah ditarik atau tidak lagi ditujukan kepada Anda.'}
           aksi={{ label: 'Coba lagi', onTekan: () => void refetch() }}
         />
       ) : (
