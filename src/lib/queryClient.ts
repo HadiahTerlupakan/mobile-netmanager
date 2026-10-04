@@ -309,4 +309,12 @@ export const queryKeys = {
     penilaian: (periode: { tahun: number; bulan: number }) =>
       [...queryKeys.presurvei.all, "penilaian", periode] as const,
   },
+
+  // Pengesahan (tanda tangan elektronik surat)
+  pengesahan: {
+    all: ["pengesahan"] as const,
+    ringkasan: () => [...queryKeys.pengesahan.all, "ringkasan"] as const,
+    daftar: (status: string) => [...queryKeys.pengesahan.all, "daftar", status] as const,
+    detail: (id: string) => [...queryKeys.pengesahan.all, "detail", id] as const,
+  },
 };

@@ -7,13 +7,11 @@ import { presentForegroundNotification } from '@/services/ForegroundNotification
 import { errorReportingService } from '@/services/ErrorReportingService';
 import { presentInfoMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
+import { AWALAN_RUTE_INVESTOR, isRuteNotifikasiDikenal } from '@/utils/ruteNotifikasi';
 import notifee, { EventType } from '@notifee/react-native';
 import { Href, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
-
-/** Rute grup layar investor; hanya bisa dibuka akun investor (lihat useAuthRedirect). */
-const AWALAN_RUTE_INVESTOR = '/(investor)/';
 
 /** Beranda tujuan bila tautan notifikasi tidak valid, sesuai grup tautannya. */
 function berandaCadangan(url: string | undefined): Href {
@@ -51,39 +49,12 @@ export function useNotificationSetup() {
   }, [segments]);
 
   useEffect(() => {
-    const validRoutes = [
-      '/dashboard',
-      '/work-order',
-      '/barang',
-      '/absensi',
-      '/profile',
-      '/notifications',
-      '/lembur',
-      '/izin',
-      '/chat',
-      '/holidays',
-      '/marketing/canvasing',
-      // Penugasan rencana kunjungan: link `/presurvei/rencana/<id>`.
-      '/presurvei',
-    ];
-
     const handleNotificationNavigation = (data: { url?: string }) => {
       if (!data?.url) return;
 
       try {
         const url = data.url;
-        const isValidRoute =
-          validRoutes.some(
-            (r) =>
-              url === r ||
-              url.startsWith(r + '/') ||
-              url.startsWith('/(app)' + r)
-          ) ||
-          url.startsWith('/work-order-detail/') ||
-          url.startsWith('/chat/') ||
-          url.startsWith(AWALAN_RUTE_INVESTOR);
-
-        if (isValidRoute) {
+        if (isRuteNotifikasiDikenal(url)) {
           router.push(url as Href);
         } else {
           logger.warn(
@@ -152,6 +123,10 @@ export function useNotificationSetup() {
               // Push investor (modal/bagi hasil/uang dikirim) → segarkan angka di layar.
               queryClient.invalidateQueries({
                 queryKey: queryKeys.investor.all,
+              });
+              // Push surat pengesahan (ditugaskan / sah / dibatalkan) → segarkan menu & daftar.
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.pengesahan.all,
               });
             }
           },

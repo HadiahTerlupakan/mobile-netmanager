@@ -32,7 +32,7 @@ const JALUR_DI_LUAR_JANGKAUAN: RegExp[] = [
 /** Berkas yang memakai biru sebagai MAKNA, bukan identitas; jalur relatif → alasan. */
 const PENGECUALIAN_MAKNA: Record<string, string> = {
   'app/(app)/notifications.tsx': 'warna ikon per jenis notifikasi',
-  'src/components/organisms/dashboard/QuickMenu.tsx': 'warna kategori per item menu (Canvasing)',
+  'src/constants/menuCepat.ts': 'warna kategori per item menu cepat (Canvasing)',
   'src/components/organisms/topology/DeviceDetailModal.tsx': 'warna jenis perangkat ODC',
   'src/components/organisms/topology/WebMapView.tsx': 'warna penanda ODC di peta',
   'src/components/organisms/topology/topologyHelpers.tsx': 'warna jenis perangkat ODC',

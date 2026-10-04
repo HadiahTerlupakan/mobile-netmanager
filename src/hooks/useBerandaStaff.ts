@@ -76,4 +76,5 @@ export const KUNCI_BERANDA_STAFF = [
   queryKeys.leave.all,
   queryKeys.overtime.all,
   queryKeys.holidays.all,
+  queryKeys.pengesahan.ringkasan(),
 ] as const;

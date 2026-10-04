@@ -110,6 +110,7 @@ const SIDIK_TERSEMBUNYI = [
   ['ambil-barang/[id]', null, 'none'],
   ['lembur', null, null],
   ['izin', null, null],
+  ['pengesahan', null, 'none'],
   ['notifications', null, null],
   ['topology-map', null, null],
   ['pelanggan/isolir', null, null],

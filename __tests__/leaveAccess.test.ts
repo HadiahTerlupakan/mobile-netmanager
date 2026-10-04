@@ -13,6 +13,12 @@ describe('isRouteAllowedDuringLeave', () => {
     expect(isRouteAllowedDuringLeave('/izin/form')).toBe(true)
   })
 
+  it('allows signing endorsement documents during leave', () => {
+    expect(isRouteAllowedDuringLeave('/pengesahan')).toBe(true)
+    expect(isRouteAllowedDuringLeave('/pengesahan/doc-1')).toBe(true)
+    expect(isRouteAllowedDuringLeave('/pengesahan/tanda-tangan/doc-1')).toBe(true)
+  })
+
   it('blocks unrelated feature routes during leave mode', () => {
     expect(isRouteAllowedDuringLeave('/work-order')).toBe(false)
     expect(isRouteAllowedDuringLeave('/barang')).toBe(false)

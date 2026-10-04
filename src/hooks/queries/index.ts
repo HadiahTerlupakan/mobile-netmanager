@@ -13,6 +13,7 @@ export { isOfflineMutationQueuedResult, useApiMutation } from "./useApiMutation"
 
 // Feature hooks
 export * from "./useWorkOrders";
+export * from "./usePengesahan";
 
 // Re-export TanStack Query hooks untuk convenience
 export {

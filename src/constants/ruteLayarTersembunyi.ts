@@ -15,6 +15,8 @@ export const RUTE_LAYAR_TERSEMBUNYI: readonly RuteLayarTersembunyi[] = [
   { nama: 'ambil-barang/[id]', isLayarPenuh: true },
   { nama: 'lembur', isLayarPenuh: false },
   { nama: 'izin', isLayarPenuh: false },
+  // Pengesahan surat (tanda tangan elektronik) — Stack sendiri, dibuka dari menu cepat / notifikasi
+  { nama: 'pengesahan', isLayarPenuh: true },
   { nama: 'notifications', isLayarPenuh: false },
   { nama: 'topology-map', isLayarPenuh: false },
   { nama: 'pelanggan/isolir', isLayarPenuh: false },

@@ -10,6 +10,9 @@ jest.mock('expo-router', () => ({
 // Layar memakai banyak ikon; proxy ini mengembalikan komponen kosong untuk ikon apa pun.
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 jest.mock('twrnc', () => require('twrnc-kosong'));
+// Ringkasan pengesahan dari server menentukan tampil/lencana tile Pengesahan.
+const mockRingkasanPengesahan = jest.fn<() => { data?: { menungguCount: number; totalCount: number } }>(() => ({ data: undefined }));
+jest.mock('@/hooks/queries/usePengesahan', () => ({ useRingkasanPengesahan: () => mockRingkasanPengesahan() }));
 
 import { AppFeature } from '@/constants/features';
 
@@ -18,6 +21,7 @@ const ISOLIR_TILE = 'Isolir';
 describe('QuickMenu', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRingkasanPengesahan.mockReturnValue({ data: undefined });
   });
 
   const renderMenu = (props: Record<string, unknown>) => {
@@ -119,5 +123,42 @@ describe('QuickMenu', () => {
     expect(mockPush).not.toHaveBeenCalled();
     expect(alert).toHaveBeenCalledWith('Akses Terbatas', expect.any(String), expect.any(Array));
     alert.mockRestore();
+  });
+});
+
+describe('QuickMenu — tile Pengesahan', () => {
+  const PENGESAHAN = 'Pengesahan';
+  const renderMenu = (props: Record<string, unknown>) => {
+    const { QuickMenu } = require('@/components/organisms/dashboard/QuickMenu');
+    return render(<QuickMenu {...props} />);
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('tersembunyi selama ringkasan belum dimuat atau pengguna tidak punya surat', () => {
+    mockRingkasanPengesahan.mockReturnValue({ data: undefined });
+    expect(renderMenu({ isMitra: false, features: [], menuIds: ['pengesahan', 'chat'] }).queryByText(PENGESAHAN)).toBeNull();
+
+    mockRingkasanPengesahan.mockReturnValue({ data: { menungguCount: 0, totalCount: 0 } });
+    expect(renderMenu({ isMitra: false, features: [], menuIds: ['pengesahan', 'chat'] }).queryByText(PENGESAHAN)).toBeNull();
+  });
+
+  it('tampil tanpa izin fitur bila ada surat, berlencana jumlah menunggu, dan membuka daftar', () => {
+    mockRingkasanPengesahan.mockReturnValue({ data: { menungguCount: 2, totalCount: 5 } });
+    const { getByText, getByLabelText } = renderMenu({ isMitra: false, features: [], menuIds: ['pengesahan'], isSembunyikanTerkunci: true });
+
+    expect(getByText('2')).toBeTruthy();
+    fireEvent.press(getByLabelText('Pengesahan, 2 menunggu'));
+    expect(mockPush).toHaveBeenCalledWith('/(app)/pengesahan');
+  });
+
+  it('tanpa surat menunggu: tile tetap tampil tanpa lencana', () => {
+    mockRingkasanPengesahan.mockReturnValue({ data: { menungguCount: 0, totalCount: 3 } });
+    const { getByLabelText, queryByText } = renderMenu({ isMitra: false, features: [] });
+
+    expect(getByLabelText(PENGESAHAN)).toBeTruthy();
+    expect(queryByText('0')).toBeNull();
   });
 });

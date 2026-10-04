@@ -3,6 +3,8 @@ const leaveAllowedPrefixes = [
   '/chat',
   '/notifications',
   '/izin',
+  // Menandatangani surat tetap boleh selama cuti.
+  '/pengesahan',
 ]
 
 export function isRouteAllowedDuringLeave(pathname?: string | null): boolean {

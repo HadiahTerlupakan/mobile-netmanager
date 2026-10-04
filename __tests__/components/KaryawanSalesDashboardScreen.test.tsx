@@ -87,7 +87,7 @@ describe('KaryawanSalesDashboardScreen', () => {
     mockPropsHeader = {};
   });
 
-  it('menu cepat sales: Pelanggan saya, Keluhan, Tunggakan, Chat, Izin/Cuti, Kalender Libur — tanpa Lembur', () => {
+  it('menu cepat sales: Pengesahan (bila ada surat), Pelanggan saya, Keluhan, Tunggakan, Chat, Izin/Cuti, Kalender Libur — tanpa Lembur', () => {
     mockUseAuth.mockReturnValue(sales(['m_chat', 'm_izin']));
 
     render(<KaryawanSalesDashboardScreen />);
@@ -96,7 +96,7 @@ describe('KaryawanSalesDashboardScreen', () => {
       features: ['m_chat', 'm_izin'],
       role: 'SALES',
       isMitra: false,
-      menuIds: ['pelanggan-saya', 'keluhan', 'tunggakan', 'chat', 'izin', 'holidays'],
+      menuIds: ['pengesahan', 'pelanggan-saya', 'keluhan', 'tunggakan', 'chat', 'izin', 'holidays'],
     });
   });
 
@@ -138,7 +138,7 @@ describe('KaryawanSalesDashboardScreen', () => {
     expect(mockPush).toHaveBeenCalledWith('/(app)/profile');
   });
 
-  it('tarik-untuk-segarkan: presurvei, absensi, statistik, tunggakan, dan profil (izin baru, S12)', async () => {
+  it('tarik-untuk-segarkan: presurvei, absensi, statistik, tunggakan, ringkasan pengesahan, dan profil (izin baru, S12)', async () => {
     mockUseAuth.mockReturnValue(sales(['m_presurvei']));
     const { getByTestId } = render(<KaryawanSalesDashboardScreen />);
     const refreshControl = getByTestId('beranda-sales-gulir').props.refreshControl;
@@ -147,11 +147,12 @@ describe('KaryawanSalesDashboardScreen', () => {
       await refreshControl.props.onRefresh();
     });
 
-    expect(mockInvalidate).toHaveBeenCalledTimes(4);
+    expect(mockInvalidate).toHaveBeenCalledTimes(5);
     expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['presurvei'] });
     expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['attendance'] });
     expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['dashboard'] });
     expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['pelanggan', 'tunggakan'] });
+    expect(mockInvalidate).toHaveBeenCalledWith({ queryKey: ['pengesahan', 'ringkasan'] });
     expect(mockRefetchProfile).toHaveBeenCalledWith();
   });
 

@@ -74,6 +74,7 @@ jest.mock('@/lib/queryClient', () => ({
       unread: () => ['notifications', 'unread'],
     },
     investor: { all: ['investor'] },
+    pengesahan: { all: ['pengesahan'] },
   },
 }));
 
@@ -322,6 +323,10 @@ describe('RootLayout privacy route guard', () => {
     });
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ['notifications', 'unread'],
+    });
+    // Surat pengesahan baru → tile menu cepat & daftar ikut segar.
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['pengesahan'],
     });
   });
 

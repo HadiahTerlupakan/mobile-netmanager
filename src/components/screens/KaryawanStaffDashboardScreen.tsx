@@ -18,9 +18,9 @@ import { DESAIN_PREMIUM } from '@/theme';
 /**
  * Menu cepat staff: hanya pendukung kepegawaian, dan hanya yang berizin
  * (`isSembunyikanTerkunci`). Slip gaji (`m_salary`) belum punya layar mobile,
- * jadi belum ditawarkan.
+ * jadi belum ditawarkan. Pengesahan tampil hanya bila ada surat untuk saya.
  */
-const MENU_CEPAT_STAFF: readonly IdMenuCepat[] = ['izin', 'lembur', 'holidays', 'chat'];
+const MENU_CEPAT_STAFF: readonly IdMenuCepat[] = ['pengesahan', 'izin', 'lembur', 'holidays', 'chat'];
 
 const RUTE_IZIN = '/(app)/izin';
 const RUTE_LEMBUR = '/(app)/lembur';

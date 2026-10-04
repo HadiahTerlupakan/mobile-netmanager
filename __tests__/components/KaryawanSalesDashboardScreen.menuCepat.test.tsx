@@ -30,6 +30,7 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 jest.mock('twrnc', () => require('twrnc-kosong'));
+jest.mock('@/hooks/queries/usePengesahan', () => ({ useRingkasanPengesahan: () => ({ data: undefined }) }));
 
 import { KaryawanSalesDashboardScreen } from '@/components/screens/KaryawanSalesDashboardScreen';
 

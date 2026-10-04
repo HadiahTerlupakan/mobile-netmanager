@@ -23,8 +23,9 @@ import { bolehCanvasing, punyaFitur } from '@/utils/persona';
  * Pelanggan saya & Keluhan: sales jadi pintu pertama keluhan pelanggannya.
  * Lembur tidak ditawarkan: sales tidak mengenal lembur (keputusan pemilik
  * 2026-09-26). Kalender Libur tetap; tile terkunci sendiri tanpa izin.
+ * Pengesahan di depan, tampil hanya bila ada surat untuk ditandatangani.
  */
-const MENU_CEPAT_SALES: readonly IdMenuCepat[] = ['pelanggan-saya', 'keluhan', 'tunggakan', 'chat', 'izin', 'holidays'];
+const MENU_CEPAT_SALES: readonly IdMenuCepat[] = ['pengesahan', 'pelanggan-saya', 'keluhan', 'tunggakan', 'chat', 'izin', 'holidays'];
 
 /** Beranda sales karyawan: sapaan, absen, kinerja & aktivitas presurvei, bonus canvasing, menu cepat. */
 export function KaryawanSalesDashboardScreen() {
