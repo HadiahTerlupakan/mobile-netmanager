@@ -36,6 +36,7 @@ const SURAT: DetailPengesahanSaya = {
   description: 'Penugasan tim lapangan',
   sourceFileName: 'surat-tugas.pdf',
   hasSignedFile: false,
+  canViewDocument: true,
   cancelReason: null,
   signers: [
     { id: 's-1', name: 'Direktur', role: 'Direktur', status: 'SIGNED', signedAt: '2026-10-02T03:00:00.000Z', isMe: false },
@@ -81,6 +82,15 @@ describe('Detail pengesahan', () => {
     expect(queryByText('Tolak')).toBeNull();
     expect(getByText('Lihat dokumen sah')).toBeTruthy();
     expect(getByText('Surat sah. Semua pihak sudah tanda tangan.')).toBeTruthy();
+  });
+
+  // Server menolak dokumen surat yang gugur; tombolnya tidak boleh ditawarkan.
+  it('surat dibatalkan: tanpa tombol dokumen maupun tanda tangan', () => {
+    mockDetail.mockReturnValue(kueri({ ...SURAT, status: 'CANCELLED', canSign: false, canViewDocument: false, mySignerStatus: 'DECLINED' }));
+    const { queryByText } = render(<RuteDetailPengesahan />);
+
+    expect(queryByText('Lihat dokumen')).toBeNull();
+    expect(queryByText('Tanda tangani')).toBeNull();
   });
 
   it('surat tidak ditemukan (404 / bukan milik saya): keadaan kosong', () => {

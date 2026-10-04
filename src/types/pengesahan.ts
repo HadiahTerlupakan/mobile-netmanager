@@ -48,6 +48,8 @@ export interface PenandaTanganPengesahan {
 
 /** Detail surat; server menandai saya VIEWED saat detail dibuka. */
 export interface DetailPengesahanSaya extends PengesahanSaya {
+  /** Dokumen masih boleh dibuka: surat berjalan dan belum kedaluwarsa, atau sudah sah. */
+  canViewDocument: boolean;
   description: string | null;
   sourceFileName: string;
   hasSignedFile: boolean;

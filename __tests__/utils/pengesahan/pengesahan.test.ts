@@ -29,6 +29,7 @@ const SURAT: DetailPengesahanSaya = {
   description: null,
   sourceFileName: 'surat.pdf',
   hasSignedFile: false,
+  canViewDocument: true,
   cancelReason: null,
   signers: [],
 };

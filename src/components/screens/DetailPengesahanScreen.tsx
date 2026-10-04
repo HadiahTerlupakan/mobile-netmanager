@@ -46,6 +46,7 @@ export function DetailPengesahanScreen() {
           </ScrollView>
           <AksiPengesahan
             isBolehTandaTangan={surat.canSign}
+            isBolehLihatDokumen={surat.canViewDocument}
             isMembukaDokumen={lihatDokumen.isPending}
             isDokumenSah={surat.hasSignedFile}
             onLihatDokumen={() => lihatDokumen.mutate()}
