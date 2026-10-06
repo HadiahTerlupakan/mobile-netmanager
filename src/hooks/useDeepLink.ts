@@ -53,13 +53,38 @@ export function useDeepLink() {
   }, [router, isRouterReady]);
 }
 
+/** Scheme di awal URL, atau null kalau URL-nya relatif. */
+const URL_SCHEME_PATTERN = /^([a-z][a-z0-9+.-]*):/i;
+
+/**
+ * Apakah URL ini memang ditujukan ke aplikasi kita?
+ *
+ * Aturannya disamakan dengan `parseDeepLinkPath`: scheme aplikasi, atau tanpa
+ * scheme sama sekali. URL ber-scheme lain — misalnya `exp+netmanager://` yang
+ * dikirim Expo dev client tiap kali app dibuka — memang bukan urusan handler
+ * ini, jadi bukan tanda ada yang salah.
+ *
+ * Scheme diambil langsung dari string, bukan lewat `Linking.parse`, supaya
+ * hasilnya tidak bergantung pada runtime native — `Linking.parse` di luar
+ * perangkat mengembalikan URL apa adanya tanpa memecah scheme.
+ */
+export function isAppDeepLink(url: string): boolean {
+  const scheme = url.match(URL_SCHEME_PATTERN)?.[1]?.toLowerCase();
+  return !scheme || scheme === APP_SCHEME;
+}
+
 function navigateFromDeepLink(
   url: string,
   router: ReturnType<typeof useRouter>,
 ): void {
   const path = parseDeepLinkPath(url);
   if (!path) {
-    logger.warn('[DeepLink] unrecognised URL:', url);
+    // Hanya keluhkan URL yang memang milik aplikasi tapi gagal dirutekan.
+    // Tanpa penyaring ini, setiap peluncuran dev client memunculkan warning
+    // palsu dan melatih orang mengabaikan log.
+    if (isAppDeepLink(url)) {
+      logger.warn('[DeepLink] unrecognised URL:', url);
+    }
     return;
   }
 
