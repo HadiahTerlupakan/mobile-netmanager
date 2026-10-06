@@ -6,7 +6,8 @@ import tw from 'twrnc';
 
 import { KepalaSapaan } from '@/components/molecules/KepalaSapaan';
 import { BerandaModeCuti } from '@/components/organisms/dashboard/BerandaModeCuti';
-import { QuickMenu, type IdMenuCepat } from '@/components/organisms/dashboard/QuickMenu';
+import { QuickMenu } from '@/components/organisms/dashboard/QuickMenu';
+import { MENU_CEPAT_STAFF } from '@/utils/menuCepatStaff';
 import { KartuHariIniStaff } from '@/components/organisms/staff/KartuHariIniStaff';
 import { KartuLiburBerikutnya } from '@/components/organisms/staff/KartuLiburBerikutnya';
 import { KartuPengajuanSaya } from '@/components/organisms/staff/KartuPengajuanSaya';
@@ -15,12 +16,6 @@ import { KUNCI_BERANDA_STAFF, useBerandaStaff } from '@/hooks/useBerandaStaff';
 import { useSegarkanBeranda } from '@/hooks/useSegarkanBeranda';
 import { DESAIN_PREMIUM } from '@/theme';
 
-/**
- * Menu cepat staff: hanya pendukung kepegawaian, dan hanya yang berizin
- * (`isSembunyikanTerkunci`). Slip gaji (`m_salary`) belum punya layar mobile,
- * jadi belum ditawarkan. Pengesahan tampil hanya bila ada surat untuk saya.
- */
-const MENU_CEPAT_STAFF: readonly IdMenuCepat[] = ['pengesahan', 'izin', 'lembur', 'holidays', 'chat'];
 
 const RUTE_IZIN = '/(app)/izin';
 const RUTE_LEMBUR = '/(app)/lembur';
