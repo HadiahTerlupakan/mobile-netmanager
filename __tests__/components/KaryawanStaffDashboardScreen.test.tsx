@@ -80,7 +80,11 @@ const SEMUA_FITUR = [
   'm_presurvei',
 ];
 
-const MENU_BUKAN_STAFF = ['Request WO', 'Topology Map', 'Barang Keluar', 'Isolir', 'Canvasing', 'Presurvei'];
+// Permukaan teknisi/sales yang tetap tertutup bagi staff. 'Canvasing' tidak lagi
+// di sini: role berpersona STAFF bisa memegang `m_canvasing`, dan dulu izin itu
+// tidak punya pintu sama sekali. Yang dijaga sekarang bukan ketiadaannya,
+// melainkan bahwa ia muncul hanya bila izinnya ada — lihat test di bawah.
+const MENU_BUKAN_STAFF = ['Request WO', 'Topology Map', 'Barang Keluar', 'Isolir', 'Presurvei'];
 
 const staff = (features: string[], tambahan: Record<string, unknown> = {}) => ({
   user: { id: 'u-1', name: 'Siti', role: 'STAFF', employeeType: 'KARYAWAN', persona: 'STAFF', features, ...tambahan },
@@ -132,6 +136,14 @@ describe('Beranda staff', () => {
       expect(queryByText(judul)).toBeNull();
     }
     expect(queryByText('kartu-kinerja')).toBeNull();
+  });
+
+  it('Canvasing hanya muncul bila m_canvasing dimiliki', () => {
+    siapkan(SEMUA_FITUR);
+    expect(render(<KaryawanStaffDashboardScreen />).getByText('Canvasing')).toBeTruthy();
+
+    siapkan(SEMUA_FITUR.filter((fitur) => fitur !== 'm_canvasing'));
+    expect(render(<KaryawanStaffDashboardScreen />).queryByText('Canvasing')).toBeNull();
   });
 
   it('kartu Hari ini membuka Absensi bila berizin; tanpa m_absensi tombol absen tidak ada', () => {
