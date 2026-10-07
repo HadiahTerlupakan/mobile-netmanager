@@ -195,13 +195,50 @@ fi
 echo ""
 echo "🚀 Step 3/4: Uploading to ${BASE_URL}/api/admin/app-update/publish..."
 RESPONSE_FILE=$(mktemp -t ota-response.XXXXXX.json)
-HTTP_STATUS=$(curl -sS \
-    -X POST \
-    -H "Authorization: Bearer ${APP_UPDATE_PUBLISH_TOKEN}" \
-    -o "${RESPONSE_FILE}" \
-    -w "%{http_code}" \
-    "${CURL_FORM_ARGS[@]}" \
-    "${BASE_URL}/api/admin/app-update/publish")
+
+# Unggahan ~13 MB dari runner GitHub pernah mandek dan diputus Traefik di detik
+# ke-60 (`readTimeout` bawaan) dengan 502, tiga kali berturut-turut. Dari host
+# sendiri bundel yang sama terkirim penuh dalam 0,4 detik, jadi server dan
+# proxy-nya sehat — yang rapuh adalah jalur runner ke server.
+#
+# `--http1.1` disengaja: mandek pada unggahan besar lewat proxy adalah gejala
+# khas flow-control HTTP/2, dan kita tidak butuh multiplexing untuk satu POST.
+# `--speed-limit/--speed-time` memutus koneksi yang benar-benar macet lebih awal
+# agar percobaan ulang tidak menunggu sia-sia sampai batas proxy.
+UPLOAD_MAX_SECONDS=240
+UPLOAD_MIN_BYTES_PER_SEC=10240
+UPLOAD_STALL_SECONDS=30
+UPLOAD_RETRIES=3
+
+unggah_sekali() {
+    curl -sS \
+        --http1.1 \
+        --max-time "${UPLOAD_MAX_SECONDS}" \
+        --speed-limit "${UPLOAD_MIN_BYTES_PER_SEC}" \
+        --speed-time "${UPLOAD_STALL_SECONDS}" \
+        -X POST \
+        -H "Authorization: Bearer ${APP_UPDATE_PUBLISH_TOKEN}" \
+        -o "${RESPONSE_FILE}" \
+        -w "%{http_code} %{time_total} %{speed_upload}" \
+        "${CURL_FORM_ARGS[@]}" \
+        "${BASE_URL}/api/admin/app-update/publish"
+}
+
+HTTP_STATUS=""
+for percobaan in $(seq 1 "${UPLOAD_RETRIES}"); do
+    HASIL=$(unggah_sekali || true)
+    HTTP_STATUS="${HASIL%% *}"
+    SISA="${HASIL#* }"
+    echo "   percobaan ${percobaan}: HTTP ${HTTP_STATUS:-gagal} (${SISA} detik, byte/detik)"
+
+    if [[ "${HTTP_STATUS}" == "201" || "${HTTP_STATUS}" == "200" ]]; then
+        break
+    fi
+    if [[ "${percobaan}" -lt "${UPLOAD_RETRIES}" ]]; then
+        echo "   unggahan gagal, mencoba lagi dalam 15 detik..."
+        sleep 15
+    fi
+done
 
 if [[ "${HTTP_STATUS}" != "201" && "${HTTP_STATUS}" != "200" ]]; then
     echo "❌ Publish gagal — HTTP ${HTTP_STATUS}"
