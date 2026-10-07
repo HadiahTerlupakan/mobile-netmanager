@@ -87,6 +87,21 @@ export RUNTIME_VERSION
 
 # Step 1: Clean & export bundle
 echo ""
+# SKIP_EXPORT=1 memakai dist/ yang sudah ada alih-alih membangun ulang.
+#
+# Gunanya pemulihan: ketika unggahan dari runner GitHub gagal karena jaringan,
+# bundel hasil build CI diambil dari artifact lalu diterbitkan dari jalur lain.
+# Membangun ulang di tempat lain berbahaya — nilai EXPO_PUBLIC_* ditanam ke
+# bundel saat export, jadi beda lingkungan berarti beda konfigurasi Firebase
+# pada bundel yang diterima pengguna.
+#
+# Yang TIDAK dilewati: seluruh pemeriksaan isi bundel di bawah. Pemeriksaan itu
+# yang mencegah terulangnya OTA 8f311761, dan justru paling perlu ketika bundel
+# datang dari tempat lain.
+if [[ "${SKIP_EXPORT:-}" == "1" ]]; then
+    echo "📦 Step 1/4: Memakai bundel yang sudah ada di ${DIST_DIR} (SKIP_EXPORT=1)..."
+    [[ -d "${DIST_DIR}" ]] || { echo "❌ ${DIST_DIR} tidak ada"; exit 2; }
+else
 echo "📦 Step 1/4: Building bundle (expo export)..."
 rm -rf "${DIST_DIR}"
 # --clear: nilai EXPO_PUBLIC_* ditanam ke bundle saat Metro mentransformasi
@@ -103,6 +118,7 @@ rm -rf "${DIST_DIR}"
 NODE_ENV=production EXPO_NO_DOTENV=1 EXPO_PUBLIC_APP_VARIANT="${EXPO_VARIANT}" \
     npx expo export --platform "${PLATFORM}" --output-dir "${DIST_DIR}" --clear \
     || { echo "❌ expo export gagal"; exit 2; }
+fi
 
 # Periksa isi bundle, bukan env: yang sampai ke perangkat adalah bundle.
 #
