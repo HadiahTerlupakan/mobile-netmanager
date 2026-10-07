@@ -10,6 +10,7 @@ import { useAppInitialization } from "@/hooks/useAppInitialization";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { useOtaDevPreview } from "@/hooks/useOtaDevPreview";
 import { useNotificationSetup } from "@/hooks/useNotificationSetup";
+import { useRekonsiliasiTracking } from "@/hooks/useRekonsiliasiTracking";
 import { useDeepLink } from "@/hooks/useDeepLink";
 import { useAuthRedirect } from "@/hooks/useAuthRedirect";
 import { asyncStoragePersister, queryClient } from "@/lib/queryClient";
@@ -46,6 +47,8 @@ function RootLayoutNav() {
 
   // Deep link dari WA (netmanager://work-order-detail/<id>)
   useDeepLink();
+  // Cocokkan notifikasi pelacakan dengan status absen setiap aplikasi dibuka.
+  useRekonsiliasiTracking();
 
   // Handle auth-based redirects
   useAuthRedirect(user, segments, isLoading);
