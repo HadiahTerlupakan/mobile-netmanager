@@ -1,3 +1,5 @@
+import type { TampilanStatus } from './status';
+
 /** Peran akun investor dari server (`user.role`); investor bukan karyawan/mitra/pelanggan. */
 export const PERAN_INVESTOR = 'INVESTOR';
 
@@ -11,7 +13,6 @@ export const ENDPOINT_PENCAIRAN_INVESTOR = '/api/mobile/investor/payouts';
 export const UKURAN_HALAMAN_PENCAIRAN = 20;
 
 export type { NadaStatus, TampilanStatus } from './status';
-import type { TampilanStatus } from './status';
 
 export const STATUS_SETORAN: Readonly<Record<string, TampilanStatus>> = {
   PENDING: { label: 'Menunggu dicek', nada: 'menunggu' },
