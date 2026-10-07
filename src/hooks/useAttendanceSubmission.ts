@@ -200,6 +200,18 @@ export function useAttendanceSubmission({
       setPhoto(null);
 
       if (isOfflineMutationQueuedResult(data)) {
+        // Check-out yang masih mengantre tetap harus menghentikan tracking.
+        // Pengguna sudah menyatakan selesai bekerja; menunggu antrean terkirim
+        // berarti HP-nya terus melacak sepanjang offline — justru saat sinyal
+        // buruk dan baterai paling mahal. Check-in sebaliknya TIDAK memulai
+        // tracking sebelum server mengonfirmasi.
+        if (status !== "idle") {
+          try {
+            await LocationTrackingService.stopTracking();
+          } catch (trackingError) {
+            logger.error('[Absensi] Gagal menghentikan tracking:', trackingError);
+          }
+        }
         // Toast offline sudah di-emit oleh useApiMutation.onSuccess.
         return;
       }

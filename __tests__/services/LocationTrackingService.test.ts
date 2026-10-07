@@ -266,6 +266,27 @@ describe('LocationTrackingService', () => {
       expect(Location.stopLocationUpdatesAsync).not.toHaveBeenCalled();
     });
 
+    // Bentuk balasan NYATA dari server: `apiSuccess` membungkus muatan di
+    // dalam `data`, sehingga axios memberi
+    // `response.data = { success, data: { shouldStopTracking } }`.
+    // Test lama memalsukan bentuk datar yang tidak pernah dikirim server.
+    it('berhenti saat server bilang belum check-in (bentuk amplop asli)', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('valid-token');
+      (api.post as jest.Mock).mockResolvedValue({
+        data: {
+          success: true,
+          data: { shouldStopTracking: true },
+          message: 'User belum melakukan check-in',
+        },
+      });
+      (Location.hasStartedLocationUpdatesAsync as jest.Mock).mockResolvedValue(true);
+
+      const result = await LocationTrackingService.sendLocation(mockLocationData);
+
+      expect(result).toBe(false);
+      expect(Location.stopLocationUpdatesAsync).toHaveBeenCalled();
+    });
+
     it('should stop tracking if server requests it', async () => {
       (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('valid-token');
       const error = {

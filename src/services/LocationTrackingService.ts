@@ -49,6 +49,28 @@ async function ambilTokenSesi(): Promise<string | null> {
     return tersimpan;
 }
 
+/**
+ * Apakah server menyuruh berhenti melacak.
+ *
+ * Balasan server dibungkus `apiSuccess`, sehingga muatannya ada di
+ * `body.data.shouldStopTracking` — bukan `body.shouldStopTracking`. Pembacaan
+ * yang salah lapis inilah yang membuat tracking terus berjalan setelah
+ * check-out: server memang mengirim perintah berhenti setiap kali, dan klien
+ * tidak pernah melihatnya.
+ *
+ * Keduanya diterima karena jalur galat (`apiError`) menaruh bendera itu di
+ * akar, sedangkan jalur sukses membungkusnya.
+ */
+function serverMintaBerhenti(body: unknown): boolean {
+    if (typeof body !== 'object' || body === null) return false;
+    const akar = body as { shouldStopTracking?: unknown; data?: unknown };
+    if (akar.shouldStopTracking === true) return true;
+
+    const dalam = akar.data;
+    if (typeof dalam !== 'object' || dalam === null) return false;
+    return (dalam as { shouldStopTracking?: unknown }).shouldStopTracking === true;
+}
+
 /** Galat 401: token sesi ditolak server. */
 function isTidakTerautentikasi(error: unknown): boolean {
     return isAxiosError(error) && error.response?.status === HTTP_UNAUTHORIZED;
@@ -349,7 +371,7 @@ export class LocationTrackingService {
 
             logger.info(`[LocationTracking] ✅ Location sent successfully!`);
 
-            if (response.data?.shouldStopTracking) {
+            if (serverMintaBerhenti(response.data)) {
                 logger.info(`[LocationTracking] Server requested stop tracking`);
                 await this.stopTracking();
                 return false;
@@ -362,7 +384,7 @@ export class LocationTrackingService {
                 const errorMessage = backendMessage || (error instanceof Error ? error.message : 'Unknown error');
                 logger.error('[LocationTracking] Failed to send location:', errorMessage);
 
-            if (isAxiosError(error) && error.response?.data?.shouldStopTracking) {
+            if (isAxiosError(error) && serverMintaBerhenti(error.response?.data)) {
                 logger.info(`[LocationTracking] Server requested stop tracking`);
                 await this.stopTracking();
                 return false;
