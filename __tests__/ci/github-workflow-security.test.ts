@@ -46,6 +46,9 @@ const ACTION_DIIZINKAN = [
   'actions/setup-node@v7',
   'actions/setup-java@v6',
   'actions/cache@v6',
+  // v6 adalah rilis pertama yang `runs.using: node24` secara bawaan; v5 masih
+  // Node 20 meski sudah memuat dukungan awal Node 24.
+  'actions/upload-artifact@v6',
 ];
 
 function bacaTeks(nama: string): string {

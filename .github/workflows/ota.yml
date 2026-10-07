@@ -128,6 +128,24 @@ jobs:
           chmod +x ./scripts/publish-update.sh
           ./scripts/publish-update.sh production "${GITHUB_SHA:0:8} - ${subject}"
 
+      # Jalan keluar ketika unggahan ke server gagal karena jaringan, bukan kode.
+      # Transit antara runner GitHub dan server pernah merosot ke ~17 KB/detik
+      # (7 Okt 2026), sehingga bundel 13 MB tidak selesai sebelum batas baca
+      # Traefik 60 detik. Bundel hasil export disimpan sebagai artifact supaya
+      # bisa dipublikasikan dari jalur lain tanpa membangun ulang — membangun
+      # ulang di tempat lain berbahaya karena nilai EXPO_PUBLIC_* ditanam ke
+      # bundel saat export, dan beda nilai berarti beda konfigurasi Firebase.
+      - name: Simpan bundel untuk publikasi manual
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ota-dist-${{ github.sha }}
+          path: |
+            dist/
+            native-build.json
+          retention-days: 5
+          if-no-files-found: warn
+
       # OTA hanya sampai ke HP yang memasang build target (native-build.json).
       # Bila build itu belum dirilis di production Play Store, pengguna Play
       # tidak menerima OTA ini tanpa error apa pun (kejadian 15–25 Sep 2026).
