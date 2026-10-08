@@ -41,13 +41,30 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Event work order dan tiket dulu hanya boleh dibaca pemegang akses panel
+    // admin. Akibatnya teknisi yang DITUGASKAN ke sebuah work order tidak pernah
+    // bisa mendengar event-nya: klaimnya `accessAdminPanel: false`, jadi
+    // langganannya selalu `permission-denied` dan layar detail diam-diam
+    // berhenti hidup. Gejalanya di lapangan: status berubah di satu perangkat
+    // tapi perangkat lain tidak ikut berubah sampai ditarik-segarkan.
+    //
+    // Aturan tidak bisa menanyakan Postgres siapa yang ditugaskan, dan jalur
+    // dokumen hanya memuat id work order. Sumbu yang tersedia adalah `tenantId`
+    // yang kini ikut ditulis pada setiap envelope. Membuka tanpa syarat itu
+    // berarti siapa pun yang menebak id work order bisa menyadap tenant lain.
+    function seTenant() {
+      return isSignedIn() &&
+        resource.data.tenantId != null &&
+        resource.data.tenantId == request.auth.token.tenantId;
+    }
+
     match /workorders/{woId}/events/{eventId} {
-      allow read: if canAccessAdminPanel();
+      allow read: if canAccessAdminPanel() || seTenant();
       allow write: if false;
     }
 
     match /tickets/{ticketId}/events/{eventId} {
-      allow read: if canAccessAdminPanel();
+      allow read: if canAccessAdminPanel() || seTenant();
       allow write: if false;
     }
 
