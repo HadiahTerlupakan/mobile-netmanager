@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { biometricService } from '@/services/BiometricService';
 import { logger } from '@/utils/logger';
 
 const STORED_EMAIL_KEY = 'biometric_stored_email';
@@ -31,7 +32,27 @@ const SECURE_EMAIL_OPTIONS: SecureStore.SecureStoreOptions = {
 };
 
 class CredentialStorageServiceImpl {
+  /**
+   * Simpan kredensial untuk login biometrik.
+   *
+   * Syarat `requireAuthentication` pada password adalah biometrik/PIN yang
+   * benar-benar terdaftar di perangkat. Tanpa itu, Keystore menolak dan
+   * `setValueWithKeyAsync` melempar — dulu tercatat sebagai ERROR setiap kali
+   * login di perangkat tanpa biometrik, padahal itu keadaan normal, bukan
+   * kerusakan. Galat palsu yang muncul rutin melatih orang mengabaikan log.
+   *
+   * Pemeriksaannya dipasang di sini, bukan diserahkan ke pemanggil: ada satu
+   * pemanggil hari ini dan ia memang lupa memeriksanya.
+   */
   async saveCredentials(email: string, password: string): Promise<boolean> {
+    const biometrikSiap = await biometricService.isAvailable().catch(() => false);
+    if (!biometrikSiap) {
+      logger.warn(
+        '[CredentialStorage] Biometrik belum terdaftar di perangkat — kredensial tidak disimpan.',
+      );
+      return false;
+    }
+
     try {
       await SecureStore.setItemAsync(STORED_EMAIL_KEY, email, SECURE_EMAIL_OPTIONS);
       await SecureStore.setItemAsync(STORED_PASSWORD_KEY, password, SECURE_PASSWORD_OPTIONS);
