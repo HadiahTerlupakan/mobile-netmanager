@@ -52,10 +52,11 @@ service cloud.firestore {
     // dokumen hanya memuat id work order. Sumbu yang tersedia adalah `tenantId`
     // yang kini ikut ditulis pada setiap envelope. Membuka tanpa syarat itu
     // berarti siapa pun yang menebak id work order bisa menyadap tenant lain.
+    // `tenantId` null dipakai event worker latar yang memang tidak punya
+    // konteks tenant; itu bukan kecocokan, melainkan ketiadaan jawaban.
     function seTenant() {
-      return isSignedIn() &&
-        resource.data.tenantId != null &&
-        resource.data.tenantId == request.auth.token.tenantId;
+      return resource.data.tenantId != null &&
+        isInTenant(resource.data.tenantId);
     }
 
     match /workorders/{woId}/events/{eventId} {
