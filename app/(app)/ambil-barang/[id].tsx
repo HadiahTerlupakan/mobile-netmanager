@@ -197,7 +197,11 @@ export default function AmbilBarangScreen() {
   const ambilBarangMutation = useApiMutation({
     endpoint: `/api/mobile/work-orders/${workOrderId}/materials`,
     method: "POST",
-    invalidateKeys: [['work_order', workOrderId]],
+    // Stok gudang baru saja berubah karena mutasi ini. Tanpa ikut
+    // membatalkan `barang_list`, layar pemilihan barang menyajikan angka
+    // stok sebelum pengambilan saat dibuka lagi — teknisi melihat stok
+    // yang sudah tidak ada dan merencanakan pekerjaan di atasnya.
+    invalidateKeys: [['work_order', workOrderId], ['barang_list']],
     showErrorAlert: false
   });
 

@@ -1,8 +1,8 @@
 import { WorkOrder } from '@/types/work-order';
 import { buildWorkOrderMaterialKey } from '@/utils/workOrderMaterialKey';
 import {
-  Image as ImageIcon,
   Package,
+  PackagePlus,
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import React from 'react';
@@ -118,7 +118,7 @@ export const ItemsTab = React.memo(function ItemsTab({
           disabled={!canInteract}
           style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-utama-sangat-muda border-utama-garis active:bg-utama-muda" : "bg-gray-100 border-gray-200 opacity-60"}`}
         >
-          <ImageIcon
+          <PackagePlus
             size={20}
             color={canInteract ? warna.utama : "#9ca3af"}
             style={tw`mr-2`}
