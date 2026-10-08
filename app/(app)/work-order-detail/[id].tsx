@@ -221,7 +221,13 @@ export default function WorkOrderDetailScreen() {
 
         setLocation(currentLocation);
       } catch (error) {
-        logger.error("Location Error in WO Detail:", error);
+        // Gagal mendapat fix GPS adalah keadaan lingkungan — di dalam gedung,
+        // antena belum terkunci, perangkat tanpa modul GPS — bukan cacat
+        // program. Mencatatnya sebagai error memunculkan overlay merah di atas
+        // tombol "Selesai" dan melatih orang mengabaikan error yang sungguhan.
+        // Layar tetap berfungsi tanpa koordinat; yang hilang hanya validasi
+        // jarak, dan itu sudah punya pesannya sendiri di layar.
+        logger.warn("Lokasi tidak tersedia untuk detail work order:", error);
       }
     })();
   }, []);
