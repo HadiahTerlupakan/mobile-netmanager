@@ -170,6 +170,9 @@ export const MENU_ITEMS: MenuItem[] = [
     // Lingkup (milik sendiri/tim/semua) diputuskan server dari izin rencana presurvei.
     requiredFeatures: [AppFeature.PRESURVEI],
     internalOnly: true,
+    // Fitur sales. Teknisi tidak akan pernah mendapatkannya, jadi menampilkannya
+    // sebagai tile terkunci hanya menambah kerumunan pada menu yang sudah padat.
+    hideWhenLocked: true,
   },
   {
     id: 'pelanggan-saya',
@@ -181,6 +184,8 @@ export const MENU_ITEMS: MenuItem[] = [
     route: "/(app)/pelanggan/saya",
     requiredFeatures: [AppFeature.PRESURVEI],
     internalOnly: true,
+    // Fitur sales; sama seperti Tunggakan.
+    hideWhenLocked: true,
   },
   {
     id: 'keluhan',
