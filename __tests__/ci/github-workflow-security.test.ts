@@ -137,11 +137,59 @@ describe('secret', () => {
   });
 
   it('workflow ber-secret tidak dipicu event pull request', () => {
-    const EVENT_PR = ['pull_request', 'pull_request_target', 'pull_request_review', 'workflow_run'];
+    const EVENT_PR = ['pull_request', 'pull_request_target', 'pull_request_review'];
     for (const [nama, wf] of semuaWorkflow()) {
       if (!memakaiSecret(wf.jobs)) continue;
       const pemicu = Object.keys(wf.on).filter((e) => EVENT_PR.includes(e));
       expect({ nama, pemicu }).toEqual({ nama, pemicu: [] });
+    }
+  });
+
+  /**
+   * `workflow_run` dikeluarkan dari daftar terlarang di atas, tetapi TIDAK
+   * dibiarkan bebas. Event ini juga menyala ketika CI selesai untuk pull
+   * request — termasuk PR dari fork — dan workflow yang dipicunya berjalan di
+   * konteks repo asal lengkap dengan secret produksi. Tanpa penjaga, itu jalur
+   * peningkatan hak akses yang setara `pull_request_target`.
+   *
+   * Karena itu setiap job ber-secret yang dipicu `workflow_run` wajib memeriksa
+   * ketiganya: dipicu push, di branch main, dan CI-nya hijau.
+   */
+  it('job ber-secret yang dipicu workflow_run menjaga event, branch, dan hasil CI', () => {
+    for (const [nama, wf] of semuaWorkflow()) {
+      if (!('workflow_run' in wf.on)) continue;
+      if (!memakaiSecret(wf.jobs)) continue;
+
+      for (const [idJob, job] of Object.entries(wf.jobs)) {
+        const penjaga = String((job as { if?: unknown }).if ?? '');
+        expect({
+          job: `${nama}#${idJob}`,
+          event: /workflow_run\.event\s*==\s*'push'/.test(penjaga),
+          branch: /workflow_run\.head_branch\s*==\s*'main'/.test(penjaga),
+          hasil: /workflow_run\.conclusion\s*==\s*'success'/.test(penjaga),
+        }).toEqual({ job: `${nama}#${idJob}`, event: true, branch: true, hasil: true });
+      }
+    }
+  });
+
+  /**
+   * `workflow_run` menjalankan workflow dari branch default dan tidak membawa
+   * commit pemicunya. Tanpa `ref` eksplisit, yang terbit adalah HEAD main saat
+   * runner jalan — bukan commit yang barusan lulus CI.
+   */
+  it('checkout pada workflow_run memakai head_sha pemicunya', () => {
+    for (const [nama, wf] of semuaWorkflow()) {
+      if (!('workflow_run' in wf.on)) continue;
+
+      for (const [idJob, job] of Object.entries(wf.jobs)) {
+        const checkout = (job.steps ?? []).find((l) => String(l.uses ?? '').startsWith('actions/checkout'));
+        if (!checkout) continue;
+        const ref = String((checkout.with as { ref?: unknown } | undefined)?.ref ?? '');
+        expect({ job: `${nama}#${idJob}`, pakaiHeadSha: ref.includes('workflow_run.head_sha') }).toEqual({
+          job: `${nama}#${idJob}`,
+          pakaiHeadSha: true,
+        });
+      }
     }
   });
 

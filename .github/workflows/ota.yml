@@ -14,14 +14,20 @@ name: Publish OTA
 # Workflow ini memakai secret, jadi tidak pernah dipicu `pull_request` atau
 # `pull_request_target`.
 
+# Dipicu setelah "Mobile CI" selesai, bukan langsung oleh push. Lint, typecheck,
+# dan tes unit karena itu berjalan SEKALI, dan publish hanya terjadi di atas
+# commit yang CI-nya hijau — sebelumnya keduanya berjalan paralel dan OTA
+# menjalankan ulang seluruh tes hanya untuk menjaga dirinya sendiri.
+#
+# BAHAYA `workflow_run` yang ditutup di `if` job: event ini juga menyala ketika
+# CI selesai untuk pull request, TERMASUK PR dari fork, dan workflow yang
+# dipicunya berjalan di konteks repo asal — lengkap dengan secret produksi.
+# Itu jalur peningkatan hak akses yang setara `pull_request_target`. Karena itu
+# job hanya berjalan bila CI-nya dipicu `push` DI BRANCH main DAN hijau.
 on:
-  push:
-    branches: [main]
-    # Perubahan yang tidak ikut ke bundle JS tidak perlu memicu publish.
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-      - ".github/**"
+  workflow_run:
+    workflows: ["Mobile CI"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       allow_runtime_mismatch:
@@ -42,6 +48,14 @@ concurrency:
 jobs:
   publish:
     name: Fingerprint guard & publish
+    # Tiga syarat, semuanya wajib: dipicu push (bukan pull request), di branch
+    # main, dan CI-nya hijau. Melonggarkan salah satunya membuka publish dari
+    # pull request fork dengan secret produksi.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.conclusion == 'success')
     runs-on: ${{ fromJSON(vars.CI_RUNS_ON || '"ubuntu-24.04"') }}
     # Secret publish tinggal di environment `production`, yang hanya boleh
     # dipakai dari branch main.
@@ -49,32 +63,56 @@ jobs:
     steps:
       # Token checkout tidak disimpan di .git/config: job ini tidak menulis ke
       # repo, dan `npm ci` menjalankan skrip pihak ketiga.
+      # `workflow_run` menjalankan workflow dari branch default dan TIDAK
+      # membawa commit pemicunya. Tanpa `ref` eksplisit, yang terbit adalah
+      # HEAD main saat runner jalan — bukan commit yang barusan lulus CI.
       - name: Ambil kode
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          # Dua commit: penjaga di bawah membandingkan HEAD dengan induknya.
+          fetch-depth: 2
           persist-credentials: false
 
+      # Pengganti `paths-ignore` yang hilang bersama pemicu `push`. Commit yang
+      # hanya menyentuh dokumentasi atau pipeline tidak mengubah bundle JS;
+      # menerbitkannya berarti mengirim ulang bundel identik ke setiap HP.
+      - name: Periksa perubahan layak terbit
+        id: layak
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "terbit=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          berubah=$(git diff --name-only HEAD^ HEAD || true)
+          if [ -z "${berubah}" ]; then
+            echo "terbit=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sisa=$(printf '%s\n' "${berubah}" | grep -vE '^(docs/|\.github/)' | grep -vE '\.md$' || true)
+          if [ -z "${sisa}" ]; then
+            echo "::notice::Hanya dokumentasi/pipeline yang berubah — publish dilewati."
+            echo "terbit=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "terbit=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Pasang Node
+        if: steps.layak.outputs.terbit == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
 
       - name: Pasang dependensi
+        if: steps.layak.outputs.terbit == 'true'
         run: npm ci --no-audit
 
-      # Gate mutu: OTA mengirim JS langsung ke pengguna tanpa melewati review
-      # toko, jadi tidak ada jaring pengaman lain di belakangnya.
-      - name: Lint
-        run: npx expo lint
-
-      - name: Typecheck
-        run: npx tsc --noEmit
-
-      - name: Tes unit
-        # 50% core: runner GitHub (2 vCPU) tetap 1 worker; di runner sendiri bercore banyak
-        # yang berbagi CPU antar-job, jest tidak membuka worker sebanyak core (tes timeout).
-        run: npx jest --ci --maxWorkers=50%
+      # Gate mutu lint/typecheck/tes TIDAK diulang di sini: job ini hanya
+      # berjalan setelah "Mobile CI" hijau pada commit yang sama (lihat `if`
+      # dan `ref` di atas). OTA mengirim JS langsung ke pengguna tanpa review
+      # toko, jadi jaring pengamannya tetap wajib — hanya saja dipasang sekali.
 
       # Publish lewat `scripts/publish-update.sh`. OTA proyek ini TIDAK memakai
       # EAS Update: `app.config.ts` mengarahkan `updates.url` ke
@@ -86,6 +124,7 @@ jobs:
       # berbeda karena file secret, google-services.json, dan env tidak sama.
       # Itulah sebabnya ia butuh EXPO_TOKEN selain token publish.
       - name: Publish OTA ke server netmanager
+        if: steps.layak.outputs.terbit == 'true'
         env:
           APP_UPDATE_PUBLISH_TOKEN: ${{ secrets.APP_UPDATE_PUBLISH_TOKEN }}
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

@@ -15,12 +15,19 @@ describe('workflow publish OTA', () => {
     'utf8'
   );
 
-  it('menjalankan lint, typecheck, dan tes sebelum publish', () => {
-    const urutan = ['expo lint', 'tsc --noEmit', 'jest --ci', 'publish-update.sh'];
-    const posisi = urutan.map((pola) => workflow.indexOf(pola));
+  // Gate mutu pindah, tidak hilang: lint/typecheck/tes kini dijalankan "Mobile
+  // CI", dan publish hanya berjalan setelah CI itu hijau pada commit yang sama.
+  // Mengulangnya di sini berarti menjalankan 1500+ tes dua kali per push.
+  it('tidak mengulang lint, typecheck, dan tes yang sudah dijalankan Mobile CI', () => {
+    for (const pola of ['expo lint', 'tsc --noEmit', 'jest --ci']) {
+      expect({ pola, ada: workflow.includes(pola) }).toEqual({ pola, ada: false });
+    }
+    expect(workflow).toContain('publish-update.sh');
+  });
 
-    expect(posisi.every((i) => i >= 0)).toBe(true);
-    expect(posisi).toEqual([...posisi].sort((a, b) => a - b));
+  it('publish menunggu Mobile CI hijau', () => {
+    expect(workflow).toContain('workflows: ["Mobile CI"]');
+    expect(workflow).toMatch(/workflow_run\.conclusion\s*==\s*'success'/);
   });
 
   it('memakai skrip publish milik repo, bukan eas update', () => {
@@ -69,17 +76,20 @@ describe('workflow publish OTA', () => {
   });
 
   it('hanya terpicu dari branch main', () => {
-    expect(workflow).toContain('branches: [main]');
+    // Pemicunya kini `workflow_run`, jadi branch dijaga di `if` job — bukan lagi
+    // oleh `branches:` pada `on.push`.
+    expect(workflow).toMatch(/workflow_run\.head_branch\s*==\s*'main'/);
+    expect(workflow).toMatch(/workflow_run\.event\s*==\s*'push'/);
   });
 
-  it('mempertahankan paths-ignore yang sama dengan versi Gitea', () => {
-    // Daftar ini menentukan commit mana yang menerbitkan OTA. Melebarkannya
-    // menahan JS yang seharusnya terbit; menyempitkannya menerbitkan ulang
-    // bundle yang sama untuk commit dokumentasi.
-    const blok = workflow.slice(workflow.indexOf('paths-ignore:'), workflow.indexOf('  workflow_dispatch:'));
-    const daftar = [...blok.matchAll(/- "([^"]+)"/g)].map((m) => m[1]);
-
-    expect(daftar).toEqual(['docs/**', '**/*.md', '.github/**']);
+  it('commit dokumentasi/pipeline tetap tidak menerbitkan OTA', () => {
+    // `paths-ignore` ikut hilang bersama pemicu `push`, jadi penyaringnya
+    // dipasang sebagai langkah eksplisit. Tanpa itu, commit dokumentasi
+    // menerbitkan ulang bundel identik ke setiap HP.
+    expect(workflow).toContain('Periksa perubahan layak terbit');
+    expect(workflow).toMatch(/grep -vE '\^\(docs\/\|\\\.github\/\)'/);
+    expect(workflow).toMatch(/grep -vE '\\\.md\$'/);
+    expect(workflow).toContain("steps.layak.outputs.terbit == 'true'");
   });
 
   it('tidak menjalankan dua publish OTA bersamaan', () => {
