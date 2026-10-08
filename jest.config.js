@@ -32,6 +32,8 @@ module.exports = {
     "^expo-battery$": "<rootDir>/__mocks__/expo-battery.js",
     "^expo-task-manager$": "<rootDir>/__mocks__/expo-task-manager.js",
     "^@notifee/react-native$": "<rootDir>/__mocks__/@notifee/react-native.js",
+    "^@react-native-firebase/messaging$":
+      "<rootDir>/__mocks__/@react-native-firebase/messaging.js",
     "^@/utils/logger$": "<rootDir>/__mocks__/logger.js",
     "^twrnc-kosong$": "<rootDir>/__mocks__/twrncKosong.js",
   },

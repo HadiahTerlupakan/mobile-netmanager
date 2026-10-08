@@ -15,6 +15,7 @@ import { Alert } from "react-native";
 import tw from "twrnc";
 
 import { FaceVerificationModal } from '@/components/organisms/FaceVerificationModal';
+import { PermintaanIzinNotifikasi } from '@/components/organisms/notifikasi/PermintaanIzinNotifikasi';
 import { LocationDisclosureProvider } from '@/components/providers/LocationDisclosureProvider';
 import { MitraSalesTabBar } from '@/components/organisms/navigation/MitraSalesTabBar';
 import { MitraTeknisiTabBar } from '@/components/organisms/navigation/MitraTeknisiTabBar';
@@ -26,6 +27,7 @@ import { AppFeature } from "@/constants/features";
 import { RUTE_LAYAR_TERSEMBUNYI } from "@/constants/ruteLayarTersembunyi";
 import { useAuth } from "@/context/AuthContext";
 import { useTemaPersona } from "@/theme";
+import { useIzinNotifikasi } from "@/hooks/useIzinNotifikasi";
 import { useProfileSync } from "@/hooks/useProfileSync";
 import { isRouteAllowedDuringLeave } from '@/utils/leaveAccess';
 import { logger } from "@/utils/logger";
@@ -85,6 +87,10 @@ export default function AppLayout() {
   const { user } = useAuth();
 
   const [showFaceVerification, setShowFaceVerification] = useState(false);
+
+  // Pre-prompt izin notifikasi. Dibawa di layout, bukan di beranda per
+  // persona, supaya hanya ada satu tempat yang bertanya — beranda ada enam.
+  const izinNotifikasi = useIzinNotifikasi();
 
   // Check if camera is required
   useEffect(() => {
@@ -171,6 +177,14 @@ export default function AppLayout() {
         <FaceVerificationModal
           visible={showFaceVerification}
           onVerificationComplete={() => setShowFaceVerification(false)}
+        />
+
+        {/* Verifikasi wajah memblokir akses; menumpuk dialog di atasnya hanya
+            membuat keduanya sulit dijawab. Izin notifikasi bisa menunggu. */}
+        <PermintaanIzinNotifikasi
+          visible={izinNotifikasi.tampil && !showFaceVerification}
+          onSetuju={izinNotifikasi.setuju}
+          onTolak={izinNotifikasi.tolak}
         />
 
       <Tabs

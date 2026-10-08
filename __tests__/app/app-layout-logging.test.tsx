@@ -26,6 +26,13 @@ jest.mock('@/hooks/useProfileSync', () => ({
   useProfileSync: () => mockUseProfileSync(),
 }));
 
+// Pre-prompt izin notifikasi punya pengujiannya sendiri; di sini ia hanya akan
+// menjadwalkan pembaruan state asinkron di luar `act` dan membanjiri keluaran
+// dengan peringatan yang tidak ada hubungannya dengan apa yang diuji.
+jest.mock('@/hooks/useIzinNotifikasi', () => ({
+  useIzinNotifikasi: () => ({ tampil: false, setuju: jest.fn(), tolak: jest.fn() }),
+}));
+
 jest.mock('@/utils/leaveAccess', () => ({
   isRouteAllowedDuringLeave: () => true,
 }));

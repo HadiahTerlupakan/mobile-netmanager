@@ -37,6 +37,13 @@ jest.mock('expo-router', () => {
 jest.mock('@/utils/logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => mockUseAuth() }));
 jest.mock('@/hooks/useProfileSync', () => ({ useProfileSync: () => ({ profileData: null }) }));
+// Pre-prompt izin notifikasi punya pengujiannya sendiri; di sini ia hanya akan
+// menjadwalkan pembaruan state asinkron di luar `act` dan membanjiri keluaran
+// dengan peringatan yang tidak ada hubungannya dengan apa yang diuji.
+jest.mock('@/hooks/useIzinNotifikasi', () => ({
+  useIzinNotifikasi: () => ({ tampil: false, setuju: jest.fn(), tolak: jest.fn() }),
+}));
+
 jest.mock('@/utils/leaveAccess', () => ({ isRouteAllowedDuringLeave: () => true }));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
