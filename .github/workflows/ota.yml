@@ -199,4 +199,14 @@ jobs:
           [ -f native-build.json ] || { echo "native-build.json tidak ada — dilewati"; exit 0; }
           GOOGLE_PLAY_SERVICE_ACCOUNT_JSON="$(printf '%s' "${PLAY_SA_BASE64}" | base64 -d)"
           export GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
-          node scripts/play-internal.js status-production "$(node -p 'require("./native-build.json").versionCode')"
+          # Langkah ini hanya memberi tahu, jadi kegagalannya TIDAK boleh muncul
+          # sebagai anotasi merah pada run yang sukses. Play API sempat membalas
+          # 503 (8 Okt 2026) dan run yang OTA-nya terbit normal tetap terbaca
+          # "1 error" — menyita perhatian ke tempat yang salah setiap kali.
+          if ! keluaran=$(node scripts/play-internal.js status-production \
+              "$(node -p 'require("./native-build.json").versionCode')" 2>&1); then
+            echo "${keluaran}"
+            echo "::warning::Status Play Store tidak terbaca; publish OTA tidak terpengaruh."
+            exit 0
+          fi
+          echo "${keluaran}"
