@@ -25,6 +25,9 @@ jest.mock('@/constants/features', () => ({
 
 jest.mock('@/hooks/queries', () => ({
   useApiMutation: (options: unknown) => mockUseApiMutation(options),
+  // Layar ini juga membaca detail work order untuk tahu material apa yang masih
+  // dibawa teknisi; tes ini tidak menguji bagian itu, jadi cukup dikosongkan.
+  useApiQuery: () => ({ data: undefined, isPending: false }),
 }));
 
 jest.mock('@/services/SyncService', () => ({

@@ -56,6 +56,39 @@ describe('hitungSisaMaterial', () => {
   it('tanpa pengambilan, tidak ada yang bisa dikembalikan', () => {
     expect(hitungSisaMaterial(undefined, undefined)).toEqual([]);
   });
+
+  // Barang yang sudah terpasang di rumah pelanggan tidak mungkin dikembalikan.
+  it('mengurangi yang sudah terpasang', () => {
+    const sisa = hitungSisaMaterial(
+      [{ barangId: 'kabel', jumlah: 10, nama: 'Kabel', satuan: 'meter' }],
+      [],
+      [{ barangId: 'kabel', jumlah: 7 }],
+    );
+
+    expect(sisa[0].sisa).toBe(3);
+  });
+
+  it('terpasang dan dikembalikan sama-sama mengurangi', () => {
+    const sisa = hitungSisaMaterial(
+      [{ barangId: 'kabel', jumlah: 10 }],
+      [{ barangId: 'kabel', jumlah: 2, asal: 'SISA_MATERIAL' }],
+      [{ barangId: 'kabel', jumlah: 8 }],
+    );
+
+    expect(sisa).toEqual([]);
+  });
+
+  // Work order lama tidak punya catatan pemakaian sama sekali; menolak
+  // pengembaliannya karena itu akan lebih buruk daripada melonggarkannya.
+  it('tanpa catatan pemakaian, perilakunya seperti sebelumnya', () => {
+    const sisa = hitungSisaMaterial(
+      [{ barangId: 'kabel', jumlah: 10 }],
+      [],
+      undefined,
+    );
+
+    expect(sisa[0].sisa).toBe(10);
+  });
 });
 
 describe('sisaTersedia', () => {

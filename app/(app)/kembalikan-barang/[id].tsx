@@ -70,6 +70,7 @@ interface WorkOrderRingkas {
   type?: string;
   usedMaterials?: MaterialWorkOrder[];
   returnedMaterials?: MaterialWorkOrder[];
+  consumedMaterials?: MaterialWorkOrder[];
 }
 
 /** Barang yang masih punya sisa dari pengambilan work order ini. */
@@ -209,7 +210,11 @@ export default function KembalikanBarangScreen() {
    */
   const sisaMaterial = useMemo<SisaMaterial[]>(
     () =>
-      hitungSisaMaterial(woData?.usedMaterials, woData?.returnedMaterials).map(
+      hitungSisaMaterial(
+        woData?.usedMaterials,
+        woData?.returnedMaterials,
+        woData?.consumedMaterials,
+      ).map(
         (b) => ({
           sisa: b.sisa,
           barang: {

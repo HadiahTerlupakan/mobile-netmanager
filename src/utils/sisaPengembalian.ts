@@ -27,7 +27,7 @@ export interface SisaBarang {
 
 /**
  * Sisa per barang: yang diambil untuk work order ini dikurangi yang sudah
- * dikembalikan sebagai sisa material.
+ * terpasang di pelanggan dan yang sudah dikembalikan.
  *
  * Tarikan pelanggan tidak ikut mengurangi: perangkat yang dicabut dari rumah
  * pelanggan tidak pernah berasal dari pengambilan, jadi memotongkannya ke jatah
@@ -36,6 +36,7 @@ export interface SisaBarang {
 export function hitungSisaMaterial(
   diambil: MaterialWorkOrder[] | undefined,
   dikembalikan: MaterialWorkOrder[] | undefined,
+  dipakai?: MaterialWorkOrder[] | undefined,
 ): SisaBarang[] {
   const total = new Map<string, SisaBarang>();
 
@@ -52,6 +53,18 @@ export function hitungSisaMaterial(
 
   for (const m of dikembalikan ?? []) {
     if (!m.barangId || m.asal === 'TARIKAN_PELANGGAN') continue;
+    const sebelumnya = total.get(m.barangId);
+    if (!sebelumnya) continue;
+    total.set(m.barangId, { ...sebelumnya, sisa: sebelumnya.sisa - m.jumlah });
+  }
+
+  // Barang yang sudah terpasang di pelanggan tidak mungkin dikembalikan ke
+  // gudang. Work order lama tidak punya catatan pemakaian; `undefined` di sana
+  // menghasilkan nol, yang artinya perilakunya sama seperti sebelum fitur ini —
+  // disengaja, karena menolak pengembalian yang sah lebih buruk daripada
+  // melonggarkannya untuk data yang catatannya memang tidak pernah dibuat.
+  for (const m of dipakai ?? []) {
+    if (!m.barangId) continue;
     const sebelumnya = total.get(m.barangId);
     if (!sebelumnya) continue;
     total.set(m.barangId, { ...sebelumnya, sisa: sebelumnya.sisa - m.jumlah });

@@ -1,6 +1,6 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import LoadingModal from "@/components/molecules/LoadingModal";
-import { useApiMutation } from "@/hooks/queries";
+import { useApiMutation, useApiQuery } from "@/hooks/queries";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import api from "@/services/api"; // Use centralized API
@@ -17,12 +17,14 @@ import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Camera, CheckCircle, X } from "lucide-react-native";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTemaPersona } from "@/theme";
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
+import { PemakaianMaterial } from "@/components/organisms/work-order/PemakaianMaterial";
+import { hitungSisaMaterial, type MaterialWorkOrder } from "@/utils/sisaPengembalian";
 
 export default function CompleteWorkOrderScreen() {
   const { tw } = useTemaPersona();
@@ -48,6 +50,41 @@ export default function CompleteWorkOrderScreen() {
     detailWorkOrderId,
   );
   const resolvedWorkOrderId = canonicalWorkOrderId ?? routeWorkOrderId;
+
+  const { data: woData } = useApiQuery<{
+    usedMaterials?: MaterialWorkOrder[];
+    returnedMaterials?: MaterialWorkOrder[];
+    consumedMaterials?: MaterialWorkOrder[];
+  }>({
+    queryKey: ["work_order", resolvedWorkOrderId],
+    endpoint: `/api/mobile/work-orders/${resolvedWorkOrderId}`,
+    select: (res: any) => res?.data,
+    enabled: !!resolvedWorkOrderId,
+  });
+
+  /** Barang yang masih dibawa teknisi untuk work order ini. */
+  const dipegang = useMemo(
+    () =>
+      hitungSisaMaterial(
+        woData?.usedMaterials,
+        woData?.returnedMaterials,
+        woData?.consumedMaterials,
+      ),
+    [woData],
+  );
+
+  const [pemakaian, setPemakaian] = useState<Record<string, number>>({});
+
+  const ubahPemakaian = useCallback(
+    (barangId: string, jumlah: number) => {
+      const batas = dipegang.find((b) => b.barangId === barangId)?.sisa ?? 0;
+      setPemakaian((sebelumnya) => ({
+        ...sebelumnya,
+        [barangId]: Math.max(0, Math.min(jumlah, batas)),
+      }));
+    },
+    [dipegang],
+  );
 
   // Prevent state updates after unmount
   const isMountedRef = useRef(true);
@@ -242,6 +279,14 @@ export default function CompleteWorkOrderScreen() {
         longitude: finalLocation?.coords.longitude.toString(),
         locationName,
         timestamp: new Date().toISOString(),
+        // Belum disentuh berarti semuanya terpakai — itu nilai yang ditampilkan
+        // di layar, jadi mengirim yang lain akan berbeda dari yang dilihat.
+        materials: JSON.stringify(
+          dipegang.map((barang) => ({
+            barangId: barang.barangId,
+            jumlah: pemakaian[barang.barangId] ?? barang.sisa,
+          })),
+        ),
       };
 
       // Check online status
@@ -352,7 +397,13 @@ export default function CompleteWorkOrderScreen() {
           onChangeText={setResolutionNotes}
         />
 
-        <View style={tw`flex-row justify-between items-center mb-2`}>
+        <PemakaianMaterial
+          dipegang={dipegang}
+          nilai={pemakaian}
+          onUbah={ubahPemakaian}
+        />
+
+        <View style={tw`flex-row justify-between items-center mb-2 mt-6`}>
           <Text style={tw`font-bold text-gray-700`}>
             Foto Bukti <Text style={tw`text-red-500`}>*</Text>
           </Text>
