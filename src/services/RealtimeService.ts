@@ -4,6 +4,7 @@ import { DeviceEventEmitter } from 'react-native'
 
 import api from '@/services/api'
 import { getMobileFirebaseApp, getMobileFirebaseAuth } from '@/services/firebaseApp'
+import { setStatusRealtime } from './statusRealtime'
 import { logger } from '@/utils/logger'
 
 /**
@@ -242,6 +243,8 @@ class RealtimeService {
               createdAt: data.createdAt,
             })
           })
+          // Snapshot sampai berarti langganan benar-benar hidup.
+          setStatusRealtime('terhubung')
         },
         (error) => {
           logger.warn('[Realtime] Firestore subscription failed', {
@@ -261,6 +264,7 @@ class RealtimeService {
           }
 
           if (retryCount < maxRetries) {
+            setStatusRealtime('mencoba')
             const delay = Math.min(1000 * Math.pow(2, retryCount), 30000)
             retryCount++
             logger.warn(`[Realtime] Reconnecting in ${delay}ms (attempt ${retryCount}/${maxRetries})${needsReauth ? ' [re-auth]' : ''}`)
@@ -279,6 +283,8 @@ class RealtimeService {
               }
             }, delay)
           } else {
+            // Menyerah: layar harus berhenti mengaku "Live" sejak detik ini.
+            setStatusRealtime('terputus')
             logger.warn('[Realtime] Max retries reached, giving up', { scope })
           }
         }

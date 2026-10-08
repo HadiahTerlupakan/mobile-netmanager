@@ -4,6 +4,7 @@ import { WorkOrderSkeleton } from "@/components/molecules/WorkOrderSkeleton";
 import { EmptyState } from "@/components/atoms/EmptyState";
 import { SegmenPilihan } from "@/components/molecules/SegmenPilihan";
 import { KartuWorkOrder } from "@/components/organisms/workOrder/KartuWorkOrder";
+import { useStatusRealtime } from "@/hooks/useStatusRealtime";
 import { useAuth } from "@/context/AuthContext";
 import { realtimeService, RealtimeStreamEvent } from "@/services/RealtimeService";
 import {
@@ -47,7 +48,10 @@ function WorkOrderScreenContent() {
   const { token, user } = useAuth();
   const router = useRouter();
   const isFocused = useIsFocused();
-  const isConnected = !!token;
+  // Keadaan langganan sebenarnya, bukan `!!token`. Yang terakhir hanya berarti
+  // "sudah login", sehingga indikatornya tidak pernah bisa merah walau realtime
+  // sudah menyerah menyambung.
+  const statusRealtime = useStatusRealtime();
   const [activeTab, setActiveTab] = useState<TabType>("tersedia");
   const [claiming, setClaiming] = useState<string | null>(null);
 
@@ -232,15 +236,15 @@ function WorkOrderScreenContent() {
           <Text style={tw`text-2xl font-bold text-slate-900`}>Work Order</Text>
           <View
             style={tw`flex-row items-center`}
-            accessibilityLabel={isConnected ? "Status: terhubung" : "Status: offline"}
+            accessibilityLabel={`Status realtime: ${statusRealtime}`}
           >
             <View
-              style={tw`w-2 h-2 rounded-full mr-1.5 ${isConnected ? "bg-green-500" : "bg-red-500"}`}
+              style={tw`w-2 h-2 rounded-full mr-1.5 ${statusRealtime === "terhubung" ? "bg-green-500" : statusRealtime === "mencoba" ? "bg-amber-500" : "bg-red-500"}`}
             />
             <Text
-              style={tw`text-xs ${isConnected ? "text-green-600" : "text-red-500"}`}
+              style={tw`text-xs ${statusRealtime === "terhubung" ? "text-green-600" : statusRealtime === "mencoba" ? "text-amber-600" : "text-red-500"}`}
             >
-              {isConnected ? "Live" : "Offline"}
+              {statusRealtime === "terhubung" ? "Live" : statusRealtime === "mencoba" ? "Menyambung" : "Terputus"}
             </Text>
           </View>
         </View>
