@@ -14,6 +14,7 @@ import { KartuPencairanCanvasing } from '@/components/organisms/dashboard/KartuP
 import { QuickMenu } from '@/components/organisms/dashboard/QuickMenu';
 import { KartuCanvasingTeknisi } from '@/components/organisms/teknisi/KartuCanvasingTeknisi';
 import { KartuWorkOrderTeknisi } from '@/components/organisms/teknisi/KartuWorkOrderTeknisi';
+import { canvasingAdalahPekerjaannya } from '@/utils/peranCanvasing';
 import { AppFeature } from '@/constants/features';
 import { useAuth } from '@/context/AuthContext';
 import { useOfflineQuery } from '@/hooks/queries';
@@ -33,8 +34,12 @@ interface CanvasingSummary {
 /**
  * Beranda teknisi karyawan (dan bawaan saat user belum dimuat): kartu sorotan
  * Work order saya (ditugaskan, tersedia, tiket selesai), absen hari ini,
- * canvasing bila berizin, pencairan bonus bila berizin, lalu menu cepat.
- * Teknisi bukan sales: kinerja tim sales tidak ditampilkan di sini.
+ * canvasing HANYA bila canvasing memang pekerjaannya, pencairan bonus bila
+ * berwenang, lalu menu cepat.
+ *
+ * Teknisi bukan sales: kinerja tim sales tidak ditampilkan di sini, dan kartu
+ * canvasing tidak muncul hanya karena role kebetulan memegang `m_canvasing`.
+ * Pintunya tetap ada di menu cepat dan tab.
  */
 export function KaryawanTeknisiDashboardScreen() {
   const { user, token } = useAuth();
@@ -58,6 +63,12 @@ export function KaryawanTeknisiDashboardScreen() {
   const hasCanvasing = hasFeature(AppFeature.CANVASING);
   // Teknisi hanya bisa mencairkan bila role-nya diberi izin cashout (opsional per role).
   const bisaCairkanBonus = profileData?.canCashoutCanvasing ?? user?.isSales === true;
+  // Izin menjawab "boleh masuk?", bukan "ini pekerjaannya?". Sorotan beranda
+  // butuh pertanyaan kedua, supaya beranda teknisi tidak terbaca separuh sales.
+  const sorotkanCanvasing = canvasingAdalahPekerjaannya({
+    punyaIzinCanvasing: hasCanvasing,
+    isSales: user?.isSales,
+  });
   const namaPengguna = profileData?.name || user?.name || 'Karyawan';
   const gambar = profileData?.image ?? user?.image;
 
@@ -111,7 +122,7 @@ export function KaryawanTeknisiDashboardScreen() {
 
         {punyaFitur(user, AppFeature.ABSENSI) ? <KartuAbsenHariIni /> : null}
 
-        {hasCanvasing ? (
+        {sorotkanCanvasing ? (
           <View style={tw`px-4`}>
             <KartuCanvasingTeknisi
               ringkasan={{
@@ -124,7 +135,7 @@ export function KaryawanTeknisiDashboardScreen() {
             />
           </View>
         ) : null}
-        {hasCanvasing && bisaCairkanBonus ? (
+        {sorotkanCanvasing && bisaCairkanBonus ? (
           <KartuPencairanCanvasing statistik={statsData} onBerhasilCair={() => void refetchStats()} />
         ) : null}
 

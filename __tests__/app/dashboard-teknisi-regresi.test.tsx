@@ -167,11 +167,15 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     mockCanvasing = { data: CANVASING, isPending: false };
   });
 
-  it('kartu Work order (ditugaskan, tersedia, tiket selesai) lalu kartu canvasing, tanpa karusel', () => {
+  // Aturan berubah: kartu canvasing dulu muncul begitu role memegang
+  // `m_canvasing`, dan role TEKNISI bawaan memang memegangnya — sehingga
+  // beranda teknisi terbaca separuh sales dan work order tergeser ke bawah.
+  // Sorotan beranda kini menuntut canvasing memang pekerjaannya.
+  it('kartu Work order tampil; canvasing tidak disorot untuk teknisi non-sales', () => {
     const { getByText, queryByText } = renderBeranda(TEKNISI);
 
     expect(getByText('kartu-wo:7/4:2/9/31')).toBeTruthy();
-    expect(getByText('kartu-canvasing:5:3/8/21')).toBeTruthy();
+    expect(queryByText('kartu-canvasing:5:3/8/21')).toBeNull();
     expect(queryByText('Bonus canvasing')).toBeNull();
   });
 
@@ -195,11 +199,12 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     });
   });
 
-  it('hanya canvasing: kartu canvasing tanpa kartu pencairan untuk non-sales', () => {
+  // Pintunya tetap ada di menu cepat dan tab; yang hilang hanya sorotan beranda.
+  it('hanya izin canvasing tanpa penanda sales: tidak ada kartu canvasing', () => {
     mockProfil = { profileData: profilDengan(['m_canvasing']), isPending: false };
-    const { getByText, queryByText } = renderBeranda(TEKNISI);
+    const { queryByText } = renderBeranda(TEKNISI);
 
-    expect(getByText('kartu-canvasing:5:3/8/21')).toBeTruthy();
+    expect(queryByText('kartu-canvasing:5:3/8/21')).toBeNull();
     expect(queryByText('Bonus canvasing')).toBeNull();
     expect(queryByText(/kartu-wo/)).toBeNull();
   });
@@ -212,19 +217,37 @@ describe('Beranda teknisi karyawan (regresi)', () => {
     expect(renderBeranda(TEKNISI).queryByText('kartu-kinerja')).toBeNull();
   });
 
-  it('teknisi yang role-nya diberi izin cashout melihat kartu pencairan', () => {
+  // Izin cashout TIDAK lagi memunculkan kartu bonus pada teknisi non-sales.
+  // `canCashoutCanvasing` bernilai `isSales || m_canvasing:cashout`, dan role
+  // TEKNISI bawaan menerima seluruh aksi untuk tiap resource mobile — termasuk
+  // `cashout`. Penanda itu karena itu bernilai true untuk SEMUA teknisi dan
+  // tidak membedakan siapa pun. Wewenang mencairkannya sendiri tidak dicabut;
+  // yang berubah hanya apakah bonus layak jadi sorotan beranda.
+  it('izin cashout saja tidak memunculkan kartu pencairan pada teknisi non-sales', () => {
     mockProfil = {
       profileData: profilDengan(['m_canvasing'], { canCashoutCanvasing: true }),
       isPending: false,
     };
-    const { getByText } = renderBeranda(TEKNISI);
+    const { queryByText } = renderBeranda(TEKNISI);
+
+    expect(queryByText('Bonus canvasing')).toBeNull();
+  });
+
+  it('sales dengan wewenang cashout melihat kartu pencairan', () => {
+    mockProfil = {
+      profileData: profilDengan(['m_canvasing'], { canCashoutCanvasing: true }),
+      isPending: false,
+    };
+    const { getByText } = renderBeranda({ ...TEKNISI, persona: 'TEKNISI', isSales: true });
 
     expect(getByText('Bonus canvasing')).toBeTruthy();
   });
 
-  it('kartu canvasing ditekan teknisi berizin: membuka canvasing tanpa jadi sales', () => {
+  // Diuji pada orang yang canvasing memang pekerjaannya, karena hanya ia yang
+  // kini melihat kartunya.
+  it('kartu canvasing ditekan: membuka canvasing', () => {
     mockProfil = { profileData: profilDengan(['m_canvasing']), isPending: false };
-    const { getByText } = renderBeranda(TEKNISI);
+    const { getByText } = renderBeranda({ ...TEKNISI, persona: 'TEKNISI', isSales: true });
 
     fireEvent.press(getByText('kartu-canvasing:5:3/8/21'));
 
