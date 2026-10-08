@@ -15,6 +15,7 @@ import { logger } from '@/utils/logger';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppFeature } from '@/constants/features';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { jumlahBertanda } from '@/utils/tandaJumlah';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -168,13 +169,13 @@ export default function BarangIndexScreen() {
                         <View style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100`}>
                             <Text style={tw`text-xs text-gray-500`}>Total Masuk</Text>
                             <Text style={tw`text-xl font-bold text-green-500 mt-1`}>
-                                +{stats?.barangMasukToday || 0}
+                                {jumlahBertanda(stats?.barangMasukToday, '+')}
                             </Text>
                         </View>
                         <View style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100`}>
                             <Text style={tw`text-xs text-gray-500`}>Total Keluar</Text>
                             <Text style={tw`text-xl font-bold text-red-500 mt-1`}>
-                                -{stats?.barangKeluarToday || 0}
+                                {jumlahBertanda(stats?.barangKeluarToday, '-')}
                             </Text>
                         </View>
                     </View>
