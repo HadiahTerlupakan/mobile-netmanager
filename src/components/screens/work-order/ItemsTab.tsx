@@ -37,7 +37,9 @@ export const ItemsTab = React.memo(function ItemsTab({
         </View>
       )}
 
-      <Text style={tw`font-bold text-gray-800 mb-4`}>Barang Digunakan</Text>
+      {/* "Diambil", bukan "Digunakan": daftar ini berisi yang keluar dari
+          gudang, dan sebagiannya bisa saja pulang lagi belum terpakai. */}
+      <Text style={tw`font-bold text-gray-800 mb-4`}>Barang Diambil</Text>
       {wo.usedMaterials &&
         Array.isArray(wo.usedMaterials) &&
         wo.usedMaterials.length > 0 ? (
@@ -128,26 +130,28 @@ export const ItemsTab = React.memo(function ItemsTab({
           </Text>
         </TouchableOpacity>
 
-        {/* Kembalikan Barang Button - For DISCONNECTION and RELOCATION */}
-        {(wo.type === "DISCONNECTION" || wo.type === "RELOCATION") && (
-          <TouchableOpacity
-            onPress={() => {
-              if (!canInteract || !resolvedWorkOrderId) return;
-              router.push(`/(app)/kembalikan-barang/${resolvedWorkOrderId}` as any);
-            }}
-            disabled={!canInteract}
-            style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-green-50 border-green-200 active:bg-green-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
-          >
-            <Package
-              size={20}
-              color={canInteract ? "#16a34a" : "#9ca3af"}
-              style={tw`mr-2`}
-            />
-            <Text style={tw`font-bold ${canInteract ? "text-green-600" : "text-gray-400"}`}>
-              Kembalikan Barang
-            </Text>
-          </TouchableOpacity>
-        )}
+        {/* Mengembalikan sisa material berlaku untuk semua jenis pekerjaan:
+            ambil 10 meter kabel, pasang 7, sisa 3 harus bisa pulang. Dulu
+            tombol ini hanya muncul di pemutusan dan relokasi, sehingga di work
+            order pemasangan sisa material tidak punya jalan kembali sama
+            sekali. Batas jumlahnya ditegakkan server. */}
+        <TouchableOpacity
+          onPress={() => {
+            if (!canInteract || !resolvedWorkOrderId) return;
+            router.push(`/(app)/kembalikan-barang/${resolvedWorkOrderId}` as any);
+          }}
+          disabled={!canInteract}
+          style={tw`flex-row items-center justify-center p-3 rounded-xl border ${canInteract ? "bg-green-50 border-green-200 active:bg-green-100" : "bg-gray-100 border-gray-200 opacity-60"}`}
+        >
+          <Package
+            size={20}
+            color={canInteract ? "#16a34a" : "#9ca3af"}
+            style={tw`mr-2`}
+          />
+          <Text style={tw`font-bold ${canInteract ? "text-green-600" : "text-gray-400"}`}>
+            Kembalikan Barang
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );

@@ -33,6 +33,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
+import {
+  hitungSisaMaterial,
+  sisaTersedia as hitungSisaTersedia,
+  type AsalPengembalian,
+  type MaterialWorkOrder,
+} from '@/utils/sisaPengembalian';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
 
@@ -50,22 +56,54 @@ interface Gudang {
   lokasi: string;
 }
 
+/**
+ * Dua perpindahan yang berbeda, dan hanya satu yang punya batas alami.
+ *
+ * Sisa material tidak mungkin lebih banyak daripada yang diambil untuk work
+ * order ini. Perangkat yang dicabut dari rumah pelanggan tidak pernah keluar
+ * dari gudang, jadi tidak ada angka pembanding — jalur itu dipersempit ke jenis
+ * pekerjaan yang memang mencabut perangkat.
+ */
+const TIPE_BOLEH_TARIKAN_PELANGGAN = ["DISCONNECTION", "RELOCATION"];
+
+interface WorkOrderRingkas {
+  type?: string;
+  usedMaterials?: MaterialWorkOrder[];
+  returnedMaterials?: MaterialWorkOrder[];
+}
+
+/** Barang yang masih punya sisa dari pengambilan work order ini. */
+interface SisaMaterial {
+  barang: Barang;
+  sisa: number;
+}
+
 interface SelectedItem {
   barangId: string;
   barang: Barang;
   gudangId: string;
   jumlah: number;
   kondisi: "BARU" | "BEKAS" | "RUSAK";
+  asal: AsalPengembalian;
+  /** Batas atas untuk sisa material; tak terbatas untuk tarikan pelanggan. */
+  maksimal?: number;
 }
 
 // Memoized List Item
-const BarangItem = React.memo(({ item, onAdd }: { item: Barang, onAdd: (barang: Barang, kondisi: "BARU" | "BEKAS" | "RUSAK") => void }) => {
+const BarangItem = React.memo(({ item, sisa, onAdd }: { item: Barang, sisa?: number, onAdd: (barang: Barang, kondisi: "BARU" | "BEKAS" | "RUSAK") => void }) => {
   return (
     <View style={tw`bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-3`}>
       <View style={tw`mb-3`}>
         <Text style={tw`text-xs text-gray-400 font-mono mb-0.5`}>{item.kode}</Text>
         <Text style={tw`font-semibold text-gray-900 text-base`}>{item.nama}</Text>
         <Text style={tw`text-xs text-gray-500`}>{item.satuan}</Text>
+        {/* Angka jatah ditampilkan di tempat teknisi mengambil keputusan,
+            bukan hanya saat permintaannya ditolak. */}
+        {sisa !== undefined && (
+          <Text style={tw`text-xs text-green-700 font-semibold mt-1`}>
+            Sisa bisa dikembalikan: {sisa} {item.satuan}
+          </Text>
+        )}
       </View>
 
       <View style={tw`flex-row gap-2`}>
@@ -139,6 +177,7 @@ export default function KembalikanBarangScreen() {
   const [showAllItems, setShowAllItems] = useState(false);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [modeAsal, setModeAsal] = useState<AsalPengembalian>("SISA_MATERIAL");
 
   const { data: gudangData } = useApiQuery<{ gudangList: Gudang[] }>({
     queryKey: ['gudang_list', workOrderId],
@@ -151,6 +190,39 @@ export default function KembalikanBarangScreen() {
     endpoint: "/api/mobile/inventory/barang?mode=masuk",
     enabled: !!token,
   });
+
+  const { data: woData } = useApiQuery<WorkOrderRingkas>({
+    queryKey: ['work_order', workOrderId],
+    endpoint: `/api/mobile/work-orders/${workOrderId}`,
+    select: (data: any) => data?.data,
+    enabled: !!token && !!workOrderId,
+  });
+
+  const bolehTarikanPelanggan = TIPE_BOLEH_TARIKAN_PELANGGAN.includes(
+    woData?.type ?? "",
+  );
+
+  /**
+   * Sisa per barang: yang diambil untuk work order ini dikurangi yang sudah
+   * dikembalikan. Tarikan pelanggan sengaja tidak ikut mengurangi — ia tidak
+   * pernah berasal dari pengambilan.
+   */
+  const sisaMaterial = useMemo<SisaMaterial[]>(
+    () =>
+      hitungSisaMaterial(woData?.usedMaterials, woData?.returnedMaterials).map(
+        (b) => ({
+          sisa: b.sisa,
+          barang: {
+            id: b.barangId,
+            kode: "DIAMBIL",
+            nama: b.nama,
+            satuan: b.satuan,
+            isWorkOrderMaterial: true,
+          },
+        }),
+      ),
+    [woData],
+  );
 
   const returnMutation = useApiMutation({
     endpoint: `/api/mobile/work-orders/${workOrderId}/return`,
@@ -178,17 +250,41 @@ export default function KembalikanBarangScreen() {
     }
   }, [barangData]);
 
+  /**
+   * Jatah per barang dihitung lintas-baris: satu barang bisa dipilih dua kali
+   * dengan kondisi berbeda, dan jatahnya tetap satu.
+   */
+  const sisaTersedia = useCallback(
+    (barangId: string, items: SelectedItem[], kecualiIdx?: number) =>
+      hitungSisaTersedia(
+        sisaMaterial.find((s) => s.barang.id === barangId)?.sisa ?? 0,
+        items,
+        barangId,
+        kecualiIdx,
+      ),
+    [sisaMaterial],
+  );
+
   const addItem = useCallback((barang: Barang, kondisi: "BARU" | "BEKAS" | "RUSAK") => {
     setSelectedItems((prev) => {
-      const existingIdx = prev.findIndex((i) => i.barangId === barang.id && i.kondisi === kondisi);
+      const asal = modeAsal;
+      if (asal === "SISA_MATERIAL" && sisaTersedia(barang.id, prev) < 1) {
+        presentInfoMessage(
+          "Jumlahnya sudah mencapai yang diambil untuk work order ini.",
+          "Sisa Habis",
+        );
+        return prev;
+      }
+
+      const existingIdx = prev.findIndex((i) => i.barangId === barang.id && i.kondisi === kondisi && i.asal === asal);
       if (existingIdx >= 0) {
         const newItems = [...prev];
-        newItems[existingIdx].jumlah += 1;
+        newItems[existingIdx] = { ...newItems[existingIdx], jumlah: newItems[existingIdx].jumlah + 1 };
         return newItems;
       }
-      return [...prev, { barangId: barang.id, barang, gudangId: selectedGudang, jumlah: 1, kondisi }];
+      return [...prev, { barangId: barang.id, barang, gudangId: selectedGudang, jumlah: 1, kondisi, asal }];
     });
-  }, [selectedGudang]);
+  }, [selectedGudang, modeAsal, sisaTersedia]);
 
   const updateQuantity = useCallback((idx: number, delta: number) => {
     setSelectedItems((prev) => {
@@ -199,11 +295,21 @@ export default function KembalikanBarangScreen() {
         newItems.splice(idx, 1);
         return newItems;
       }
+      if (
+        item.asal === "SISA_MATERIAL" &&
+        newQty > sisaTersedia(item.barangId, prev, idx)
+      ) {
+        presentInfoMessage(
+          "Jumlahnya sudah mencapai yang diambil untuk work order ini.",
+          "Sisa Habis",
+        );
+        return prev;
+      }
       const newItems = [...prev];
-      newItems[idx].jumlah = newQty;
+      newItems[idx] = { ...newItems[idx], jumlah: newQty };
       return newItems;
     });
-  }, []);
+  }, [sisaTersedia]);
 
   const handleSubmit = useCallback(async () => {
     if (selectedItems.length === 0 || !selectedGudang) return;
@@ -213,6 +319,7 @@ export default function KembalikanBarangScreen() {
       gudangId: selectedGudang,
       jumlah: item.jumlah,
       kondisi: item.kondisi,
+      asal: item.asal,
     }));
 
     const validation = validateData(WorkOrderMaterialBatchSchema, { items: itemsToSend });
@@ -231,6 +338,10 @@ export default function KembalikanBarangScreen() {
         } else {
           presentSuccessMessage("Barang berhasil dikembalikan");
         }
+        // Layar ini tetap hidup di tumpukan navigasi. Tanpa dikosongkan,
+        // keranjangnya masih memegang jumlah yang jatahnya baru saja terpakai,
+        // dan tekanan berikutnya pasti ditolak server.
+        setSelectedItems([]);
         router.replace(`/(app)/work-order-detail/${workOrderId}`);
       },
       onError: (err) => {
@@ -244,12 +355,21 @@ export default function KembalikanBarangScreen() {
   }, [selectedItems, selectedGudang, returnMutation, workOrderId, router]);
 
   const filteredBarangs = useMemo(() => {
-    return barangs.filter((b) => {
-      const matchesSearch = b.nama.toLowerCase().includes(search.toLowerCase()) || b.kode.toLowerCase().includes(search.toLowerCase());
-      const matchesType = showAllItems || b.isWorkOrderMaterial;
-      return matchesSearch && matchesType;
-    });
-  }, [barangs, search, showAllItems]);
+    const cocokPencarian = (b: Barang) =>
+      b.nama.toLowerCase().includes(search.toLowerCase()) ||
+      b.kode.toLowerCase().includes(search.toLowerCase());
+
+    // Mode sisa material hanya menawarkan barang yang memang diambil untuk work
+    // order ini; katalog penuh tidak relevan di sana dan hanya mengundang
+    // pengembalian yang akan ditolak server.
+    if (modeAsal === "SISA_MATERIAL") {
+      return sisaMaterial.map((s) => s.barang).filter(cocokPencarian);
+    }
+
+    return barangs.filter(
+      (b) => cocokPencarian(b) && (showAllItems || b.isWorkOrderMaterial),
+    );
+  }, [barangs, search, showAllItems, modeAsal, sisaMaterial]);
 
   const ListHeader = useMemo(() => (
     <View>
@@ -261,7 +381,11 @@ export default function KembalikanBarangScreen() {
 
       <View style={tw`mx-4 mt-4 bg-green-50 p-3 rounded-lg border border-green-200 flex-row items-center gap-3`}>
         <Package size={20} color="#16a34a" />
-        <Text style={tw`flex-1 text-xs text-green-800`}>Masukkan barang yang dikembalikan dari pelanggan ke gudang. Stok gudang akan bertambah.</Text>
+        <Text style={tw`flex-1 text-xs text-green-800`}>
+          {modeAsal === "SISA_MATERIAL"
+            ? "Kembalikan sisa material yang tidak terpakai. Jumlahnya dibatasi sebanyak yang diambil untuk work order ini."
+            : "Masukkan perangkat yang dicabut dari pelanggan. Stok gudang akan bertambah."}
+        </Text>
       </View>
 
       <View style={tw`px-4 pt-4`}>
@@ -302,18 +426,47 @@ export default function KembalikanBarangScreen() {
         </View>
       )}
 
+      {/* Pilihan asal hanya muncul kalau memang ada dua kemungkinan; di work
+          order biasa penarikan perangkat pelanggan tidak masuk akal. */}
+      {bolehTarikanPelanggan && (
+        <View style={tw`px-4 mb-3 flex-row bg-gray-100 rounded-xl p-1`}>
+          {([
+            ["SISA_MATERIAL", "Sisa Material"],
+            ["TARIKAN_PELANGGAN", "Tarikan Pelanggan"],
+          ] as const).map(([nilai, label]) => (
+            <TouchableOpacity
+              key={nilai}
+              onPress={() => setModeAsal(nilai)}
+              style={tw`flex-1 py-2 rounded-lg items-center ${modeAsal === nilai ? "bg-white shadow-sm" : ""}`}
+            >
+              <Text style={tw`text-xs font-bold ${modeAsal === nilai ? "text-green-700" : "text-gray-500"}`}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       <View style={tw`px-4 mb-2`}>
-        <Text style={tw`text-xs font-semibold text-gray-500 uppercase tracking-wide`}>Pilih Barang</Text>
+        <Text style={tw`text-xs font-semibold text-gray-500 uppercase tracking-wide`}>
+          {modeAsal === "SISA_MATERIAL" ? "Sisa Dari Work Order Ini" : "Pilih Barang"}
+        </Text>
       </View>
     </View>
-  ), [router, selectedGudang, gudangs, search, showAllItems, selectedItems, updateQuantity]);
+  ), [router, selectedGudang, gudangs, search, showAllItems, selectedItems, updateQuantity, modeAsal, bolehTarikanPelanggan]);
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={["top"]}>
       <View style={tw`flex-1`}>
         <FlashList
           data={filteredBarangs}
-          renderItem={({ item }: { item: Barang }) => <BarangItem item={item} onAdd={addItem} />}
+          renderItem={({ item }: { item: Barang }) => (
+            <BarangItem
+              item={item}
+              sisa={modeAsal === "SISA_MATERIAL" ? sisaMaterial.find((s) => s.barang.id === item.id)?.sisa : undefined}
+              onAdd={addItem}
+            />
+          )}
           keyExtractor={(item: Barang) => item.id}
           ListHeaderComponent={ListHeader}
           contentContainerStyle={tw`pb-32`}

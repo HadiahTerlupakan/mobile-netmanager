@@ -138,6 +138,10 @@ export const WorkOrderMaterialItemSchema = z.object({
   gudangId: z.string().min(1, 'Gudang ID wajib'),
   jumlah: z.number().positive('Jumlah harus lebih dari 0'),
   kondisi: z.enum(['BARU', 'BEKAS', 'RUSAK']).optional(), // Optional as per usage in code, defaults usually handled
+  // Wajib terdaftar di sini: `z.object` membuang field yang tidak dikenal tanpa
+  // bersuara, jadi `asal` yang tidak didaftarkan akan hilang diam-diam dan
+  // server menerima semua pengembalian sebagai sisa material.
+  asal: z.enum(['SISA_MATERIAL', 'TARIKAN_PELANGGAN']).optional(),
 });
 
 // Work Order Material Batch Schema
