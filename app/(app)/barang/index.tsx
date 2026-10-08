@@ -15,7 +15,6 @@ import { logger } from '@/utils/logger';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppFeature } from '@/constants/features';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
-import { jumlahBertanda } from '@/utils/tandaJumlah';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -163,19 +162,24 @@ export default function BarangIndexScreen() {
                         </TouchableOpacity>
                     ))}
 
-                    {/* Quick Stats */}
+                    {/* Angkanya adalah BANYAKNYA TRANSAKSI hari ini (`barangKeluar.count`),
+                        bukan jumlah barang. Dulu ditulis "Total Masuk/Keluar" dengan tanda
+                        +/- sehingga terbaca sebagai kuantitas: mengeluarkan 2 unit dalam
+                        satu catatan tampil sebagai "-1". Menjumlahkan kuantitas pun tidak
+                        bisa dibenarkan — 2 unit ONT dan 500 meter kabel tidak punya satuan
+                        yang sama — jadi yang diperbaiki labelnya, bukan datanya. */}
                     <Text style={tw`text-sm font-semibold text-gray-900 mt-6 mb-3`}>Status Hari Ini</Text>
                     <View style={tw`flex-row gap-3`}>
                         <View style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100`}>
-                            <Text style={tw`text-xs text-gray-500`}>Total Masuk</Text>
+                            <Text style={tw`text-xs text-gray-500`}>Transaksi masuk</Text>
                             <Text style={tw`text-xl font-bold text-green-500 mt-1`}>
-                                {jumlahBertanda(stats?.barangMasukToday, '+')}
+                                {stats?.barangMasukToday ?? 0}
                             </Text>
                         </View>
                         <View style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100`}>
-                            <Text style={tw`text-xs text-gray-500`}>Total Keluar</Text>
+                            <Text style={tw`text-xs text-gray-500`}>Transaksi keluar</Text>
                             <Text style={tw`text-xl font-bold text-red-500 mt-1`}>
-                                {jumlahBertanda(stats?.barangKeluarToday, '-')}
+                                {stats?.barangKeluarToday ?? 0}
                             </Text>
                         </View>
                     </View>
