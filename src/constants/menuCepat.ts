@@ -197,6 +197,12 @@ export const MENU_ITEMS: MenuItem[] = [
     route: "/(app)/keluhan",
     requiredFeatures: [AppFeature.PRESURVEI],
     internalOnly: true,
+    // Fitur sales: keluhan dilaporkan ATAS NAMA pelanggan, lalu sales yang
+    // dikabari perkembangannya (lihat catatan di `keluhan/lapor.tsx`). Teknisi
+    // berada di ujung lain alurnya — ia menerima work order hasil keluhan itu,
+    // bukan yang melaporkannya. Form laporannya pun menuntut `pelangganId` yang
+    // datang dari Pelanggan Saya, yang juga khusus sales.
+    hideWhenLocked: true,
   },
   {
     id: 'pengesahan',
