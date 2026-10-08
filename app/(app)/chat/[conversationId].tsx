@@ -354,9 +354,14 @@ export default function ConversationScreen() {
             </View>
 
             {/* Messages */}
+            {/* `undefined` di Android dulu mengandalkan `adjustResize`. Sejak
+                Expo 54 jendela selalu edge-to-edge dan tidak lagi mengecil saat
+                papan ketik muncul, sehingga kolom pesan tertutup papan ketik —
+                teknisi mengetik tanpa bisa melihat apa yang ia tulis maupun
+                tombol kirim. */}
             <KeyboardAvoidingView
                 style={tw`flex-1`}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior="padding"
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
             >
                 <FlashList
