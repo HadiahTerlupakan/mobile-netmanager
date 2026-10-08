@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { sumberGambarUpload } from '@/utils/sumberGambarUpload';
 
 interface ImageViewerModalProps {
   visible: boolean;
@@ -38,7 +39,7 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
         </SafeAreaView>
 
         <Image
-          source={imageUrl}
+          source={sumberGambarUpload(imageUrl)}
           style={{
             width: Dimensions.get('window').width,
             height: Dimensions.get('window').height * 0.8

@@ -4,6 +4,8 @@ import { StyleProp, View, ViewStyle, ActivityIndicator } from 'react-native';
 import tw from 'twrnc';
 import { Ionicons } from '@expo/vector-icons';
 
+import { sumberGambarUpload } from '@/utils/sumberGambarUpload';
+
 interface ImageWithCacheProps {
   source: string | null | undefined;
   style?: StyleProp<ImageStyle>;
@@ -43,7 +45,7 @@ export const ImageWithCache: React.FC<ImageWithCacheProps> = ({
   return (
     <View style={[style as ViewStyle, tw`overflow-hidden bg-gray-100 relative`, containerStyle]}>
       <Image
-        source={source}
+        source={sumberGambarUpload(source)}
         style={[tw`w-full h-full`, style]}
         placeholder={placeholder}
         contentFit={contentFit}

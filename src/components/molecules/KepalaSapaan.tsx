@@ -6,6 +6,7 @@ import tw from 'twrnc';
 import NotificationBell from '@/components/molecules/NotificationBell';
 import { useTemaPersona } from '@/theme';
 import { urlGambarTenant } from '@/utils/urlGambarTenant';
+import { sumberGambarUpload } from '@/utils/sumberGambarUpload';
 
 const JAM_SIANG = 11;
 const JAM_SORE = 15;
@@ -47,7 +48,7 @@ export function KepalaSapaan({ nama, gambar, onTekanProfil, isLonceng = false }:
       ) : null}
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Buka profil" onPress={onTekanProfil}>
         {urlFoto ? (
-          <Image source={{ uri: urlFoto }} style={tw`w-11 h-11 rounded-full`} contentFit="cover" cachePolicy="memory-disk" />
+          <Image source={sumberGambarUpload(urlFoto)} style={tw`w-11 h-11 rounded-full`} contentFit="cover" cachePolicy="memory-disk" />
         ) : (
           <View style={twTema`w-11 h-11 rounded-full bg-utama-kuat items-center justify-center`}>
             <Text style={tw`text-base font-bold text-white`}>{nama.charAt(0).toUpperCase() || 'K'}</Text>

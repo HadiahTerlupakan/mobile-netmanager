@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { sumberGambarUpload } from '@/utils/sumberGambarUpload';
 
 const UKURAN_IKON = 18;
 const WARNA_KELUAR = '#dc2626';
@@ -82,7 +83,7 @@ export function MitraSalesProfileScreen() {
                 <KartuHeroGradien>
                     <View style={tw`flex-row items-center`}>
                         {urlFoto ? (
-                            <Image source={{ uri: urlFoto }} style={tw`w-16 h-16 rounded-full`} contentFit="cover" cachePolicy="memory-disk" />
+                            <Image source={sumberGambarUpload(urlFoto)} style={tw`w-16 h-16 rounded-full`} contentFit="cover" cachePolicy="memory-disk" />
                         ) : (
                             <View style={tw`w-16 h-16 rounded-full bg-white/15 border border-white/30 items-center justify-center`}>
                                 <Text style={tw`text-2xl font-bold text-white`}>{displayName.charAt(0).toUpperCase() || 'M'}</Text>

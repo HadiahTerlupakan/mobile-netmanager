@@ -7,6 +7,7 @@ import { ImageViewerModal } from '@/components/molecules/ImageViewerModal';
 import type { BalasanKeluhan } from '@/types/keluhan';
 import { formatTimeAgo } from '@/utils/date';
 import { urlGambarTenant } from '@/utils/urlGambarTenant';
+import { sumberGambarUpload } from '@/utils/sumberGambarUpload';
 
 const UKURAN_LAMPIRAN = 72;
 
@@ -38,7 +39,7 @@ export function PercakapanKeluhan({ balasan, namaSaya }: { balasan: BalasanKeluh
                     const url = urlGambarTenant(jalur);
                     return url ? (
                       <TouchableOpacity key={jalur} accessibilityRole="imagebutton" accessibilityLabel="Buka foto" onPress={() => setGambarDibuka(url)} style={tw`m-0.5`}>
-                        <Image source={url} style={[tw`rounded-lg bg-slate-200`, { width: UKURAN_LAMPIRAN, height: UKURAN_LAMPIRAN }]} contentFit="cover" />
+                        <Image source={sumberGambarUpload(url)} style={[tw`rounded-lg bg-slate-200`, { width: UKURAN_LAMPIRAN, height: UKURAN_LAMPIRAN }]} contentFit="cover" />
                       </TouchableOpacity>
                     ) : null;
                   })}

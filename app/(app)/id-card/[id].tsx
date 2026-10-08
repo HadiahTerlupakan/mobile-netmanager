@@ -13,6 +13,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ViewShot from 'react-native-view-shot';
 import tw from 'twrnc';
+import { sumberGambarUpload } from '@/utils/sumberGambarUpload';
 
 export default function NativeIDCardScreen() {
     const router = useRouter();
@@ -162,7 +163,7 @@ export default function NativeIDCardScreen() {
                                     <View style={tw`mr-4 z-10 justify-center`}>
                                         <View style={tw`w-[70px] h-[85px] bg-slate-100 rounded border border-slate-200 justify-center items-center overflow-hidden`}>
                                             {getImageUrl(profile.fotoDiri) ? (
-                                                <Image source={{ uri: getImageUrl(profile.fotoDiri)! }} style={tw`w-full h-full`} resizeMode="cover" />
+                                                <Image source={sumberGambarUpload(getImageUrl(profile.fotoDiri)!)} style={tw`w-full h-full`} resizeMode="cover" />
                                             ) : (
                                                 <View style={tw`items-center justify-center opacity-30`}>
                                                     <View style={tw`w-8 h-8 rounded-full bg-slate-400 mb-1`} />
