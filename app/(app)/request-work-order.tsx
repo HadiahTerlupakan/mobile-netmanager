@@ -45,6 +45,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import tw from "twrnc";
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
+import { RiwayatPengajuanWo } from "@/components/organisms/work-order/RiwayatPengajuanWo";
 
 interface QuickAction {
   title: string;
@@ -674,6 +675,13 @@ export default function RequestWorkOrderScreen() {
               : `Kirim Request ${woMode === "INTERNAL" ? "Internal" : ""}`}
           </Text>
         </TouchableOpacity>
+
+        <View style={tw`mt-8`}>
+          <Text style={tw`text-xs font-bold text-slate-500 uppercase mb-3`}>
+            Riwayat Pengajuan
+          </Text>
+          <RiwayatPengajuanWo />
+        </View>
       </ScrollView>
 
       {/* Department Picker Modal */}
