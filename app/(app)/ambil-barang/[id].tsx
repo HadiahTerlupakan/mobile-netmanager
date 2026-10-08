@@ -207,9 +207,15 @@ export default function AmbilBarangScreen() {
 
   useEffect(() => {
     if (gudangData?.gudangList) {
-      setGudangs(gudangData.gudangList);
-      if (!selectedGudang && gudangData.gudangList.length > 0) {
-        setSelectedGudang(gudangData.gudangList[0].id);
+      const daftar = gudangData.gudangList;
+      setGudangs(daftar);
+      // Pilihan lama bisa menunjuk gudang yang kini di luar jangkauan — mis.
+      // site pengguna berubah, atau pembatasan site baru berlaku. Tanpa
+      // divalidasi ulang, layar menampilkan "Lokasi tidak tersedia" tanpa nama
+      // gudang dan daftar barangnya kosong, tanpa petunjuk apa pun.
+      const masihBerlaku = daftar.some((g) => g.id === selectedGudang);
+      if (!masihBerlaku && daftar.length > 0) {
+        setSelectedGudang(daftar[0].id);
       }
     }
   }, [gudangData, selectedGudang]);
