@@ -30,6 +30,7 @@ import tw from "twrnc";
 import { MarkedDates } from "react-native-calendars/src/types";
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
+import { adalahKegagalanJaringan } from '@/utils/kegagalanJaringan';
 
 const LEAVE_TYPES = [
   { value: "SAKIT", label: "Sakit" },
@@ -231,7 +232,53 @@ export default function LeaveFormScreen() {
     try {
       const validData = validation.data;
 
-      // Check online status
+      // `isOnline()` bersandar pada status NetInfo yang bisa basi: saat sinyal
+      // baru saja hilang ia masih menjawab "online". Karena itu kegagalan
+      // jaringan pada jalur online dialihkan ke antrean, bukan dibuang.
+      const kirimLewatAntrean = () => {
+        setLoadingMessage("Mengirim data...");
+        setUploadProgress(0);
+        leaveMutation.mutate(
+          {
+            ...validData,
+            photos: [],
+            // `photoMap` menaruh URL hasil unggah sebagai `photo0`, `photo1`,
+            // … sementara endpoint membaca `body.photos` dan menolak bila
+            // kosong ("Foto bukti wajib diupload"). Setiap pengajuan izin yang
+            // lewat antrean karena itu selalu dijawab 400 lalu dibuang diam-diam
+            // — padahal pengguna sudah diberi tahu "disimpan offline".
+            // `targetField` menulis URL-nya sebagai array ke medan yang benar.
+            meta: {
+              photos,
+              photoType: "employee-leave",
+              targetField: "photos",
+            },
+          },
+          {
+            onSuccess: (data) => {
+              setShowLoading(false);
+              isSubmittingRef.current = false;
+              const isOffline = isOfflineMutationQueuedResult(data);
+              const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
+              if (isOffline) {
+                presentInfoMessage(`Pengajuan ${typeLabel} disimpan dan akan dikirim saat online.`, "Disimpan Offline");
+              } else {
+                presentSuccessMessage(`Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`);
+              }
+              router.back();
+            },
+            onError: (err: Error) => {
+              setShowLoading(false);
+              isSubmittingRef.current = false;
+              presentAppError(err, {
+                screen: 'LeaveFormScreen',
+                route: '/(app)/izin/form',
+              });
+            },
+          },
+        );
+      };
+
       const isOnline = await SyncService.isOnline();
 
       if (isOnline && photos.length > 0) {
@@ -265,6 +312,16 @@ export default function LeaveFormScreen() {
               onError: (err: Error) => {
                 setShowLoading(false);
                 isSubmittingRef.current = false;
+
+                // Jaringan putus di tengah pengiriman: foto sudah terunggah,
+                // tetapi datanya belum tersimpan. Antrekan daripada hilang.
+                if (adalahKegagalanJaringan(err)) {
+                  logger.warn("[Leave Form] Pengiriman gagal karena jaringan, dialihkan ke antrean");
+                  setShowLoading(true);
+                  kirimLewatAntrean();
+                  return;
+                }
+
                 if (uploadedUrls.length > 0) {
                   Promise.all(
                     uploadedUrls.map((url) => uploadService.deleteUploadedFile(url)),
@@ -280,6 +337,14 @@ export default function LeaveFormScreen() {
             }
           );
         } catch (uploadError) {
+          // Unggahan gagal karena jaringan — bukan karena berkasnya ditolak.
+          // Pengajuan yang sudah diisi lengkap tidak boleh hilang di sini.
+          if (adalahKegagalanJaringan(uploadError)) {
+            logger.warn("[Leave Form] Unggahan gagal karena jaringan, dialihkan ke antrean");
+            kirimLewatAntrean();
+            return;
+          }
+
           setShowLoading(false);
           isSubmittingRef.current = false;
           logger.error("[Leave Form] Upload error:", uploadError);
@@ -289,40 +354,7 @@ export default function LeaveFormScreen() {
           });
         }
       } else {
-        // Offline flow or no photos
-        setLoadingMessage("Mengirim data...");
-        leaveMutation.mutate(
-          {
-            ...validData,
-            photos: [],
-            meta: {
-              photoMap: photoMap,
-              photoType: "employee-leave",
-            },
-          },
-          {
-            onSuccess: (data) => {
-              setShowLoading(false);
-              isSubmittingRef.current = false;
-              const isOffline = isOfflineMutationQueuedResult(data);
-              const typeLabel = LEAVE_TYPES.find(t => t.value === type)?.label || type;
-              if (isOffline) {
-                presentInfoMessage(`Pengajuan ${typeLabel} disimpan dan akan dikirim saat online.`, "Disimpan Offline");
-              } else {
-                presentSuccessMessage(`Pengajuan ${typeLabel} berhasil dikirim dan menunggu persetujuan.`);
-              }
-              router.back();
-            },
-            onError: (err: Error) => {
-              setShowLoading(false);
-              isSubmittingRef.current = false;
-              presentAppError(err, {
-                screen: 'LeaveFormScreen',
-                route: '/(app)/izin/form',
-              });
-            },
-          },
-        );
+        kirimLewatAntrean();
       }
     } catch (unexpectedError) {
       setShowLoading(false);

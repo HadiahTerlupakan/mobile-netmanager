@@ -42,6 +42,7 @@ import {
 } from "@tanstack/react-query";
 import { AxiosError, isAxiosError } from "axios";
 import * as Location from "expo-location";
+import { adalahKegagalanJaringan } from "@/utils/kegagalanJaringan";
 
 type HttpMethod = "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -340,11 +341,17 @@ export function useApiMutation<
 
         return response.data;
       } catch (error) {
+        // Unggahan `meta.photoMap` memakai UploadService, yang melempar
+        // `Error` biasa — bukan galat axios. Syarat `isAxiosError` membuat
+        // kegagalan koneksi di jalur itu tidak dikenali sebagai masalah
+        // jaringan, sehingga mutasinya gagal total alih-alih diantre: isian
+        // formulir yang sudah lengkap hilang begitu sinyal putus.
         const isNetworkError =
-          isAxiosError(error) &&
-          (error.code === "ECONNABORTED" ||
-            error.message === "Network Error" ||
-            !error.response);
+          adalahKegagalanJaringan(error) ||
+          (isAxiosError(error) &&
+            (error.code === "ECONNABORTED" ||
+              error.message === "Network Error" ||
+              !error.response));
         const isExplicitOffline =
           error instanceof Error && error.message === OFFLINE_ERROR_MESSAGE;
         const isUnggahServerBelumMerespons =

@@ -544,6 +544,23 @@ describe('useApiMutation', () => {
         expect(mockPersist).not.toHaveBeenCalled();
       });
 
+      // `isOnline()` bersandar pada status NetInfo yang bisa basi: tepat setelah
+      // sinyal hilang ia masih menjawab "online". Unggahan photoMap lalu gagal
+      // dengan `Error` biasa dari UploadService — bukan galat axios — sehingga
+      // klasifikasi lama tidak mengenalinya sebagai masalah jaringan dan
+      // mutasinya gagal total. Isian formulir yang sudah lengkap hilang.
+      it('mengira online tetapi koneksi mati: tetap masuk antrean, bukan gagal', async () => {
+        mockIsOnline.mockResolvedValue(true as never);
+        mockUploadFile.mockRejectedValue(
+          new Error('Failed to connect to /10.0.2.2:3000') as never,
+        );
+
+        await kirim('/api/mobile/leaves', { reason: 'Sakit', meta: META_PETA });
+
+        expect(mockAddToQueue).toHaveBeenCalled();
+        expect(mockRequest).not.toHaveBeenCalled();
+      });
+
       it('offline: tetap mengunggah sebelum cek online lalu menyalin photoMap ke antrean', async () => {
         mockIsOnline.mockResolvedValue(false as never);
 
