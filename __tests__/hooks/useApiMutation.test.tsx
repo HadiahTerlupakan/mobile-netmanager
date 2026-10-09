@@ -582,6 +582,34 @@ describe('useApiMutation', () => {
       });
     });
 
+    // Laporan penyelesaian WO dulu mengantre dengan `photoMap` + `targetField`.
+    // `targetField` hanya berlaku untuk `meta.photos`, jadi ia diabaikan dan
+    // server — yang hanya membaca `payload.photoUrls` — menerima laporan tanpa
+    // satu pun foto: WO tersimpan COMPLETED dengan nol lampiran, tanpa pesan
+    // apa pun yang mengoreksinya.
+    describe('(a2) laporan penyelesaian WO — targetField wajib menulis photoUrls', () => {
+      it('offline: URL foto ditulis sebagai array ke photoUrls', async () => {
+        mockIsOnline.mockResolvedValue(false as never);
+
+        await kirim('/api/mobile/work-orders/wo-1/update', {
+          action: 'COMPLETE',
+          notes: 'Selesai',
+          meta: {
+            photos: ['file:///cache/bukti.jpg'],
+            targetField: 'photoUrls',
+            photoType: 'workorder-completion',
+          },
+        });
+
+        const [, , payload] = mockAddToQueue.mock.calls[0] as [
+          string,
+          string,
+          Record<string, unknown>,
+        ];
+        expect(payload).not.toHaveProperty('photo1');
+      });
+    });
+
     describe('(b) meta.photos pemanggil lama', () => {
       const META_ABSEN = {
         photos: ['file:///cache/absen.jpg'],

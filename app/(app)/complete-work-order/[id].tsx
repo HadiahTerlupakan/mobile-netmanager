@@ -267,12 +267,6 @@ export default function CompleteWorkOrderScreen() {
         locStr,
       ];
 
-      // Build photoMap from photos array (hook expects photoN pattern)
-      const photoMap: Record<string, string> = {};
-      photos.forEach((uri, index) => {
-        photoMap[`photo${index + 1}`] = uri;
-      });
-
       const payload = {
         ...validation.data, // action, notes (sanitized)
         latitude: finalLocation?.coords.latitude.toString(),
@@ -324,8 +318,15 @@ export default function CompleteWorkOrderScreen() {
 
         await mutateAsync({
           ...payload,
+          // `photoMap` menaruh URL hasil unggah sebagai `photo1`, `photo2`, …
+          // sementara server hanya membaca `payload.photoUrls`. `targetField`
+          // tidak menolong: ia hanya berlaku untuk `meta.photos`. Akibatnya
+          // laporan yang dikirim offline tersimpan sebagai COMPLETED dengan
+          // NOL lampiran — teknisi mengira fotonya terkirim dan tidak ada satu
+          // pun pesan yang mengoreksinya. Bentuk array menulis ke medan yang
+          // benar dan tetap membawa watermark saat diputar ulang.
           meta: {
-            photoMap,
+            photos,
             targetField: "photoUrls",
             photoType: "workorder-completion",
             watermarkLines,
