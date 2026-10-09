@@ -19,6 +19,14 @@ import { getAttendanceCaptureState } from "@/utils/attendanceCaptureState";
 import { presentInfoMessage } from "@/utils/errorPresenter";
 import { logger } from "@/utils/logger";
 import {
+  LABEL_IZIN_LOKASI_DITOLAK,
+  LABEL_LOKASI_BELUM_DIDAPAT,
+  LABEL_LOKASI_TIDAK_DITEMUKAN,
+  denganBatasWaktu,
+  labelKoordinat,
+  labelLokasi,
+} from "@/utils/labelLokasi";
+import {
   AlertTriangle,
   CalendarOff,
   Camera as LucideCamera,
@@ -369,12 +377,20 @@ export default function AbsensiScreen() {
     warnLocationOnce(warningKey, error);
   }, [warnLocationOnce]);
 
+  /**
+   * Pesan untuk posisi yang gagal didapat SETELAH layanan lokasi terbukti
+   * menyala — `resolveLocationCoordinates` memeriksanya lebih dulu.
+   * expo-location memakai teks "...make sure that location services are
+   * enabled" juga ketika layanan menyala tapi GPS tak kunjung memberi fix,
+   * jadi menyalinnya apa adanya menyuruh pengguna menyalakan GPS yang sudah
+   * menyala. Layar Lembur sudah memakai label jujur yang sama.
+   */
   const getLocationUnavailableMessage = useCallback((error: unknown) => {
     if (error instanceof Error && /location services are enabled/i.test(error.message)) {
-      return "GPS perangkat tidak aktif";
+      return LABEL_LOKASI_BELUM_DIDAPAT;
     }
 
-    return "Lokasi tidak ditemukan (Cek GPS)";
+    return LABEL_LOKASI_TIDAK_DITEMUKAN;
   }, []);
 
   const getLocationWarningKey = useCallback((error: unknown) => {
@@ -415,8 +431,20 @@ export default function AbsensiScreen() {
     }
 
     clearLocationWarning();
-    return Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-  }, [clearLocationWarning, handleLocationServicesDisabled]);
+
+    // `getCurrentPositionAsync` tidak punya tenggat sendiri: di dalam ruangan
+    // GPS bisa tidak pernah memberi fix dan promise-nya menggantung selamanya,
+    // meninggalkan layar di "Mencari lokasi..." tanpa penjelasan apa pun.
+    const posisi = await denganBatasWaktu(
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+    );
+    if (!posisi) {
+      setUnavailableLocationState(LABEL_LOKASI_BELUM_DIDAPAT, "location-timeout");
+      return null;
+    }
+
+    return posisi;
+  }, [clearLocationWarning, handleLocationServicesDisabled, setUnavailableLocationState]);
 
   const resolveLocationLabel = useCallback(async (loc: Location.LocationObject) => {
     try {
@@ -424,16 +452,16 @@ export default function AbsensiScreen() {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
       });
-      if (reverse.length > 0) {
-        const addr = reverse[0];
-        setResolvedLocationName(`${addr.street || ""} ${addr.district || ""}, ${addr.city || ""}`);
-        return;
-      }
+      // Geocode yang gagal tidak selalu melempar: ia juga bisa mengembalikan
+      // daftar kosong, atau entri yang seluruh bagiannya kosong — keduanya
+      // dulu menghasilkan label " ,". `labelLokasi` jatuh ke koordinat.
+      setResolvedLocationName(labelLokasi(reverse, loc.coords));
+      return;
     } catch {
-      // noop, fallback below
+      // Koordinat selalu bisa ditampilkan begitu posisinya diketahui.
     }
 
-    setResolvedLocationName(`${loc.coords.latitude}, ${loc.coords.longitude}`);
+    setResolvedLocationName(labelKoordinat(loc.coords));
   }, [setResolvedLocationName]);
 
   const getForegroundLocationPermission = useCallback(async () => {
@@ -442,8 +470,11 @@ export default function AbsensiScreen() {
   }, []);
 
   const handleLocationPermissionDenied = useCallback(() => {
+    // Tanpa ini label berhenti di "Mencari lokasi..." selamanya setelah Alert
+    // ditutup, seolah pencarian masih berjalan.
+    setUnavailableLocationState(LABEL_IZIN_LOKASI_DITOLAK, "location-permission-denied");
     Alert.alert("Izin Ditolak", "Aplikasi membutuhkan izin lokasi untuk absensi.");
-  }, []);
+  }, [setUnavailableLocationState]);
 
   const triggerFaceGuideHaptic = useCallback((isFaceReady: boolean) => {
     if (lastFaceReadyRef.current === isFaceReady) return;
