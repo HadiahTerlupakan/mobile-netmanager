@@ -601,12 +601,16 @@ describe('useApiMutation', () => {
           },
         });
 
-        const [, , payload] = mockAddToQueue.mock.calls[0] as [
-          string,
-          string,
-          Record<string, unknown>,
-        ];
-        expect(payload).not.toHaveProperty('photo1');
+        // Payload tidak boleh membawa kunci berindeks `photo1`, dan meta harus
+        // membawa `targetField` — itulah yang membuat SyncService menulis URL
+        // hasil unggah ke `photoUrls` saat replay. Tanpa keduanya, laporan
+        // tersimpan COMPLETED tanpa satu pun lampiran.
+        expect(mockAddToQueue).toHaveBeenCalledWith(
+          '/api/mobile/work-orders/wo-1/update',
+          'POST',
+          expect.not.objectContaining({ photo1: expect.anything() }),
+          expect.objectContaining({ targetField: 'photoUrls' }),
+        );
       });
     });
 
