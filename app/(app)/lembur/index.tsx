@@ -36,6 +36,14 @@ import { captureRef } from "react-native-view-shot";
 import tw from "twrnc";
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
 import { AppFeature } from '@/constants/features';
+import {
+  LABEL_IZIN_LOKASI_DITOLAK,
+  LABEL_LOKASI_BELUM_DIDAPAT,
+  LABEL_LOKASI_TIDAK_DITEMUKAN,
+  denganBatasWaktu,
+  labelKoordinat,
+  labelLokasi,
+} from '@/utils/labelLokasi';
 
 interface Overtime {
   id: string;
@@ -177,28 +185,46 @@ export default function LemburScreen() {
   const getLocation = useCallback(async () => {
     try {
       let { status } = await requestForegroundLocationWithDisclosure();
-      if (status !== "granted") return;
+      // Dulu `return` tanpa mengubah apa pun, sehingga label tetap berbunyi
+      // "Mencari lokasi..." selamanya — layar tampak menggantung padahal yang
+      // terjadi adalah izin ditolak.
+      if (status !== "granted") {
+        setLocationName(LABEL_IZIN_LOKASI_DITOLAK);
+        return;
+      }
 
+      // Posisi terakhir dipakai lebih dulu karena tersedia seketika. Pencarian
+      // fix baru diberi tenggat: `getCurrentPositionAsync` tidak punya batas
+      // waktu sendiri, dan di dalam ruangan ia bisa menggantung selamanya —
+      // layar berhenti di "Mencari lokasi..." tanpa pernah menjelaskan apa pun.
       let loc = await Location.getLastKnownPositionAsync({});
       if (!loc) {
-        loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        loc = await denganBatasWaktu(
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        );
       }
+
+      if (!loc) {
+        setLocationName(LABEL_LOKASI_BELUM_DIDAPAT);
+        return;
+      }
+
       setLocation(loc);
 
+      // Geocode yang gagal tidak selalu melempar: ia juga bisa mengembalikan
+      // daftar kosong — persis yang terjadi di perangkat tanpa data geocoder.
+      // Koordinat selalu bisa ditampilkan begitu posisinya diketahui.
       try {
         const reverse = await Location.reverseGeocodeAsync({
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
         });
-        if (reverse.length > 0) {
-          const addr = reverse[0];
-          setLocationName(`${addr.street || ""} ${addr.district || ""}, ${addr.city || ""}`);
-        }
+        setLocationName(labelLokasi(reverse, loc.coords));
       } catch {
-        setLocationName(`${loc.coords.latitude.toFixed(6)}, ${loc.coords.longitude.toFixed(6)}`);
+        setLocationName(labelKoordinat(loc.coords));
       }
     } catch {
-      setLocationName("Lokasi tidak ditemukan");
+      setLocationName(LABEL_LOKASI_TIDAK_DITEMUKAN);
     }
   }, []);
 
