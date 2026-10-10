@@ -7,7 +7,10 @@
 import { MapPin, ShieldCheck } from 'lucide-react-native'
 import React from 'react'
 import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { AppFeature } from '@/constants/features'
+import { useAuth } from '@/context/AuthContext'
 import { useTemaPersona } from '@/theme'
+import { punyaFitur } from '@/utils/persona'
 
 interface LocationDisclosureModalProps {
     visible: boolean
@@ -21,6 +24,12 @@ export function LocationDisclosureModal({
     onReject,
 }: LocationDisclosureModalProps) {
     const { tw, warna } = useTemaPersona();
+    const { user } = useAuth();
+    // Pengungkapan ini wajib akurat (kebijakan Google Play untuk izin sensitif).
+    // Penugasan work order hanya berlaku bagi pemegang `m_work_order`; staff
+    // kantor yang membaca alasan itu diminta lokasi latar belakang untuk
+    // keperluan yang tidak pernah menyangkut dirinya.
+    const isPenerimaWorkOrder = punyaFitur(user, AppFeature.WORK_ORDER);
     return (
         <Modal
             visible={visible}
@@ -65,12 +74,14 @@ export function LocationDisclosureModal({
                                     check-in hingga check-out) untuk laporan perjalanan ke supervisor
                                 </Text>
                             </View>
-                            <View style={tw`flex-row items-start mb-2`}>
-                                <Text style={tw`text-utama-terang mr-2 mt-0.5`}>•</Text>
-                                <Text style={tw`text-sm text-gray-600 dark:text-gray-300 flex-1`}>
-                                    Penugasan work order ke teknisi terdekat
-                                </Text>
-                            </View>
+                            {isPenerimaWorkOrder && (
+                                <View style={tw`flex-row items-start mb-2`}>
+                                    <Text style={tw`text-utama-terang mr-2 mt-0.5`}>•</Text>
+                                    <Text style={tw`text-sm text-gray-600 dark:text-gray-300 flex-1`}>
+                                        Penugasan work order ke teknisi terdekat
+                                    </Text>
+                                </View>
+                            )}
                         </View>
 
                         {/* Background usage notice */}

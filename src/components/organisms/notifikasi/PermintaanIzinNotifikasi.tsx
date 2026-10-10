@@ -8,10 +8,13 @@
  */
 
 import { Bell, Clock, ClipboardList, MessageCircle } from 'lucide-react-native';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Modal, Text, TouchableOpacity, View } from 'react-native';
 
+import { AppFeature } from '@/constants/features';
+import { useAuth } from '@/context/AuthContext';
 import { useTemaPersona } from '@/theme';
+import { punyaFitur } from '@/utils/persona';
 
 interface PermintaanIzinNotifikasiProps {
   visible: boolean;
@@ -19,11 +22,18 @@ interface PermintaanIzinNotifikasiProps {
   onTolak: () => void;
 }
 
-/** Hal-hal yang benar-benar dikirim lewat push — bukan janji pemasaran. */
+/**
+ * Hal-hal yang benar-benar dikirim lewat push — bukan janji pemasaran.
+ *
+ * Tiap baris dipasangkan dengan izin yang benar-benar menghasilkan push itu.
+ * Tanpa pasangan ini staff kantor dijanjikan "work order baru yang ditugaskan
+ * ke Anda" — pemberitahuan yang tidak akan pernah ia terima, dan justru
+ * melemahkan alasan sebenarnya ia menyalakan notifikasi.
+ */
 const ALASAN = [
-  { Ikon: ClipboardList, teks: 'Work order baru yang ditugaskan ke Anda' },
-  { Ikon: MessageCircle, teks: 'Balasan diskusi dan keluhan pelanggan' },
-  { Ikon: Clock, teks: 'Pengingat absensi dan persetujuan izin' },
+  { Ikon: ClipboardList, teks: 'Work order baru yang ditugaskan ke Anda', fitur: AppFeature.WORK_ORDER },
+  { Ikon: MessageCircle, teks: 'Balasan diskusi dan keluhan pelanggan', fitur: AppFeature.CHAT },
+  { Ikon: Clock, teks: 'Pengingat absensi dan persetujuan izin', fitur: AppFeature.ABSENSI },
 ] as const;
 
 export function PermintaanIzinNotifikasi({
@@ -32,6 +42,14 @@ export function PermintaanIzinNotifikasi({
   onTolak,
 }: PermintaanIzinNotifikasiProps) {
   const { tw, warna } = useTemaPersona();
+  const { user } = useAuth();
+
+  // Bila tak satu pun izin cocok, daftar kosong akan membuat dialog kehilangan
+  // alasannya; kembalikan seluruhnya daripada menampilkan kotak hampa.
+  const alasanTampil = useMemo(() => {
+    const cocok = ALASAN.filter(({ fitur }) => punyaFitur(user, fitur));
+    return cocok.length > 0 ? cocok : ALASAN;
+  }, [user]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onTolak}>
@@ -53,7 +71,7 @@ export function PermintaanIzinNotifikasi({
           </Text>
 
           <View style={tw`mb-4`}>
-            {ALASAN.map(({ Ikon, teks }) => (
+            {alasanTampil.map(({ Ikon, teks }) => (
               <View key={teks} style={tw`flex-row items-start mb-3`}>
                 <Ikon size={18} color={warna.utama} style={tw`mt-0.5`} />
                 <Text style={tw`text-sm text-gray-600 dark:text-gray-300 flex-1 ml-3`}>

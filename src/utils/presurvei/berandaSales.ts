@@ -53,6 +53,13 @@ export interface StatusAbsenRingkas {
   status: AttendanceUiStatus;
   checkInTime: string | null;
   checkOutTime: string | null;
+  /**
+   * Metadata hari dari `/api/mobile/attendance/status`. `isOffDay` sudah
+   * memperhitungkan `workDays` dan tukar libur — satu-satunya sumber yang tahu
+   * hari ini hari kerja pengguna atau bukan. Layar Absensi memakainya untuk
+   * badge "HARI LIBUR ANDA"; Beranda wajib sepakat dengannya.
+   */
+  today?: { isOffDay?: boolean } | null;
 }
 
 /** Teks kartu absen hari ini. */

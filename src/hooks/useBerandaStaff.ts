@@ -62,6 +62,7 @@ export function useBerandaStaff(sekarang: Date) {
   return {
     fitur,
     absen: absen.data?.data ?? null,
+    isHariLiburSaya: absen.data?.data?.today?.isOffDay ?? false,
     jamKerja: awalKerja && akhirKerja ? `${awalKerja} – ${akhirKerja}` : null,
     liburHariIni: liburHariIni(daftarLibur, sekarang),
     liburBerikutnya: liburBerikutnya(daftarLibur, sekarang),

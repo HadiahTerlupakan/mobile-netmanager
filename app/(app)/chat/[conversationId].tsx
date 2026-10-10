@@ -92,9 +92,13 @@ export default function ConversationScreen() {
     });
 
     const messages = useMemo(() => {
-        // Flatten pages. API returns newest first.
-        // We want [Newest, ..., Oldest] for Inverted List.
-        return data?.pages.flatMap((page) => page.messages) || [];
+        // API mengirim terbaru dulu, dan halaman berikutnya makin lama. FlashList
+        // v2 tidak lagi mengenal `inverted`, jadi urutan dibalik di sini menjadi
+        // kronologis (lama → baru) dan daftar dirender mulai dari bawah lewat
+        // `maintainVisibleContentPosition`. Tanpa pembalikan ini pesan terbaru
+        // muncul di puncak layar sementara kolom ketik ada di bawah.
+        const halaman = data?.pages.flatMap((page) => page.messages) || [];
+        return [...halaman].reverse();
     }, [data]);
 
     const conversation = data?.pages[0]?.conversation;
@@ -147,9 +151,9 @@ export default function ConversationScreen() {
             setNewMessage('');
             setSelectedImage(null);
 
-            // Scroll to bottom
+            // Pesan terbaru ada di akhir daftar kronologis.
             setTimeout(() => {
-                flashListRef.current?.scrollToIndex({ index: 0, animated: true });
+                flashListRef.current?.scrollToEnd({ animated: true });
             }, 100);
         }
     });
@@ -311,7 +315,8 @@ export default function ConversationScreen() {
         return <MessageBubble item={item} />;
     }, []);
 
-    const onLoadMore = () => {
+    /** Pesan lama ada di atas daftar kronologis, jadi dimuat saat mencapai awal. */
+    const muatPesanLama = () => {
         if (hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
@@ -370,15 +375,19 @@ export default function ConversationScreen() {
                     keyExtractor={(item: ChatMessage) => item.id}
                     renderItem={renderMessage}
                     contentContainerStyle={tw`py-4`}
-                    onEndReached={onLoadMore}
-                    onEndReachedThreshold={0.5}
+                    onStartReached={muatPesanLama}
+                    onStartReachedThreshold={0.5}
+                    maintainVisibleContentPosition={{
+                        startRenderingFromBottom: true,
+                        autoscrollToBottomThreshold: 0.2,
+                    }}
                     ListEmptyComponent={
                         <View style={tw`flex-1 items-center justify-center py-20`}>
                             <Text style={tw`text-gray-400`}>Belum ada pesan</Text>
                             <Text style={tw`text-gray-400 text-sm`}>Mulai percakapan!</Text>
                         </View>
                     }
-                    ListFooterComponent={
+                    ListHeaderComponent={
                         isFetchingNextPage ? (
                             <View style={tw`py-4 items-center`}>
                                 <ActivityIndicator size="small" color={warna.utamaKuat} />

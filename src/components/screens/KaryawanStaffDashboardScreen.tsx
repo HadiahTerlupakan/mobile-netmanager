@@ -63,6 +63,7 @@ export function KaryawanStaffDashboardScreen() {
             sekarang={sekarang}
             jamKerja={beranda.jamKerja}
             libur={beranda.liburHariIni}
+            isHariLiburSaya={beranda.isHariLiburSaya}
             absen={beranda.absen}
             onBukaAbsensi={beranda.fitur.absensi ? () => router.push('/(app)/absensi') : null}
           />

@@ -17,6 +17,8 @@ interface KartuHariIniStaffProps {
   /** "09:00 – 17:00"; null bila jam kerja belum diatur. */
   jamKerja: string | null;
   libur: HariLibur | null;
+  /** Hari libur pengguna sendiri (di luar `workDays` atau tukar libur), dari server. */
+  isHariLiburSaya: boolean;
   absen: { status: AttendanceUiStatus; checkInTime: string | null; checkOutTime: string | null } | null;
   /** null = pengguna tidak punya fitur absensi (baris absen & tombol disembunyikan). */
   onBukaAbsensi: (() => void) | null;
@@ -40,8 +42,13 @@ function JamAbsen({ ikon: Ikon, label, jam }: { ikon: typeof LogIn; label: strin
 /**
  * Kartu sorotan Beranda staff: tanggal hari ini, jam kerja atau libur, jam
  * masuk/pulang, dan satu tombol absen yang menyesuaikan status.
+ *
+ * Urutan keterangan hari: libur nasional, lalu hari libur pengguna sendiri,
+ * baru jam kerja. Sebelumnya `workDays` diabaikan, sehingga staff Senin–Jumat
+ * dijanjikan "Jam kerja 08:00 – 17:00" pada hari Minggu — bertolak belakang
+ * dengan layar Absensi yang pada saat yang sama menampilkan "HARI LIBUR ANDA".
  */
-export function KartuHariIniStaff({ sekarang, jamKerja, libur, absen, onBukaAbsensi }: KartuHariIniStaffProps) {
+export function KartuHariIniStaff({ sekarang, jamKerja, libur, isHariLiburSaya, absen, onBukaAbsensi }: KartuHariIniStaffProps) {
   const { warna } = useTemaPersona();
   return (
     <KartuHeroGradien>
@@ -51,6 +58,11 @@ export function KartuHariIniStaff({ sekarang, jamKerja, libur, absen, onBukaAbse
         <View style={tw`flex-row items-center mt-2`}>
           <CalendarHeart size={UKURAN_IKON} color={DESAIN_PREMIUM.aksenEmas} />
           <Text style={[tw`text-sm font-semibold ml-1.5`, { color: DESAIN_PREMIUM.aksenEmas }]}>{`Libur: ${libur.name}`}</Text>
+        </View>
+      ) : isHariLiburSaya ? (
+        <View style={tw`flex-row items-center mt-2`}>
+          <CalendarHeart size={UKURAN_IKON} color={DESAIN_PREMIUM.aksenEmas} />
+          <Text style={[tw`text-sm font-semibold ml-1.5`, { color: DESAIN_PREMIUM.aksenEmas }]}>Hari libur Anda</Text>
         </View>
       ) : jamKerja ? (
         <View style={tw`flex-row items-center mt-2`}>
