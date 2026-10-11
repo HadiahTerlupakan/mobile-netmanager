@@ -1,136 +1,16 @@
-import { FormPasswordInput } from '@/components/atoms/FormPasswordInput';
+import React from 'react';
+
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
-import { useFormWithValidation } from '@/hooks/useFormWithValidation';
-import { useMutation } from '@/hooks/queries';
-import api from '@/services/api';
-import { presentAppError, presentSuccessMessage } from '@/utils/errorPresenter';
-import { ChangePasswordSchema } from '@/utils/validation';
-import { router } from 'expo-router';
-import { ArrowLeft, Save } from 'lucide-react-native';
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTemaPersona } from '@/theme';
-import { z } from 'zod';
-
-type ChangePasswordFormData = z.infer<typeof ChangePasswordSchema>;
-
-function ChangePasswordScreen() {
-    const { tw } = useTemaPersona();
-    const {
-        control,
-        handleValidatedSubmit,
-        formState: { errors }
-    } = useFormWithValidation({
-        schema: ChangePasswordSchema,
-        defaultValues: {
-            currentPassword: '',
-            newPassword: '',
-            confirmPassword: ''
-        }
-    });
-
-    // Ganti password sensitif → plain useMutation (tanpa offline-queue).
-    const changePasswordMutation = useMutation({
-        mutationFn: (data: ChangePasswordFormData) =>
-            api.post('/api/mobile/profile/password', data),
-        onSuccess: (res) => {
-            if (res.data.success) {
-                presentSuccessMessage('Password berhasil diubah');
-                router.back();
-            }
-        },
-        onError: (error) => {
-            presentAppError(error, {
-                screen: 'ChangePasswordScreen',
-                route: '/(app)/change-password',
-            });
-        },
-    });
-    const saving = changePasswordMutation.isPending;
-
-    const handleSave = handleValidatedSubmit((data: ChangePasswordFormData) => {
-        changePasswordMutation.mutate(data);
-    });
-
-    return (
-        <SafeAreaView style={tw`flex-1 bg-gray-50`}>
-            {/* Header */}
-            <View style={tw`flex-row items-center px-4 py-3 bg-white border-b border-gray-200`}>
-                <TouchableOpacity onPress={() => router.back()} style={tw`p-2`}>
-                    <ArrowLeft size={24} color="#374151" />
-                </TouchableOpacity>
-                <Text style={tw`flex-1 text-lg font-bold text-gray-800 ml-2`}>Ganti Password</Text>
-            </View>
-
-            <ScrollView contentContainerStyle={tw`p-4`}>
-                {/* Info */}
-                <View style={tw`bg-utama-sangat-muda rounded-xl p-4 mb-6`}>
-                    <Text style={tw`text-utama-pekat text-sm`}>
-                        Untuk keamanan, masukkan password lama Anda sebelum mengubah ke password baru.
-                    </Text>
-                </View>
-
-                {/* Form */}
-                <View style={tw`bg-white rounded-xl p-4 shadow-sm`}>
-                    {/* Current Password */}
-                    <View style={tw`mb-4`}>
-                        <FormPasswordInput
-                            name="currentPassword"
-                            control={control}
-                            label="Password Lama"
-                            placeholder="Masukkan password lama"
-                            error={errors.currentPassword?.message}
-                        />
-                    </View>
-
-                    {/* New Password */}
-                    <View style={tw`mb-4`}>
-                        <FormPasswordInput
-                            name="newPassword"
-                            control={control}
-                            label="Password Baru"
-                            placeholder="Masukkan password baru"
-                            hint="Minimal 6 karakter"
-                            error={errors.newPassword?.message}
-                        />
-                    </View>
-
-                    {/* Confirm Password */}
-                    <View style={tw`mb-4`}>
-                        <FormPasswordInput
-                            name="confirmPassword"
-                            control={control}
-                            label="Konfirmasi Password Baru"
-                            placeholder="Ulangi password baru"
-                            error={errors.confirmPassword?.message}
-                        />
-                    </View>
-                </View>
-
-                {/* Save Button */}
-                <TouchableOpacity
-                    onPress={handleSave}
-                    disabled={saving}
-                    style={tw`mt-6 bg-utama-kuat rounded-xl py-4 flex-row items-center justify-center ${saving ? 'opacity-50' : ''}`}
-                >
-                    {saving ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <>
-                            <Save size={20} color="#fff" />
-                            <Text style={tw`text-white font-bold ml-2`}>Simpan Password</Text>
-                        </>
-                    )}
-                </TouchableOpacity>
-            </ScrollView>
-        </SafeAreaView>
-    );
-}
+import { FormGantiPassword } from '@/components/organisms/FormGantiPassword';
 
 export default function ChangePassword() {
-    return (
-        <ScreenErrorBoundary screenName="ChangePassword">
-            <ChangePasswordScreen />
-        </ScreenErrorBoundary>
-    );
+  return (
+    <ScreenErrorBoundary screenName="ChangePassword">
+      <FormGantiPassword
+        endpoint="/api/mobile/profile/password"
+        namaLayar="ChangePasswordScreen"
+        rute="/(app)/change-password"
+      />
+    </ScreenErrorBoundary>
+  );
 }

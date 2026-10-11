@@ -3,6 +3,7 @@ import { Briefcase, Home, User, Wallet } from 'lucide-react-native';
 import React from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useIzinNotifikasi } from '@/hooks/useIzinNotifikasi';
 import { useTemaPersona } from '@/theme';
 
 const WARNA_TAB_PASIF = '#9ca3af';
@@ -14,6 +15,9 @@ const JARAK_BAWAH_MIN = 10;
 export default function InvestorLayout() {
   const insets = useSafeAreaInsets();
   const { tw, warna } = useTemaPersona();
+  // Pre-prompt izin notifikasi dulu hanya dipasang di grup karyawan, sehingga
+  // token FCM investor hanya terdaftar bila izin OS kebetulan sudah ada.
+  useIzinNotifikasi();
 
   return (
     <Tabs
@@ -47,6 +51,7 @@ export default function InvestorLayout() {
         options={{ title: 'Profil', tabBarIcon: ({ color }) => <User size={UKURAN_IKON} color={color} /> }}
       />
       <Tabs.Screen name="proyek/[id]" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+      <Tabs.Screen name="ganti-password" options={{ href: null, tabBarStyle: { display: 'none' } }} />
     </Tabs>
   );
 }

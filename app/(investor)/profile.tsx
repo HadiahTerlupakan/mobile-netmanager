@@ -1,10 +1,12 @@
-import { Building2, LogOut, Phone, User, type LucideIcon } from 'lucide-react-native';
+import { Building2, LockKeyhole, LogOut, Phone, ShieldCheck, User, type LucideIcon } from 'lucide-react-native';
+import { router } from 'expo-router';
 import React from 'react';
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 import { KartuHeroGradien } from '@/components/molecules/KartuHeroGradien';
+import { getAppVersionLabel } from '@/constants/appVersion';
 import { ScreenErrorBoundary } from '@/components/atoms/ScreenErrorBoundary';
 import { useAuth } from '@/context/AuthContext';
 import { DESAIN_PREMIUM, useTemaPersona } from '@/theme';
@@ -55,7 +57,33 @@ function KartuIdentitas({ nama, perusahaan }: { nama: string; perusahaan?: strin
   );
 }
 
-/** Profil investor: data akun dan tombol keluar. */
+/** Satu baris aksi di profil investor. */
+function TombolAksi({
+  ikon: Ikon,
+  judul,
+  onTekan,
+}: {
+  ikon: LucideIcon;
+  judul: string;
+  onTekan: () => void;
+}) {
+  const { tw: twTema, warna } = useTemaPersona();
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={judul}
+      onPress={onTekan}
+      style={tw`flex-row items-center bg-white mt-3 px-4 py-4 rounded-2xl border border-slate-200/70`}
+    >
+      <View style={twTema`w-9 h-9 rounded-lg bg-utama-sangat-muda items-center justify-center mr-3`}>
+        <Ikon size={UKURAN_IKON} color={warna.utamaKuat} />
+      </View>
+      <Text style={tw`flex-1 text-sm font-semibold text-slate-900`}>{judul}</Text>
+    </TouchableOpacity>
+  );
+}
+
+/** Profil investor: data akun, ganti password, kebijakan privasi, dan tombol keluar. */
 export default function ProfilInvestorScreen() {
   const { user, signOut } = useAuth();
   const dataProfil: DataProfil[] = [
@@ -86,6 +114,17 @@ export default function ProfilInvestorScreen() {
             </View>
           ) : null}
 
+          <TombolAksi
+            ikon={LockKeyhole}
+            judul="Ganti Password"
+            onTekan={() => router.push('/(investor)/ganti-password')}
+          />
+          <TombolAksi
+            ikon={ShieldCheck}
+            judul="Kebijakan Privasi"
+            onTekan={() => router.push('/kebijakan-privasi')}
+          />
+
           <TouchableOpacity
             accessibilityRole="button"
             accessibilityLabel="Keluar"
@@ -95,6 +134,8 @@ export default function ProfilInvestorScreen() {
             <LogOut size={UKURAN_IKON} color={WARNA_IKON_KELUAR} />
             <Text style={tw`text-base font-semibold text-red-600 ml-2`}>Keluar</Text>
           </TouchableOpacity>
+
+          <Text style={tw`text-xs text-slate-400 text-center mt-6`}>{getAppVersionLabel()}</Text>
         </ScrollView>
       </SafeAreaView>
     </ScreenErrorBoundary>
