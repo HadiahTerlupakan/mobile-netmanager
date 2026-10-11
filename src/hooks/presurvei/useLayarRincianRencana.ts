@@ -60,6 +60,9 @@ export function useLayarRincianRencana(id: string, isAktif: boolean) {
   return {
     rencana,
     isPending: rincian.isPending,
+    // Dibutuhkan layar untuk membedakan rencana yang hilang (404) dari
+    // kegagalan jaringan; hanya yang kedua layak ditawari muat ulang.
+    galat: rincian.error,
     refetch: rincian.refetch,
     lingkup,
     isOnline,

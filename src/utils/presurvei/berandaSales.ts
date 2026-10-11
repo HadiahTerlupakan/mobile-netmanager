@@ -62,12 +62,20 @@ export interface StatusAbsenRingkas {
   today?: { isOffDay?: boolean } | null;
 }
 
-/** Teks kartu absen hari ini. */
+/**
+ * Teks kartu absen hari ini.
+ *
+ * Pada hari yang bukan hari kerja pengguna, "Belum check-in" terbaca sebagai
+ * kewajiban yang belum ditunaikan — padahal layar Absensi, yang membaca
+ * `today.isOffDay` dari respons yang sama, menampilkan "HARI LIBUR ANDA".
+ * Absen yang sudah terjadi tetap diutamakan: masuk di hari libur itu nyata
+ * dan jamnya harus terlihat.
+ */
 export function teksStatusAbsen(status: StatusAbsenRingkas | null): string {
   if (status === null) return 'Status absen belum dimuat';
   if (status.status === 'checked-in') return status.checkInTime ? `Check-in ${status.checkInTime}` : 'Sudah check-in';
   if (status.status === 'checked-out') return `Selesai ${status.checkInTime ?? '-'}–${status.checkOutTime ?? '-'}`;
-  return 'Belum check-in';
+  return status.today?.isOffDay === true ? 'Hari libur Anda' : 'Belum check-in';
 }
 
 /** Keadaan tampilan bagian presurvei Beranda. */

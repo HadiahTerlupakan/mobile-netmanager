@@ -185,6 +185,7 @@ export function useLayarUbahRencana(id: string, isAktif: boolean) {
   return {
     rencana: rincian.data,
     isPending: rincian.isPending,
+    galat: rincian.error,
     refetch: rincian.refetch,
     form,
     hariIni,

@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 import { KepalaLayar } from '@/components/molecules/KepalaLayar';
-import { QueryErrorState } from '@/components/molecules/QueryErrorState';
+import { LayarGalatBerkepala } from '@/components/molecules/LayarGalatBerkepala';
 import { AksiRencana } from '@/components/organisms/presurvei/AksiRencana';
 import { KartuRincianRencana } from '@/components/organisms/presurvei/KartuRincianRencana';
 import { ModalBatalRencana } from '@/components/organisms/presurvei/ModalBatalRencana';
@@ -13,6 +13,8 @@ import { RingkasanLaporanRencana } from '@/components/organisms/presurvei/Ringka
 import { AppFeature } from '@/constants/features';
 import { useLayarRincianRencana } from '@/hooks/presurvei/useLayarRincianRencana';
 import { useFeatureGuard } from '@/hooks/useFeatureGuard';
+import { isTidakDitemukan } from '@/utils/httpStatus';
+import { PESAN_RENCANA_HILANG } from '@/utils/presurvei/rencana';
 import { hakAksesRencana } from '@/utils/presurvei/timRencana';
 
 /** Rincian rencana kunjungan: isi, laporan bila selesai, dan aksinya. Tujuan deep-link penugasan. */
@@ -25,7 +27,16 @@ export default function RincianRencanaScreen() {
   if (layar.isPending) return <ActivityIndicator style={tw`mt-10`} />;
   // Seperti rincian prospek: data cache tetap ditampilkan walau refetch gagal.
   if (!layar.rencana) {
-    return <QueryErrorState message="Rencana gagal dimuat." onRetry={() => void layar.refetch()} />;
+    // Notifikasi penugasan bisa menunjuk rencana yang sudah dibatalkan; 404
+    // tidak akan sembuh dengan memuat ulang, jadi jangan tawarkan "Coba lagi".
+    const isHilang = isTidakDitemukan(layar.galat);
+    return (
+      <LayarGalatBerkepala
+        judul="Rencana Kunjungan"
+        pesan={isHilang ? PESAN_RENCANA_HILANG : 'Rencana gagal dimuat.'}
+        onCobaLagi={isHilang ? undefined : () => void layar.refetch()}
+      />
+    );
   }
   const { rencana, batal } = layar;
 

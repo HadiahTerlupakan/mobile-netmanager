@@ -50,6 +50,22 @@ describe('teksStatusAbsen', () => {
     [{ status: 'checked-in', checkInTime: null, checkOutTime: null }, 'Sudah check-in'],
     [{ status: 'checked-out', checkInTime: '07:58', checkOutTime: '17:02' }, 'Selesai 07:58–17:02'],
     [{ status: 'checked-out', checkInTime: null, checkOutTime: null }, 'Selesai -–-'],
+    // Hari libur pengguna: "Belum check-in" terbaca seperti kewajiban yang
+    // belum ditunaikan, sementara layar Absensi menampilkan "HARI LIBUR ANDA"
+    // dari respons yang sama.
+    [
+      { status: 'idle', checkInTime: null, checkOutTime: null, today: { isOffDay: true } },
+      'Hari libur Anda',
+    ],
+    [
+      { status: 'idle', checkInTime: null, checkOutTime: null, today: { isOffDay: false } },
+      'Belum check-in',
+    ],
+    // Absen yang sudah terjadi menang: masuk di hari libur itu nyata.
+    [
+      { status: 'checked-in', checkInTime: '08:05', checkOutTime: null, today: { isOffDay: true } },
+      'Check-in 08:05',
+    ],
   ];
 
   it.each(KASUS_ABSEN)('%j → %s', (status, harapan) => {

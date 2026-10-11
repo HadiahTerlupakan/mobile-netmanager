@@ -7,6 +7,10 @@ import type { KegiatanMenunggu } from './antreanKegiatan';
  * menyembunyikan aksi yang pasti ditolak (netmanager `RencanaService`).
  */
 
+/** Pesan untuk rencana yang ditunjuk deep-link tapi sudah tidak ada di server. */
+export const PESAN_RENCANA_HILANG =
+  'Rencana ini sudah tidak ada — mungkin sudah dibatalkan atau dihapus.';
+
 const PANJANG_DUA_DIGIT = 2;
 /** Jumlah rencana tertunda yang ditampilkan di kartu Beranda. */
 export const JUMLAH_RENCANA_BERIKUTNYA = 3;
