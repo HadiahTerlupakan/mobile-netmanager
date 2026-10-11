@@ -67,6 +67,43 @@ describe('useFormKegiatan', () => {
     expect(result.current.kesalahan).toEqual({});
   });
 
+  // Kesalahan dulu hanya dihitung saat `periksa`, sehingga "Ambil minimal 1
+  // foto bukti" tetap merah di bawah petak foto yang sudah terisi — terlihat
+  // saat melaporkan kunjungan di QA perangkat.
+  it('menghapus pesan foto begitu fotonya diambil, tanpa menyentuh kesalahan lain', () => {
+    const { result } = renderHook(() => useFormKegiatan());
+    act(() => result.current.ubah({ jenis: 'KUNJUNGAN', hasil: 'TERTARIK' }));
+    act(() => {
+      result.current.periksa(null);
+    });
+    expect(result.current.kesalahan.foto).toBe(PESAN_FORM_KEGIATAN.fotoKurang);
+
+    act(() => result.current.tambahFoto('file:///cache/a.jpg'));
+
+    expect(result.current.kesalahan.foto).toBeUndefined();
+    // Lokasi belum didapat, jadi pesannya harus tetap ada.
+    expect(result.current.kesalahan.lokasi).toBe(PESAN_FORM_KEGIATAN.lokasi);
+  });
+
+  it('menampilkan lagi pesan foto bila satu-satunya foto dihapus dan diperiksa ulang', () => {
+    const { result } = renderHook(() => useFormKegiatan());
+    act(() => {
+      result.current.ubah({ jenis: 'KUNJUNGAN', hasil: 'TERTARIK' });
+      result.current.tambahFoto('file:///cache/a.jpg');
+    });
+    act(() => {
+      result.current.periksa(TITIK);
+    });
+    expect(result.current.kesalahan).toEqual({});
+
+    act(() => result.current.hapusFoto('file:///cache/a.jpg'));
+    act(() => {
+      result.current.periksa(TITIK);
+    });
+
+    expect(result.current.kesalahan.foto).toBe(PESAN_FORM_KEGIATAN.fotoKurang);
+  });
+
   it('ubahProspekBaru menggabungkan tanpa menghapus medan lain', () => {
     const { result } = renderHook(() => useFormKegiatan());
 

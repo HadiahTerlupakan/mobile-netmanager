@@ -35,7 +35,8 @@ export type { IsianProspekBaru } from './isianProspek';
 const PANJANG_NAMA_MAKS = 120;
 const PANJANG_ALAMAT_MAKS = PANJANG_ALAMAT_PROSPEK_MAKS;
 const PANJANG_CATATAN_MAKS = 1000;
-const JUMLAH_FOTO_KEGIATAN_MIN = 1;
+/** Foto bukti minimal untuk kegiatan lapangan; dipakai juga form untuk membereskan pesan kesalahannya. */
+export const JUMLAH_FOTO_KEGIATAN_MIN = 1;
 const POLA_BILANGAN_BULAT = /^\d+$/;
 
 export interface NilaiFormKegiatan {

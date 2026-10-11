@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { JUMLAH_FOTO_KEGIATAN_MAKS } from '@/constants/presurvei';
 import {
+  JUMLAH_FOTO_KEGIATAN_MIN,
   NILAI_FORM_KEGIATAN_KOSONG,
   terapkanPerubahanFormKegiatan,
   validasiFormKegiatan,
@@ -59,6 +60,20 @@ export function useFormKegiatan(): FormKegiatan {
   const { nilai, setNilai, ubah, ubahProspekBaru } = useNilaiKegiatan();
   const { fotoLokal, tambahFoto, hapusFoto, kosongkan } = useFotoKegiatan();
   const [kesalahan, setKesalahan] = useState<KesalahanFormKegiatan>({});
+
+  // Kesalahan hanya dihitung saat `periksa`, jadi tanpa ini pesan "Ambil
+  // minimal 1 foto bukti" tetap merah di bawah petak foto yang sudah terisi —
+  // terlihat di QA perangkat saat melaporkan kunjungan. Yang dibereskan
+  // pengguna harus berhenti ditagih; kesalahan medan lain tidak disentuh.
+  const isFotoCukup = fotoLokal.length >= JUMLAH_FOTO_KEGIATAN_MIN;
+  useEffect(() => {
+    if (!isFotoCukup) return;
+    setKesalahan((lama) => {
+      if (lama.foto === undefined) return lama;
+      const { foto: _terselesaikan, ...sisa } = lama;
+      return sisa;
+    });
+  }, [isFotoCukup]);
 
   const periksa = useCallback((titik: TitikGps | null) => {
     const hasil = validasiFormKegiatan(nilai, { titik, jumlahFoto: fotoLokal.length });
