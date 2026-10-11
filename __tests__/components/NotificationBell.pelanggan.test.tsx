@@ -51,6 +51,18 @@ describe('lonceng notifikasi', () => {
     );
   });
 
+  it('tidak dirender untuk sesi investor', () => {
+    // Token investor beraudience sendiri, jadi endpoint notifikasi karyawan
+    // juga menjawab 401 untuknya. Beranda investor kebetulan belum memasang
+    // lonceng; penjaga ini mencegah penambahannya nanti menendang investor.
+    const { toJSON } = renderLonceng('INVESTOR');
+
+    expect(toJSON()).toBeNull();
+    expect(mockUseApiQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: '/api/mobile/notifications', enabled: false }),
+    );
+  });
+
   it('tetap tampil dan memanggil endpoint untuk karyawan', () => {
     const { toJSON } = renderLonceng('TEKNISI');
 
