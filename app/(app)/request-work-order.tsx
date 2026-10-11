@@ -697,6 +697,10 @@ export default function RequestWorkOrderScreen() {
         onSelect={(item) => selectDepartment(item.value as Department)}
         selectedValue={selectedDepartment}
         loading={loadingDepartments}
+        // Hanya departemen ber-`showInMobileWO` yang dikirim server, dan
+        // kolomnya default mati — "Data tidak ditemukan" membuat layar ini
+        // terbaca rusak padahal admin tinggal mengaktifkannya.
+        emptyText="Belum ada departemen yang diaktifkan untuk request WO dari aplikasi. Minta admin mengaktifkannya di pengaturan departemen."
       />
 
       {/* Loading Modal */}
