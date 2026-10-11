@@ -4,6 +4,7 @@ import tw from 'twrnc';
 import { useAuth } from '@/context/AuthContext';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { LogOut, User, Lock, ChevronRight } from 'lucide-react-native';
+import { getAppVersionLabel } from '@/constants/appVersion';
 
 export default function CustomerProfileScreen() {
   const { user, signOut } = useAuth();
@@ -114,7 +115,10 @@ export default function CustomerProfileScreen() {
 
         <View style={tw`mt-8 mb-4 items-center`}>
             <Text style={tw`text-gray-400 text-xs`}>RADPRO Mobile App</Text>
-            <Text style={tw`text-gray-400 text-xs`}>Version 1.0.0</Text>
+            {/* Versi sebelumnya dipatok "1.0.0" di sini, sementara layar login
+                dan profil karyawan memakai versi sebenarnya — pelanggan yang
+                ditanya "pakai versi berapa?" menjawab angka yang salah. */}
+            <Text style={tw`text-gray-400 text-xs`}>{getAppVersionLabel()}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

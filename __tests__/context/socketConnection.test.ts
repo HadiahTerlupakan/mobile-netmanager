@@ -63,6 +63,30 @@ describe('socketConnection', () => {
     ).toBe(false);
   });
 
+  // Pelanggan punya masalah yang sama persis dengan investor, tapi sempat
+  // tertinggal dari penjaga ini: endpoint token Firebase menolak tokennya,
+  // 401-nya menutup sesi, dan pelanggan tertendang kembali ke login beberapa
+  // detik setelah berhasil masuk — portalnya jadi tidak bisa dipakai.
+  it('pelanggan tidak tersambung ke realtime (token Firebase ditolak untuk pelanggan)', () => {
+    expect(
+      getSocketConnectionState({
+        token: 'token-pelanggan',
+        tenantUrl: 'http://192.168.1.2:3000',
+        user: { id: 'plg-1', role: 'CUSTOMER' },
+      }).canConnect
+    ).toBe(false);
+  });
+
+  it('karyawan tetap tersambung', () => {
+    expect(
+      getSocketConnectionState({
+        token: 'token-karyawan',
+        tenantUrl: 'http://192.168.1.2:3000',
+        user: { id: 'usr-1', role: 'TEKNISI' },
+      }).canConnect
+    ).toBe(true);
+  });
+
   it('prefers websocket before polling for mobile connections', () => {
     expect(SOCKET_TRANSPORTS).toEqual(['websocket', 'polling']);
   });

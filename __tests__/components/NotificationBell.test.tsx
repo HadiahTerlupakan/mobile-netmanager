@@ -8,6 +8,12 @@ import { queryKeys } from '@/lib/queryClient';
 const mockUseApiQuery = jest.fn();
 const mockPush = jest.fn();
 
+// Lonceng membaca sesi untuk menahan dirinya pada sesi pelanggan
+// (lihat NotificationBell.pelanggan.test.tsx); di sini sesinya karyawan.
+jest.mock('@/context/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'usr-1', role: 'TEKNISI' } }),
+}));
+
 jest.mock('@/hooks/queries', () => ({
   useApiQuery: (options: unknown) => mockUseApiQuery(options),
 }));

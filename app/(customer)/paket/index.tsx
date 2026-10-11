@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { ArrowLeft, Wifi, Download, Upload, Calendar, Router, MapPin, CheckCircle } from 'lucide-react-native';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
+import { periodeTagihan } from '@/utils/periodeTagihan';
 
 const fetchProfile = async () => {
   const res = await api.get('/api/customer/profile');
@@ -31,13 +32,6 @@ export default function CustomerPaketScreen() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
   };
 
-  const getPeriodString = (jatuhTempo: string) => {
-    if (!jatuhTempo) return '-';
-    const due = new Date(jatuhTempo);
-    const start = new Date(due);
-    start.setMonth(start.getMonth() - 1);
-    return `${start.toLocaleDateString('id-ID', { day: 'numeric' })} - ${due.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
-  };
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
@@ -140,7 +134,7 @@ export default function CustomerPaketScreen() {
                 <Text style={tw`text-gray-500 text-sm`}>Periode Tagihan</Text>
               </View>
               <Text style={tw`text-gray-900 text-sm font-medium text-right`}>
-                {profile?.jatuhTempo ? getPeriodString(profile.jatuhTempo) : '-'}
+                {periodeTagihan(profile?.jatuhTempo)}
               </Text>
             </View>
             <View style={tw`w-full h-px bg-gray-50`} />
@@ -164,19 +158,12 @@ export default function CustomerPaketScreen() {
           </View>
         </View>
 
-        {/* Promo */}
-        <TouchableOpacity style={tw`mt-4 overflow-hidden rounded-xl bg-teal-700 p-4 shadow-lg`}>
-          <View style={tw`flex-row items-center justify-between`}>
-            <View>
-              <Text style={tw`text-xs font-medium text-teal-100`}>Rekomendasi untukmu</Text>
-              <Text style={tw`text-lg font-bold text-white`}>Upgrade ke 200 Mbps?</Text>
-              <Text style={tw`text-xs text-teal-100 mt-1`}>Hanya tambah Rp 50rb/bln</Text>
-            </View>
-            <View style={tw`bg-white/20 px-3 py-1.5 rounded-lg`}>
-              <Text style={tw`text-xs font-bold text-white`}>Lihat</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+        {/* Tawaran upgrade dihapus: isinya tetap ("200 Mbps", "+Rp 50rb/bln")
+            tanpa dasar data apa pun — bukan paket pelanggan ini, bukan daftar
+            paket yang tersedia, bukan selisih harga sebenarnya — dan tombol
+            "Lihat" tidak punya onPress sehingga tidak membuka apa-apa. Janji
+            harga yang salah lebih merugikan daripada tidak ada tawaran.
+            Pasang kembali setelah ada sumber paket & harga sungguhan. */}
       </ScrollView>
       )}
     </SafeAreaView>

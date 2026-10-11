@@ -1,4 +1,5 @@
 import { isAkunInvestor } from '@/utils/investor';
+import { isAkunPelanggan } from '@/utils/pelanggan';
 import type { User } from './AuthContext';
 
 export const SOCKET_TRANSPORTS = ['websocket', 'polling'] as const;
@@ -27,9 +28,15 @@ export function getSocketConnectionState({ token, tenantUrl, user }: SocketConne
 
     return {
         baseUrl,
-        // Investor tidak memakai realtime (chat/presence/work order); endpoint
-        // token Firebase menolak token investor dan 401-nya akan menutup sesi.
-        canConnect: Boolean(token && baseUrl && userId) && !isAkunInvestor(user),
+        // Investor dan pelanggan tidak memakai realtime (chat/presence/work
+        // order); endpoint token Firebase menolak tokennya dan 401-nya akan
+        // menutup sesi. Pelanggan sempat tertinggal dari penjaga ini: ia
+        // berhasil masuk lalu tertendang kembali ke login beberapa detik
+        // kemudian, sehingga portalnya tidak bisa dipakai sama sekali.
+        canConnect:
+            Boolean(token && baseUrl && userId) &&
+            !isAkunInvestor(user) &&
+            !isAkunPelanggan(user),
         userId,
         userRole,
     };
