@@ -1,5 +1,6 @@
 import { AppFeature } from '@/constants/features';
 import { useAuth } from '@/context/AuthContext';
+import { isTabBarDisembunyikan } from '@/utils/tabPersona';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { DollarSign, Home, User, Wallet } from 'lucide-react-native';
 import React from 'react';
@@ -25,9 +26,16 @@ const getIcon = (routeName: string, color: string, isFocused: boolean, iconSizeM
     }
 };
 
+/**
+  * Tab bar mengambang mitra sales. Tidak dirender di layar penuh agar tidak
+  * menutupi aksi di bawah layar seperti form canvasing dan penarikan saldo.
+  */
 export function MitraSalesTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     const insets = useSafeAreaInsets();
     const { user } = useAuth();
+    const ruteFokus = state.routes[state.index];
+    if (ruteFokus && isTabBarDisembunyikan(descriptors[ruteFokus.key].options)) return null;
+
 
     // Explicitly whitelist ONLY the routes we want Sales to see
     const ALLOWED_ROUTES = [

@@ -40,7 +40,7 @@ export function MitraTeknisiDashboardScreen() {
     const [refreshing, setRefreshing] = useState(false);
 
     const { data: statsData, isPending: loadingStats, refetch } = useOfflineQuery<MitraDashboardStats>({
-        queryKey: queryKeys.dashboard.stats(),
+        queryKey: queryKeys.dashboard.statsMitra(),
         endpoint: '/api/mobile/mitra/dashboard',
         select: (data: any) => data?.data || data,
         enabled: !!token

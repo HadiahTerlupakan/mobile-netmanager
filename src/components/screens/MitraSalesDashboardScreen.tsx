@@ -18,6 +18,9 @@ import { formatRupiah } from '@/utils/rupiah';
 import { punyaFitur } from '@/utils/persona';
 
 /** Bagian statistik `/api/mobile/dashboard` yang dipakai Beranda mitra sales. */
+/** Bentuk mentah `/api/mobile/dashboard` sebelum bungkusnya dibuka. */
+type ResponsStatistik = StatistikMitraSales & { data?: StatistikMitraSales };
+
 interface StatistikMitraSales {
   suksesClosingMonth?: number;
   saldoKomisi?: number;
@@ -96,9 +99,16 @@ export function MitraSalesDashboardScreen() {
   const { warna } = useTemaPersona();
   const [isMenyegarkan, setIsMenyegarkan] = useState(false);
 
-  const { data: statistik, isPending, refetch } = useOfflineQuery<StatistikMitraSales>({
+  const { data: statistik, isPending, refetch } = useOfflineQuery<
+    ResponsStatistik,
+    Error,
+    StatistikMitraSales
+  >({
     queryKey: queryKeys.dashboard.stats(),
     endpoint: '/api/mobile/dashboard',
+    // Respons dibungkus `{ success, data }`; tanpa membukanya seluruh angka
+    // kartu komisi terbaca undefined dan selalu tampil Rp 0 / 0 closing.
+    select: (respons) => respons?.data ?? (respons as StatistikMitraSales),
     enabled: !!user,
   });
 

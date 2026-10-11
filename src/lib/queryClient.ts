@@ -250,6 +250,10 @@ export const queryKeys = {
   dashboard: {
     all: ["dashboard"] as const,
     stats: () => [...queryKeys.dashboard.all, "stats"] as const,
+    // `/api/mobile/mitra/dashboard` memberi bentuk respons yang berbeda dari
+    // `/api/mobile/dashboard`; satu kunci untuk keduanya membuat layar saling
+    // menimpa cache dengan data berbentuk lain.
+    statsMitra: () => [...queryKeys.dashboard.all, "stats", "mitra"] as const,
   },
 
   // Holidays

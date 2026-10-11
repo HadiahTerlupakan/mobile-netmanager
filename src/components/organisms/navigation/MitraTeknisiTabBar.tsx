@@ -5,6 +5,8 @@ import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
+import { isTabBarDisembunyikan } from '@/utils/tabPersona';
+
 // Maps route names to static icons to ensure consistency for Teknisi
 const getIcon = (routeName: string, color: string, isFocused: boolean, iconSizeMultiplier: number = 1) => {
     const baseSize = isFocused ? 26 : 24;
@@ -21,8 +23,16 @@ const getIcon = (routeName: string, color: string, isFocused: boolean, iconSizeM
     }
 };
 
+/**
+  * Tab bar mengambang mitra teknisi. Tidak dirender di layar penuh: tanpa ini
+  * pil mengambangnya menutupi tombol aksi di bawah layar rincian work order
+  * (Mulai Kerja / Selesaikan), sama seperti tab bar persona karyawan.
+  */
 export function MitraTeknisiTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     const insets = useSafeAreaInsets();
+    const ruteFokus = state.routes[state.index];
+    if (ruteFokus && isTabBarDisembunyikan(descriptors[ruteFokus.key].options)) return null;
+
 
     // Explicitly whitelist ONLY the routes we want Teknisi to see
     // Order: Dashboard | Work Order (center) | Profile
