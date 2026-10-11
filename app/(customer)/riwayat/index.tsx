@@ -9,6 +9,7 @@ import { ArrowLeft, Search, Receipt, Router, XCircle, CheckCircle } from 'lucide
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
+import { ambilMuatan } from '@/utils/responsPelanggan';
 
 dayjs.locale('id');
 
@@ -24,7 +25,7 @@ interface Invoice {
 
 const fetchHistory = async () => {
   const res = await api.get('/api/customer/invoices?limit=50');
-  return res.data.invoices as Invoice[];
+  return ambilMuatan<Invoice[]>(res.data, 'invoices') ?? [];
 };
 
 export default function CustomerHistoryScreen() {

@@ -19,6 +19,7 @@ import { ActivityIndicator, RefreshControl, ScrollView, Text, TextInput, Touchab
 import { SafeAreaView } from 'react-native-safe-area-context';
 import EventSource from 'react-native-sse';
 import tw from 'twrnc';
+import { ambilMuatan } from '@/utils/responsPelanggan';
 
 dayjs.locale('id');
 
@@ -62,7 +63,7 @@ interface PaymentMethodOption {
 
 const fetchInvoices = async () => {
   const res = await api.get('/api/customer/invoices?limit=20');
-  return res.data.invoices as Invoice[];
+  return ambilMuatan<Invoice[]>(res.data, 'invoices') ?? [];
 };
 
 export default function CustomerTagihanScreen() {

@@ -9,6 +9,7 @@ import React, { useCallback } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
+import { ambilMuatan } from '@/utils/responsPelanggan';
 
 interface Invoice {
   id: string;
@@ -26,7 +27,7 @@ const fetchDashboardData = async () => {
 
   const profile = profileRes.data.data?.profile || profileRes.data.profile;
   const connection = usageRes.data.data?.connection || usageRes.data.connection;
-  const invoices = invoicesRes.data.invoices || [];
+  const invoices = ambilMuatan<Invoice[]>(invoicesRes.data, 'invoices') ?? [];
 
   const pendingInvoices = invoices.filter(
     (inv: Invoice) => inv.status === 'SENT' || inv.status === 'OVERDUE'
