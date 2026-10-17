@@ -176,7 +176,9 @@ export const queryClient = new QueryClient({
       staleTime: 1000 * 60 * 5, // 5 menit - data dianggap fresh
       gcTime: 1000 * 60 * 60 * 24, // 24 jam - garbage collection time
       retry: 2, // Retry 2x jika gagal
-      refetchOnWindowFocus: false, // Mobile tidak punya window focus
+      // "Fokus" = AppState aktif, dihubungkan lewat focusManager di
+      // `queryFocus.ts`: data basi dimuat ulang saat aplikasi dibuka kembali.
+      refetchOnWindowFocus: true,
       refetchOnReconnect: true, // Refetch saat kembali online
       networkMode: "offlineFirst", // Prioritaskan cache saat offline
     },

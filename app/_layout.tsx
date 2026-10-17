@@ -14,6 +14,7 @@ import { useRekonsiliasiTracking } from "@/hooks/useRekonsiliasiTracking";
 import { useDeepLink } from "@/hooks/useDeepLink";
 import { useAuthRedirect } from "@/hooks/useAuthRedirect";
 import { asyncStoragePersister, queryClient } from "@/lib/queryClient";
+import { hubungkanFokusQueryKeAppState } from "@/lib/queryFocus";
 import { errorReportingService } from "@/services/ErrorReportingService";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Slot, useSegments } from "expo-router";
@@ -25,6 +26,8 @@ import { toastConfig } from "@/config/toastConfig";
 
 // Initialize error reporting as early as possible
 errorReportingService.init();
+// Data basi dimuat ulang setiap aplikasi kembali aktif dari latar belakang.
+hubungkanFokusQueryKeAppState();
 
 function RootLayoutNav() {
   const { user, token, isLoading: isAuthLoading } = useAuth();

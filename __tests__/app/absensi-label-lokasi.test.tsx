@@ -82,6 +82,12 @@ jest.mock('@/utils/logger', () => ({
   logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
 
+// Penyegaran status saat layar dibuka memakai useFocusEffect expo-router,
+// yang tidak bisa dimuat di lingkungan test ini.
+jest.mock('@/hooks/useSegarkanStatusAbsen', () => ({
+  useSegarkanStatusAbsen: jest.fn(),
+}));
+
 jest.mock('@/hooks/useFeatureGuard', () => ({ useFeatureGuard: jest.fn() }));
 
 jest.mock('@/constants/features', () => ({ AppFeature: { ABSENSI: 'absensi' } }));

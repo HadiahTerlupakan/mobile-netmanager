@@ -1,3 +1,4 @@
+import { useSegarkanStatusAbsen } from "@/hooks/useSegarkanStatusAbsen";
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { AttendanceSkeleton } from "@/components/molecules/AttendanceSkeleton";
 import LoadingModal from "@/components/molecules/LoadingModal";
@@ -652,6 +653,8 @@ export default function AbsensiScreen() {
     endpoint: "/api/mobile/attendance/status",
     enabled: !!token,
   });
+
+  useSegarkanStatusAbsen();
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

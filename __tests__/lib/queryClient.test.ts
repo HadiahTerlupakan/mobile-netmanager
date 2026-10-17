@@ -360,3 +360,10 @@ describe('queryClient: penolakan server pada mutasi', () => {
     invalidate.mockRestore();
   });
 });
+
+
+describe('queryClient: data dimuat ulang saat aplikasi kembali aktif', () => {
+  it('mengaktifkan refetchOnWindowFocus (fokus = AppState aktif lewat focusManager)', () => {
+    expect(queryClient.getDefaultOptions().queries?.refetchOnWindowFocus).toBe(true);
+  });
+});
