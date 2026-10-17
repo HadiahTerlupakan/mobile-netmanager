@@ -279,3 +279,84 @@ describe('queryClient toast peredam per mutasi (meta.skipGlobalErrorToast)', () 
     expect(mockShowToast).not.toHaveBeenCalled();
   });
 });
+
+
+describe('queryClient: penolakan server pada mutasi', () => {
+  beforeEach(() => {
+    mockShowToast.mockClear();
+    mockCaptureException.mockClear();
+  });
+
+  afterAll(() => {
+    queryClient.clear();
+  });
+
+  const penolakan = (url: string, pesan: string) =>
+    Object.assign(new Error('Request failed with status code 400'), {
+      isAxiosError: true,
+      config: { method: 'post', url },
+      response: { status: 400, data: { error: pesan } },
+    });
+
+  const jalankanMutasiDefault = (galat: unknown) => {
+    const mutation = queryClient.getMutationCache().build(queryClient, {
+      mutationFn: () => Promise.reject(galat),
+      gcTime: 0,
+    });
+    return mutation.execute(undefined);
+  };
+
+  it('menampilkan pesan dari server, bukan "Request failed with status code 400"', async () => {
+    const galat = penolakan('/api/mobile/attendance/check-in', 'Check-in terlalu awal');
+
+    await expect(jalankanMutasiDefault(galat)).rejects.toBe(galat);
+
+    expect(mockShowToast).toHaveBeenCalledWith(
+      'error',
+      'Gagal Menyimpan Perubahan',
+      'Check-in terlalu awal',
+    );
+  });
+
+  it('tidak mengulang mutasi yang ditolak 4xx (cukup satu request)', async () => {
+    let jumlahPanggilan = 0;
+    const galat = penolakan('/api/mobile/attendance/check-out', 'Tidak ada sesi aktif');
+    const mutation = queryClient.getMutationCache().build(queryClient, {
+      mutationFn: () => {
+        jumlahPanggilan += 1;
+        return Promise.reject(galat);
+      },
+      gcTime: 0,
+    });
+
+    await expect(mutation.execute(undefined)).rejects.toBe(galat);
+    expect(jumlahPanggilan).toBe(1);
+  });
+
+  it('melaporkan penolakan sebagai warning lengkap dengan status dan pesan server', async () => {
+    const galat = penolakan('/api/mobile/work-orders/wo-1/update', 'Hanya WO berstatus IN_PROGRESS');
+
+    await expect(jalankanMutasiDefault(galat)).rejects.toBe(galat);
+
+    expect(mockCaptureException).toHaveBeenCalledWith(
+      galat,
+      expect.objectContaining({
+        source: 'mutation',
+        endpoint: '/api/mobile/work-orders/wo-1/update',
+        status: 400,
+        serverMessage: 'Hanya WO berstatus IN_PROGRESS',
+      }),
+      'warning',
+    );
+  });
+
+  it('menyegarkan data WO setelah aksi WO ditolak', async () => {
+    const invalidate = jest.spyOn(queryClient, 'invalidateQueries');
+    const galat = penolakan('/api/mobile/work-orders/wo-1/update', 'Hanya WO berstatus IN_PROGRESS');
+
+    await expect(jalankanMutasiDefault(galat)).rejects.toBe(galat);
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['workOrders'] });
+    invalidate.mockRestore();
+  });
+});

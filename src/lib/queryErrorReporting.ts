@@ -52,8 +52,73 @@ function normalizeEndpoint(url: string): string {
   return absolute ? absolute[1] : withoutQuery;
 }
 
+const SERVER_MESSAGE_MAX_LENGTH = 300;
+const HTTP_CLIENT_ERROR_MIN = 400;
+const HTTP_SERVER_ERROR_MIN = 500;
+const MAX_MUTATION_RETRY = 1;
+
+/** Status penolakan karena keadaan data sudah berubah di server. */
+const STALE_STATE_STATUSES = new Set([400, 409]);
+
 /**
- * Endpoint dan metode yang gagal, untuk melengkapi laporan error.
+ * Akar kunci query yang perlu disegarkan saat aksi pada endpoint ini ditolak:
+ * penolakan seperti "Hanya WO berstatus IN_PROGRESS" atau "tidak ada sesi aktif"
+ * berarti layar menampilkan data basi, jadi tombol aksinya harus diperbarui.
+ */
+const STALE_QUERY_ROOTS_BY_ENDPOINT: { prefix: string; root: readonly string[] }[] = [
+  { prefix: '/api/mobile/work-orders', root: ['workOrders'] },
+  { prefix: '/api/mobile/attendance', root: ['attendance'] },
+];
+
+/** Pesan galat yang dikirim server di body respons (`error` atau `message`). */
+export function getServerErrorMessage(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+  if (!data || typeof data !== 'object') return undefined;
+
+  const { error: errorField, message } = data as { error?: unknown; message?: unknown };
+  const serverMessage = typeof errorField === 'string' ? errorField : message;
+  return typeof serverMessage === 'string' && serverMessage.trim()
+    ? serverMessage.trim()
+    : undefined;
+}
+
+/** 4xx adalah penolakan yang wajar dari server; laporkan sebagai warning. */
+export function getReportSeverity(error: unknown): 'warning' | 'error' {
+  const status = getHttpStatus(error);
+  return status !== undefined &&
+    status >= HTTP_CLIENT_ERROR_MIN &&
+    status < HTTP_SERVER_ERROR_MIN
+    ? 'warning'
+    : 'error';
+}
+
+/**
+ * Mutasi yang ditolak 4xx tidak diulang: server sudah menjawab dan jawabannya
+ * tidak akan berubah. Galat jaringan dan 5xx diulang sekali.
+ */
+export function shouldRetryMutation(failureCount: number, error: unknown): boolean {
+  if (getReportSeverity(error) === 'warning') return false;
+  return failureCount < MAX_MUTATION_RETRY;
+}
+
+/** Akar kunci query yang basi setelah aksi ditolak server. */
+export function getStaleQueryRootsAfterRejection(error: unknown): (readonly string[])[] {
+  const status = getHttpStatus(error);
+  if (status === undefined || !STALE_STATE_STATUSES.has(status)) return [];
+
+  const { endpoint } = describeFailedRequest(error);
+  if (!endpoint) return [];
+
+  return STALE_QUERY_ROOTS_BY_ENDPOINT.filter(({ prefix }) =>
+    endpoint.startsWith(prefix),
+  ).map(({ root }) => root);
+}
+
+/**
+ * Endpoint, metode, status, dan pesan server dari request yang gagal, untuk
+ * melengkapi laporan error.
  *
  * Query string dibuang supaya laporan bisa dikelompokkan: tanpa itu setiap id
  * dan setiap kata pencarian menghasilkan endpoint yang berbeda.
@@ -61,6 +126,8 @@ function normalizeEndpoint(url: string): string {
 export function describeFailedRequest(error: unknown): {
   method?: string;
   endpoint?: string;
+  status?: number;
+  serverMessage?: string;
 } {
   if (!error || typeof error !== 'object') return {};
 
@@ -68,12 +135,23 @@ export function describeFailedRequest(error: unknown): {
     .config;
   if (!config) return {};
 
-  const described: { method?: string; endpoint?: string } = {};
+  const described: {
+    method?: string;
+    endpoint?: string;
+    status?: number;
+    serverMessage?: string;
+  } = {};
   if (typeof config.method === 'string') {
     described.method = config.method.toUpperCase();
   }
   if (typeof config.url === 'string') {
     described.endpoint = normalizeEndpoint(config.url);
+  }
+  const status = getHttpStatus(error);
+  if (status !== undefined) described.status = status;
+  const serverMessage = getServerErrorMessage(error);
+  if (serverMessage) {
+    described.serverMessage = serverMessage.slice(0, SERVER_MESSAGE_MAX_LENGTH);
   }
 
   return described;

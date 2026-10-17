@@ -178,8 +178,13 @@ class ErrorReportingService {
    * Capture an exception and log it
    * @param error The error object to capture
    * @param context Optional context data to attach
+   * @param severity Tingkat laporan; penolakan 4xx dikirim sebagai warning
    */
-  captureException(error: Error, context?: ErrorContext) {
+  captureException(
+    error: Error,
+    context?: ErrorContext,
+    severity: BackendErrorReportPayload['severity'] = 'error',
+  ) {
     try {
       logger.error('[ErrorReporting] Exception:', error);
       logger.error('[ErrorReporting] Context:', {
@@ -187,7 +192,7 @@ class ErrorReportingService {
         ...(context ? { context } : {}),
       });
       void this.sendToBackend(
-        this.buildPayload(error.message, 'exception', 'error', context, error.stack)
+        this.buildPayload(error.message, 'exception', severity, context, error.stack)
       );
     } catch (err) {
       logger.error('[ErrorReporting] Failed to capture exception:', err);

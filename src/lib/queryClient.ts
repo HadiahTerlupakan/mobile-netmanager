@@ -9,7 +9,11 @@
 import {
   describeFailedRequest,
   getHttpStatus,
+  getReportSeverity,
+  getServerErrorMessage,
+  getStaleQueryRootsAfterRejection,
   shouldReportToBackend,
+  shouldRetryMutation,
 } from "@/lib/queryErrorReporting";
 import { errorReportingService } from "@/services/ErrorReportingService";
 import { logger } from "@/utils/logger";
@@ -95,6 +99,7 @@ const showFailureToast = (
   const normalized = normalizeQueryError(error);
   const message =
     (status !== undefined ? TOAST_MESSAGE_BY_STATUS[status] : undefined) ??
+    getServerErrorMessage(error) ??
     normalized.message ??
     fallbackMessage;
 
@@ -140,11 +145,21 @@ export const queryClient = new QueryClient({
       // endpoint yang gagal diambil dari error-nya sendiri supaya laporan
       // tetap bisa ditelusuri ke sumbernya.
       if (shouldReportToBackend(error)) {
-        errorReportingService.captureException(normalizedError, {
-          source: "mutation",
-          mutationKey,
-          ...describeFailedRequest(error),
-        });
+        errorReportingService.captureException(
+          normalizedError,
+          {
+            source: "mutation",
+            mutationKey,
+            ...describeFailedRequest(error),
+          },
+          getReportSeverity(error),
+        );
+      }
+
+      // Penolakan karena status sudah berubah di server berarti layar basi:
+      // segarkan datanya agar tombol aksi mengikuti keadaan terbaru.
+      for (const queryKey of getStaleQueryRootsAfterRejection(error)) {
+        void queryClient.invalidateQueries({ queryKey });
       }
 
       if (isToastGlobalDiredamMutasi(mutation.options.meta)) return;
@@ -166,7 +181,7 @@ export const queryClient = new QueryClient({
       networkMode: "offlineFirst", // Prioritaskan cache saat offline
     },
     mutations: {
-      retry: 1,
+      retry: shouldRetryMutation,
       networkMode: "offlineFirst",
     },
   },
