@@ -11,11 +11,27 @@ import { isAxiosError } from 'axios';
 import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { Storage } from '@/utils/storage';
 import { calculateDistance } from '@/utils/geo';
-import { getLocationConfig } from './locationTrackingConfig';
+import { buildLocationTaskOptions, getLocationConfig } from './locationTrackingConfig';
+import {
+    catatKonfigurasiTerpasang,
+    lupakanKonfigurasiTerpasang,
+    sesuaikanKonfigurasi,
+} from './locationTrackingAdaptive';
+import {
+    STORAGE_KEY_PENDING,
+    bacaAntrean,
+    buangDariAntrean,
+    tambahKeAntrean,
+} from './locationPendingQueue';
+import {
+    bacaLevelBaterai,
+    keDataLokasi,
+    pisahkanTitikTerbaru,
+    type LocationData,
+} from './locationSample';
 import { isSesiTrackingKedaluwarsa } from './batasSesiTracking';
 import { RefreshTokenService } from './RefreshTokenService';
 import { TokenService } from './TokenService';
-import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import * as SecureStore from 'expo-secure-store';
 import * as TaskManager from 'expo-task-manager';
@@ -31,10 +47,15 @@ import api from './api';
 const TASK_NAME = 'BACKGROUND_LOCATION_TASK';
 const STORAGE_KEY_TRACKING = '@location_tracking_enabled';
 const STORAGE_KEY_TOKEN = 'session_token'; // Must match AuthContext key
-const STORAGE_KEY_PENDING = '@pending_locations';
 const STORAGE_KEY_LAST_SENT = '@last_sent_location'; // New key for movement check
 const STORAGE_KEY_STARTED_AT = '@location_tracking_started_at';
 const HTTP_UNAUTHORIZED = 401;
+/**
+ * Penolakan isi antrean itu sendiri (validasi). 403/404/413 sengaja tidak
+ * masuk: itu bisa datang dari proxy atau deploy setengah jadi, dan membuang
+ * antrean karenanya menghapus jejak yang sebenarnya sah.
+ */
+const STATUS_ISI_DITOLAK = new Set([400, 422]);
 
 /**
  * Token sesi untuk request tracking. Task background bisa berjalan tanpa
@@ -77,6 +98,16 @@ function isTidakTerautentikasi(error: unknown): boolean {
 }
 
 /**
+ * Server menolak isi antrean secara permanen. Mengirim ulang isi yang sama
+ * tidak akan pernah berhasil, dan tanpa ini satu titik cacat menahan seluruh
+ * antrean selamanya.
+ */
+function isDitolakPermanen(error: unknown): boolean {
+    const status = isAxiosError(error) ? error.response?.status : undefined;
+    return status !== undefined && STATUS_ISI_DITOLAK.has(status);
+}
+
+/**
  * Kirim request tracking; bila token kedaluwarsa (401) coba refresh sekali.
  * Mengembalikan null bila sesi login sudah tidak berlaku.
  */
@@ -91,21 +122,9 @@ async function kirimDenganSesi<T>(kirim: () => Promise<T>): Promise<T | null> {
     }
 }
 
-interface LocationData {
-    latitude: number;
-    longitude: number;
-    accuracy: number | null;
-    altitude: number | null;
-    speed: number | null;
-    heading: number | null;
-    batteryLevel?: number;
-    isMoving?: boolean;
-    recordedAt: string;
-}
-
-
 export class LocationTrackingService {
     private static initialPushTimer: ReturnType<typeof setTimeout> | null = null;
+    private static sedangSinkron = false;
 
     /**
      * Start background location tracking
@@ -148,16 +167,10 @@ export class LocationTrackingService {
             }
 
             // Check Battery & Movement for Adaptive Interval
-            let batteryLevel = 1.0;
+            const batteryLevel = (await bacaLevelBaterai()) ?? 1.0;
             let isMoving = false;
 
             try {
-                // Race condition protection for battery check
-                batteryLevel = await Promise.race([
-                    Battery.getBatteryLevelAsync(),
-                    new Promise<number>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
-                ]) as number;
-
                 // Check last known movement state
                 const lastSentStr = await Storage.getItem(STORAGE_KEY_LAST_SENT);
                 if (lastSentStr) {
@@ -165,13 +178,14 @@ export class LocationTrackingService {
                     isMoving = lastSent.isMoving || false;
                 }
             } catch (e) {
-                logger.warn('[LocationTracking] Battery/movement check failed, using defaults', e);
+                logger.warn('[LocationTracking] Movement check failed, using defaults', e);
             }
 
             // Get adaptive config
             const config = __DEV__
                 ? { timeInterval: 60000, distanceInterval: 20, accuracy: Location.Accuracy.Balanced } // DEV: 1 min
                 : getLocationConfig(batteryLevel, isMoving);
+            const taskOptions = buildLocationTaskOptions(config);
 
             logger.info(`[LocationTracking] Config: Battery ${(batteryLevel * 100).toFixed(0)}%, Moving: ${isMoving}, Interval: ${config.timeInterval / 60000}m`);
 
@@ -180,25 +194,13 @@ export class LocationTrackingService {
             if (isTracking) {
                 try {
                     // Update options if already running (re-registering updates options)
-                    await Location.startLocationUpdatesAsync(TASK_NAME, {
-                        accuracy: config.accuracy,
-                        timeInterval: config.timeInterval,
-                        distanceInterval: config.distanceInterval,
-                        deferredUpdatesInterval: __DEV__ ? 30000 : 15 * 60 * 1000,
-                        foregroundService: {
-                            notificationTitle: 'RADPRO sedang melacak lokasi Anda',
-                            notificationBody: 'Pelacakan aktif selama jam kerja. Berhenti otomatis saat check-out.',
-                            notificationColor: '#0a46aa'
-                        },
-                        pausesUpdatesAutomatically: true,
-                        showsBackgroundLocationIndicator: false,
-                        activityType: Location.ActivityType.AutomotiveNavigation
-                    });
+                    await Location.startLocationUpdatesAsync(TASK_NAME, taskOptions);
+                    await catatKonfigurasiTerpasang(config);
 
                     const current = await this.getCurrentPosition();
                     if (current) {
                         logger.info('[LocationTracking] Tracking updated. Current loc:', current.latitude, current.longitude);
-                        await this.sendLocation(current);
+                        await this.kirimTitikAwal(current);
                         return true;
                     }
                 } catch (e) {
@@ -215,20 +217,8 @@ export class LocationTrackingService {
             // Start location updates with adaptive options
             logger.info(`[LocationTracking] Starting updates...`);
             try {
-                await Location.startLocationUpdatesAsync(TASK_NAME, {
-                    accuracy: config.accuracy,
-                    timeInterval: config.timeInterval,
-                    distanceInterval: config.distanceInterval,
-                    deferredUpdatesInterval: __DEV__ ? 30000 : 15 * 60 * 1000,
-                    foregroundService: {
-                        notificationTitle: 'RADPRO sedang melacak lokasi Anda',
-                        notificationBody: 'Pelacakan aktif selama jam kerja. Berhenti otomatis saat check-out.',
-                        notificationColor: '#0a46aa'
-                    },
-                    pausesUpdatesAutomatically: false, // Don't let OS pause tracking
-                    showsBackgroundLocationIndicator: true, // iOS: Show blue bar to indicate active tracking
-                    activityType: Location.ActivityType.OtherNavigation
-                });
+                await Location.startLocationUpdatesAsync(TASK_NAME, taskOptions);
+                await catatKonfigurasiTerpasang(config);
             } catch (error) {
                 if (__DEV__) {
                     logger.warn('[LocationTracking] Background updates failed start (ignoring in DEV):', error);
@@ -248,10 +238,7 @@ export class LocationTrackingService {
                     const initialLoc = await this.getCurrentPosition();
                     if (initialLoc) {
                         logger.info('[LocationTracking] Initial location sent');
-                        const sent = await this.sendLocation(initialLoc);
-                        if (sent !== false) {
-                            await Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(initialLoc));
-                        }
+                        await this.kirimTitikAwal(initialLoc);
                     }
                 } catch (e) {
                     logger.warn('[LocationTracking] Initial location force-push failed:', e);
@@ -286,6 +273,7 @@ export class LocationTrackingService {
             await Storage.setItem(STORAGE_KEY_TRACKING, 'false');
             await Storage.removeItem(STORAGE_KEY_LAST_SENT); // Clear session data
             await Storage.removeItem(STORAGE_KEY_STARTED_AT);
+            await lupakanKonfigurasiTerpasang();
             logger.info('[LocationTracking] Stopped tracking');
         } catch (error) {
             logger.error('[LocationTracking] Stop tracking cleanup failed:', error);
@@ -377,6 +365,8 @@ export class LocationTrackingService {
                 return false;
             }
 
+            // Sinyal kembali: kirim juga titik yang tertahan selama offline.
+            await this.syncPendingLocations();
             return true;
 
             } catch (error) {
@@ -397,49 +387,51 @@ export class LocationTrackingService {
     }
 
     /**
+     * Kirim titik pertama sebuah sesi, lalu jadikan acuan penyaring jarak.
+     */
+    private static async kirimTitikAwal(locationData: LocationData): Promise<void> {
+        const sent = await this.sendLocation(locationData);
+        if (sent !== false) {
+            await Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(locationData));
+        }
+    }
+
+    /**
      * Save location to pending queue when offline
      */
     static async savePendingLocation(locationData: LocationData): Promise<void> {
-        try {
-            const pending = await this.getPendingLocations();
-            pending.push(locationData);
-
-            // Keep only last 100 locations to prevent storage overflow
-            if (pending.length > 100) {
-                pending.shift();
-            }
-
-            await Storage.setItem(STORAGE_KEY_PENDING, JSON.stringify(pending));
-        } catch (error) {
-            logger.error('[LocationTracking] Failed to save pending location:', error);
-        }
+        await tambahKeAntrean([locationData]);
     }
 
     /**
      * Get pending locations
      */
     static async getPendingLocations(): Promise<LocationData[]> {
-        try {
-            const data = await Storage.getItem(STORAGE_KEY_PENDING);
-            return data ? JSON.parse(data) : [];
-        } catch (error) {
-            logger.error('[LocationTracking] Failed to read pending locations:', error);
-            return [];
-        }
+        return bacaAntrean();
     }
 
     /**
-     * Sync pending locations to server
-     * Called when app comes online
+     * Kirim antrean lokasi offline. Dipanggil sesudah satu titik berhasil
+     * terkirim dan setiap aplikasi kembali aktif; dulu tidak dipanggil di mana
+     * pun, sehingga jejak dari area tanpa sinyal tidak pernah sampai ke server.
+     * Mengembalikan jumlah titik yang keluar dari antrean.
      */
     static async syncPendingLocations(): Promise<number> {
+        if (this.sedangSinkron) return 0;
+        this.sedangSinkron = true;
         try {
-            const pending = await this.getPendingLocations();
-            if (pending.length === 0) return 0;
+            return await this.kirimAntrean();
+        } finally {
+            this.sedangSinkron = false;
+        }
+    }
 
-            const token = await ambilTokenSesi();
-            if (!token) return 0;
+    private static async kirimAntrean(): Promise<number> {
+        const pending = await this.getPendingLocations();
+        if (pending.length === 0) return 0;
+        if (!(await ambilTokenSesi())) return 0;
 
+        try {
             const response = await kirimDenganSesi(() =>
                 api.post(`/api/mobile/location`, { locations: pending }, {
                     headers: { 'Content-Type': 'application/json' },
@@ -448,16 +440,17 @@ export class LocationTrackingService {
                 })
             );
             if (!response) return 0;
-
-            // Clear pending queue
-            await Storage.removeItem(STORAGE_KEY_PENDING);
-            logger.info(`[LocationTracking] Synced ${pending.length} pending locations`);
-            return pending.length;
-
         } catch (error) {
-            logger.error('[LocationTracking] Failed to sync pending locations:', error);
-            return 0;
+            if (!isDitolakPermanen(error)) {
+                logger.error('[LocationTracking] Failed to sync pending locations:', error);
+                return 0;
+            }
+            logger.warn('[LocationTracking] Server menolak antrean lokasi, dibuang:', error);
         }
+
+        await buangDariAntrean(pending);
+        logger.info(`[LocationTracking] Synced ${pending.length} pending locations`);
+        return pending.length;
     }
 
     /**
@@ -469,15 +462,7 @@ export class LocationTrackingService {
                 accuracy: Location.Accuracy.Balanced
             });
 
-            return {
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-                accuracy: location.coords.accuracy,
-                altitude: location.coords.altitude,
-                speed: location.coords.speed,
-                heading: location.coords.heading,
-                recordedAt: new Date(location.timestamp).toISOString()
-            };
+            return keDataLokasi(location, await bacaLevelBaterai());
         } catch (error) {
             logger.warn('[LocationTracking] Failed to get current position:', error);
 
@@ -498,7 +483,55 @@ export class LocationTrackingService {
     }
 }
 
-// Define background task
+/** Perpindahan minimum sebelum titik baru dikirim. */
+const JARAK_MINIMUM_M = 20;
+
+/** HP yang diam tetap mengirim posisi sesering ini, agar peta tahu ia masih aktif. */
+const INTERVAL_HEARTBEAT_MS = 30 * 60 * 1000;
+
+async function bacaTitikTerakhir(): Promise<LocationData | null> {
+    try {
+        const tersimpan = await Storage.getItem(STORAGE_KEY_LAST_SENT);
+        return tersimpan ? JSON.parse(tersimpan) : null;
+    } catch (e) {
+        logger.warn('Failed to read last sent location:', e);
+        return null;
+    }
+}
+
+/** Kirim bila sudah berpindah cukup jauh, atau sebagai heartbeat bila lama diam. */
+function harusDikirim(lastSent: LocationData | null, location: Location.LocationObject): boolean {
+    if (!lastSent) return true;
+    const distance = calculateDistance(
+        lastSent.latitude,
+        lastSent.longitude,
+        location.coords.latitude,
+        location.coords.longitude
+    );
+    const timeSinceLast = Date.now() - new Date(lastSent.recordedAt).getTime();
+    logger.info(`[LocationTracking] Distance from last: ${distance.toFixed(1)}m, Time: ${(timeSinceLast / 60000).toFixed(1)}min`);
+    return distance >= JARAK_MINIMUM_M || timeSinceLast >= INTERVAL_HEARTBEAT_MS;
+}
+
+async function prosesTitikDariOs(locations: Location.LocationObject[]): Promise<void> {
+    const { terbaru, sebelumnya } = pisahkanTitikTerbaru(locations);
+    if (!terbaru) return;
+    const batteryLevel = await bacaLevelBaterai();
+    const locationData = keDataLokasi(terbaru, batteryLevel);
+
+    // Titik lama di batch tetap jejak perjalanan; dikirim lewat antrean.
+    if (sebelumnya.length > 0) {
+        await tambahKeAntrean(sebelumnya.map((titik) => keDataLokasi(titik, batteryLevel)));
+    }
+    if (harusDikirim(await bacaTitikTerakhir(), terbaru)) {
+        const sent = await LocationTrackingService.sendLocation(locationData);
+        // Tracking sudah dihentikan: jangan sampai penyesuaian di bawah memulainya lagi.
+        if (!sent) return;
+        await Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(locationData));
+    }
+    await sesuaikanKonfigurasi(TASK_NAME, { batteryLevel, isMoving: locationData.isMoving ?? false });
+}
+
 TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManagerTaskBody<{ locations: Location.LocationObject[] }>) => {
     const timestamp = new Date().toISOString();
     logger.info(`[LocationTracking][${timestamp}] Background task triggered`);
@@ -518,91 +551,7 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }: TaskManager.TaskManage
 
     if (await LocationTrackingService.hentikanBilaLewatBatas()) return;
 
-    if (data) {
-        const { locations } = data as { locations: Location.LocationObject[] };
-        logger.info(`[LocationTracking][${timestamp}] Received ${locations?.length || 0} locations from OS`);
-
-        if (locations && locations.length > 0) {
-            const location = locations[0];
-
-            // Get battery level for monitoring
-            let batteryLevel: number | undefined;
-            try {
-                // Race condition protection
-                batteryLevel = await Promise.race([
-                    Battery.getBatteryLevelAsync(),
-                    new Promise<number>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
-                ]) as number;
-                logger.info(`[LocationTracking][${timestamp}] Battery level: ${(batteryLevel * 100).toFixed(0)}%`);
-            } catch (e) {
-                logger.warn(`[LocationTracking][${timestamp}] Failed to get battery level:`, e);
-            }
-
-            // --- MOVEMENT CHECK LOGIC START ---
-            let shouldSend = true;
-            let lastSent: LocationData | null = null;
-
-            try {
-                const lastSentStr = await Storage.getItem(STORAGE_KEY_LAST_SENT);
-                if (lastSentStr) {
-                    lastSent = JSON.parse(lastSentStr);
-                }
-            } catch (e) {
-                logger.warn('Failed to read last sent location:', e);
-            }
-
-            if (lastSent) {
-                const distance = calculateDistance(
-                    lastSent.latitude,
-                    lastSent.longitude,
-                    location.coords.latitude,
-                    location.coords.longitude
-                );
-
-                const timeSinceLast = new Date().getTime() - new Date(lastSent.recordedAt).getTime();
-                const MIN_DISTANCE_METERS = 20; // 20 meters threshold
-                const HEARTBEAT_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-
-                logger.info(`[LocationTracking] Distance from last: ${distance.toFixed(1)}m, Time: ${(timeSinceLast / 60000).toFixed(1)}min`);
-
-                if (distance < MIN_DISTANCE_METERS) {
-                    // User hasn't moved enough
-                    if (timeSinceLast < HEARTBEAT_INTERVAL_MS) {
-                        shouldSend = false;
-                        logger.info(`[LocationTracking] SKIPPING UPDATE: Moved only ${distance.toFixed(1)}m (Threshold: ${MIN_DISTANCE_METERS}m)`);
-                    } else {
-                        logger.info(`[LocationTracking] SENDING HEARTBEAT: Stationary but interval > 30mins`);
-                    }
-                }
-            }
-            // --- MOVEMENT CHECK LOGIC END ---
-
-            if (shouldSend) {
-                // Detect movement: speed > 0.5 m/s = ~1.8 km/h (walking pace)
-                const isMoving = location.coords.speed !== null && location.coords.speed > 0.5;
-
-                const locationData: LocationData = {
-                    latitude: location.coords.latitude,
-                    longitude: location.coords.longitude,
-                    accuracy: location.coords.accuracy,
-                    altitude: location.coords.altitude,
-                    speed: location.coords.speed,
-                    heading: location.coords.heading,
-                    batteryLevel,
-                    isMoving,
-                    recordedAt: new Date(location.timestamp).toISOString()
-                };
-
-                logger.info(`[LocationTracking][${timestamp}] Sending location to server`);
-                const sent = await LocationTrackingService.sendLocation(locationData);
-
-                // If sent (or saved to queue), update last sent reference
-                if (sent !== false) {
-                    await Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(locationData));
-                }
-            }
-        }
-    } else {
-        logger.info(`[LocationTracking][${timestamp}] No location data in callback`);
-    }
+    const locations = data?.locations ?? [];
+    logger.info(`[LocationTracking][${timestamp}] Received ${locations.length} locations from OS`);
+    await prosesTitikDariOs(locations);
 });

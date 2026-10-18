@@ -11,7 +11,8 @@ import { logger } from '@/utils/logger';
 const ENDPOINT_STATUS_ABSEN = '/api/mobile/attendance/status';
 
 /**
- * Matikan pelacakan yang tidak lagi beralasan, setiap aplikasi dibuka.
+ * Matikan pelacakan yang tidak lagi beralasan, setiap aplikasi dibuka, dan
+ * kirim antrean lokasi offline yang masih tertahan.
  *
  * Notifikasi "sedang melacak lokasi" bertahan selama layanan lokasi hidup,
  * termasuk saat aplikasi ditutup. Ketika itu terjadi, satu-satunya JS yang
@@ -33,6 +34,10 @@ export function useRekonsiliasiTracking() {
             if (sedangMemeriksa.current) return;
             sedangMemeriksa.current = true;
             try {
+                // Antrean offline dikirim juga sesudah check-out: tanpa titik
+                // baru, tidak ada pengiriman sukses lain yang memicunya.
+                void LocationTrackingService.syncPendingLocations();
+
                 // Murah lebih dulu: tanpa pelacakan aktif, tidak ada yang perlu
                 // dicocokkan dan server tidak perlu ditanya sama sekali.
                 const sedangMelacak = await LocationTrackingService.isTrackingActive();

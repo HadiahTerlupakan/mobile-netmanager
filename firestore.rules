@@ -36,8 +36,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Kanal `location:<tenantId>` membawa jejak posisi karyawan; tanpa syarat
+    // tenant, admin tenant mana pun bisa mendengarkan tenant lain.
+    function isOwnLocationChannel(scope) {
+      return !scope.matches('location:.*') ||
+        isSuperAdmin() ||
+        scope == 'location:' + request.auth.token.tenantId;
+    }
+
     match /admins/{scope}/events/{eventId} {
-      allow read: if canAccessAdminPanel();
+      allow read: if canAccessAdminPanel() && isOwnLocationChannel(scope);
       allow write: if false;
     }
 
