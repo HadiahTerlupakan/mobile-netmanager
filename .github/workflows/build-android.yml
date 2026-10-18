@@ -503,7 +503,8 @@ jobs:
           GOOGLE_PLAY_SERVICE_ACCOUNT_JSON="$(printf '%s' "${PLAY_SA_BASE64}" | base64 -d)"
           export GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
           VERSION_NAME="$(node -p 'require("./app.json").expo.version')"
-          node scripts/play-internal.js upload "${AAB_PATH}" "${RADPRO_VERSION_CODE}" "${VERSION_NAME} (${RADPRO_VERSION_CODE})"
+          node scripts/play-internal.js upload "${AAB_PATH}" "${RADPRO_VERSION_CODE}" "${VERSION_NAME} (${RADPRO_VERSION_CODE})" \
+            android/app/build/outputs/mapping/release/mapping.txt
           echo "::notice::versionCode ${RADPRO_VERSION_CODE} terbit di track internal. Uji di perangkat, lalu promosikan ke produksi lewat Play Console."
 
       # Catatan ini yang dibaca workflow OTA: runtime tujuan, dan kapan harus

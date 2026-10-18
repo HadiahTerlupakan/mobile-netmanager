@@ -8,6 +8,7 @@ const {
   validasiPromosi,
   peringatanProduction,
   buildServiceAccountJwt,
+  urlDeobfuscation,
 } = require('../../scripts/play-internal.js');
 
 /**
@@ -48,6 +49,16 @@ describe('rilis track internal', () => {
     // Promosi ke produksi sengaja manual lewat Play Console.
     expect(JSON.stringify(buildInternalTrack({ versionCode: 47, releaseName: 'x' }))).not.toContain(
       'production'
+    );
+  });
+});
+
+describe('berkas deobfuscation R8', () => {
+  // Tanpa mapping, Play Console hanya menampilkan nama hasil R8 seperti
+  // "Hb.j.b" dan crash-nya tidak bisa ditelusuri.
+  it('diunggah ke versionCode yang sama dengan AAB-nya', () => {
+    expect(urlDeobfuscation('edit-1', 49)).toBe(
+      'https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications/com.netmanager.mobile/edits/edit-1/apks/49/deobfuscationFiles/proguard?uploadType=media',
     );
   });
 });

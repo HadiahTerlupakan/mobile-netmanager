@@ -12,7 +12,7 @@
  *
  * Pemakaian:
  *   node scripts/play-internal.js next-version-code [override]
- *   node scripts/play-internal.js upload <aab> <versionCode> <releaseName>
+ *   node scripts/play-internal.js upload <aab> <versionCode> <releaseName> [mapping.txt]
  *   node scripts/play-internal.js promote <versionCode> <targetOtaVersionCode> <catatanRilis>
  *   node scripts/play-internal.js status-production <targetOtaVersionCode>
  */
@@ -49,6 +49,11 @@ function nextVersionCode(bundles, override) {
     );
   }
   return angka;
+}
+
+/** Alamat unggah mapping R8 untuk satu versionCode di dalam edit. */
+function urlDeobfuscation(editId, versionCode) {
+  return `${UPLOAD_API}/edits/${editId}/apks/${versionCode}/deobfuscationFiles/proguard?uploadType=media`;
 }
 
 /** Isi tracks.update untuk merilis satu versionCode ke track internal. */
@@ -179,7 +184,7 @@ async function perintahNextVersionCode(override) {
   process.stdout.write(String(angka));
 }
 
-async function perintahUpload(jalurAab, versionCode, releaseName) {
+async function perintahUpload(jalurAab, versionCode, releaseName, jalurMapping) {
   if (!fs.existsSync(jalurAab)) throw new Error(`AAB tidak ditemukan: ${jalurAab}`);
   const header = await aksesToken(bacaServiceAccount());
 
@@ -197,6 +202,20 @@ async function perintahUpload(jalurAab, versionCode, releaseName) {
     // diminta, prebuild tidak menulis angka yang benar dan rilis dihentikan.
     if (String(bundle.versionCode) !== String(versionCode)) {
       throw new Error(`Play membaca versionCode ${bundle.versionCode}, diharapkan ${versionCode}`);
+    }
+
+    // Tanpa mapping, crash di Play Console hanya bernama hasil R8 ("Hb.j.b").
+    // Gagal mengunggahnya tidak boleh menahan rilis.
+    if (jalurMapping && fs.existsSync(jalurMapping)) {
+      try {
+        await mintaJson(urlDeobfuscation(editId, versionCode), {
+          method: "POST",
+          headers: { ...header, "content-type": "application/octet-stream" },
+          body: fs.readFileSync(jalurMapping),
+        });
+      } catch (galat) {
+        process.stderr.write(`::warning::Mapping R8 gagal diunggah: ${galat.message}\n`);
+      }
     }
 
     await mintaJson(`${API}/edits/${editId}/tracks/internal`, {
@@ -259,11 +278,11 @@ async function perintahStatusProduction(versionCodeTargetOta) {
 async function main() {
   const [perintah, ...arg] = process.argv.slice(2);
   if (perintah === "next-version-code") return perintahNextVersionCode(arg[0]);
-  if (perintah === "upload") return perintahUpload(arg[0], arg[1], arg[2]);
+  if (perintah === "upload") return perintahUpload(arg[0], arg[1], arg[2], arg[3]);
   if (perintah === "promote") return perintahPromote(arg[0], arg[1], arg[2]);
   if (perintah === "status-production") return perintahStatusProduction(arg[0]);
   throw new Error(
-    "Perintah: next-version-code [override] | upload <aab> <versionCode> <releaseName> | promote <versionCode> <targetOta> <catatan>",
+    "Perintah: next-version-code [override] | upload <aab> <versionCode> <releaseName> [mapping.txt] | promote <versionCode> <targetOta> <catatan>",
   );
 }
 
@@ -282,4 +301,5 @@ module.exports = {
   validasiPromosi,
   peringatanProduction,
   buildServiceAccountJwt,
+  urlDeobfuscation,
 };
