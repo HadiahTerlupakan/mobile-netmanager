@@ -58,6 +58,18 @@ jest.mock('@/services/LocationTrackingService', () => ({
   },
 }));
 
+// Kesiapan tracking punya tesnya sendiri; di sini HP dianggap siap.
+jest.mock('@/services/penjagaTracking', () => ({
+  gerbangCheckIn: jest.fn(async () => true),
+  pulihkanTrackingSesi: jest.fn(async () => undefined),
+}));
+
+jest.mock('@/services/kesiapanTracking', () => ({
+  periksaKesiapanTracking: jest.fn(async () => null),
+  laporStatusTracking: jest.fn(async () => undefined),
+  STATUS_SERVER_KENDALA: {},
+}));
+
 jest.mock('@/services/SyncService', () => ({
   SyncService: {
     isOnline: () => mockSyncIsOnline(),

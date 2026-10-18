@@ -7,7 +7,7 @@ import { presentForegroundNotification } from '@/services/ForegroundNotification
 import { errorReportingService } from '@/services/ErrorReportingService';
 import { presentInfoMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
-import { AWALAN_RUTE_INVESTOR, isRuteNotifikasiDikenal } from '@/utils/ruteNotifikasi';
+import { AWALAN_RUTE_INVESTOR, isRuteNotifikasiDikenal, petakanRuteNotifikasi } from '@/utils/ruteNotifikasi';
 import notifee, { EventType } from '@notifee/react-native';
 import { Href, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef } from 'react';
@@ -53,7 +53,7 @@ export function useNotificationSetup() {
       if (!data?.url) return;
 
       try {
-        const url = data.url;
+        const url = petakanRuteNotifikasi(data.url);
         if (isRuteNotifikasiDikenal(url)) {
           router.push(url as Href);
         } else {

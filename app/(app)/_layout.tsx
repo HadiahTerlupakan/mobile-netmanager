@@ -17,6 +17,7 @@ import tw from "twrnc";
 import { FaceVerificationModal } from '@/components/organisms/FaceVerificationModal';
 import { PermintaanIzinNotifikasi } from '@/components/organisms/notifikasi/PermintaanIzinNotifikasi';
 import { LocationDisclosureProvider } from '@/components/providers/LocationDisclosureProvider';
+import { PeringatanTrackingProvider } from '@/components/providers/PeringatanTrackingProvider';
 import { MitraSalesTabBar } from '@/components/organisms/navigation/MitraSalesTabBar';
 import { MitraTeknisiTabBar } from '@/components/organisms/navigation/MitraTeknisiTabBar';
 import { KaryawanSalesTabBar } from '@/components/organisms/navigation/KaryawanSalesTabBar';
@@ -173,6 +174,7 @@ export default function AppLayout() {
 
   return (
     <LocationDisclosureProvider>
+    <PeringatanTrackingProvider>
       <Fragment>
         <FaceVerificationModal
           visible={showFaceVerification}
@@ -322,6 +324,7 @@ export default function AppLayout() {
       {/* Announcement Popup - shows after login */}
       {/* <AnnouncementPopup /> */}
       </Fragment>
+    </PeringatanTrackingProvider>
     </LocationDisclosureProvider>
   );
 }

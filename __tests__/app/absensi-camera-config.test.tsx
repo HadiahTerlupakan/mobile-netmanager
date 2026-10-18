@@ -49,6 +49,20 @@ jest.mock('@/services/LocationTrackingService', () => ({
   },
 }));
 
+const mockGerbangCheckIn = jest.fn(async () => true);
+const mockPeriksaKesiapan = jest.fn(async (): Promise<string | null> => null);
+
+jest.mock('@/services/penjagaTracking', () => ({
+  gerbangCheckIn: () => mockGerbangCheckIn(),
+  pulihkanTrackingSesi: jest.fn(async () => undefined),
+}));
+
+jest.mock('@/services/kesiapanTracking', () => ({
+  periksaKesiapanTracking: () => mockPeriksaKesiapan(),
+  laporStatusTracking: jest.fn(async () => undefined),
+  STATUS_SERVER_KENDALA: { 'izin-latar': 'BACKGROUND_DENIED' },
+}));
+
 jest.mock('@/services/SyncService', () => ({
   SyncService: {
     isOnline: jest.fn(async () => true),
@@ -223,6 +237,8 @@ describe('absensi camera configuration', () => {
       refetch: jest.fn(),
     };
 
+    mockGerbangCheckIn.mockResolvedValue(true);
+    mockPeriksaKesiapan.mockResolvedValue(null);
     mockUseCameraFormat.mockReturnValue({ id: 'stable-format' });
     mockUseApiQuery.mockImplementation((options: any) => {
       if (options?.endpoint === '/api/mobile/attendance/geofence') {
@@ -260,5 +276,26 @@ describe('absensi camera configuration', () => {
         lowLightBoost: true,
       }),
     );
+  });
+
+  it('kamera check-in tidak terbuka selama tracking lokasi belum siap', async () => {
+    mockGerbangCheckIn.mockResolvedValue(false);
+    const AbsensiScreen = require('../../app/(app)/absensi').default;
+    const { getByText } = render(<AbsensiScreen />);
+
+    fireEvent.press(getByText('Ambil Foto Masuk'));
+
+    await waitFor(() => expect(mockGerbangCheckIn).toHaveBeenCalled());
+    expect(mockCameraView).not.toHaveBeenCalled();
+  });
+
+  it('menampilkan peringatan selama izin lokasi sepanjang waktu belum aktif', async () => {
+    mockPeriksaKesiapan.mockResolvedValue('izin-latar');
+    const AbsensiScreen = require('../../app/(app)/absensi').default;
+    const { findByText } = render(<AbsensiScreen />);
+
+    expect(
+      await findByText('Tracking lokasi belum aktif — check-in tidak bisa dilakukan.'),
+    ).toBeTruthy();
   });
 });

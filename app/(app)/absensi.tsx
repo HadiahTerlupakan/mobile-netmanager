@@ -9,6 +9,14 @@ import {
 import { useAttendanceSubmission } from "@/hooks/useAttendanceSubmission";
 import { queryKeys } from "@/lib/queryClient";
 import { LocationTrackingService } from "@/services/LocationTrackingService";
+import { gerbangCheckIn, pulihkanTrackingSesi } from "@/services/penjagaTracking";
+import {
+  laporStatusTracking,
+  periksaKesiapanTracking,
+  STATUS_SERVER_KENDALA,
+} from "@/services/kesiapanTracking";
+import { useKendalaTracking } from "@/hooks/useKendalaTracking";
+import { BannerKendalaTracking } from "@/components/organisms/attendance/BannerKendalaTracking";
 import { SyncService } from "@/services/SyncService";
 import {
   AttendanceGeofencePolicy,
@@ -693,7 +701,7 @@ export default function AbsensiScreen() {
       setAttendanceWarning(currentStatus.warningMessage);
 
       if (currentStatus.status === "checked-in") {
-        LocationTrackingService.startTracking().catch(err => logger.error('Start tracking error', err));
+        pulihkanTrackingSesi().catch(err => logger.error('Start tracking error', err));
       } else {
         LocationTrackingService.stopTracking().catch(err => logger.error('Stop tracking error', err));
       }
@@ -778,10 +786,36 @@ export default function AbsensiScreen() {
     setShowCheckoutWarning,
   });
 
+  const { kendala: kendalaTracking, segarkan: segarkanKendalaTracking } = useKendalaTracking();
+
+  // Gerbang di tombol foto, sebelum karyawan repot berfoto; diulang saat kirim
+  // karena izin bisa dicabut di antara keduanya.
+  const bukaKamera = useCallback(async () => {
+    if (status === "idle" && !(await gerbangCheckIn())) {
+      void segarkanKendalaTracking();
+      return;
+    }
+    setShowCamera(true);
+  }, [status, segarkanKendalaTracking]);
+
   const handleSubmit = useCallback(async () => {
     if (!photo || !location) {
       presentInfoMessage("Lengkapi foto dan lokasi.", "Data Belum Lengkap");
       return;
+    }
+    const kendala = await periksaKesiapanTracking();
+    if (kendala && status === "idle") {
+      await gerbangCheckIn();
+      return;
+    }
+    // Check-out tidak pernah ditahan: sesi yang tidak bisa ditutup justru
+    // mencatat jam kerja yang salah. Kendalanya cukup tercatat di sesinya.
+    if (kendala && status === "checked-in") {
+      void laporStatusTracking(STATUS_SERVER_KENDALA[kendala]);
+      presentInfoMessage(
+        "Tracking lokasi Anda tidak aktif dan tercatat pada sesi kerja ini.",
+        "Tracking Lokasi Tidak Aktif",
+      );
     }
     if (geofenceStatus && !geofenceStatus.isInside) {
       const geofenceAction = resolveAttendanceGeofenceAction(geofencePolicy, geofenceStatus.isInside);
@@ -798,7 +832,7 @@ export default function AbsensiScreen() {
       return;
     }
     await submitAttendance();
-  }, [photo, location, geofencePolicy, geofenceStatus, submitAttendance]);
+  }, [photo, location, status, geofencePolicy, geofenceStatus, submitAttendance]);
 
   const handleConfirmOutsideSubmit = useCallback(async () => {
     setShowOutsideWarning(false);
@@ -897,6 +931,9 @@ export default function AbsensiScreen() {
             <LocationCard locationName={locationName} onRefresh={getLocation} />
             <AttendanceStatusInfo checkInTime={checkInTime} checkOutTime={checkOutTime} />
             <AttendanceWarning message={attendanceWarning} />
+            {(status === "idle" || status === "checked-in") && (
+              <BannerKendalaTracking kendala={kendalaTracking} sedangBekerja={status === "checked-in"} />
+            )}
 
             {photo ? (
               <View style={tw`mb-4`}>
@@ -937,7 +974,7 @@ export default function AbsensiScreen() {
               </View>
             ) : (
               <TouchableOpacity
-                onPress={() => setShowCamera(true)}
+                onPress={bukaKamera}
                 disabled={captureState.disabled}
                 style={tw`${status === "checked-out" ? "bg-gray-100 border-gray-300" :
                   !captureState.hasActiveSession && todayHoliday.isHoliday && !isTukarLiburWorkDay ? "bg-red-50 border-red-200" :

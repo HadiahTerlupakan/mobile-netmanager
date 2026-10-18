@@ -6,6 +6,7 @@ import {
 import { queryKeys } from "@/lib/queryClient";
 import { AttendanceTelemetryService } from "@/services/AttendanceTelemetryService";
 import { LocationTrackingService } from "@/services/LocationTrackingService";
+import { mulaiTrackingCheckIn } from "@/services/penjagaTracking";
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
 import { ensureAttendanceRequestId } from "@/utils/attendanceIdempotency";
@@ -219,7 +220,7 @@ export function useAttendanceSubmission({
       try {
         if (status === "idle") {
           logger.info('[Absensi] Check-in success, starting location tracking...');
-          const trackingStarted = await LocationTrackingService.startTracking();
+          const trackingStarted = await mulaiTrackingCheckIn();
           logger.info(`[Absensi] Tracking started: ${trackingStarted}`);
         } else {
           logger.info('[Absensi] Check-out success, stopping location tracking...');

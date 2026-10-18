@@ -3,6 +3,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { useAuth } from '@/context/AuthContext';
 import { LocationTrackingService } from '@/services/LocationTrackingService';
+import { pulihkanTrackingSesi } from '@/services/penjagaTracking';
 import api from '@/services/api';
 import { harusHentikanTracking } from '@/services/rekonsiliasiTracking';
 import type { AttendanceUiStatus } from '@/utils/attendanceStatus';
@@ -11,8 +12,9 @@ import { logger } from '@/utils/logger';
 const ENDPOINT_STATUS_ABSEN = '/api/mobile/attendance/status';
 
 /**
- * Matikan pelacakan yang tidak lagi beralasan, setiap aplikasi dibuka, dan
- * kirim antrean lokasi offline yang masih tertahan.
+ * Cocokkan pelacakan dengan status absen setiap aplikasi dibuka: matikan yang
+ * tidak lagi beralasan, pulihkan (atau peringatkan) yang mati selagi karyawan
+ * masih check-in, dan kirim antrean lokasi offline yang masih tertahan.
  *
  * Notifikasi "sedang melacak lokasi" bertahan selama layanan lokasi hidup,
  * termasuk saat aplikasi ditutup. Ketika itu terjadi, satu-satunya JS yang
@@ -38,12 +40,17 @@ export function useRekonsiliasiTracking() {
                 // baru, tidak ada pengiriman sukses lain yang memicunya.
                 void LocationTrackingService.syncPendingLocations();
 
-                // Murah lebih dulu: tanpa pelacakan aktif, tidak ada yang perlu
-                // dicocokkan dan server tidak perlu ditanya sama sekali.
-                const sedangMelacak = await LocationTrackingService.isTrackingActive();
-                if (!sedangMelacak) return;
-
-                const statusAbsen = await ambilStatusAbsen();
+                // Server tetap ditanya walau pelacakan mati: karyawan yang
+                // masih check-in dengan tracking mati (izin dicabut, check-in
+                // dari antrean offline) justru yang perlu dipulihkan.
+                const [sedangMelacak, statusAbsen] = await Promise.all([
+                    LocationTrackingService.isTrackingActive(),
+                    ambilStatusAbsen(),
+                ]);
+                if (statusAbsen === 'checked-in') {
+                    await pulihkanTrackingSesi();
+                    return;
+                }
                 if (!harusHentikanTracking({ sedangMelacak, statusAbsen })) return;
 
                 logger.info('[LocationTracking] Tidak sedang check-in, pelacakan dihentikan');

@@ -105,7 +105,8 @@ export function LocationDisclosureModal({
                                 Data lokasi hanya dikirim ke server RADPRO dan diakses oleh tim
                                 manajemen perusahaan Anda. Pelacakan latar belakang otomatis berhenti
                                 saat Anda check-out, dan Anda dapat mencabut izin ini kapan saja
-                                melalui Pengaturan perangkat.
+                                melalui Pengaturan perangkat. Tanpa izin lokasi sepanjang waktu,
+                                check-in tidak dapat dilakukan.
                             </Text>
                         </View>
 

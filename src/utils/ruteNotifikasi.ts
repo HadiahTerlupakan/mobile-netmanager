@@ -30,3 +30,16 @@ export function isRuteNotifikasiDikenal(url: string): boolean {
   );
   return isRuteDikenal || AWALAN_NOTIFIKASI_DIKENAL.some((awalan) => url.startsWith(awalan));
 }
+
+/**
+ * Tautan notifikasi ditulis server sebagai rute web (diperiksa agar tidak 404
+ * di web); yang punya padanan layar aplikasi dipetakan ke layar itu.
+ */
+const PADANAN_RUTE_WEB: Readonly<Record<string, string>> = {
+  '/karyawan/absensi': '/absensi',
+};
+
+/** Rute aplikasi untuk tautan `data.url` notifikasi. */
+export function petakanRuteNotifikasi(url: string): string {
+  return PADANAN_RUTE_WEB[url] ?? url;
+}
