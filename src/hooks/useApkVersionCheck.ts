@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import { AppState, AppStateStatus } from 'react-native'
+import { AppState, AppStateStatus, DeviceEventEmitter } from 'react-native'
+
+import { Events } from '@/constants/Events'
 
 import { checkApkVersion } from '@/services/apkVersionService'
 import type {
@@ -135,6 +137,15 @@ export function useApkVersionCheck(): UseApkVersionCheckResult {
       }
     }
     const sub = AppState.addEventListener('change', handler)
+    return () => sub.remove()
+  }, [performCheck])
+
+  // Server menolak versi aplikasi ini (426): cek ulang tanpa cache, supaya
+  // layar Update Wajib langsung tampil alih-alih request yang gagal diam-diam.
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(Events.APP_VERSION_UNSUPPORTED, () => {
+      performCheck(true).catch(() => undefined)
+    })
     return () => sub.remove()
   }, [performCheck])
 

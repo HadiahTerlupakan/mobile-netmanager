@@ -1,5 +1,6 @@
 import { AppVersionInfo, DownloadProgress, DownloadStatus } from '@/hooks/useAppVersion'
 import { ApkContactAdmin, ApkLatestVersion } from '@/types/appVersion'
+import { labelTombolUnduh } from '@/utils/labelTombolUnduh'
 import React from 'react'
 import {
     ActivityIndicator,
@@ -81,7 +82,7 @@ export function UpdateRequiredScreen(props: UpdateRequiredScreenProps) {
                         style={styles.updateButton}
                         onPress={() => Linking.openURL(props.release.downloadUrl)}
                     >
-                        <Text style={styles.updateButtonText}>Download APK Sekarang</Text>
+                        <Text style={styles.updateButtonText}>{labelTombolUnduh(props.release.downloadUrl)}</Text>
                     </TouchableOpacity>
 
                     {/* Hubungi Admin button — conditional */}

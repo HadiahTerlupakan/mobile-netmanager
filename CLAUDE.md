@@ -286,6 +286,15 @@ Backend dikonsumsi mobile via REST API. Kontrak yang disepakati:
 - Client/UI & global state → **React Context** (`src/context/`: AuthContext, TenantContext, RealtimeProvider). Zustand tidak dipakai.
 - Form state → React Hook Form + Zod resolver
 
+### OTA vs Rilis Play Store
+- Sebelum mengirim perubahan, tentukan apakah cukup OTA atau butuh build native
+  (menyentuh `NATIVE_PATHS` di `scripts/native-state.js`), dan **katakan ke
+  pengguna** mana yang terjadi.
+- Rilis Play Store produksi mengunci semua versi lebih lama 2 hari kemudian
+  (server menolak login & API dengan 426), dan OTA tidak lagi sampai ke versi
+  lama. Detail dan cara membatalkan: `docs/BUILD_DEPLOY.md` → "Akibat setiap
+  rilis Play Store bagi pengguna versi lama".
+
 ---
 
 ## Code Review Mode

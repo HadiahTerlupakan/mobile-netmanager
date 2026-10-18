@@ -11,6 +11,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native'
+import { labelTombolUnduh } from '@/utils/labelTombolUnduh'
 
 // --- Discriminated union props ---
 
@@ -79,9 +80,9 @@ export function UpdateAvailableModal(props: UpdateAvailableModalProps) {
                             style={styles.updateButtonFull}
                             onPress={() => Linking.openURL(props.release.downloadUrl)}
                             accessibilityRole="button"
-                            accessibilityLabel="Download APK Sekarang"
+                            accessibilityLabel={labelTombolUnduh(props.release.downloadUrl)}
                         >
-                            <Text style={styles.updateButtonText}>Download APK Sekarang</Text>
+                            <Text style={styles.updateButtonText}>{labelTombolUnduh(props.release.downloadUrl)}</Text>
                         </TouchableOpacity>
 
                         {/* Hubungi Admin button — conditional */}

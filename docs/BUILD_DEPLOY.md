@@ -114,6 +114,43 @@ Perubahan JS/TS saja (tidak ada native change) cukup **push ke `main`** — work
 | Ganti icon/splash (native) | ❌ Build APK |
 | Ubah `google-services.json` | ❌ Build APK |
 
+Cara memastikannya: perubahan butuh build native bila menyentuh salah satu
+`NATIVE_PATHS` di `scripts/native-state.js` (app.json, app.config.ts, eas.json,
+package.json/lock, plugins/, firebase.json, aset native). Push yang menyentuhnya
+otomatis memicu `build-android.yml`; perubahan lain cukup OTA.
+
+### Akibat setiap rilis Play Store bagi pengguna versi lama
+
+Server hanya mengizinkan **versi produksi Play Store terbaru** memakai API
+mobile (login, setiap request, refresh token; semua jenis akun). Aturannya
+otomatis, tanpa angka yang diatur manual:
+
+1. Server membaca jalur produksi Google Play tiap jam
+   (`/api/cron/play-store-sync`) dan mencatat rilis yang baru terlihat.
+2. Rilis baru **diwajibkan 2 hari sesudah terlihat**. Selama 2 hari itu versi
+   sebelumnya masih boleh dipakai dan aplikasinya mendapat ajakan update.
+3. Sesudahnya semua versi lebih lama ditolak (HTTP 426); aplikasi menampilkan
+   layar "Update Wajib" dengan tombol ke Play Store. Nomor build **dan** nomor
+   versi sama-sama dicek, jadi APK lama di luar Play Store yang nomor build-nya
+   lebih besar tetap tertolak.
+4. Admin bisa membatalkan penguncian sebuah rilis di web: Pengaturan → Update
+   Aplikasi → tab **Versi Minimum** (mis. rilis bermasalah atau review Google
+   belum selesai). Versi sebelumnya lalu kembali boleh dipakai.
+
+Konsekuensi yang harus dijelaskan ke pemilik produk sebelum rilis:
+
+- **OTA hanya sampai ke versi native terbaru.** Begitu build native baru
+  dicatat (`native-build.json`), OTA berikutnya tidak diterima versi
+  sebelumnya. Jangan publish OTA ke runtime lama kecuali native dependency di
+  antara keduanya identik: bundle yang membawa versi library native berbeda
+  (contoh: picker 2.11.4 ke APK yang native-nya 2.11.1) bisa crash.
+- **Perubahan yang butuh build native = upgrade versi untuk semua orang.**
+  Dua hari setelah dirilis ke produksi, siapa pun yang belum update dari Play
+  Store tidak bisa login. Rilis native sebaiknya jarang dan diumumkan.
+- Sebelum kredensial `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` terpasang di server,
+  tidak ada versi yang dikunci (hanya lantai manual
+  `MOBILE_MIN_NATIVE_VERSION_CODE`, default 0).
+
 ---
 
 ## Troubleshooting
