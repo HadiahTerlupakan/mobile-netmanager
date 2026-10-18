@@ -201,5 +201,22 @@ describe('task background', () => {
     expect(Location.stopLocationUpdatesAsync).toHaveBeenCalled();
     expect(isi['@location_tracking_config']).toBeUndefined();
   });
+
+  it('task sesudah logout tidak meninggalkan titik di antrean untuk pengguna berikutnya', async () => {
+    const isi = pasangStorage({
+      '@location_tracking_started_at': new Date().toISOString(),
+      '@pending_locations': JSON.stringify([titikAntre(1)]),
+    });
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue(null);
+    const sekarang = Date.now();
+
+    await jalankanTask({
+      data: { locations: [titikOs(sekarang - 20 * 60000, -6.1), titikOs(sekarang, -6.3)] },
+      error: null,
+    });
+
+    expect(isi['@pending_locations']).toBeUndefined();
+    expect(api.post).not.toHaveBeenCalled();
+  });
 });
 

@@ -333,8 +333,11 @@ export class LocationTrackingService {
             const token = await ambilTokenSesi();
             if (!token) {
                 // Tidak ada sesi login (sudah logout) → tidak ada alasan melacak.
+                // Antrean ikut dibuang: titiknya milik sesi yang sudah keluar, dan
+                // bila tersisa ia akan terkirim atas nama pengguna berikutnya.
                 logger.warn(`[LocationTracking] No session token, stopping tracking`);
                 await this.stopTracking();
+                await Storage.removeItem(STORAGE_KEY_PENDING);
                 return false;
             }
 
@@ -513,22 +516,31 @@ function harusDikirim(lastSent: LocationData | null, location: Location.Location
     return distance >= JARAK_MINIMUM_M || timeSinceLast >= INTERVAL_HEARTBEAT_MS;
 }
 
+/**
+ * Titik lama di batch tetap jejak perjalanan; dikirim lewat antrean. Baru
+ * diantre sesudah sesi login terbukti masih ada: task yang terpicu sesudah
+ * logout tidak boleh meninggalkan titik yang kemudian terkirim atas nama
+ * pengguna berikutnya di HP yang sama.
+ */
+async function antreTitikLama(titikLama: Location.LocationObject[], batteryLevel?: number): Promise<void> {
+    if (titikLama.length === 0 || !(await ambilTokenSesi())) return;
+    await tambahKeAntrean(titikLama.map((titik) => keDataLokasi(titik, batteryLevel)));
+    await LocationTrackingService.syncPendingLocations();
+}
+
 async function prosesTitikDariOs(locations: Location.LocationObject[]): Promise<void> {
     const { terbaru, sebelumnya } = pisahkanTitikTerbaru(locations);
     if (!terbaru) return;
     const batteryLevel = await bacaLevelBaterai();
     const locationData = keDataLokasi(terbaru, batteryLevel);
 
-    // Titik lama di batch tetap jejak perjalanan; dikirim lewat antrean.
-    if (sebelumnya.length > 0) {
-        await tambahKeAntrean(sebelumnya.map((titik) => keDataLokasi(titik, batteryLevel)));
-    }
     if (harusDikirim(await bacaTitikTerakhir(), terbaru)) {
         const sent = await LocationTrackingService.sendLocation(locationData);
         // Tracking sudah dihentikan: jangan sampai penyesuaian di bawah memulainya lagi.
         if (!sent) return;
         await Storage.setItem(STORAGE_KEY_LAST_SENT, JSON.stringify(locationData));
     }
+    await antreTitikLama(sebelumnya, batteryLevel);
     await sesuaikanKonfigurasi(TASK_NAME, { batteryLevel, isMoving: locationData.isMoving ?? false });
 }
 
