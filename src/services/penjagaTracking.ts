@@ -2,6 +2,7 @@ import * as IntentLauncher from 'expo-intent-launcher';
 import { Linking, Platform } from 'react-native';
 
 import {
+  bisaDimintaLewatDialog,
   laporStatusTracking,
   mintaIzinTracking,
   periksaKesiapanTracking,
@@ -62,7 +63,9 @@ async function pulihkan(): Promise<void> {
   if (kendala) {
     void laporStatusTracking(STATUS_SERVER_KENDALA[kendala]);
     await peringatkan(kendala, 'sesi');
-    return;
+    // Izin yang diaktifkan dari peringatan: rekonsiliasi saat karyawan kembali
+    // ke aplikasi ikut menunggu proses ini, jadi tracking dinyalakan di sini.
+    if (await periksaKesiapanTracking()) return;
   }
   if (!(await LocationTrackingService.isTrackingActive())) {
     const berjalan = await LocationTrackingService.startTracking();
@@ -77,8 +80,17 @@ async function peringatkan(kendala: KendalaTracking, konteks: KonteksPeringatan)
   if (hasil === 'pengaturan') await bukaPengaturan(kendala);
 }
 
+/**
+ * Selama Android masih mengizinkan, izin diminta lewat sistem (didahului
+ * disclosure): untuk izin latar belakang itu langsung membuka halaman Izin
+ * Lokasi aplikasi. Sesudah diblokir, hanya halaman info aplikasi yang bisa.
+ */
 async function bukaPengaturan(kendala: KendalaTracking) {
   try {
+    if (await bisaDimintaLewatDialog(kendala)) {
+      await mintaIzinTracking();
+      return;
+    }
     if (kendala === 'gps-mati' && Platform.OS === 'android') {
       await IntentLauncher.startActivityAsync(
         IntentLauncher.ActivityAction.LOCATION_SOURCE_SETTINGS,

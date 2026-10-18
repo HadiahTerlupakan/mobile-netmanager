@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 
 import {
+  bisaDimintaLewatDialog,
   laporStatusTracking,
   mintaIzinTracking,
   periksaKesiapanTracking,
@@ -114,6 +115,24 @@ describe('mintaIzinTracking', () => {
     });
 
     expect(await mintaIzinTracking()).toBeNull();
+  });
+});
+
+describe('bisaDimintaLewatDialog', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('izin latar belakang mengikuti status blokir izin latar belakang', async () => {
+    pasangHp({ depan: 'granted', latar: 'denied', gps: true, bisaMintaLatar: false });
+    expect(await bisaDimintaLewatDialog('izin-latar')).toBe(false);
+
+    pasangHp({ depan: 'granted', latar: 'denied', gps: true, bisaMintaLatar: true });
+    expect(await bisaDimintaLewatDialog('izin-latar')).toBe(true);
+  });
+
+  it('GPS mati tidak punya dialog izin', async () => {
+    pasangHp({ depan: 'granted', latar: 'granted', gps: false });
+
+    expect(await bisaDimintaLewatDialog('gps-mati')).toBe(false);
   });
 });
 

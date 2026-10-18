@@ -64,6 +64,22 @@ export async function mintaIzinTracking(): Promise<KendalaTracking | null> {
 }
 
 /**
+ * Apakah Android masih mau menampilkan dialog izin untuk kendala ini. Untuk
+ * izin latar belakang di Android 11+, "dialog" itu adalah halaman Izin Lokasi
+ * aplikasi, tempat pilihan "Izinkan sepanjang waktu". Sesudah dua kali
+ * ditolak, Android memblokirnya dan hanya Pengaturan yang tersisa.
+ */
+export async function bisaDimintaLewatDialog(kendala: KendalaTracking): Promise<boolean> {
+  if (kendala === 'izin-lokasi') {
+    return (await Location.getForegroundPermissionsAsync()).canAskAgain;
+  }
+  if (kendala === 'izin-latar') {
+    return (await Location.getBackgroundPermissionsAsync()).canAskAgain;
+  }
+  return false;
+}
+
+/**
  * Laporkan status tracking sesi kerja ke server. Hanya perubahan yang dikirim,
  * agar setiap kali aplikasi dibuka tidak menambah satu request; `paksa` untuk
  * sesi baru, yang belum punya status sama sekali di server.
