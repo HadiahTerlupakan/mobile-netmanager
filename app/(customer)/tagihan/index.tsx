@@ -309,15 +309,17 @@ export default function CustomerTagihanScreen() {
       if (res.data.success || res.status === 200) {
         refetch(); // Automatically changes state to show pending card
 
-        if (res.data.paymentUrl && !selectedMethodCode.startsWith('MANUAL_') && selectedMethodCode !== 'MOOTA_MANUAL') {
-          await WebBrowser.openBrowserAsync(res.data.paymentUrl, {
+        const paymentUrl = ambilMuatan<string>(res.data, 'paymentUrl');
+        const isManual = selectedMethodCode.startsWith('MANUAL_') || selectedMethodCode === 'MOOTA_MANUAL';
+        if (paymentUrl && !isManual) {
+          await WebBrowser.openBrowserAsync(paymentUrl, {
             presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
             controlsColor: '#0d9488',
             toolbarColor: '#ffffff'
           });
           // Refetch after browser closes to reflect any payment changes
           refetch();
-        } else if (!res.data.paymentUrl && !selectedMethodCode.startsWith('MANUAL_') && selectedMethodCode !== 'MOOTA_MANUAL') {
+        } else if (isManual) {
           presentInfoMessage('Silakan lanjutkan transfer manual Anda.', 'Menunggu');
         }
 
