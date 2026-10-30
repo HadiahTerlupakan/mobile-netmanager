@@ -333,8 +333,23 @@ describe('queryClient: penolakan server pada mutasi', () => {
     expect(jumlahPanggilan).toBe(1);
   });
 
-  it('melaporkan penolakan sebagai warning lengkap dengan status dan pesan server', async () => {
-    const galat = penolakan('/api/mobile/work-orders/wo-1/update', 'Hanya WO berstatus IN_PROGRESS');
+  // 400 "Password saat ini salah" atau "Check-in terlalu awal" adalah jawaban
+  // server atas isian pengguna; dilaporkan sebagai exception, ia menenggelamkan
+  // kerusakan yang sebenarnya.
+  it('tidak melaporkan penolakan 4xx sebagai exception', async () => {
+    const galat = penolakan('/api/customer/profile', 'Password saat ini salah');
+
+    await expect(jalankanMutasiDefault(galat)).rejects.toBe(galat);
+
+    expect(mockCaptureException).not.toHaveBeenCalled();
+  });
+
+  it('tetap melaporkan galat server 5xx lengkap dengan status dan pesan server', async () => {
+    const galat = Object.assign(new Error('Request failed with status code 500'), {
+      isAxiosError: true,
+      config: { method: 'patch', url: '/api/customer/profile' },
+      response: { status: 500, data: { error: 'Terjadi kesalahan server' } },
+    });
 
     await expect(jalankanMutasiDefault(galat)).rejects.toBe(galat);
 
@@ -342,12 +357,19 @@ describe('queryClient: penolakan server pada mutasi', () => {
       galat,
       expect.objectContaining({
         source: 'mutation',
-        endpoint: '/api/mobile/work-orders/wo-1/update',
-        status: 400,
-        serverMessage: 'Hanya WO berstatus IN_PROGRESS',
+        endpoint: '/api/customer/profile',
+        status: 500,
+        serverMessage: 'Terjadi kesalahan server',
       }),
-      'warning',
     );
+  });
+
+  it('tetap melaporkan galat jaringan tanpa respons', async () => {
+    const galat = Object.assign(new Error('Network Error'), { isAxiosError: true, response: undefined });
+
+    await expect(jalankanMutasiDefault(galat)).rejects.toBe(galat);
+
+    expect(mockCaptureException).toHaveBeenCalledWith(galat, expect.objectContaining({ source: 'mutation' }));
   });
 
   it('menyegarkan data WO setelah aksi WO ditolak', async () => {

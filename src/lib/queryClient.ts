@@ -9,9 +9,9 @@
 import {
   describeFailedRequest,
   getHttpStatus,
-  getReportSeverity,
   getServerErrorMessage,
   getStaleQueryRootsAfterRejection,
+  isClientRejection,
   shouldReportToBackend,
   shouldRetryMutation,
 } from "@/lib/queryErrorReporting";
@@ -142,19 +142,17 @@ export const queryClient = new QueryClient({
       const mutationKey = safeSerialize(mutation.options.mutationKey ?? null);
       logger.error("[QueryClient] Mutation failed:", mutationKey, normalizedError.message);
 
-      // mutationKey hampir selalu null karena mutation tidak menyetelnya;
-      // endpoint yang gagal diambil dari error-nya sendiri supaya laporan
-      // tetap bisa ditelusuri ke sumbernya.
-      if (shouldReportToBackend(error)) {
-        errorReportingService.captureException(
-          normalizedError,
-          {
-            source: "mutation",
-            mutationKey,
-            ...describeFailedRequest(error),
-          },
-          getReportSeverity(error),
-        );
+      // Mutasi yang ditolak 4xx tidak dilaporkan: itu jawaban server atas
+      // isian pengguna (400 "Password saat ini salah", 409 bentrok), bukan
+      // kerusakan. mutationKey hampir selalu null karena mutation tidak
+      // menyetelnya; endpoint yang gagal diambil dari error-nya sendiri supaya
+      // laporan tetap bisa ditelusuri ke sumbernya.
+      if (!isClientRejection(error)) {
+        errorReportingService.captureException(normalizedError, {
+          source: "mutation",
+          mutationKey,
+          ...describeFailedRequest(error),
+        });
       }
 
       // Penolakan karena status sudah berubah di server berarti layar basi:

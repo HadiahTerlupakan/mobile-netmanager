@@ -3,9 +3,9 @@ import { describe, expect, it } from '@jest/globals';
 import {
   describeFailedRequest,
   getHttpStatus,
-  getReportSeverity,
   getServerErrorMessage,
   getStaleQueryRootsAfterRejection,
+  isClientRejection,
   shouldReportToBackend,
   shouldRetryMutation,
 } from '@/lib/queryErrorReporting';
@@ -160,15 +160,15 @@ describe('getServerErrorMessage', () => {
   });
 });
 
-describe('getReportSeverity', () => {
-  it('menandai penolakan 4xx sebagai warning, bukan error', () => {
-    expect(getReportSeverity(buatAxiosError(400))).toBe('warning');
-    expect(getReportSeverity(buatAxiosError(422))).toBe('warning');
+describe('isClientRejection', () => {
+  it('mengenali penolakan 4xx dari server', () => {
+    expect(isClientRejection(buatAxiosError(400))).toBe(true);
+    expect(isClientRejection(buatAxiosError(422))).toBe(true);
   });
 
-  it('tetap error untuk 5xx dan kegagalan tanpa respons', () => {
-    expect(getReportSeverity(buatAxiosError(500))).toBe('error');
-    expect(getReportSeverity(buatAxiosError(undefined))).toBe('error');
+  it('bukan penolakan untuk 5xx dan kegagalan tanpa respons', () => {
+    expect(isClientRejection(buatAxiosError(500))).toBe(false);
+    expect(isClientRejection(buatAxiosError(undefined))).toBe(false);
   });
 });
 

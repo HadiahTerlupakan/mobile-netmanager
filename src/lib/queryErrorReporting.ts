@@ -84,14 +84,12 @@ export function getServerErrorMessage(error: unknown): string | undefined {
     : undefined;
 }
 
-/** 4xx adalah penolakan yang wajar dari server; laporkan sebagai warning. */
-export function getReportSeverity(error: unknown): 'warning' | 'error' {
+/** 4xx: server sudah menjawab dan menolak permintaan ini. */
+export function isClientRejection(error: unknown): boolean {
   const status = getHttpStatus(error);
   return status !== undefined &&
     status >= HTTP_CLIENT_ERROR_MIN &&
-    status < HTTP_SERVER_ERROR_MIN
-    ? 'warning'
-    : 'error';
+    status < HTTP_SERVER_ERROR_MIN;
 }
 
 /**
@@ -99,7 +97,7 @@ export function getReportSeverity(error: unknown): 'warning' | 'error' {
  * tidak akan berubah. Galat jaringan dan 5xx diulang sekali.
  */
 export function shouldRetryMutation(failureCount: number, error: unknown): boolean {
-  if (getReportSeverity(error) === 'warning') return false;
+  if (isClientRejection(error)) return false;
   return failureCount < MAX_MUTATION_RETRY;
 }
 
