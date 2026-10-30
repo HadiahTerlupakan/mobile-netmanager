@@ -95,6 +95,8 @@ export default function CustomerLayout() {
             tabBarStyle: { display: "none" },
           }}
         />
+        <Tabs.Screen name="edit-profil" options={{ href: null }} />
+        <Tabs.Screen name="ganti-password" options={{ href: null }} />
       </Tabs>
     </Fragment>
   );

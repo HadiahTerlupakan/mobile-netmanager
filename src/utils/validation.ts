@@ -85,6 +85,27 @@ export const ChangePasswordSchema = z.object({
   path: ["confirmPassword"],
 });
 
+const DIGIT_TELEPON_MIN = 10;
+const DIGIT_TELEPON_MAKS = 15;
+
+/** Jumlah digit nomor telepon, mengabaikan `+`, spasi, dan tanda hubung. */
+const jumlahDigit = (nomor: string) => nomor.replace(/\D/g, '').length;
+
+// Profil pelanggan: server menyimpan noTelp apa adanya, jadi bentuknya dijaga di sini.
+export const ProfilPelangganSchema = z.object({
+  noTelp: z
+    .string()
+    .trim()
+    .min(1, 'Nomor telepon wajib diisi')
+    .regex(/^\+?[\d\s-]+$/, 'Nomor telepon hanya boleh angka')
+    .refine(
+      (nomor) => jumlahDigit(nomor) >= DIGIT_TELEPON_MIN && jumlahDigit(nomor) <= DIGIT_TELEPON_MAKS,
+      `Nomor telepon harus ${DIGIT_TELEPON_MIN}–${DIGIT_TELEPON_MAKS} digit`,
+    ),
+  isBillNotifEnabled: z.boolean(),
+  isPromoEnabled: z.boolean(),
+});
+
 // Request Work Order Schema
 export const RequestWorkOrderSchema = z.object({
   title: z.string().min(5, 'Judul minimal 5 karakter').max(100).trim(),

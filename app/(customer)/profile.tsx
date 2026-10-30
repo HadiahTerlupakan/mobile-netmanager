@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import tw from 'twrnc';
 import { useAuth } from '@/context/AuthContext';
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
@@ -8,6 +9,7 @@ import { getAppVersionLabel } from '@/constants/appVersion';
 
 export default function CustomerProfileScreen() {
   const { user, signOut } = useAuth();
+  const router = useRouter();
 
   const handleLogout = () => {
     Alert.alert(
@@ -24,12 +26,12 @@ export default function CustomerProfileScreen() {
     {
       icon: User,
       label: 'Edit Profil',
-      action: () => {} // router.push('/(customer)/edit-profile')
+      action: () => router.push('/(customer)/edit-profil')
     },
     {
       icon: Lock,
       label: 'Ganti Password',
-      action: () => {} // router.push('/(customer)/change-password')
+      action: () => router.push('/(customer)/ganti-password')
     }
   ];
 
