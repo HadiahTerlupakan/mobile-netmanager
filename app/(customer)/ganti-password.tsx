@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
@@ -7,7 +7,7 @@ import type { z } from 'zod';
 
 import { FormPasswordInput } from '@/components/atoms/FormPasswordInput';
 import { KepalaLayar } from '@/components/molecules/KepalaLayar';
-import { useGantiPasswordPelanggan } from '@/hooks/queries/useAkunPelanggan';
+import { pesanPenolakanIsian, useGantiPasswordPelanggan } from '@/hooks/queries/useAkunPelanggan';
 import { useFormWithValidation } from '@/hooks/useFormWithValidation';
 import { presentSuccessMessage } from '@/utils/errorPresenter';
 import { ChangePasswordSchema } from '@/utils/validation';
@@ -17,7 +17,7 @@ type NilaiGantiPassword = z.infer<typeof ChangePasswordSchema>;
 /** Ganti password akun pelanggan; konfirmasi hanya diperiksa di aplikasi, tidak dikirim. */
 export default function GantiPasswordPelangganScreen() {
   const router = useRouter();
-  const { control, handleValidatedSubmit, formState: { errors } } = useFormWithValidation({
+  const { control, watch, handleValidatedSubmit, formState: { errors } } = useFormWithValidation({
     schema: ChangePasswordSchema,
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
   });
@@ -25,6 +25,13 @@ export default function GantiPasswordPelangganScreen() {
     presentSuccessMessage(pesan ?? 'Password berhasil diubah');
     router.back();
   });
+  const { reset: hapusPenolakan } = ganti;
+  useEffect(() => {
+    // Penolakan berlaku untuk isian yang dikirim; begitu isian berubah, pesannya basi.
+    const langganan = watch(() => hapusPenolakan());
+    return () => langganan.unsubscribe();
+  }, [watch, hapusPenolakan]);
+  const pesanPenolakan = pesanPenolakanIsian(ganti.error);
   const simpan = handleValidatedSubmit(({ currentPassword, newPassword }: NilaiGantiPassword) => {
     ganti.mutate({ currentPassword, newPassword });
   });
@@ -42,6 +49,11 @@ export default function GantiPasswordPelangganScreen() {
           </View>
           <FormPasswordInput name="confirmPassword" control={control} label="Konfirmasi Password Baru" placeholder="Ulangi password baru" error={errors.confirmPassword?.message} />
         </View>
+        {pesanPenolakan ? (
+          <Text accessibilityRole="alert" style={tw`mt-4 text-sm text-red-500`}>
+            {pesanPenolakan}
+          </Text>
+        ) : null}
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityState={{ disabled: ganti.isPending }}

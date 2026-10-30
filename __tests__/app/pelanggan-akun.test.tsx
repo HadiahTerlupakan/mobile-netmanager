@@ -65,13 +65,36 @@ describe('ganti password pelanggan', () => {
     expect(mockBack).toHaveBeenCalled();
   });
 
-  it('password lama salah (400) menampilkan pesan server dan tetap di layar', async () => {
+  // Toast hilang dalam ±1 detik, sebelum pelanggan sempat membaca kenapa
+  // passwordnya ditolak; pesan server harus menetap di bawah form.
+  it('password lama salah (400) menampilkan pesan server di bawah form dan tetap di layar', async () => {
     mockPatch.mockRejectedValue(galatHttp(400, 'Password saat ini salah'));
 
-    await isiDanSimpan('keliru', 'rahasia2', 'rahasia2');
+    const layar = await isiDanSimpan('keliru', 'rahasia2', 'rahasia2');
 
-    expect(toastTerakhir()?.text2).toBe('Password saat ini salah');
+    expect(layar.getByText('Password saat ini salah')).toBeTruthy();
+    expect(toastTerakhir()).toBeUndefined();
     expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it('pesan penolakan hilang begitu pelanggan mengubah isian', async () => {
+    mockPatch.mockRejectedValue(galatHttp(400, 'Password saat ini salah'));
+    const layar = await isiDanSimpan('keliru', 'rahasia2', 'rahasia2');
+    expect(layar.getByText('Password saat ini salah')).toBeTruthy();
+
+    fireEvent.changeText(layar.getByPlaceholderText('Masukkan password saat ini'), 'rahasia1');
+    await selesaikanJanji();
+
+    expect(layar.queryByText('Password saat ini salah')).toBeNull();
+  });
+
+  it('galat server (500) tetap lewat toast, bukan pesan di bawah form', async () => {
+    mockPatch.mockRejectedValue(galatHttp(500, 'Terjadi kesalahan server'));
+
+    const layar = await isiDanSimpan('rahasia1', 'rahasia2', 'rahasia2');
+
+    expect(toastTerakhir()).toBeDefined();
+    expect(layar.queryByText('Terjadi kesalahan server')).toBeNull();
   });
 
   it('konfirmasi yang berbeda ditolak tanpa memanggil server', async () => {

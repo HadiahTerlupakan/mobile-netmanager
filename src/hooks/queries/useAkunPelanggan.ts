@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys } from '@/lib/queryClient';
+import { getServerErrorMessage, isClientRejection } from '@/lib/queryErrorReporting';
 import { AkunPelangganService } from '@/services/AkunPelangganService';
 import type { MuatanGantiPassword, MuatanUbahProfil } from '@/types/portalPelanggan';
 import { presentAppError } from '@/utils/errorPresenter';
@@ -30,14 +31,25 @@ export function useUbahProfilPelanggan(onBerhasil: (pesan: string | undefined) =
 }
 
 /**
- * Ganti password. Password lama yang salah dijawab 400 beserta pesannya;
- * `presentAppError` menampilkan pesan itu apa adanya.
+ * Pesan server saat isian form ditolak (4xx), mis. 400 "Password saat ini salah".
+ * Layar menampilkannya di bawah form karena toast hilang sebelum sempat dibaca.
+ */
+export function pesanPenolakanIsian(error: unknown): string | undefined {
+  return isClientRejection(error) ? getServerErrorMessage(error) : undefined;
+}
+
+/**
+ * Ganti password. Penolakan isian (password lama salah → 400) ditampilkan
+ * layar lewat `pesanPenolakanIsian`; galat lain tetap lewat toast.
  */
 export function useGantiPasswordPelanggan(onBerhasil: (pesan: string | undefined) => void) {
   return useMutation({
     ...OPSI_MUTASI,
     mutationFn: (muatan: MuatanGantiPassword) => AkunPelangganService.gantiPassword(muatan),
     onSuccess: onBerhasil,
-    onError: (error) => presentAppError(error, { screen: 'GantiPasswordPelanggan', source: 'mutation' }),
+    onError: (error) => {
+      if (pesanPenolakanIsian(error)) return;
+      presentAppError(error, { screen: 'GantiPasswordPelanggan', source: 'mutation' });
+    },
   });
 }
