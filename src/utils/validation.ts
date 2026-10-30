@@ -98,7 +98,9 @@ export const CONTACT_NAME_MIN_LENGTH = 3;
 // Request Work Order — kontak pelanggan yang diisi manual (mode Customer)
 export const RequestWorkOrderContactSchema = z.object({
   contactName: z
-    .string({ required_error: 'Nama pelanggan wajib diisi' })
+    .string({
+      error: (issue) => (issue.input === undefined ? 'Nama pelanggan wajib diisi' : undefined),
+    })
     .trim()
     .min(CONTACT_NAME_MIN_LENGTH, `Nama pelanggan minimal ${CONTACT_NAME_MIN_LENGTH} karakter`)
     .max(100, 'Nama pelanggan maksimal 100 karakter'),

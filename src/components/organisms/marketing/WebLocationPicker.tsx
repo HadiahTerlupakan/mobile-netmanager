@@ -11,6 +11,8 @@ import { Crosshair, MapPin, Search } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTemaPersona } from '@/theme';
 
+import type { Map as MapLibreMap } from 'maplibre-gl';
+
 // Only import maplibre-gl on web platform
 let maplibregl: typeof import('maplibre-gl') | null = null;
 if (Platform.OS === 'web') {
@@ -39,7 +41,7 @@ export function WebLocationPicker({
 }: WebLocationPickerProps) {
   const { tw, warna } = useTemaPersona();
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<maplibregl.Map | null>(null);
+  const map = useRef<MapLibreMap | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [center, setCenter] = useState<[number, number]>([106.816666, -6.200000]);
   const [loadingLocation, setLoadingLocation] = useState(false);

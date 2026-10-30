@@ -9,6 +9,8 @@ import { RefreshCw, Search, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTemaPersona } from '@/theme';
 
+import type { Map as MapLibreMap } from 'maplibre-gl';
+
 // Only import maplibre-gl on web platform
 let maplibregl: typeof import('maplibre-gl') | null = null;
 if (Platform.OS === 'web') {
@@ -80,7 +82,7 @@ export function WebMapView({
 }: WebMapViewProps) {
   const { warna } = useTemaPersona();
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<maplibregl.Map | null>(null);
+  const map = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<any[]>([]);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
