@@ -16,6 +16,10 @@ export default function CustomerLayout() {
   return (
     <Fragment>
       <Tabs
+        // Edit Profil, Ganti Password, Riwayat, dll. adalah tab tersembunyi.
+        // Dengan bawaan `firstRoute`, router.back() dari sana selalu jatuh ke
+        // Beranda; `history` mengembalikan pelanggan ke layar asalnya.
+        backBehavior="history"
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
