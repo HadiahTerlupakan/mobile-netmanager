@@ -21,6 +21,7 @@ import EventSource from 'react-native-sse';
 import tw from 'twrnc';
 import { ambilMuatan } from '@/utils/responsPelanggan';
 import { isTagihanDibatalkan, isTagihanTerutang, labelStatusTagihan } from '@/utils/statusTagihanPelanggan';
+import { KartuMenungguGateway } from '@/components/organisms/tagihan/KartuMenungguGateway';
 
 dayjs.locale('id');
 
@@ -30,6 +31,10 @@ interface LastPayment {
   method: string;
   gatewayStatus?: string | null;
   paymentUrl?: string | null;
+  vaNumber?: string | null;
+  qrString?: string | null;
+  /** Kode channel gateway (mis. "BC"), sama dengan `code` metode pembayaran. */
+  gatewayProvider?: string | null;
   receiptUrl?: string | null;
   expiresAt?: Date | string | null;
   accountId?: string | null;
@@ -81,6 +86,8 @@ export default function CustomerTagihanScreen() {
 
   // Payment Options UI State
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
+  // Checkout yang menunggu sedang diganti metodenya: tampilkan pilihan metode.
+  const [isGantiMetode, setIsGantiMetode] = useState(false);
 
   const { data: invoices, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['customer-invoices'],
@@ -117,6 +124,7 @@ export default function CustomerTagihanScreen() {
   // Active Pending Payment Check
   const pendingPaymentInvoice = pendingInvoices.find(inv => inv.lastPayment?.gatewayStatus === 'PENDING');
   const activePayment = pendingPaymentInvoice?.lastPayment;
+  const activeGatewayMethod = paymentMethods?.find(method => method.code === activePayment?.gatewayProvider);
 
   // Selected Bank Details for Manual Transfer
   const selectedBankDetails = React.useMemo(() => {
@@ -300,6 +308,9 @@ export default function CustomerTagihanScreen() {
   };
 
   const paymentMutation = useMutation({
+    // Gateway bisa sudah membuat checkout sebelum 5xx atau timeout sampai ke
+    // aplikasi; mengulang POST berarti checkout kedua untuk satu ketukan.
+    retry: false,
     mutationFn: () =>
       api.post('/api/customer/payments', {
         invoiceIds: pendingInvoices.map(inv => inv.id),
@@ -311,9 +322,13 @@ export default function CustomerTagihanScreen() {
       if (res.data.success || res.status === 200) {
         refetch(); // Automatically changes state to show pending card
 
+        setIsGantiMetode(false);
         const paymentUrl = ambilMuatan<string>(res.data, 'paymentUrl');
+        // Nomor VA dan QRIS ditampilkan di kartu menunggu pembayaran; hanya
+        // metode tanpa instruksi (kartu kredit, e-wallet login) dialihkan.
+        const hasInstructions = Boolean(ambilMuatan<string>(res.data, 'vaNumber') || ambilMuatan<string>(res.data, 'qrString'));
         const isManual = selectedMethodCode.startsWith('MANUAL_') || selectedMethodCode === 'MOOTA_MANUAL';
-        if (paymentUrl && !isManual) {
+        if (paymentUrl && !isManual && !hasInstructions) {
           await WebBrowser.openBrowserAsync(paymentUrl, {
             presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
             controlsColor: '#0d9488',
@@ -390,7 +405,7 @@ export default function CustomerTagihanScreen() {
         ) : (
           <>
             {/* Bill Summary Card */}
-            {activePayment ? (
+            {activePayment && !isGantiMetode ? (
               <View style={tw`p-4`}>
                 <View style={tw`bg-white rounded-2xl p-5 shadow-lg border border-orange-200 overflow-hidden`}>
                   <View style={tw`flex-row items-center mb-4`}>
@@ -457,19 +472,20 @@ export default function CustomerTagihanScreen() {
                       )}
                     </View>
                   ) : (
-                    <View style={tw`items-center py-4`}>
-                      <Text style={tw`text-gray-600 text-center mb-4`}>
-                        Selesaikan pembayaran Anda menggunakan metode yang telah dipilih.
-                      </Text>
-                      {activePayment.paymentUrl && (
-                        <TouchableOpacity
-                          onPress={() => WebBrowser.openBrowserAsync(activePayment.paymentUrl!, { controlsColor: '#0d9488' })}
-                          style={tw`bg-teal-600 px-6 py-3 rounded-xl`}
-                        >
-                          <Text style={tw`text-white font-bold`}>Lanjutkan Bayar</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
+                    <KartuMenungguGateway
+                      nominal={formatCurrency(activePayment.amount)}
+                      nomorVa={activePayment.vaNumber}
+                      stringQris={activePayment.qrString}
+                      namaMetode={activeGatewayMethod?.name}
+                      jenisMetode={activeGatewayMethod?.type}
+                      urlBayar={activePayment.paymentUrl}
+                      onSalin={copyToClipboard}
+                      onBukaHalamanBayar={() => WebBrowser.openBrowserAsync(activePayment.paymentUrl!, { controlsColor: '#0d9488' })}
+                      onGantiMetode={() => {
+                        setIsGantiMetode(true);
+                        setShowPaymentOptions(true);
+                      }}
+                    />
                   )}
 
                 </View>
@@ -531,7 +547,13 @@ export default function CustomerTagihanScreen() {
                   <View style={tw`mt-4 bg-white rounded-2xl p-5 border border-gray-200 shadow-sm`}>
                     <View style={tw`flex-row justify-between items-center mb-4`}>
                       <Text style={tw`text-lg font-bold text-gray-900`}>Rincian Pembayaran</Text>
-                      <TouchableOpacity onPress={() => setShowPaymentOptions(false)} style={tw`p-1`}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setShowPaymentOptions(false);
+                          setIsGantiMetode(false);
+                        }}
+                        style={tw`p-1`}
+                      >
                         <XCircle size={22} color="#9ca3af" />
                       </TouchableOpacity>
                     </View>
