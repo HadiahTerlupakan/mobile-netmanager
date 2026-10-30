@@ -7,7 +7,9 @@ import { pulihkanTrackingSesi } from '@/services/penjagaTracking';
 import api from '@/services/api';
 import { harusHentikanTracking } from '@/services/rekonsiliasiTracking';
 import type { AttendanceUiStatus } from '@/utils/attendanceStatus';
+import { isAkunInvestor } from '@/utils/investor';
 import { logger } from '@/utils/logger';
+import { isAkunPelanggan } from '@/utils/pelanggan';
 
 const ENDPOINT_STATUS_ABSEN = '/api/mobile/attendance/status';
 
@@ -26,11 +28,15 @@ const ENDPOINT_STATUS_ABSEN = '/api/mobile/attendance/status';
  * keadaan dicocokkan ulang dengan status absen sebenarnya.
  */
 export function useRekonsiliasiTracking() {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const sedangMemeriksa = useRef(false);
+    // Pelanggan dan investor tidak absen dan tidak dilacak. Endpoint absensi
+    // menjawab 401 untuk token mereka, dan penangan 401 global lalu menutup
+    // sesi — mereka tertendang tepat sesudah login.
+    const tanpaAbsensi = isAkunPelanggan(user) || isAkunInvestor(user);
 
     useEffect(() => {
-        if (!token) return;
+        if (!token || tanpaAbsensi) return;
 
         const cocokkan = async () => {
             if (sedangMemeriksa.current) return;
@@ -69,7 +75,7 @@ export function useRekonsiliasiTracking() {
         };
         const langganan = AppState.addEventListener('change', onAppState);
         return () => langganan.remove();
-    }, [token]);
+    }, [token, tanpaAbsensi]);
 }
 
 /**

@@ -10,7 +10,10 @@ const mockLacak = {
 const mockPulihkan = jest.fn(async () => undefined);
 const mockGet = jest.fn<(url: string) => Promise<unknown>>();
 
-jest.mock('@/context/AuthContext', () => ({ useAuth: () => ({ token: 'token' }) }));
+let mockPeran = 'TECHNICIAN';
+jest.mock('@/context/AuthContext', () => ({
+  useAuth: () => ({ token: 'token', user: { id: 'u1', role: mockPeran } }),
+}));
 jest.mock('@/services/LocationTrackingService', () => ({
   get LocationTrackingService() {
     return mockLacak;
@@ -27,6 +30,7 @@ const statusAbsen = (status: string) => ({ data: { data: { status } } });
 describe('useRekonsiliasiTracking', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPeran = 'TECHNICIAN';
     jest.spyOn(AppState, 'addEventListener').mockImplementation(() => ({ remove: jest.fn() }) as never);
   });
 
@@ -59,5 +63,19 @@ describe('useRekonsiliasiTracking', () => {
     await waitFor(() => expect(mockGet).toHaveBeenCalled());
     expect(mockPulihkan).not.toHaveBeenCalled();
     expect(mockLacak.stopTracking).not.toHaveBeenCalled();
+  });
+
+  // Endpoint absensi khusus karyawan menjawab 401 untuk token pelanggan dan
+  // investor; penangan 401 global lalu menutup sesi, sehingga mereka
+  // tertendang ke layar login tepat sesudah berhasil masuk.
+  it.each(['CUSTOMER', 'INVESTOR'])('tidak memeriksa absensi untuk akun %s', async (peran) => {
+    mockPeran = peran;
+    mockGet.mockResolvedValue(statusAbsen('checked-out'));
+
+    renderHook(() => useRekonsiliasiTracking());
+
+    await new Promise((selesai) => setTimeout(selesai, 20));
+    expect(mockGet).not.toHaveBeenCalled();
+    expect(mockLacak.syncPendingLocations).not.toHaveBeenCalled();
   });
 });
