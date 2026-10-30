@@ -155,6 +155,16 @@ describe('pembayaran gateway di aplikasi pelanggan', () => {
     expect(mockPost).toHaveBeenCalledTimes(1);
   });
 
+  it('penolakan server (mis. nominal di bawah minimum metode) ditampilkan apa adanya', async () => {
+    siapkanTagihan(null);
+    mockPost.mockRejectedValue(galatHttp(400, 'Nominal tagihan di bawah batas minimum metode pembayaran ini.'));
+    const layar = await renderLayar();
+
+    await bayarDengan(layar, 'BCA Virtual Account');
+
+    expect(toastTerakhir()?.text2).toBe('Nominal tagihan di bawah batas minimum metode pembayaran ini.');
+  });
+
   it('tidak ada metode yang terpilih diam-diam', async () => {
     siapkanTagihan(null);
     const layar = await renderLayar();
