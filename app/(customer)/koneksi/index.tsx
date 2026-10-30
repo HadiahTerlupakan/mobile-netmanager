@@ -5,18 +5,26 @@ import tw from 'twrnc';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import { ArrowLeft, RefreshCw, Download, Upload, Activity, Zap, Power, Wrench, Lightbulb } from 'lucide-react-native';
+import { ArrowLeft, RefreshCw, Download, Upload, Activity, Lightbulb } from 'lucide-react-native';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
+import type { KoneksiPelanggan, PemakaianPelanggan } from '@/types/portalPelanggan';
+import { ambilMuatan } from '@/utils/responsPelanggan';
 
+/** Status koneksi dan pemakaian bulan ini; keduanya datang dalam satu respons. */
 const fetchUsage = async () => {
   const res = await api.get('/api/customer/usage');
-  return res.data.data?.connection || res.data.connection;
+  return {
+    connection: ambilMuatan<KoneksiPelanggan>(res.data, 'connection'),
+    pemakaianBulanIni: ambilMuatan<PemakaianPelanggan>(res.data, 'usage')?.monthly,
+  };
 };
 
 export default function CustomerConnectionScreen() {
   const router = useRouter();
-  const { data: connection, isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ['customer-connection'],
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
+    // Kunci lama ('customer-connection') menyimpan objek koneksi saja dan ikut
+    // dipulihkan dari cache persisten; kunci baru mencegah bentuk lama terbaca.
+    queryKey: ['customer-usage'],
     queryFn: fetchUsage
   });
 
@@ -24,12 +32,16 @@ export default function CustomerConnectionScreen() {
     refetch();
   }, [refetch]);
 
+  const connection = data?.connection;
+  const pemakaian = data?.pemakaianBulanIni;
   const isOnline = connection?.isOnline ?? false;
   const ipAddress = connection?.ipAddress ?? '-';
   const uptime = connection?.sessionDurationFormatted ?? '0j 0m';
-  const downloadSpeed = connection?.downloadSpeed ?? '-';
-  const uploadSpeed = connection?.uploadSpeed ?? '-';
-  const ping = connection?.ping ?? '-';
+  const kartuPemakaian = [
+    { label: 'Unduh', Ikon: Download, nilai: pemakaian?.download.formatted },
+    { label: 'Unggah', Ikon: Upload, nilai: pemakaian?.upload.formatted },
+    { label: 'Total', Ikon: Activity, nilai: pemakaian?.total.formatted },
+  ];
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
@@ -84,86 +96,24 @@ export default function CustomerConnectionScreen() {
 
             <View style={tw`h-px bg-gray-100`} />
 
-            <View style={tw`flex-row justify-between items-center`}>
-              <View>
-                <Text style={tw`text-xs text-gray-500 mb-1`}>IP Address</Text>
-                <Text style={tw`text-sm font-medium text-gray-900 font-mono`}>{ipAddress}</Text>
+            <View>
+              <Text style={tw`text-xs text-gray-500 mb-1`}>IP Address</Text>
+              <Text style={tw`text-sm font-medium text-gray-900 font-mono`}>{ipAddress}</Text>
+            </View>
+          </View>
+        </View>
+
+        <Text style={tw`text-xs font-bold text-gray-500 uppercase tracking-wider mb-2`}>Pemakaian Bulan Ini</Text>
+        <View style={tw`flex-row gap-3 mb-4`}>
+          {kartuPemakaian.map(({ label, Ikon, nilai }) => (
+            <View key={label} style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm`}>
+              <View style={tw`flex-row items-center gap-2 mb-2`}>
+                <Ikon size={16} color="#6b7280" />
+                <Text style={tw`text-xs font-bold text-gray-500 uppercase`}>{label}</Text>
               </View>
-              <TouchableOpacity disabled style={tw`bg-teal-50 px-3 py-1.5 rounded-lg opacity-50`}>
-                <Text style={tw`text-teal-700 text-xs font-bold`}>Detail Perangkat</Text>
-                <Text style={tw`text-teal-600 text-[10px]`}>Segera hadir</Text>
-              </TouchableOpacity>
+              <Text style={tw`text-lg font-bold text-gray-900`}>{nilai ?? '-'}</Text>
             </View>
-          </View>
-        </View>
-
-        {/* Stats Grid */}
-        <View style={tw`flex-row gap-3 mb-4`}>
-          <View style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm`}>
-            <View style={tw`flex-row items-center gap-2 mb-2`}>
-              <Download size={16} color="#6b7280" />
-              <Text style={tw`text-xs font-bold text-gray-500 uppercase`}>Down</Text>
-            </View>
-            <Text style={tw`text-xl font-bold text-gray-900`}>{downloadSpeed}</Text>
-            <Text style={tw`text-xs text-gray-500`}>Mbps</Text>
-          </View>
-          <View style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm`}>
-            <View style={tw`flex-row items-center gap-2 mb-2`}>
-              <Upload size={16} color="#6b7280" />
-              <Text style={tw`text-xs font-bold text-gray-500 uppercase`}>Up</Text>
-            </View>
-            <Text style={tw`text-xl font-bold text-gray-900`}>{uploadSpeed}</Text>
-            <Text style={tw`text-xs text-gray-500`}>Mbps</Text>
-          </View>
-          <View style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm`}>
-            <View style={tw`flex-row items-center gap-2 mb-2`}>
-              <Activity size={16} color="#6b7280" />
-              <Text style={tw`text-xs font-bold text-gray-500 uppercase`}>Ping</Text>
-            </View>
-            <Text style={tw`text-xl font-bold text-gray-900`}>{ping}</Text>
-            <Text style={tw`text-xs text-gray-500`}>ms</Text>
-          </View>
-        </View>
-
-        {/* Actions */}
-        <View style={tw`flex-row gap-3 mb-4`}>
-          <TouchableOpacity disabled style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex-row items-center gap-3 opacity-50`}>
-            <View style={tw`w-10 h-10 rounded-full bg-teal-50 items-center justify-center`}>
-              <Zap size={20} color="#0d9488" />
-            </View>
-            <View>
-              <Text style={tw`font-bold text-gray-900`}>Tes Kecepatan</Text>
-              <Text style={tw`text-xs text-gray-400`}>Segera hadir</Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity disabled style={tw`flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex-row items-center gap-3 opacity-50`}>
-            <View style={tw`w-10 h-10 rounded-full bg-orange-50 items-center justify-center`}>
-              <Power size={20} color="#ea580c" />
-            </View>
-            <View>
-              <Text style={tw`font-bold text-gray-900`}>Restart</Text>
-              <Text style={tw`text-xs text-gray-400`}>Segera hadir</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Diagnosis */}
-        <View style={tw`bg-white rounded-xl p-4 border border-gray-100 shadow-sm mb-4`}>
-          <View style={tw`flex-row gap-4 mb-4`}>
-            <View style={tw`w-10 h-10 rounded-full bg-blue-50 items-center justify-center`}>
-              <Wrench size={20} color="#2563eb" />
-            </View>
-            <View style={tw`flex-1`}>
-              <Text style={tw`font-bold text-gray-900`}>Diagnosa Otomatis</Text>
-              <Text style={tw`text-sm text-gray-500 mt-1`}>
-                Deteksi masalah dan optimalkan koneksi Anda secara otomatis.
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity disabled style={tw`w-full bg-teal-600 py-2.5 rounded-lg items-center opacity-50`}>
-            <Text style={tw`text-white font-bold text-sm`}>Mulai Diagnosa</Text>
-            <Text style={tw`text-white/70 text-xs`}>Segera hadir</Text>
-          </TouchableOpacity>
+          ))}
         </View>
 
         {/* Tips */}

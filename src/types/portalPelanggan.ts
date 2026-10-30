@@ -128,3 +128,27 @@ export interface Pengumuman {
   isPinned: boolean;
   createdAt: string;
 }
+
+/** Status sesi PPPoE terakhir dari `/api/customer/usage`. */
+export interface KoneksiPelanggan {
+  isOnline: boolean;
+  ipAddress: string | null;
+  sessionDurationFormatted: string | null;
+}
+
+/** Ukuran data dari server: angka mentah dan teks siap tampil, mis. "1.2 GB". */
+export interface UkuranData {
+  bytes: number;
+  formatted: string;
+}
+
+export interface PemakaianData {
+  download: UkuranData;
+  upload: UkuranData;
+  total: UkuranData;
+}
+
+export interface PemakaianPelanggan {
+  monthly: PemakaianData;
+  allTime: PemakaianData;
+}
