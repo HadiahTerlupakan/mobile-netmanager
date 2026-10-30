@@ -97,6 +97,7 @@ export default function CustomerLayout() {
         />
         <Tabs.Screen name="edit-profil" options={{ href: null }} />
         <Tabs.Screen name="ganti-password" options={{ href: null }} />
+        <Tabs.Screen name="upgrade-paket" options={{ href: null }} />
       </Tabs>
     </Fragment>
   );

@@ -5,7 +5,7 @@ import tw from 'twrnc';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import { ArrowLeft, Wifi, Download, Upload, Calendar, Router, MapPin, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Wifi, Download, Upload, Calendar, Router, MapPin, CheckCircle, Rocket, ChevronRight } from 'lucide-react-native';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { periodeTagihan } from '@/utils/periodeTagihan';
 
@@ -158,12 +158,20 @@ export default function CustomerPaketScreen() {
           </View>
         </View>
 
-        {/* Tawaran upgrade dihapus: isinya tetap ("200 Mbps", "+Rp 50rb/bln")
-            tanpa dasar data apa pun — bukan paket pelanggan ini, bukan daftar
-            paket yang tersedia, bukan selisih harga sebenarnya — dan tombol
-            "Lihat" tidak punya onPress sehingga tidak membuka apa-apa. Janji
-            harga yang salah lebih merugikan daripada tidak ada tawaran.
-            Pasang kembali setelah ada sumber paket & harga sungguhan. */}
+        {/* Tanpa angka di sini: harga & kecepatan pilihan upgrade hanya
+            ditampilkan layar Upgrade, yang membacanya dari server. */}
+        <TouchableOpacity
+          onPress={() => router.push('/(customer)/upgrade-paket')}
+          accessibilityRole="button"
+          style={tw`mt-4 bg-teal-600 rounded-2xl p-4 flex-row items-center`}
+        >
+          <Rocket size={22} color="white" />
+          <View style={tw`flex-1 ml-3`}>
+            <Text style={tw`text-white font-bold text-base`}>Upgrade Paket</Text>
+            <Text style={tw`text-teal-100 text-xs mt-0.5`}>Lihat paket yang tersedia di lokasi Anda</Text>
+          </View>
+          <ChevronRight size={20} color="white" />
+        </TouchableOpacity>
       </ScrollView>
       )}
     </SafeAreaView>

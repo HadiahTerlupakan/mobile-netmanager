@@ -229,10 +229,10 @@ export default function CustomerDashboardScreen() {
 
             {/* Upgrade */}
             <TouchableOpacity
+              onPress={() => router.push('/(customer)/upgrade-paket')}
               style={tw`w-[48%] bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
               accessibilityRole="button"
-              accessibilityLabel="Upgrade paket - segera hadir"
-              accessibilityState={{ disabled: true }}
+              accessibilityLabel="Upgrade - Tambah Kecepatan"
             >
               <View style={tw`w-10 h-10 rounded-lg bg-green-50 items-center justify-center mb-3`}>
                 <Rocket size={24} color="#16a34a" />
