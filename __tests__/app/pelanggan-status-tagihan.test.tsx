@@ -21,6 +21,7 @@ jest.mock('react-native-safe-area-context', () => {
 jest.mock('react-native-sse', () => jest.fn());
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
 jest.mock('expo-image-picker', () => ({}));
+jest.mock('@/utils/simpanQrisKeGaleri', () => ({ simpanQrisKeGaleri: jest.fn() }));
 jest.mock('expo-web-browser', () => ({}));
 jest.mock('@/services/TokenService', () => ({ TokenService: { getToken: jest.fn() } }));
 jest.mock('@/services/TenantService', () => ({ TenantService: { getTenantUrl: jest.fn() } }));

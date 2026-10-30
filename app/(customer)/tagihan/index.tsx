@@ -13,7 +13,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { AlertCircle, ArrowLeft, CheckCircle, Clock, Copy, CreditCard, Receipt, Router as RouterIcon, Tag, Upload, XCircle } from 'lucide-react-native';
+import { AlertCircle, ArrowLeft, CheckCircle, Clock, Copy, Headset, Receipt, Router as RouterIcon, Tag, Upload, XCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,8 +22,15 @@ import tw from 'twrnc';
 import { ambilMuatan } from '@/utils/responsPelanggan';
 import { isTagihanDibatalkan, isTagihanTerutang, labelStatusTagihan } from '@/utils/statusTagihanPelanggan';
 import { KartuMenungguGateway } from '@/components/organisms/tagihan/KartuMenungguGateway';
+import { PilihanMetodeBayar } from '@/components/organisms/tagihan/PilihanMetodeBayar';
+import { LembarPembayaranBerhasil } from '@/components/molecules/LembarPembayaranBerhasil';
+import { usePembayaranLunas } from '@/hooks/usePembayaranLunas';
+import { simpanQrisKeGaleri } from '@/utils/simpanQrisKeGaleri';
 
 dayjs.locale('id');
+
+/** SSE status pembayaran bisa putus tanpa tersambung lagi; polling ini cadangannya. */
+const INTERVAL_CEK_PEMBAYARAN_MS = 15_000;
 
 interface LastPayment {
   amount: number;
@@ -47,7 +54,7 @@ interface Invoice {
   remainingAmount: number;
   status: string;
   dueDate: string;
-  createdAt: string;
+  issueDate: string;
   items: { description: string }[];
   lastPayment?: LastPayment | null;
 }
@@ -89,10 +96,14 @@ export default function CustomerTagihanScreen() {
   // Checkout yang menunggu sedang diganti metodenya: tampilkan pilihan metode.
   const [isGantiMetode, setIsGantiMetode] = useState(false);
 
-  const { data: invoices, isLoading, isFetching, refetch } = useQuery({
+  const { data: invoices, isLoading, refetch } = useQuery({
     queryKey: ['customer-invoices'],
-    queryFn: fetchInvoices
+    queryFn: fetchInvoices,
+    refetchInterval: (query) =>
+      query.state.data?.some(inv => inv.lastPayment?.gatewayStatus === 'PENDING') ? INTERVAL_CEK_PEMBAYARAN_MS : false,
   });
+  const pembayaranLunas = usePembayaranLunas(invoices);
+  const [isMengecekStatus, setIsMengecekStatus] = useState(false);
 
   const { data: paymentMethods, isLoading: loadingMethods, refetch: refetchMethods } = useQuery({
     queryKey: ['payment-methods'],
@@ -102,9 +113,15 @@ export default function CustomerTagihanScreen() {
     }
   });
 
-  const onRefresh = useCallback(() => {
-    refetch();
-    refetchMethods();
+  // Spinner tarik-segarkan hanya untuk tarikan pelanggan, bukan polling atau cek status.
+  const [isMenarikUlang, setIsMenarikUlang] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setIsMenarikUlang(true);
+    try {
+      await Promise.all([refetch(), refetchMethods()]);
+    } finally {
+      setIsMenarikUlang(false);
+    }
   }, [refetch, refetchMethods]);
 
   const filteredInvoices = invoices?.filter(inv => {
@@ -180,7 +197,7 @@ export default function CustomerTagihanScreen() {
           try {
             const data = JSON.parse(event.data);
             if (data.status === 'PAID') {
-              presentSuccessMessage('Pembayaran telah berhasil diverifikasi!');
+              // Lembar sukses muncul dari daftar tagihan yang dimuat ulang.
               refetch();
               eventSource?.close();
             } else if (data.status === 'EXPIRED') {
@@ -207,13 +224,6 @@ export default function CustomerTagihanScreen() {
       if (eventSource) eventSource.close();
     };
   }, [activePayment, pendingPaymentInvoice, refetch]);
-
-  // Initial Method Selection
-  useEffect(() => {
-    if (paymentMethods && paymentMethods.length > 0 && !selectedMethodCode) {
-      setSelectedMethodCode(paymentMethods[0].code);
-    }
-  }, [paymentMethods, selectedMethodCode]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
@@ -362,6 +372,33 @@ export default function CustomerTagihanScreen() {
     paymentMutation.mutate();
   };
 
+  const cekStatusPembayaran = async () => {
+    setIsMengecekStatus(true);
+    try {
+      const hasil = await refetch();
+      const masihMenunggu = hasil.data?.some(inv => inv.id === pendingPaymentInvoice?.id && inv.status !== 'PAID');
+      if (masihMenunggu) {
+        presentInfoMessage('Pembayaran belum kami terima. Bila baru saja membayar, tunggu 1–2 menit lalu cek lagi.', 'Belum Diterima');
+      }
+    } finally {
+      setIsMengecekStatus(false);
+    }
+  };
+
+  const simpanQris = async (base64Png: string) => {
+    try {
+      const hasil = await simpanQrisKeGaleri(base64Png);
+      if (hasil === 'ditolak') {
+        presentInfoMessage('Izinkan akses Galeri agar gambar QRIS bisa disimpan.', 'Izin Ditolak');
+        return;
+      }
+      presentSuccessMessage('QRIS tersimpan di Galeri. Buka aplikasi e-wallet, pilih Scan lalu ambil dari Galeri.');
+    } catch (error) {
+      logger.error('[CustomerTagihan] Failed to save QRIS', error);
+      presentErrorMessage('Gagal menyimpan gambar QRIS.');
+    }
+  };
+
   const copyToClipboard = async (text: string, type: string) => {
     try {
       await Clipboard.setStringAsync(text);
@@ -382,15 +419,15 @@ export default function CustomerTagihanScreen() {
           </TouchableOpacity>
           <Text style={tw`text-lg font-bold text-gray-900`}>Tagihan & Pembayaran</Text>
         </View>
-        <TouchableOpacity onPress={() => presentInfoMessage('Hubungi CS jika ada kendala pembayaran')}>
-          <AlertCircle size={20} color="#6b7280" />
+        <TouchableOpacity accessibilityLabel="Bantuan pembayaran" onPress={() => router.push('/(customer)/tickets')} style={tw`p-1`}>
+          <Headset size={20} color="#6b7280" />
         </TouchableOpacity>
       </View>
 
       <ScrollView
         contentContainerStyle={tw`pb-24`}
         refreshControl={
-          <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor="#0d9488" />
+          <RefreshControl refreshing={isMenarikUlang} onRefresh={onRefresh} tintColor="#0d9488" />
         }
       >
         {isLoading && !invoices ? (
@@ -411,10 +448,21 @@ export default function CustomerTagihanScreen() {
                   <View style={tw`flex-row items-center mb-4`}>
                     <Clock size={20} color="#ea580c" />
                     <Text style={tw`text-orange-600 font-bold ml-2 text-sm`}>Selesaikan Pembayaran</Text>
-                    <View style={tw`ml-auto bg-orange-100 px-3 py-1 rounded-full`}>
-                      <Text style={tw`text-orange-600 font-bold text-xs`}>{timeLeft}</Text>
-                    </View>
+                    {timeLeft !== '' && (
+                      <View style={tw`ml-auto bg-orange-100 px-3 py-1 rounded-full`}>
+                        <Text style={tw`text-orange-600 font-bold text-xs`}>Sisa {timeLeft}</Text>
+                      </View>
+                    )}
                   </View>
+                  <Text style={tw`text-xs text-gray-500 -mt-2 mb-4`}>
+                    {[
+                      activeGatewayMethod?.name,
+                      `#${pendingPaymentInvoice?.invoiceNumber}`,
+                      activePayment.expiresAt ? `bayar sebelum ${dayjs(activePayment.expiresAt).format('D MMM, HH.mm')}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </Text>
 
                   {activePayment.method === 'BANK_TRANSFER' && selectedBankDetails ? (
                     <View style={tw`bg-gray-50 rounded-xl p-4 border border-gray-200`}>
@@ -479,7 +527,10 @@ export default function CustomerTagihanScreen() {
                       namaMetode={activeGatewayMethod?.name}
                       jenisMetode={activeGatewayMethod?.type}
                       urlBayar={activePayment.paymentUrl}
+                      isMengecekStatus={isMengecekStatus}
                       onSalin={copyToClipboard}
+                      onSimpanQris={simpanQris}
+                      onCekStatus={cekStatusPembayaran}
                       onBukaHalamanBayar={() => WebBrowser.openBrowserAsync(activePayment.paymentUrl!, { controlsColor: '#0d9488' })}
                       onGantiMetode={() => {
                         setIsGantiMetode(true);
@@ -500,7 +551,9 @@ export default function CustomerTagihanScreen() {
 
                     <View style={tw`flex-row justify-between items-start mb-6`}>
                       <View>
-                        <Text style={tw`text-teal-50 text-sm font-medium mb-1`}>Total Tagihan Bulan Ini</Text>
+                        <Text style={tw`text-teal-50 text-sm font-medium mb-1`}>
+                          {pendingInvoices.length > 1 ? `Total ${pendingInvoices.length} Tagihan Belum Dibayar` : 'Total Tagihan'}
+                        </Text>
                         <Text style={tw`text-3xl font-black text-white tracking-tight`}>
                           {formatCurrency(totalPending)}
                         </Text>
@@ -609,26 +662,7 @@ export default function CustomerTagihanScreen() {
                         <Skeleton height={50} borderRadius={12} />
                       </View>
                     ) : (
-                      <View style={tw`gap-2 mb-5`}>
-                        {paymentMethods.map(method => (
-                          <TouchableOpacity
-                            key={method.id}
-                            onPress={() => setSelectedMethodCode(method.code)}
-                            style={tw`bg-white rounded-xl p-3.5 flex-row items-center justify-between border-2 ${selectedMethodCode === method.code ? 'border-teal-500 bg-teal-50' : 'border-gray-100'}`}
-                          >
-                            <View style={tw`flex-row items-center flex-1`}>
-                              <CreditCard size={20} color={selectedMethodCode === method.code ? "#0d9488" : "#6b7280"} />
-                              <View style={tw`ml-3`}>
-                                <Text style={tw`font-bold text-sm ${selectedMethodCode === method.code ? 'text-teal-900' : 'text-gray-900'}`}>{method.name}</Text>
-                                <Text style={tw`text-[10px] text-gray-500 mt-0.5 uppercase`}>{method.group}</Text>
-                              </View>
-                            </View>
-                            <View style={tw`w-5 h-5 rounded-full border-2 items-center justify-center ${selectedMethodCode === method.code ? 'border-teal-600 bg-teal-600' : 'border-gray-300'}`}>
-                              {selectedMethodCode === method.code && <View style={tw`w-2 h-2 rounded-full bg-white`} />}
-                            </View>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
+                      <PilihanMetodeBayar metode={paymentMethods} kodeTerpilih={selectedMethodCode} onPilih={setSelectedMethodCode} />
                     )}
 
                     <View style={tw`flex-row justify-between items-center mb-4`}>
@@ -688,7 +722,7 @@ export default function CustomerTagihanScreen() {
                           {inv.items[0]?.description || 'Tagihan Internet'}
                         </Text>
                         <Text style={tw`text-xs text-gray-500 mt-0.5`}>
-                          #{inv.invoiceNumber} • {dayjs(inv.createdAt).format('D MMM YYYY')}
+                          #{inv.invoiceNumber} • {dayjs(inv.issueDate).format('D MMM YYYY')}
                         </Text>
                       </View>
                       <View style={tw`items-end`}>
@@ -709,6 +743,11 @@ export default function CustomerTagihanScreen() {
           </>
         )}
       </ScrollView>
+      <LembarPembayaranBerhasil
+        nominal={pembayaranLunas.lunas ? formatCurrency(pembayaranLunas.lunas.nominal) : null}
+        nomorTagihan={pembayaranLunas.lunas?.nomorTagihan ?? null}
+        onTutup={pembayaranLunas.tutup}
+      />
     </SafeAreaView>
   );
 }
