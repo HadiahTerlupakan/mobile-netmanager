@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import EventSource from 'react-native-sse';
 import tw from 'twrnc';
 import { ambilMuatan } from '@/utils/responsPelanggan';
+import { isTagihanDibatalkan, isTagihanTerutang, labelStatusTagihan } from '@/utils/statusTagihanPelanggan';
 
 dayjs.locale('id');
 
@@ -68,7 +69,7 @@ const fetchInvoices = async () => {
 
 export default function CustomerTagihanScreen() {
   const router = useRouter();
-  const [filter, setFilter] = useState<'ALL' | 'PAID' | 'UNPAID' | 'FAILED'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'PAID' | 'UNPAID' | 'CANCELLED'>('ALL');
 
   // Payment State
   const [couponCode, setCouponCode] = useState('');
@@ -102,12 +103,12 @@ export default function CustomerTagihanScreen() {
   const filteredInvoices = invoices?.filter(inv => {
     if (filter === 'ALL') return true;
     if (filter === 'PAID') return inv.status === 'PAID';
-    if (filter === 'UNPAID') return ['SENT', 'OVERDUE'].includes(inv.status);
-    if (filter === 'FAILED') return inv.status === 'VOID';
+    if (filter === 'UNPAID') return isTagihanTerutang(inv.status);
+    if (filter === 'CANCELLED') return isTagihanDibatalkan(inv.status);
     return true;
   }) || [];
 
-  const pendingInvoices = invoices?.filter(inv => ['SENT', 'OVERDUE'].includes(inv.status)) || [];
+  const pendingInvoices = invoices?.filter(inv => isTagihanTerutang(inv.status)) || [];
   const totalPending = pendingInvoices.reduce((sum, inv) => sum + inv.remainingAmount, 0);
   const nextDueDate = pendingInvoices.length > 0
     ? pendingInvoices.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0]?.dueDate
@@ -211,11 +212,12 @@ export default function CustomerTagihanScreen() {
   };
 
   const getStatusConfig = (status: string) => {
+    const label = labelStatusTagihan(status);
     switch (status) {
-      case 'PAID': return { label: 'Lunas', color: 'text-green-600', bg: 'bg-green-100', icon: CheckCircle };
-      case 'SENT': return { label: 'Belum Bayar', color: 'text-orange-600', bg: 'bg-orange-100', icon: RouterIcon };
-      case 'OVERDUE': return { label: 'Terlambat', color: 'text-red-600', bg: 'bg-red-100', icon: AlertCircle };
-      default: return { label: status, color: 'text-gray-600', bg: 'bg-gray-100', icon: Receipt };
+      case 'PAID': return { label, color: 'text-green-600', bg: 'bg-green-100', icon: CheckCircle };
+      case 'SENT': return { label, color: 'text-orange-600', bg: 'bg-orange-100', icon: RouterIcon };
+      case 'OVERDUE': return { label, color: 'text-red-600', bg: 'bg-red-100', icon: AlertCircle };
+      default: return { label, color: 'text-gray-600', bg: 'bg-gray-100', icon: Receipt };
     }
   };
 
@@ -637,14 +639,14 @@ export default function CustomerTagihanScreen() {
 
               {/* Filters */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={tw`gap-2 mb-4`}>
-                {['ALL', 'UNPAID', 'PAID', 'FAILED'].map((f) => (
+                {['ALL', 'UNPAID', 'PAID', 'CANCELLED'].map((f) => (
                   <TouchableOpacity
                     key={f}
                     onPress={() => setFilter(f as any)}
                     style={tw`px-4 py-1.5 rounded-full ${filter === f ? 'bg-gray-900' : 'bg-white border border-gray-200'}`}
                   >
                     <Text style={tw`text-xs font-bold ${filter === f ? 'text-white' : 'text-gray-600'}`}>
-                      {f === 'ALL' ? 'Semua' : f === 'UNPAID' ? 'Belum Bayar' : f === 'PAID' ? 'Lunas' : 'Gagal'}
+                      {f === 'ALL' ? 'Semua' : f === 'UNPAID' ? 'Belum Bayar' : f === 'PAID' ? 'Lunas' : labelStatusTagihan('CANCELLED')}
                     </Text>
                   </TouchableOpacity>
                 ))}

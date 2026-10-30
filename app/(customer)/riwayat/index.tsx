@@ -10,6 +10,7 @@ import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import { ambilMuatan } from '@/utils/responsPelanggan';
+import { isTagihanDibatalkan, isTagihanTerutang, labelStatusTagihan } from '@/utils/statusTagihanPelanggan';
 
 dayjs.locale('id');
 
@@ -17,7 +18,7 @@ interface Invoice {
   id: string;
   invoiceNumber: string;
   totalAmount: number; // or string depending on API
-  status: string; // 'PAID' | 'SENT' | 'OVERDUE' | 'VOID'
+  status: string;
   items: { description: string }[];
   issueDate: string;
   dueDate: string;
@@ -30,7 +31,7 @@ const fetchHistory = async () => {
 
 export default function CustomerHistoryScreen() {
   const router = useRouter();
-  const [filter, setFilter] = useState<'ALL' | 'SUCCESS' | 'PENDING' | 'FAILED'>('ALL');
+  const [filter, setFilter] = useState<'ALL' | 'SUCCESS' | 'PENDING' | 'CANCELLED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   const { data: invoices, isLoading, isError, isFetching, refetch } = useQuery({
@@ -49,8 +50,8 @@ export default function CustomerHistoryScreen() {
 
     if (filter === 'ALL') return true;
     if (filter === 'SUCCESS') return inv.status === 'PAID';
-    if (filter === 'PENDING') return ['SENT', 'OVERDUE'].includes(inv.status);
-    if (filter === 'FAILED') return inv.status === 'VOID';
+    if (filter === 'PENDING') return isTagihanTerutang(inv.status);
+    if (filter === 'CANCELLED') return isTagihanDibatalkan(inv.status);
     return true;
   }) || [];
 
@@ -73,15 +74,17 @@ export default function CustomerHistoryScreen() {
   };
 
   const getStatusConfig = (status: string) => {
-    switch (status) {
-      case 'PAID':
-        return { label: 'Lunas', icon: CheckCircle, color: 'text-teal-600', bg: 'bg-teal-100', badgeBg: 'bg-teal-100', badgeText: 'text-teal-700' };
-      case 'SENT':
-      case 'OVERDUE':
-        return { label: 'Menunggu', icon: Router, color: 'text-orange-500', bg: 'bg-orange-100', badgeBg: 'bg-orange-100', badgeText: 'text-orange-700' };
-      default:
-        return { label: 'Gagal', icon: XCircle, color: 'text-red-500', bg: 'bg-red-100', badgeBg: 'bg-red-100', badgeText: 'text-red-700' };
+    const label = labelStatusTagihan(status);
+    if (status === 'PAID') {
+      return { label, icon: CheckCircle, color: 'text-teal-600', bg: 'bg-teal-100', badgeBg: 'bg-teal-100', badgeText: 'text-teal-700' };
     }
+    if (isTagihanTerutang(status)) {
+      return { label, icon: Router, color: 'text-orange-500', bg: 'bg-orange-100', badgeBg: 'bg-orange-100', badgeText: 'text-orange-700' };
+    }
+    if (isTagihanDibatalkan(status)) {
+      return { label, icon: XCircle, color: 'text-red-500', bg: 'bg-red-100', badgeBg: 'bg-red-100', badgeText: 'text-red-700' };
+    }
+    return { label, icon: Receipt, color: 'text-gray-500', bg: 'bg-gray-100', badgeBg: 'bg-gray-100', badgeText: 'text-gray-700' };
   };
 
   return (
@@ -110,7 +113,7 @@ export default function CustomerHistoryScreen() {
             { id: 'ALL', label: 'Semua' },
             { id: 'SUCCESS', label: 'Berhasil' },
             { id: 'PENDING', label: 'Menunggu' },
-            { id: 'FAILED', label: 'Gagal' },
+            { id: 'CANCELLED', label: labelStatusTagihan('CANCELLED') },
           ].map((item) => (
             <TouchableOpacity
               key={item.id}
