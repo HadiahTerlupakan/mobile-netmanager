@@ -10,6 +10,7 @@ import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { ambilMuatan } from '@/utils/responsPelanggan';
+import { useJumlahKabarBelumDibaca } from '@/hooks/queries/useKabarPelanggan';
 
 interface Invoice {
   id: string;
@@ -56,11 +57,13 @@ export default function CustomerDashboardScreen() {
     queryFn: fetchDashboardData,
     enabled: !!user // Only run if user exists
   });
+  const { data: jumlahBelumDibaca = 0, refetch: muatUlangJumlahBelumDibaca } = useJumlahKabarBelumDibaca();
 
   useFocusEffect(
     useCallback(() => {
       refetch();
-    }, [refetch])
+      void muatUlangJumlahBelumDibaca();
+    }, [refetch, muatUlangJumlahBelumDibaca])
   );
 
   const onRefresh = useCallback(() => {
@@ -77,8 +80,8 @@ export default function CustomerDashboardScreen() {
       <DashboardHeader
         userName={user?.name || ''}
         userImage={user?.image}
-        notificationCount={0}
-        onNotificationPress={() => { }}
+        notificationCount={jumlahBelumDibaca}
+        onNotificationPress={() => router.push('/(customer)/notifikasi')}
         onProfilePress={() => router.push('/(customer)/profile')}
       />
 

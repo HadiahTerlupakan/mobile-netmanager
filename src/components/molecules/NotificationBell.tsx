@@ -4,10 +4,9 @@ import { queryKeys } from '@/lib/queryClient';
 import { isAkunInvestor } from '@/utils/investor';
 import { isAkunPelanggan } from '@/utils/pelanggan';
 import { useRouter } from 'expo-router';
-import { Bell } from 'lucide-react-native';
 import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
-import tw from 'twrnc';
+
+import { TombolLonceng } from './TombolLonceng';
 
 interface NotificationBellProps {
     color?: string;
@@ -55,18 +54,7 @@ function NotificationBellComponent({ color = '#ffffff' }: NotificationBellProps)
         router.push('/(app)/notifications');
     };
 
-    return (
-        <TouchableOpacity onPress={handlePress} style={tw`relative p-2`}>
-            <Bell size={24} color={color} />
-            {unreadCount > 0 && (
-                <View style={tw`absolute -top-0 -right-0 bg-red-500 rounded-full min-w-5 h-5 items-center justify-center px-1`}>
-                    <Text style={tw`text-white text-xs font-bold`}>
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                    </Text>
-                </View>
-            )}
-        </TouchableOpacity>
-    );
+    return <TombolLonceng jumlah={unreadCount} onTekan={handlePress} warna={color} />;
 }
 
 // Wrap with React.memo to prevent unnecessary re-renders

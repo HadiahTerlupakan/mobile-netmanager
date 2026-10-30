@@ -1,5 +1,6 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import NotificationBell from '@/components/molecules/NotificationBell';
+import { TombolLonceng } from '@/components/molecules/TombolLonceng';
 import { urlGambarTenant } from '@/utils/urlGambarTenant';
 import React, { memo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
@@ -13,7 +14,10 @@ interface DashboardHeaderProps {
     onProfilePress?: () => void;
 }
 
-export const DashboardHeader = memo(({ userName, userImage, onProfilePress }: DashboardHeaderProps) => {
+/** gray-700 */
+const WARNA_LONCENG = '#374151';
+
+export const DashboardHeader = memo(({ userName, userImage, notificationCount = 0, onNotificationPress, onProfilePress }: DashboardHeaderProps) => {
     const { tw } = useTemaPersona();
     const initial = userName ? userName.charAt(0).toUpperCase() : 'K';
 
@@ -40,8 +44,13 @@ export const DashboardHeader = memo(({ userName, userImage, onProfilePress }: Da
             {/* Title */}
             <Text style={tw`text-lg font-bold text-gray-900`}>Dashboard</Text>
 
-            {/* Notification Bell */}
-            <NotificationBell color="#374151" />
+            {/* Pemanggil yang punya sumber notifikasi sendiri (pelanggan) memberi
+                angka & tujuan; selain itu lonceng karyawan yang mengurus dirinya. */}
+            {onNotificationPress ? (
+                <TombolLonceng jumlah={notificationCount} onTekan={onNotificationPress} warna={WARNA_LONCENG} />
+            ) : (
+                <NotificationBell color={WARNA_LONCENG} />
+            )}
         </View>
     );
 });
