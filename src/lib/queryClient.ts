@@ -15,6 +15,7 @@ import {
   shouldReportToBackend,
   shouldRetryMutation,
 } from "@/lib/queryErrorReporting";
+import { kunciPortalPelanggan } from "@/lib/kunciPortalPelanggan";
 import { errorReportingService } from "@/services/ErrorReportingService";
 import { logger } from "@/utils/logger";
 import { showToast } from "@/utils/errorPresenter";
@@ -330,6 +331,9 @@ export const queryKeys = {
     penilaian: (periode: { tahun: number; bulan: number }) =>
       [...queryKeys.presurvei.all, "penilaian", periode] as const,
   },
+
+  // Portal pelanggan (sesi CUSTOMER)
+  portalPelanggan: kunciPortalPelanggan,
 
   // Pengesahan (tanda tangan elektronik surat)
   pengesahan: {

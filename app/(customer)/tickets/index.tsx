@@ -1,4 +1,6 @@
 import api from '@/services/api';
+import { KATEGORI_TIKET, tampilanStatusTiket } from '@/constants/tiketPelanggan';
+import { queryKeys } from '@/lib/queryClient';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { extractApiErrorMessage } from '@/utils/errorHandling';
 import { presentAppError, presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
@@ -8,7 +10,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { useRouter } from 'expo-router';
-import { AlertCircle, ArrowLeft, CheckCircle, ChevronDown, Clock, Plus, Search, Ticket, User, X, XCircle } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, Plus, Search, Ticket, X } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -48,7 +50,7 @@ export default function CustomerTicketsScreen() {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
   const { data: tickets, isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ['customer-tickets'],
+    queryKey: queryKeys.portalPelanggan.daftarTiket(),
     queryFn: fetchTickets
   });
 
@@ -68,7 +70,7 @@ export default function CustomerTicketsScreen() {
         setCategory('');
         setSubject('');
         setDescription('');
-        queryClient.invalidateQueries({ queryKey: ['customer-tickets'] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.portalPelanggan.daftarTiket() });
 
         // 3. Show success alert after a tiny delay to ensure React commits state
         setTimeout(() => {
@@ -108,17 +110,6 @@ export default function CustomerTicketsScreen() {
     return matchesSearch;
   }) || [];
 
-  const getStatusConfig = (status: string) => {
-    switch (status) {
-      case 'OPEN': return { label: 'Baru', color: 'text-blue-600', bg: 'bg-blue-100', icon: AlertCircle };
-      case 'IN_PROGRESS': return { label: 'Proses', color: 'text-orange-600', bg: 'bg-orange-100', icon: Clock };
-      case 'WAITING_CUSTOMER': return { label: 'Menunggu', color: 'text-purple-600', bg: 'bg-purple-100', icon: User };
-      case 'RESOLVED': return { label: 'Selesai', color: 'text-teal-600', bg: 'bg-teal-100', icon: CheckCircle };
-      case 'CLOSED': return { label: 'Ditutup', color: 'text-gray-600', bg: 'bg-gray-100', icon: XCircle };
-      default: return { label: status, color: 'text-gray-600', bg: 'bg-gray-100', icon: AlertCircle };
-    }
-  };
-
   const handleCreateSubmit = () => {
     if (!category || !subject || !description) {
       presentInfoMessage('Mohon lengkapi semua field', 'Peringatan');
@@ -126,13 +117,6 @@ export default function CustomerTicketsScreen() {
     }
     createTicketMutation.mutate({ category, subject, description });
   };
-
-  const categories = [
-    { label: 'Masalah Teknis', value: 'TECHNICAL' },
-    { label: 'Tagihan & Pembayaran', value: 'BILLING' },
-    { label: 'Akun Saya', value: 'ACCOUNT' },
-    { label: 'Lainnya', value: 'OTHER' },
-  ];
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
@@ -196,25 +180,24 @@ export default function CustomerTicketsScreen() {
           </View>
         ) : (
           filteredTickets.map((ticket) => {
-            const status = getStatusConfig(ticket.status);
-            const StatusIcon = status.icon;
+            const status = tampilanStatusTiket(ticket.status);
+            const StatusIcon = status.ikon;
 
             return (
               <TouchableOpacity
                 key={ticket.id}
-                onPress={() => {
-                  // Navigate to detail (placeholder for now)
-                  presentInfoMessage('Detail tiket akan segera hadir');
-                }}
+                onPress={() => router.push({ pathname: '/(customer)/tickets/[id]', params: { id: ticket.id } })}
+                accessibilityRole="button"
+                accessibilityLabel={`Tiket ${ticket.ticketNumber}`}
                 style={tw`bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3`}
               >
                 <View style={tw`flex-row justify-between items-start mb-2`}>
                   <View style={tw`flex-row items-center bg-gray-100 px-2 py-1 rounded`}>
                     <Text style={tw`text-xs font-mono font-bold text-gray-600`}>#{ticket.ticketNumber}</Text>
                   </View>
-                  <View style={tw`flex-row items-center px-2 py-1 rounded-full ${status.bg}`}>
-                    <StatusIcon size={12} style={tw`${status.color} mr-1`} />
-                    <Text style={tw`text-xs font-bold ${status.color}`}>{status.label}</Text>
+                  <View style={tw`flex-row items-center px-2 py-1 rounded-full ${status.warnaLatar}`}>
+                    <StatusIcon size={12} style={tw`${status.warnaTeks} mr-1`} />
+                    <Text style={tw`text-xs font-bold ${status.warnaTeks}`}>{status.label}</Text>
                   </View>
                 </View>
 
@@ -267,14 +250,14 @@ export default function CustomerTicketsScreen() {
                   style={tw`flex-row items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3`}
                 >
                   <Text style={tw`${category ? 'text-gray-900' : 'text-gray-400'}`}>
-                    {categories.find(c => c.value === category)?.label || 'Pilih Kategori'}
+                    {KATEGORI_TIKET.find(c => c.value === category)?.label || 'Pilih Kategori'}
                   </Text>
                   <ChevronDown size={20} color="#9ca3af" />
                 </TouchableOpacity>
 
                 {showCategoryDropdown && (
                   <View style={tw`mt-1 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden`}>
-                    {categories.map((cat) => (
+                    {KATEGORI_TIKET.map((cat) => (
                       <TouchableOpacity
                         key={cat.value}
                         onPress={() => {

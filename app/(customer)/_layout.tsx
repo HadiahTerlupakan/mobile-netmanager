@@ -87,6 +87,14 @@ export default function CustomerLayout() {
             href: null,
           }}
         />
+        {/* Kotak balas menempel di bawah layar; tab bar akan menutupinya. */}
+        <Tabs.Screen
+          name="tickets/[id]"
+          options={{
+            href: null,
+            tabBarStyle: { display: "none" },
+          }}
+        />
       </Tabs>
     </Fragment>
   );
