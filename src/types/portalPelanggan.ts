@@ -152,3 +152,48 @@ export interface PemakaianPelanggan {
   monthly: PemakaianData;
   allTime: PemakaianData;
 }
+
+/** Pembayaran terakhir sebuah tagihan, dari `GET /api/customer/invoices`. */
+export interface PembayaranTerakhir {
+  amount: number;
+  date: Date | string;
+  method: string;
+  gatewayStatus?: string | null;
+  paymentUrl?: string | null;
+  vaNumber?: string | null;
+  qrString?: string | null;
+  /** Kode channel gateway (mis. "BC"), sama dengan `code` metode pembayaran. */
+  gatewayProvider?: string | null;
+  receiptUrl?: string | null;
+  expiresAt?: Date | string | null;
+  accountId?: string | null;
+}
+
+export interface TagihanPelanggan {
+  id: string;
+  invoiceNumber: string;
+  totalAmount: number;
+  remainingAmount: number;
+  status: string;
+  dueDate: string;
+  /** API tidak mengirim createdAt; tanggal tagihan adalah tanggal terbitnya. */
+  issueDate: string;
+  items: { description: string }[];
+  lastPayment?: PembayaranTerakhir | null;
+}
+
+export interface RekeningTransferManual {
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+}
+
+export interface MetodePembayaranPelanggan {
+  id: string;
+  name: string;
+  provider: string;
+  type: string;
+  code: string;
+  group: string;
+  details?: RekeningTransferManual;
+}

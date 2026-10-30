@@ -127,6 +127,8 @@ describe('pembayaran gateway di aplikasi pelanggan', () => {
     const layar = await renderLayar();
 
     fireEvent.press(layar.getByText('Ganti Metode Pembayaran'));
+    // VA/QRIS lama tetap bisa dibayar sampai kedaluwarsa (Duitku tidak bisa menutupnya).
+    expect(layar.getByText(/Bayar hanya yang baru/)).toBeTruthy();
     fireEvent.press(layar.getByText('BCA Virtual Account'));
     fireEvent.press(layar.getByText('Konfirmasi & Bayar'));
     await selesaikanJanji();
