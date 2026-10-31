@@ -5,7 +5,7 @@ import tw from 'twrnc';
 
 import { useAjukanUpgradePaket, useBatalkanUpgradePaket } from '@/hooks/queries/usePaketPelanggan';
 import type { PaketPelanggan } from '@/types/portalPelanggan';
-import { idPilihanAwal } from '@/utils/paketPelanggan';
+import { ALASAN_UPGRADE_BUTUH_AKTIF, idPilihanAwal, isBolehAjukanUpgrade } from '@/utils/paketPelanggan';
 
 import { BilahAjukanUpgrade } from './BilahAjukanUpgrade';
 import { KartuPaketSaatIni } from './KartuPaketSaatIni';
@@ -36,6 +36,15 @@ function TanpaPilihanUpgrade() {
   );
 }
 
+/** Pengganti bilah ajukan selama layanan tidak aktif; server akan menolak pengajuannya. */
+function KeteranganUpgradeTertutup() {
+  return (
+    <View style={tw`bg-white border-t border-gray-200 p-4`}>
+      <Text style={tw`text-sm text-gray-600 text-center`}>{ALASAN_UPGRADE_BUTUH_AKTIF}</Text>
+    </View>
+  );
+}
+
 /** Paket saat ini, pengajuan yang menunggu, pilihan upgrade, dan bilah ajukan. */
 export function TampilanUpgradePaket({ paket, isMenyegarkan, onSegarkan }: TampilanUpgradePaketProps) {
   const ajukan = useAjukanUpgradePaket();
@@ -44,6 +53,7 @@ export function TampilanUpgradePaket({ paket, isMenyegarkan, onSegarkan }: Tampi
   const pilihan = paket.upgradeOptions;
   const idAktif = idDipilih ?? idPilihanAwal(pilihan);
   const pilihanAktif = pilihan.find((item) => item.id === idAktif);
+  const isBolehAjukan = isBolehAjukanUpgrade(paket.subscription.status);
 
   return (
     <View style={tw`flex-1`}>
@@ -62,7 +72,8 @@ export function TampilanUpgradePaket({ paket, isMenyegarkan, onSegarkan }: Tampi
           <KartuPilihanUpgrade key={item.id} pilihan={item} isTerpilih={item.id === idAktif} onPilih={() => setIdDipilih(item.id)} />
         ))}
       </ScrollView>
-      {pilihanAktif && !paket.pendingUpgrade ? (
+      {pilihanAktif && !paket.pendingUpgrade && !isBolehAjukan ? <KeteranganUpgradeTertutup /> : null}
+      {pilihanAktif && !paket.pendingUpgrade && isBolehAjukan ? (
         <BilahAjukanUpgrade pilihan={pilihanAktif} isMengajukan={ajukan.isPending} onAjukan={() => ajukan.mutate(pilihanAktif.id)} />
       ) : null}
     </View>

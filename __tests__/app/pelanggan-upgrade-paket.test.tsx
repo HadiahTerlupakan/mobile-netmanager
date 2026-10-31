@@ -123,6 +123,17 @@ describe('upgrade paket pelanggan', () => {
     expect(layar.queryByText('Ajukan Upgrade')).toBeNull();
   });
 
+  // Server menolak pengajuan dari pelanggan yang tidak AKTIF; tombolnya dulu
+  // tetap tampil dan baru gagal setelah ditekan.
+  it.each(['ISOLIR', 'NONAKTIF', 'MAINTENANCE'])('layanan %s: tombol ajukan diganti alasannya', async (status) => {
+    sajikanPaket({ subscription: { jatuhTempo: '2026-11-20T00:00:00.000Z', status } });
+
+    const layar = await renderLayar();
+
+    expect(layar.queryByText('Ajukan Upgrade')).toBeNull();
+    expect(layar.getByText('Upgrade bisa diajukan saat layanan Anda aktif.')).toBeTruthy();
+  });
+
   it('pelanggan tanpa paket melihat pesan server', async () => {
     mockGet.mockRejectedValue(galatHttp(404, 'Paket langganan tidak ditemukan'));
 

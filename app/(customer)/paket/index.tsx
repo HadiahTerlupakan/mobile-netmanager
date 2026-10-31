@@ -6,7 +6,10 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { ArrowLeft, Wifi, Download, Upload, Calendar, Router, MapPin, CheckCircle, Rocket, ChevronRight } from 'lucide-react-native';
+import { LencanaStatus } from '@/components/molecules/LencanaStatus';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
+import { statusPelanggan } from '@/constants/pelanggan';
+import { ALASAN_UPGRADE_BUTUH_AKTIF, isBolehAjukanUpgrade } from '@/utils/paketPelanggan';
 import { periodeTagihan } from '@/utils/periodeTagihan';
 
 const fetchProfile = async () => {
@@ -25,7 +28,7 @@ export default function CustomerPaketScreen() {
     refetch();
   }, [refetch]);
 
-  const isAktif = profile?.status === 'AKTIF';
+  const isBolehUpgrade = isBolehAjukanUpgrade(profile?.status);
   const paket = profile?.paket;
 
   const formatCurrency = (val: number) => {
@@ -60,12 +63,7 @@ export default function CustomerPaketScreen() {
             </View>
             <View style={tw`absolute bottom-4 left-4 z-10`}>
               <View style={tw`flex-row items-center gap-2 mb-2`}>
-                <View style={tw`px-2 py-0.5 rounded-full flex-row items-center gap-1 ${isAktif ? 'bg-green-100' : 'bg-red-100'}`}>
-                  <View style={tw`w-1.5 h-1.5 rounded-full ${isAktif ? 'bg-green-600' : 'bg-red-600'}`} />
-                  <Text style={tw`text-xs font-bold ${isAktif ? 'text-green-700' : 'text-red-700'}`}>
-                    {isAktif ? 'Aktif' : 'Non-Aktif'}
-                  </Text>
-                </View>
+                {profile?.status ? <LencanaStatus status={statusPelanggan(profile.status)} /> : null}
               </View>
               <Text style={tw`text-2xl font-bold text-gray-900`}>
                 {paket?.nama || 'Belum Berlangganan'}
@@ -162,13 +160,17 @@ export default function CustomerPaketScreen() {
             ditampilkan layar Upgrade, yang membacanya dari server. */}
         <TouchableOpacity
           onPress={() => router.push('/(customer)/upgrade-paket')}
+          disabled={!isBolehUpgrade}
           accessibilityRole="button"
-          style={tw`mt-4 bg-teal-600 rounded-2xl p-4 flex-row items-center`}
+          accessibilityState={{ disabled: !isBolehUpgrade }}
+          style={tw`mt-4 rounded-2xl p-4 flex-row items-center ${isBolehUpgrade ? 'bg-teal-600' : 'bg-gray-400'}`}
         >
           <Rocket size={22} color="white" />
           <View style={tw`flex-1 ml-3`}>
             <Text style={tw`text-white font-bold text-base`}>Upgrade Paket</Text>
-            <Text style={tw`text-teal-100 text-xs mt-0.5`}>Lihat paket yang tersedia di lokasi Anda</Text>
+            <Text style={tw`text-white/80 text-xs mt-0.5`}>
+              {isBolehUpgrade ? 'Lihat paket yang tersedia di lokasi Anda' : ALASAN_UPGRADE_BUTUH_AKTIF}
+            </Text>
           </View>
           <ChevronRight size={20} color="white" />
         </TouchableOpacity>

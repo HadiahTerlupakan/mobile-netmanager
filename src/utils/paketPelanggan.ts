@@ -24,3 +24,11 @@ export function ringkasBandwidth(bandwidth: BandwidthPaket | null): string | nul
 export function idPilihanAwal(pilihan: PilihanUpgrade[]): string | null {
   return (pilihan.find((paket) => paket.isFeatured) ?? pilihan[0])?.id ?? null;
 }
+
+/** Server menolak pengajuan upgrade dari pelanggan yang tidak AKTIF. */
+export const ALASAN_UPGRADE_BUTUH_AKTIF = 'Upgrade bisa diajukan saat layanan Anda aktif.';
+
+/** Pengajuan upgrade hanya diterima server saat langganan berstatus AKTIF. */
+export function isBolehAjukanUpgrade(statusLangganan: string | undefined): boolean {
+  return statusLangganan === 'AKTIF';
+}
