@@ -14,40 +14,14 @@ import { usePanelBayar } from '@/hooks/tagihan/usePanelBayar';
 import { usePantauStatusPembayaran } from '@/hooks/tagihan/usePantauStatusPembayaran';
 import { useTagihanPelanggan } from '@/hooks/tagihan/useTagihanPelanggan';
 import { useUnggahBuktiTransfer } from '@/hooks/tagihan/useUnggahBuktiTransfer';
-import { presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
-import { logger } from '@/utils/logger';
 import { formatRupiah } from '@/utils/rupiah';
-import { simpanQrisKeGaleri } from '@/utils/simpanQrisKeGaleri';
-import * as Clipboard from 'expo-clipboard';
+import { salinInstruksi, simpanQris } from '@/utils/tagihan/aksiInstruksiBayar';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft, ChevronRight, Headset, History } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-
-const salin = async (teks: string, label: string) => {
-  try {
-    await Clipboard.setStringAsync(teks);
-    presentInfoMessage(`${label} berhasil disalin!`, 'Disalin');
-  } catch (error) {
-    logger.error('[CustomerTagihan] Failed to copy payment detail', error);
-    presentErrorMessage(`Gagal menyalin ${label}.`);
-  }
-};
-
-const simpanQris = async (base64Png: string) => {
-  try {
-    if ((await simpanQrisKeGaleri(base64Png)) === 'ditolak') {
-      presentInfoMessage('Izinkan akses Galeri agar gambar QRIS bisa disimpan.', 'Izin Ditolak');
-      return;
-    }
-    presentSuccessMessage('QRIS tersimpan di Galeri. Buka aplikasi e-wallet, pilih Scan lalu ambil dari Galeri.');
-  } catch (error) {
-    logger.error('[CustomerTagihan] Failed to save QRIS', error);
-    presentErrorMessage('Gagal menyimpan gambar QRIS.');
-  }
-};
 
 export default function CustomerTagihanScreen() {
   const router = useRouter();
@@ -116,7 +90,7 @@ export default function CustomerTagihanScreen() {
       isMengecekStatus={cekStatus.isMengecek}
       isMengunggah={unggahBukti.isMengunggah}
       aksi={{
-        onSalin: salin,
+        onSalin: salinInstruksi,
         onSimpanQris: simpanQris,
         onCekStatus: () => cekStatus.cek(),
         onBukaHalamanBayar: () => void bukaHalamanBayar(pembayaranMenunggu.paymentUrl!).then(kembaliDariHalamanBayar),
