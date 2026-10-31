@@ -1,4 +1,5 @@
 import { FormInput } from '@/components/atoms/FormInput';
+import { SpandukPesanLogin } from '@/components/molecules/SpandukPesanLogin';
 import {
   CURRENT_VERSION_CODE,
   CURRENT_VERSION_NAME,
@@ -9,7 +10,9 @@ import { Events } from '@/constants/Events';
 import { useFormWithValidation } from '@/hooks/useFormWithValidation';
 import { biometricService } from '@/services/BiometricService';
 import { credentialStorageService } from '@/services/CredentialStorageService';
+import { PesanSesiBerakhir } from '@/services/PesanSesiBerakhir';
 import api from '@/services/api';
+import { extractApiErrorMessage } from '@/utils/errorHandling';
 import { presentAppError, presentErrorMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
 import { LoginSchema } from '@/utils/validation';
@@ -30,7 +33,13 @@ export default function LoginScreen() {
     const [biometricEnabled, setBiometricEnabled] = useState(false);
     const [hasStoredCredentials, setHasStoredCredentials] = useState(false);
     const [biometricTypes, setBiometricTypes] = useState<string[]>([]);
+    const [pesanSpanduk, setPesanSpanduk] = useState(() => PesanSesiBerakhir.baca());
     const { signIn } = useAuth();
+
+    const tutupSpanduk = useCallback(() => {
+        PesanSesiBerakhir.hapus();
+        setPesanSpanduk(null);
+    }, []);
 
     const {
         control,
@@ -64,6 +73,7 @@ export default function LoginScreen() {
 
     const performLogin = useCallback(async (email: string, password: string, saveCreds = true) => {
         setLoading(true);
+        tutupSpanduk();
         try {
             logger.auth('Attempting login...');
             const res = await api.post('/api/mobile/auth/login', {
@@ -98,6 +108,8 @@ export default function LoginScreen() {
             const isAxiosErr = error instanceof AxiosError;
             const status = isAxiosErr ? error.response?.status : undefined;
             logger.error('[LoginScreen] Login error:', status, isAxiosErr ? error.response?.data : error);
+            // 403 = akun ditolak masuk (mis. DISMANTLE); alasannya perlu tetap terbaca.
+            const alasanDitolak = status === 403 && isAxiosErr ? extractApiErrorMessage(error.response?.data) : undefined;
 
             if (status === 401) {
                 // Selalu clear stored credentials saat 401 — termasuk path
@@ -112,6 +124,8 @@ export default function LoginScreen() {
                         : 'Kredensial tersimpan sudah tidak valid. Silakan login manual.',
                     'Login Gagal',
                 );
+            } else if (alasanDitolak) {
+                setPesanSpanduk(alasanDitolak);
             } else if (status === 426) {
                 DeviceEventEmitter.emit(Events.APP_VERSION_UNSUPPORTED, isAxiosErr ? error.response?.data : undefined);
             } else {
@@ -123,7 +137,7 @@ export default function LoginScreen() {
         } finally {
             setLoading(false);
         }
-    }, [signIn]);
+    }, [signIn, tutupSpanduk]);
 
     const handleLogin = handleValidatedSubmit(async (data: LoginFormData) => {
         await performLogin(data.email, data.password);
@@ -164,6 +178,8 @@ export default function LoginScreen() {
                     Client & Staff Portal
                 </Text>
             </View>
+
+            {pesanSpanduk ? <SpandukPesanLogin pesan={pesanSpanduk} onTutup={tutupSpanduk} /> : null}
 
             <View style={tw`w-full max-w-sm`}>
                 <FormInput

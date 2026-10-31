@@ -321,6 +321,35 @@ describe('AuthContext', () => {
     });
   });
 
+  // Sesi yang dicabut server dulu berakhir diam-diam di layar login.
+  describe('logout paksa', () => {
+    const { Events } = require('../../src/constants/Events');
+    const { PESAN_SESI_BERAKHIR_BAWAAN, PesanSesiBerakhir } = require('../../src/services/PesanSesiBerakhir');
+    const kirimTidakTerotorisasi = () => require('react-native').DeviceEventEmitter.emit(Events.AUTH_UNAUTHORIZED);
+
+    beforeEach(() => PesanSesiBerakhir.hapus());
+
+    it('menyiapkan pesan sesi berakhir untuk layar login', async () => {
+      await renderLoadedAuth({ id: '1', tenantId: 't-1', name: 'Budi', email: 'budi', role: 'CUSTOMER' });
+
+      await act(async () => {
+        kirimTidakTerotorisasi();
+      });
+
+      expect(PesanSesiBerakhir.baca()).toBe(PESAN_SESI_BERAKHIR_BAWAAN);
+    });
+
+    it('tanpa sesi yang aktif tidak memunculkan pesan', async () => {
+      await renderLoadedAuth(null);
+
+      await act(async () => {
+        kirimTidakTerotorisasi();
+      });
+
+      expect(PesanSesiBerakhir.baca()).toBeNull();
+    });
+  });
+
   describe('useAuth hook', () => {
     it('should throw error when used outside provider', () => {
       const spy = jest.spyOn(console, 'error').mockImplementation(() => {});

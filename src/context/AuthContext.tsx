@@ -3,6 +3,7 @@ import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { fcmService } from '@/services/FirebaseMessagingService';
 import { DatabaseService } from '@/services/DatabaseService';
 import { LocationTrackingService } from '@/services/LocationTrackingService';
+import { PesanSesiBerakhir } from '@/services/PesanSesiBerakhir';
 import { RefreshTokenService } from '@/services/RefreshTokenService';
 import { TokenService } from '@/services/TokenService';
 import { errorReportingService } from '@/services/ErrorReportingService';
@@ -302,6 +303,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const authSubscription = DeviceEventEmitter.addListener(Events.AUTH_UNAUTHORIZED, () => {
             logger.warn('[Auth] Received unauthorized event, logging out...');
+            if (token) PesanSesiBerakhir.tandaiBerakhir();
             signOut({ skipApi: true });
         });
 
@@ -313,7 +315,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 permissionSub.remove();
             }
         };
-    }, [signOut, fetchProfile]);
+    }, [signOut, fetchProfile, token]);
 
     // Memoize context value to prevent unnecessary re-renders
     const contextValue = useMemo<AuthContextType>(() => ({

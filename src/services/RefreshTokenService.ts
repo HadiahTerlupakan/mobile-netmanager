@@ -14,6 +14,7 @@ import {
 import { HTTP_TIMEOUTS } from '@/constants/httpTimeouts';
 import { logger } from '@/utils/logger';
 import { SecureStorage } from '@/utils/storage';
+import { PesanSesiBerakhir } from './PesanSesiBerakhir';
 import { TokenService } from './TokenService';
 import { TenantService } from './TenantService';
 import axios, { isAxiosError } from 'axios';
@@ -171,6 +172,7 @@ class RefreshTokenServiceClass {
           // Refresh token is invalid/expired - need to re-authenticate.
           // Tidak ada gunanya retry — token memang sudah dicabut.
           logger.auth('Refresh token expired or invalid');
+          PesanSesiBerakhir.catatPenolakan(error.response?.data);
           await this.clearRefreshToken();
           return { kind: 'final' };
         }
