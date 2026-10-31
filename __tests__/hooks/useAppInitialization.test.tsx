@@ -30,6 +30,24 @@ jest.mock('@/services/ErrorReportingService', () => ({
   errorReportingService: { captureException: jest.fn() },
 }));
 
+const mockShowToast = jest.fn();
+jest.mock('@/utils/errorPresenter', () => ({
+  showToast: (...args: unknown[]) => mockShowToast(...args),
+}));
+
+type StatusJaringan = { isConnected: boolean | null; isInternetReachable: boolean | null };
+let mockPendengarJaringan: ((status: StatusJaringan) => void) | undefined;
+const mockBerhentiDengarJaringan = jest.fn();
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: {
+    addEventListener: (pendengar: (status: StatusJaringan) => void) => {
+      mockPendengarJaringan = pendengar;
+      return () => mockBerhentiDengarJaringan();
+    },
+  },
+}));
+
 import { useAppInitialization } from '@/hooks/useAppInitialization';
 
 beforeEach(() => {
@@ -75,5 +93,21 @@ describe('useAppInitialization', () => {
     await waitFor(() => expect(logger.warn).toHaveBeenCalledWith('[Init] Sweep foto gagal', galat));
     expect(ensureForegroundNotificationChannel).toHaveBeenCalledWith();
     unmount();
+  });
+
+  it('memantau jaringan sejak aplikasi mulai: saat offline toast galat koneksi otomatis diganti pemberitahuan', async () => {
+    const { unmount } = renderHook(() => useAppInitialization(true));
+    await waitFor(() => expect(mockInitDatabase).toHaveBeenCalled());
+    if (!mockPendengarJaringan) throw new Error('Inisialisasi tidak memantau jaringan');
+    mockPendengarJaringan({ isConnected: false, isInternetReachable: false });
+    const { tampilkanGalatOtomatis } = require('@/services/redamGalatOtomatis');
+    const tampilkan = jest.fn();
+
+    tampilkanGalatOtomatis(tampilkan);
+    unmount();
+
+    expect(tampilkan).not.toHaveBeenCalled();
+    expect(mockShowToast).toHaveBeenCalledWith('warning', 'Tidak Ada Koneksi Internet', expect.any(String));
+    expect(mockBerhentiDengarJaringan).toHaveBeenCalledTimes(1);
   });
 });

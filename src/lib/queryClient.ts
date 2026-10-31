@@ -17,6 +17,7 @@ import {
 } from "@/lib/queryErrorReporting";
 import { kunciPortalPelanggan } from "@/lib/kunciPortalPelanggan";
 import { errorReportingService } from "@/services/ErrorReportingService";
+import { tampilkanGalatOtomatis } from "@/services/redamGalatOtomatis";
 import { logger } from "@/utils/logger";
 import { showToast } from "@/utils/errorPresenter";
 import { Storage } from "@/utils/storage";
@@ -133,7 +134,15 @@ export const queryClient = new QueryClient({
         });
       }
 
-      showFailureToast(error, "Gagal Memuat Data", "Terjadi kesalahan koneksi", query.meta);
+      const tampilkan = () =>
+        showFailureToast(error, "Gagal Memuat Data", "Terjadi kesalahan koneksi", query.meta);
+      // Penolakan 4xx adalah jawaban server dan selalu ditampilkan; galat
+      // koneksi diredam selama offline dan sesaat setelah tersambung lagi.
+      if (isClientRejection(error)) {
+        tampilkan();
+      } else {
+        tampilkanGalatOtomatis(tampilkan);
+      }
     },
   }),
   mutationCache: new MutationCache({

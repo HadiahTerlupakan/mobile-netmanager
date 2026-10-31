@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 const mockShowToast = jest.fn();
 jest.mock('@/utils/errorPresenter', () => ({
@@ -14,6 +14,18 @@ jest.mock('@/services/ErrorReportingService', () => ({
 // karena kegagalan itu sengaja dipicu oleh test, bukan noise yang perlu dilihat.
 jest.mock('@/utils/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
+
+type StatusJaringan = { isConnected: boolean | null; isInternetReachable: boolean | null };
+let mockPendengarJaringan: ((status: StatusJaringan) => void) | undefined;
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: {
+    addEventListener: (pendengar: (status: StatusJaringan) => void) => {
+      mockPendengarJaringan = pendengar;
+      return () => undefined;
+    },
+  },
 }));
 
 import { queryClient, queryKeys } from '@/lib/queryClient';
@@ -387,5 +399,77 @@ describe('queryClient: penolakan server pada mutasi', () => {
 describe('queryClient: data dimuat ulang saat aplikasi kembali aktif', () => {
   it('mengaktifkan refetchOnWindowFocus (fokus = AppState aktif lewat focusManager)', () => {
     expect(queryClient.getDefaultOptions().queries?.refetchOnWindowFocus).toBe(true);
+  });
+});
+
+// Aplikasi yang dibuka offline dulu memunculkan toast "Gagal Memuat Data" untuk
+// setiap query. Peredam diisi lewat NetInfo di instance queryClient terisolasi,
+// supaya keadaan offline tidak bocor ke describe lain di berkas ini.
+describe('queryClient saat offline: satu pemberitahuan, bukan toast per query', () => {
+  const ONLINE: StatusJaringan = { isConnected: true, isInternetReachable: true };
+  const OFFLINE: StatusJaringan = { isConnected: false, isInternetReachable: false };
+  const tanpaInternet = new Error('No Internet connection');
+  const klienDibuat: (typeof queryClient)[] = [];
+
+  const muatQueryClientTerpantau = (status: StatusJaringan): typeof queryClient => {
+    let klien: typeof queryClient | undefined;
+    jest.isolateModules(() => {
+      klien = require('@/lib/queryClient').queryClient;
+      require('@/services/redamGalatOtomatis').pantauJaringanUntukGalatOtomatis();
+    });
+    if (!klien || !mockPendengarJaringan) throw new Error('queryClient atau pendengar NetInfo belum siap');
+    klienDibuat.push(klien);
+    mockPendengarJaringan(status);
+    return klien;
+  };
+
+  // gcTime 0: timer GC bawaan 24 jam menahan proses Jest bila tes gagal sebelum dibersihkan.
+  const queryGagal = (klien: typeof queryClient, kunci: string, galat: unknown) =>
+    expect(
+      klien.fetchQuery({ queryKey: ['uji-offline', kunci], queryFn: () => Promise.reject(galat), retry: false, gcTime: 0 }),
+    ).rejects.toBe(galat);
+
+  const judulToast = () => mockShowToast.mock.calls.map(([jenis, judul]) => `${jenis}: ${judul}`);
+
+  beforeEach(() => {
+    mockShowToast.mockClear();
+    mockPendengarJaringan = undefined;
+  });
+
+  afterEach(() => {
+    klienDibuat.splice(0).forEach((klien) => klien.clear());
+  });
+
+  it('tiga query gagal saat offline: tanpa "Gagal Memuat Data", cukup satu pemberitahuan', async () => {
+    const klien = muatQueryClientTerpantau(OFFLINE);
+
+    await queryGagal(klien, 'beranda', tanpaInternet);
+    await queryGagal(klien, 'notifikasi', tanpaInternet);
+    await queryGagal(klien, 'tagihan', tanpaInternet);
+
+    expect(judulToast()).toEqual(['warning: Tidak Ada Koneksi Internet']);
+  });
+
+  it('mutasi yang gagal saat offline tetap memberi tahu pengguna', async () => {
+    const klien = muatQueryClientTerpantau(OFFLINE);
+    const mutasi = klien.getMutationCache().build(klien, {
+      mutationFn: () => Promise.reject(tanpaInternet),
+      retry: false,
+      gcTime: 0,
+    });
+
+    await expect(mutasi.execute(undefined)).rejects.toBe(tanpaInternet);
+
+    expect(judulToast()).toEqual(['error: Gagal Menyimpan Perubahan']);
+  });
+
+  it('baru tersambung: galat koneksi masih diredam, tetapi penolakan 4xx dari server tetap bertoast', async () => {
+    const klien = muatQueryClientTerpantau(OFFLINE);
+    mockPendengarJaringan?.(ONLINE);
+
+    await queryGagal(klien, 'server-pulih', { isAxiosError: true, response: { status: 503 } });
+    await queryGagal(klien, 'tidak-ada', { isAxiosError: true, response: { status: 404 } });
+
+    expect(mockShowToast.mock.calls).toEqual([['error', 'Gagal Memuat Data', 'Data tidak ditemukan atau sudah dihapus.']]);
   });
 });

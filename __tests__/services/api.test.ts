@@ -79,6 +79,23 @@ jest.mock('@/utils/logger', () => ({
   },
 }));
 
+const mockShowToast = jest.fn();
+jest.mock('@/utils/errorPresenter', () => ({
+  showToast: (...args: unknown[]) => mockShowToast(...args),
+}));
+
+type StatusJaringan = { isConnected: boolean | null; isInternetReachable: boolean | null };
+let mockPendengarJaringan: ((status: StatusJaringan) => void) | undefined;
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: {
+    addEventListener: (pendengar: (status: StatusJaringan) => void) => {
+      mockPendengarJaringan = pendengar;
+      return () => undefined;
+    },
+  },
+}));
+
 describe('api service interceptors', () => {
   beforeEach(() => {
     jest.resetModules();
@@ -163,5 +180,51 @@ describe('api service interceptors', () => {
 
     await expect(resultPromise).resolves.toBe(retriedResponse);
     expect(mockApi).toHaveBeenCalledWith(expect.objectContaining({ url: '/api/mobile/dashboard' }));
+  });
+
+  describe('toast koneksi saat perangkat offline', () => {
+    const OFFLINE: StatusJaringan = { isConnected: true, isInternetReachable: false };
+
+    /** Interceptor dan peredam galat dari registri modul yang sama, dalam keadaan offline. */
+    const loadSaatOffline = () => {
+      jest.isolateModules(() => {
+        require('@/services/api');
+        require('@/services/redamGalatOtomatis').pantauJaringanUntukGalatOtomatis();
+      });
+      if (!mockResponseErrorHandler || !mockPendengarJaringan) throw new Error('Interceptor atau NetInfo belum siap');
+      mockPendengarJaringan(OFFLINE);
+      return mockResponseErrorHandler;
+    };
+
+    const gagalTanpaRespons = (method: string, url: string) => ({
+      config: { url, headers: {}, method, skipRetry: true },
+      code: 'ERR_NETWORK',
+    });
+
+    beforeEach(() => {
+      mockPendengarJaringan = undefined;
+    });
+
+    it('GET yang gagal tanpa respons: tanpa "Masalah Koneksi" per permintaan, cukup satu pemberitahuan', async () => {
+      const onError = loadSaatOffline();
+
+      for (const url of ['/api/mobile/dashboard', '/api/mobile/notifications', '/api/mobile/work-orders']) {
+        const error = gagalTanpaRespons('get', url);
+        await expect(onError(error)).rejects.toBe(error);
+      }
+
+      expect(mockShowToast.mock.calls.map(([jenis, judul]) => `${jenis}: ${judul}`)).toEqual([
+        'warning: Tidak Ada Koneksi Internet',
+      ]);
+    });
+
+    it('permintaan selain GET (mis. bayar tagihan) tetap memberi tahu pengguna', async () => {
+      const onError = loadSaatOffline();
+      const error = gagalTanpaRespons('post', '/api/customer/payments');
+
+      await expect(onError(error)).rejects.toBe(error);
+
+      expect(mockShowToast).toHaveBeenCalledWith('error', 'Masalah Koneksi', 'Mohon periksa koneksi internet Anda.');
+    });
   });
 });

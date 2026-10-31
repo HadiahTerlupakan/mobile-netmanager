@@ -11,6 +11,7 @@ import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import * as Crypto from 'expo-crypto';
 import { DeviceEventEmitter } from 'react-native';
 import { networkStateService } from '@/services/NetworkStateService';
+import { tampilkanGalatOtomatis } from '@/services/redamGalatOtomatis';
 import { showToast } from '@/utils/errorPresenter';
 
 declare module "axios" {
@@ -161,6 +162,34 @@ const shouldRetry = (error: AxiosError): boolean => {
   return false;
 };
 
+/** Judul dan isi toast untuk permintaan yang gagal karena koneksi atau server; null untuk galat lain. */
+const isiToastGagalPermintaan = (error: AxiosError): [judul: string, pesan: string] | null => {
+  if (!error.response) {
+    return ['Masalah Koneksi', 'Mohon periksa koneksi internet Anda.'];
+  }
+  if (error.response.status >= 500) {
+    return ['Masalah Server', 'Terjadi gangguan pada server. Tim kami sedang menanganinya.'];
+  }
+  return null;
+};
+
+/**
+ * GET umumnya pemuatan data yang tidak dipicu pengguna, jadi ikut diredam saat
+ * offline. Permintaan lain adalah tindakan pengguna (simpan, bayar) dan selalu
+ * diberi tahu.
+ */
+const tampilkanToastGagalPermintaan = (error: AxiosError, method: string | undefined): void => {
+  const isi = isiToastGagalPermintaan(error);
+  if (!isi) return;
+
+  const tampilkan = () => showToast('error', ...isi);
+  if ((method ?? 'get').toLowerCase() === 'get') {
+    tampilkanGalatOtomatis(tampilkan);
+  } else {
+    tampilkan();
+  }
+};
+
 // Response interceptor to handle retries and errors
 api.interceptors.response.use(
   (response) => {
@@ -229,11 +258,7 @@ api.interceptors.response.use(
     // yang menyesatkan. Toast hanya tampil saat retry budget habis dan
     // request truly gagal.
     if (!config.skipErrorToast) {
-      if (!error.response) {
-        showToast('error', 'Masalah Koneksi', 'Mohon periksa koneksi internet Anda.');
-      } else if (error.response.status >= 500) {
-        showToast('error', 'Masalah Server', 'Terjadi gangguan pada server. Tim kami sedang menanganinya.');
-      }
+      tampilkanToastGagalPermintaan(error, config.method);
     }
 
     // Allow requests to skip global 401 handling - LOG THIS

@@ -2,6 +2,7 @@ import { DatabaseService } from '@/services/DatabaseService';
 import { ensureForegroundNotificationChannel } from '@/services/ForegroundNotificationService';
 import { networkStateService } from '@/services/NetworkStateService';
 import { performanceMonitor } from '@/services/PerformanceMonitor';
+import { pantauJaringanUntukGalatOtomatis } from '@/services/redamGalatOtomatis';
 import { sapuFotoOfflineYatim } from '@/services/sapuFotoOffline';
 import { SyncService } from '@/services/SyncService';
 import { errorReportingService } from '@/services/ErrorReportingService';
@@ -13,6 +14,7 @@ import { useEffect } from 'react';
  * - Database initialization
  * - Sweep foto offline yatim (setelah database siap)
  * - Foreground notification channel
+ * - Peredam toast galat koneksi selama offline
  * - Sync monitoring (delayed)
  * - Performance tracking
  */
@@ -29,6 +31,9 @@ export function useAppInitialization(isLoading: boolean) {
 
   useEffect(() => {
     let syncTimer: ReturnType<typeof setTimeout> | undefined;
+    // Dipasang lebih dulu: aplikasi yang dibuka offline langsung meredam
+    // toast galat per query.
+    const berhentiPantauJaringan = pantauJaringanUntukGalatOtomatis();
 
     const initServices = async () => {
       try {
@@ -69,6 +74,7 @@ export function useAppInitialization(isLoading: boolean) {
 
       SyncService.stopMonitoring();
       networkStateService.dispose();
+      berhentiPantauJaringan();
     };
   }, []);
 }
