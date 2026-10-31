@@ -76,6 +76,9 @@ export function ringkasTagihan(data: DataTagihanPelanggan | undefined): Ringkasa
   };
 }
 
+/** Muat ulang data tagihan; hasilnya memuat data terbaru atau galatnya. */
+export type MuatUlangTagihan = () => Promise<{ data?: DataTagihanPelanggan; error: Error | null }>;
+
 /** Tagihan terbuka pelanggan, dipolling selama ada checkout yang dipantau. */
 export function useTagihanPelanggan() {
   const query = useQuery({

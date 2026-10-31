@@ -7,8 +7,9 @@ import { useProfilPelanggan } from '@/hooks/queries/useAkunPelanggan';
 import { usePembayaranLunas } from '@/hooks/usePembayaranLunas';
 import { bukaHalamanBayar, useBuatPembayaran } from '@/hooks/tagihan/useBuatPembayaran';
 import { useHitungMundurPembayaran } from '@/hooks/tagihan/useHitungMundurPembayaran';
+import { useCekStatusPembayaran } from '@/hooks/tagihan/useCekStatusPembayaran';
 import { useKuponTagihan } from '@/hooks/tagihan/useKuponTagihan';
-import { useSseStatusPembayaran } from '@/hooks/tagihan/useSseStatusPembayaran';
+import { usePantauStatusPembayaran } from '@/hooks/tagihan/usePantauStatusPembayaran';
 import { useTagihanPelanggan } from '@/hooks/tagihan/useTagihanPelanggan';
 import { useUnggahBuktiTransfer } from '@/hooks/tagihan/useUnggahBuktiTransfer';
 import api from '@/services/api';
@@ -60,7 +61,6 @@ export default function CustomerTagihanScreen() {
   const [isPanelBayarTerbuka, setIsPanelBayarTerbuka] = useState(false);
   // Checkout yang menunggu sedang diganti metodenya: tampilkan pilihan metode.
   const [isGantiMetode, setIsGantiMetode] = useState(false);
-  const [isMengecekStatus, setIsMengecekStatus] = useState(false);
   // Spinner tarik-segarkan hanya untuk tarikan pelanggan, bukan polling atau cek status.
   const [isMenarikUlang, setIsMenarikUlang] = useState(false);
 
@@ -81,8 +81,8 @@ export default function CustomerTagihanScreen() {
   const { data: profil } = useProfilPelanggan();
   const pembayaranLunas = usePembayaranLunas(ringkasan.daftarPantauan, profil?.status);
   const hitungMundur = useHitungMundurPembayaran(pembayaranMenunggu?.expiresAt, muatUlang);
-  // Checkout yang lewat batas tidak akan berubah lagi; koneksi status tidak perlu dibuka.
-  useSseStatusPembayaran(hitungMundur.isKedaluwarsa ? undefined : tagihanMenunggu?.id, muatUlang);
+  usePantauStatusPembayaran({ tagihan: tagihanMenunggu, isAktif: !hitungMundur.isKedaluwarsa, muatUlang: refetch });
+  const cekStatus = useCekStatusPembayaran({ invoiceId: tagihanMenunggu?.id, muatUlang: refetch });
   const kupon = useKuponTagihan(totalTerutang);
   const unggahBukti = useUnggahBuktiTransfer(muatUlang);
   const buatPembayaran = useBuatPembayaran(() => {
@@ -104,18 +104,6 @@ export default function CustomerTagihanScreen() {
     buatPembayaran.mutate({ invoiceIds: terutang.map((tagihan) => tagihan.id), kodeKupon: kupon.diskon?.code ?? null, kodeMetode });
   };
 
-  const cekStatusPembayaran = async () => {
-    setIsMengecekStatus(true);
-    try {
-      const hasil = await refetch();
-      if (hasil.data?.terbuka.some((tagihan) => tagihan.id === tagihanMenunggu?.id)) {
-        presentInfoMessage('Pembayaran belum kami terima. Bila baru saja membayar, tunggu 1–2 menit lalu cek lagi.', 'Belum Diterima');
-      }
-    } finally {
-      setIsMengecekStatus(false);
-    }
-  };
-
   const kartuMenunggu = pembayaranMenunggu && tagihanMenunggu && (
     <KartuPembayaranMenunggu
       tagihan={tagihanMenunggu}
@@ -123,12 +111,12 @@ export default function CustomerTagihanScreen() {
       metode={metodeMenunggu}
       rekening={rekeningManual}
       hitungMundur={hitungMundur}
-      isMengecekStatus={isMengecekStatus}
+      isMengecekStatus={cekStatus.isMengecek}
       isMengunggah={unggahBukti.isMengunggah}
       aksi={{
         onSalin: salin,
         onSimpanQris: simpanQris,
-        onCekStatus: cekStatusPembayaran,
+        onCekStatus: () => cekStatus.cek(),
         onBukaHalamanBayar: () => bukaHalamanBayar(pembayaranMenunggu.paymentUrl!),
         onGantiMetode: () => {
           setIsGantiMetode(true);

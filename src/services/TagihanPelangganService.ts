@@ -1,7 +1,11 @@
 import { getHttpStatus, getServerErrorMessage, isClientRejection } from '@/lib/queryErrorReporting';
 import type { TagihanPelanggan } from '@/types/portalPelanggan';
 import { ambilMuatan } from '@/utils/responsPelanggan';
+import type { StatusCekPembayaran } from '@/utils/tagihan/pesanStatusPembayaran';
 import api from './api';
+
+const URL_CEK_STATUS = '/api/customer/payments/check-status';
+const STATUS_TIDAK_DITEMUKAN = 404;
 
 const URL_TAGIHAN = '/api/customer/invoices';
 /** OUTSTANDING_INVOICE_STATUSES server, sama dengan filter portal. */
@@ -58,6 +62,21 @@ export const TagihanPelangganService = {
   /** Tagihan terbaru semua status, untuk membaca tagihan yang baru lunas atau dibatalkan. */
   tagihanTerbaru(): Promise<TagihanPelanggan[]> {
     return ambilDaftarTagihan(`limit=${BATAS_TAGIHAN_TERBARU}`);
+  },
+
+  /**
+   * Tanyakan checkout gateway tagihan ini ke gateway; bila sudah dibayar,
+   * server melunasinya lewat jalur yang sama dengan webhook. `null`: server
+   * lama tanpa endpoint ini (404), pemanggil cukup memuat ulang tagihan.
+   */
+  async cekStatusPembayaran(invoiceId: string): Promise<StatusCekPembayaran | null> {
+    try {
+      const response = await api.post(URL_CEK_STATUS, { invoiceId });
+      return ambilMuatan<StatusCekPembayaran>(response?.data, 'status') ?? null;
+    } catch (error) {
+      if (getHttpStatus(error) === STATUS_TIDAK_DITEMUKAN) return null;
+      throw error;
+    }
   },
 
   /**

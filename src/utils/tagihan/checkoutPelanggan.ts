@@ -3,6 +3,12 @@ import type { PembayaranTerakhir } from '@/types/portalPelanggan';
 type PembayaranCheckout = Pick<PembayaranTerakhir, 'amount' | 'checkoutTotal' | 'checkoutInvoiceNumbers'>;
 
 const STATUS_MENUNGGU = 'PENDING';
+const METODE_TRANSFER_BANK = 'BANK_TRANSFER';
+
+/** Transfer bank manual: `isManual` dari server baru, `accountId` di server lama. */
+export function isTransferManual(pembayaran: Pick<PembayaranTerakhir, 'isManual' | 'method' | 'accountId'>): boolean {
+  return pembayaran.isManual ?? (pembayaran.method === METODE_TRANSFER_BANK && Boolean(pembayaran.accountId));
+}
 
 /** Checkout yang masih menunggu dibayar tetapi sudah lewat `expiresAt`-nya. */
 export function isCheckoutKedaluwarsa(pembayaran: Pick<PembayaranTerakhir, 'gatewayStatus' | 'expiresAt'>, sekarang: number): boolean {

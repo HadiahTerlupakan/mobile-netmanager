@@ -1,19 +1,40 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import EventSource from 'react-native-sse';
 
 import { TenantService } from '@/services/TenantService';
 import { TokenService } from '@/services/TokenService';
-import { presentErrorMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
+import type { StatusAkhirPembayaran } from '@/utils/tagihan/pesanStatusPembayaran';
 
-const STATUS_SELESAI = new Set(['PAID', 'EXPIRED', 'FAILED']);
+const STATUS_AKHIR = new Set(['PAID', 'EXPIRED', 'FAILED']);
+const STATUS_GATEWAY_DIBATALKAN = 'CANCELLED';
+
+interface CuplikanStatus {
+  status?: string;
+  gatewayStatus?: string | null;
+}
 
 /**
- * Dengarkan status checkout dari server; status akhir memuat ulang daftar
- * tagihan (lembar sukses muncul dari daftar itu). Koneksi yang putus tidak
- * disambung lagi: polling di layar Tagihan menjadi cadangannya.
+ * Server memetakan checkout CANCELLED (diganti metode, transfer manual
+ * dibatalkan) ke `status` FAILED juga; `gatewayStatus` mentah membedakannya.
  */
-export function useSseStatusPembayaran(invoiceId: string | undefined, onSelesai: () => void) {
+function bacaStatusAkhir({ status, gatewayStatus }: CuplikanStatus): StatusAkhirPembayaran | null {
+  if (!status || !STATUS_AKHIR.has(status)) return null;
+  if (status === 'FAILED' && gatewayStatus === STATUS_GATEWAY_DIBATALKAN) return 'CANCELLED';
+  return status as StatusAkhirPembayaran;
+}
+
+/**
+ * Dengarkan status checkout dari server dan laporkan status akhirnya sekali.
+ * Koneksi yang putus tidak disambung lagi: polling di layar Tagihan menjadi
+ * cadangannya.
+ */
+export function useSseStatusPembayaran(invoiceId: string | undefined, onStatusAkhir: (status: StatusAkhirPembayaran) => void) {
+  const onStatusAkhirRef = useRef(onStatusAkhir);
+  useEffect(() => {
+    onStatusAkhirRef.current = onStatusAkhir;
+  });
+
   useEffect(() => {
     if (!invoiceId) return;
 
@@ -23,13 +44,10 @@ export function useSseStatusPembayaran(invoiceId: string | undefined, onSelesai:
     sumber.addEventListener('message', (event) => {
       if (!event.data) return;
       try {
-        const { status } = JSON.parse(event.data) as { status?: string };
-        if (!status || !STATUS_SELESAI.has(status)) return;
-        if (status === 'FAILED') {
-          presentErrorMessage('Pembayaran transfer manual Anda ditolak oleh Admin. Silakan periksa kembali dan unggah ulang bukti yang benar.');
-        }
-        onSelesai();
+        const statusAkhir = bacaStatusAkhir(JSON.parse(event.data) as CuplikanStatus);
+        if (!statusAkhir) return;
         sumber.close();
+        onStatusAkhirRef.current(statusAkhir);
       } catch (error) {
         logger.warn('[CustomerTagihan] Failed to parse payment SSE payload', event.data, error);
       }
@@ -40,5 +58,5 @@ export function useSseStatusPembayaran(invoiceId: string | undefined, onSelesai:
     });
 
     return () => sumber.close();
-  }, [invoiceId, onSelesai]);
+  }, [invoiceId]);
 }
