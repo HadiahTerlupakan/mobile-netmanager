@@ -92,3 +92,29 @@ describe('tagihan bernominal Rp 0', () => {
     expect(layar.getByText('Lunas')).toBeTruthy();
   });
 });
+
+describe('ringkasan Tagihan', () => {
+  it('tagihan OVERDUE disebut Terlambat', async () => {
+    mockGet.mockImplementation(jawabanServer([buatTagihan({ status: 'OVERDUE' })]));
+
+    const layar = await renderLayar(CustomerTagihanScreen);
+
+    expect(layar.getByText('Terlambat · jatuh tempo 30 Okt 2026')).toBeTruthy();
+  });
+
+  it('tagihan yang belum jatuh tempo menyebut tanggalnya saja', async () => {
+    mockGet.mockImplementation(jawabanServer([buatTagihan({ status: 'SENT' })]));
+
+    const layar = await renderLayar(CustomerTagihanScreen);
+
+    expect(layar.getByText('Jatuh tempo 30 Okt 2026')).toBeTruthy();
+  });
+
+  it('tombol kembali berlabel', async () => {
+    mockGet.mockImplementation(jawabanServer([]));
+
+    const layar = await renderLayar(CustomerTagihanScreen);
+
+    expect(layar.getByRole('button', { name: 'Kembali' })).toBeTruthy();
+  });
+});

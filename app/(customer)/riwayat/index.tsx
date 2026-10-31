@@ -5,8 +5,10 @@ import tw from 'twrnc';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
-import { ArrowLeft, Search, Receipt, Router, XCircle, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Search, Receipt } from 'lucide-react-native';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
+import { BarisRiwayatTagihan } from '@/components/organisms/tagihan/BarisRiwayatTagihan';
+import type { TagihanPelanggan } from '@/types/portalPelanggan';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import { ambilMuatan } from '@/utils/responsPelanggan';
@@ -14,20 +16,9 @@ import { isTagihanDibatalkan, isTagihanTerutang, labelStatusTagihan, statusTampi
 
 dayjs.locale('id');
 
-interface Invoice {
-  id: string;
-  invoiceNumber: string;
-  totalAmount: number; // or string depending on API
-  remainingAmount: number;
-  status: string;
-  items: { description: string }[];
-  issueDate: string;
-  dueDate: string;
-}
-
 const fetchHistory = async () => {
   const res = await api.get('/api/customer/invoices?limit=50');
-  return ambilMuatan<Invoice[]>(res.data, 'invoices') ?? [];
+  return ambilMuatan<TagihanPelanggan[]>(res.data, 'invoices') ?? [];
 };
 
 export default function CustomerHistoryScreen() {
@@ -67,36 +58,13 @@ export default function CustomerHistoryScreen() {
     if (!acc[monthYear]) acc[monthYear] = [];
     acc[monthYear].push(inv);
     return acc;
-  }, {} as Record<string, Invoice[]>);
-
-  const formatCurrency = (amount: number | string) => {
-    const val = typeof amount === 'string' ? parseInt(amount) : amount;
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0
-    }).format(val || 0);
-  };
-
-  const getStatusConfig = (status: string) => {
-    const label = labelStatusTagihan(status);
-    if (status === 'PAID') {
-      return { label, icon: CheckCircle, color: 'text-teal-600', bg: 'bg-teal-100', badgeBg: 'bg-teal-100', badgeText: 'text-teal-700' };
-    }
-    if (isTagihanTerutang(status)) {
-      return { label, icon: Router, color: 'text-orange-500', bg: 'bg-orange-100', badgeBg: 'bg-orange-100', badgeText: 'text-orange-700' };
-    }
-    if (isTagihanDibatalkan(status)) {
-      return { label, icon: XCircle, color: 'text-red-500', bg: 'bg-red-100', badgeBg: 'bg-red-100', badgeText: 'text-red-700' };
-    }
-    return { label, icon: Receipt, color: 'text-gray-500', bg: 'bg-gray-100', badgeBg: 'bg-gray-100', badgeText: 'text-gray-700' };
-  };
+  }, {} as Record<string, TagihanPelanggan[]>);
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
       {/* Header */}
       <View style={tw`bg-white px-4 py-3 border-b border-gray-100 flex-row items-center`}>
-        <TouchableOpacity onPress={() => router.back()} style={tw`mr-3`}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Kembali" onPress={() => router.back()} style={tw`mr-3`}>
           <ArrowLeft size={24} color="#1f2937" />
         </TouchableOpacity>
         <Text style={tw`text-lg font-bold text-gray-900`}>Riwayat Transaksi</Text>
@@ -158,41 +126,9 @@ export default function CustomerHistoryScreen() {
               <Text style={tw`px-4 py-2 text-xs font-bold text-gray-500 bg-gray-50 uppercase tracking-wider`}>
                 {month}
               </Text>
-              {items.map((invoice) => {
-                const config = getStatusConfig(statusTampilTagihan(invoice));
-                const Icon = config.icon;
-                
-                return (
-                  <TouchableOpacity
-                    key={invoice.id}
-                    style={tw`bg-white px-4 py-4 flex-row items-center border-b border-gray-100`}
-                  >
-                    <View style={tw`w-10 h-10 rounded-lg ${config.bg} items-center justify-center mr-3`}>
-                      <Icon size={20} style={tw`${config.color}`} />
-                    </View>
-                    
-                    <View style={tw`flex-1`}>
-                      <Text style={tw`text-sm font-bold text-gray-900 mb-0.5`}>
-                        {invoice.items[0]?.description || 'Tagihan Layanan'}
-                      </Text>
-                      <Text style={tw`text-xs text-gray-500`}>
-                        #{invoice.invoiceNumber} • {dayjs(invoice.issueDate).format('D MMM HH:mm')}
-                      </Text>
-                    </View>
-                    
-                    <View style={tw`items-end`}>
-                      <Text style={tw`text-sm font-bold text-gray-900 mb-1`}>
-                        {formatCurrency(invoice.totalAmount)}
-                      </Text>
-                      <View style={tw`px-2 py-0.5 rounded ${config.badgeBg}`}>
-                        <Text style={tw`text-[10px] font-bold ${config.badgeText}`}>
-                          {config.label}
-                        </Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+              {items.map((invoice) => (
+                <BarisRiwayatTagihan key={invoice.id} tagihan={invoice} />
+              ))}
             </View>
           ))
         )}

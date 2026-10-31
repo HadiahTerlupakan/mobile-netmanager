@@ -28,7 +28,9 @@ const GAYA_NADA_LAYANAN: Readonly<Record<NadaStatus, { denyut: string; titik: st
 function keteranganTagihan(tagihan: TagihanBeranda | null | undefined, isMemuat: boolean): string {
   if (!tagihan) return isMemuat ? 'Memuat tagihan…' : 'Tagihan belum bisa diverifikasi';
   if (tagihan.outstandingCount === 0 || !tagihan.nearestDueDate) return 'Tagihan Lunas';
-  return `Jatuh tempo: ${new Date(tagihan.nearestDueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const tanggal = new Date(tagihan.nearestDueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  // OVERDUE disebut "Terlambat", sama dengan Tagihan dan Riwayat.
+  return tagihan.hasOverdue ? `Terlambat · jatuh tempo ${tanggal}` : `Jatuh tempo: ${tanggal}`;
 }
 
 export default function CustomerDashboardScreen() {
@@ -140,7 +142,8 @@ export default function CustomerDashboardScreen() {
 
               <View style={tw`flex-row justify-between items-start mb-4`}>
                 <View>
-                  <Text style={tw`text-teal-100 text-sm font-medium mb-1`}>Tagihan Bulan Ini</Text>
+                  {/* Jumlah semua tagihan terbuka, bukan hanya bulan ini. */}
+                  <Text style={tw`text-teal-100 text-sm font-medium mb-1`}>Total Tagihan</Text>
                   <Text style={tw`text-3xl font-bold text-white`}>
                     Rp {(tagihan?.outstandingAmount ?? 0).toLocaleString('id-ID')}
                   </Text>

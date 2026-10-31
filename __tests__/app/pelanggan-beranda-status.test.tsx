@@ -141,3 +141,27 @@ describe('kartu tagihan Beranda', () => {
     expect(layar.queryByText(/Saldo kredit/)).toBeNull();
   });
 });
+
+// Angka Beranda adalah jumlah SEMUA tagihan terbuka, bukan tagihan bulan ini.
+describe('judul dan jatuh tempo kartu tagihan Beranda', () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+  });
+
+  it('nominalnya disebut Total Tagihan', async () => {
+    sajikanRingkasan({ billing: MENUNGGAK });
+
+    const layar = await renderLayar();
+
+    expect(layar.getByText('Total Tagihan')).toBeTruthy();
+    expect(layar.queryByText('Tagihan Bulan Ini')).toBeNull();
+  });
+
+  it('tagihan yang lewat jatuh tempo disebut Terlambat', async () => {
+    sajikanRingkasan({ billing: MENUNGGAK });
+
+    const layar = await renderLayar();
+
+    expect(layar.getByText('Terlambat · jatuh tempo 20 Okt 2026')).toBeTruthy();
+  });
+});

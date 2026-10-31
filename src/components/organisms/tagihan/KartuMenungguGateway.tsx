@@ -81,6 +81,7 @@ function InstruksiKode({ nominal, nomorVa, namaMetode, jenisMetode, onSalin }: I
       <View style={tw`flex-row items-center justify-between mb-3`}>
         <Text style={tw`flex-1 text-xl font-bold tracking-widest text-gray-900`}>{nomorVa}</Text>
         <TouchableOpacity
+          accessibilityRole="button"
           accessibilityLabel={`Salin ${label}`}
           onPress={() => onSalin(nomorVa, label)}
           style={tw`p-2 bg-gray-100 rounded-md`}

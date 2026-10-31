@@ -16,6 +16,8 @@ interface KartuRingkasanTagihanProps {
   jumlahTagihan: number;
   total: string;
   jatuhTempoTerdekat: string | null;
+  /** Ada tagihan yang lewat jatuh tempo; disebut "Terlambat" seperti di Riwayat. */
+  isTerlambat: boolean;
   /** Rupiah yang memotong tagihan berikutnya; 0 tidak ditampilkan. */
   saldoKredit: number;
   isTampilkanTombolBayar: boolean;
@@ -24,7 +26,8 @@ interface KartuRingkasanTagihanProps {
 
 /** Total tagihan yang belum dibayar, jatuh tempo terdekat, dan tombol Bayar Sekarang. */
 export function KartuRingkasanTagihan(props: KartuRingkasanTagihanProps) {
-  const { jumlahTagihan, total, jatuhTempoTerdekat, saldoKredit, isTampilkanTombolBayar, onBayar } = props;
+  const { jumlahTagihan, total, jatuhTempoTerdekat, isTerlambat, saldoKredit, isTampilkanTombolBayar, onBayar } = props;
+  const tanggalJatuhTempo = dayjs(jatuhTempoTerdekat).format('D MMM YYYY');
   return (
     <View style={tw`shadow-md rounded-2xl bg-white`}>
       <View style={tw`bg-teal-600 rounded-2xl p-6 overflow-hidden`}>
@@ -40,7 +43,9 @@ export function KartuRingkasanTagihan(props: KartuRingkasanTagihanProps) {
             {jatuhTempoTerdekat ? (
               <View style={tw`flex-row items-center mt-2.5 bg-teal-700/50 self-start px-2.5 py-1 rounded-md`}>
                 <Clock size={14} color={WARNA_IKON} style={tw`mr-1.5`} />
-                <Text style={tw`text-teal-50 text-xs font-medium`}>Jatuh tempo {dayjs(jatuhTempoTerdekat).format('D MMM YYYY')}</Text>
+                <Text style={tw`text-teal-50 text-xs font-medium`}>
+                  {isTerlambat ? `Terlambat · jatuh tempo ${tanggalJatuhTempo}` : `Jatuh tempo ${tanggalJatuhTempo}`}
+                </Text>
               </View>
             ) : (
               <View style={tw`flex-row items-center mt-2`}>

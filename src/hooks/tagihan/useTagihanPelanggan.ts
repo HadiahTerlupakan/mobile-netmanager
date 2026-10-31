@@ -13,6 +13,7 @@ import { isCheckoutKedaluwarsa, isTransferManual } from '@/utils/tagihan/checkou
 const INTERVAL_CEK_PEMBAYARAN_MS = 15_000;
 const STATUS_MENUNGGU = 'PENDING';
 const STATUS_GAGAL = 'FAILED';
+const STATUS_TERLAMBAT = 'OVERDUE';
 
 export interface DataTagihanPelanggan {
   /** Semua tagihan yang masih harus dibayar. */
@@ -31,6 +32,8 @@ export interface RingkasanTagihan {
   jumlahHarusDibayar: number;
   totalTerutang: number;
   jatuhTempoTerdekat: string | null;
+  /** Ada tagihan yang lewat jatuh tempo (OVERDUE). */
+  isAdaTerlambat: boolean;
   /** Tagihan yang checkout-nya menunggu dibayar. */
   tagihanMenunggu: TagihanPelanggan | undefined;
   /** Tagihan yang bukti transfer manual terakhirnya ditolak admin. */
@@ -81,6 +84,7 @@ export function ringkasTagihan(data: DataTagihanPelanggan | undefined): Ringkasa
     jumlahHarusDibayar: harusDibayar.length,
     totalTerutang: terutang.reduce((jumlah, tagihan) => jumlah + tagihan.remainingAmount, 0),
     jatuhTempoTerdekat: [...harusDibayar].sort((a, b) => dayjs(a.dueDate).diff(b.dueDate))[0]?.dueDate ?? null,
+    isAdaTerlambat: harusDibayar.some((tagihan) => tagihan.status === STATUS_TERLAMBAT),
     tagihanMenunggu: terutang.find((tagihan) => tagihan.lastPayment?.gatewayStatus === STATUS_MENUNGGU),
     tagihanDitolak: terutang.find(
       ({ lastPayment }) => lastPayment?.gatewayStatus === STATUS_GAGAL && isTransferManual(lastPayment),

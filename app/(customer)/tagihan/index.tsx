@@ -32,7 +32,7 @@ export default function CustomerTagihanScreen() {
   const [isMenarikUlang, setIsMenarikUlang] = useState(false);
 
   const { data: dataTagihan, isLoading, refetch, ringkasan, ambilTagihanMenunggu } = useTagihanPelanggan();
-  const { terutang, jumlahHarusDibayar, totalTerutang, jatuhTempoTerdekat, tagihanMenunggu, tagihanDitolak } = ringkasan;
+  const { terutang, jumlahHarusDibayar, totalTerutang, jatuhTempoTerdekat, isAdaTerlambat, tagihanMenunggu, tagihanDitolak } = ringkasan;
   const kupon = useKuponTagihan(totalTerutang);
   const totalBayar = totalTerutang - (kupon.diskon?.amount ?? 0);
   const metodeBayar = useMetodeBayar(totalBayar);
@@ -117,6 +117,7 @@ export default function CustomerTagihanScreen() {
         jumlahTagihan={jumlahHarusDibayar}
         total={formatRupiah(totalTerutang)}
         jatuhTempoTerdekat={jatuhTempoTerdekat}
+        isTerlambat={isAdaTerlambat}
         saldoKredit={profil?.saldoKredit ?? 0}
         isTampilkanTombolBayar={totalTerutang > 0 && !panel.isTerbuka && !buatPembayaran.isPending}
         onBayar={panel.buka}
@@ -141,12 +142,12 @@ export default function CustomerTagihanScreen() {
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
       <View style={tw`bg-white px-4 py-3 border-b border-gray-100 flex-row items-center justify-between`}>
         <View style={tw`flex-row items-center`}>
-          <TouchableOpacity onPress={() => router.back()} style={tw`mr-3`}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Kembali" onPress={() => router.back()} style={tw`mr-3`}>
             <ArrowLeft size={24} color="#1f2937" />
           </TouchableOpacity>
           <Text style={tw`text-lg font-bold text-gray-900`}>Tagihan & Pembayaran</Text>
         </View>
-        <TouchableOpacity accessibilityLabel="Bantuan pembayaran" onPress={() => router.push('/(customer)/tickets')} style={tw`p-1`}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Bantuan pembayaran" onPress={() => router.push('/(customer)/tickets')} style={tw`p-1`}>
           <Headset size={20} color="#6b7280" />
         </TouchableOpacity>
       </View>
