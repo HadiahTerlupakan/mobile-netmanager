@@ -1,21 +1,14 @@
 import { useMutation } from '@tanstack/react-query';
 import * as WebBrowser from 'expo-web-browser';
 
-import api from '@/services/api';
-import { presentAppError, presentErrorMessage, presentInfoMessage } from '@/utils/errorPresenter';
+import { TagihanPelangganService, type PermintaanPembayaran } from '@/services/TagihanPelangganService';
+import { presentAppError, presentInfoMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
-import { ambilMuatan } from '@/utils/responsPelanggan';
 
 /** teal-600 */
 const WARNA_KONTROL_BROWSER = '#0d9488';
 
-const isTransferManual = (kode: string) => kode.startsWith('MANUAL_') || kode === 'MOOTA_MANUAL';
-
-interface PermintaanPembayaran {
-  invoiceIds: string[];
-  kodeKupon: string | null;
-  kodeMetode: string;
-}
+const isKodeTransferManual = (kode: string) => kode.startsWith('MANUAL_') || kode === 'MOOTA_MANUAL';
 
 /** Halaman bayar gateway, untuk metode tanpa nomor VA atau QRIS. */
 export function bukaHalamanBayar(url: string) {
@@ -26,34 +19,32 @@ export function bukaHalamanBayar(url: string) {
   });
 }
 
+interface OpsiBuatPembayaran {
+  /**
+   * Checkout dibuat: tutup panel bayar dan muat ulang tagihan. Mutasi tetap
+   * berjalan (tombol bayar nonaktif) sampai janji ini selesai, supaya ketukan
+   * kedua tidak mengganti checkout yang baru dibuat.
+   */
+  onDibuat: () => Promise<unknown>;
+}
+
 /** Buat checkout (atau ganti checkout yang menunggu) untuk tagihan terutang. */
-export function useBuatPembayaran(onDibuat: () => void) {
+export function useBuatPembayaran({ onDibuat }: OpsiBuatPembayaran) {
   return useMutation({
     // Gateway bisa sudah membuat checkout sebelum 5xx atau timeout sampai ke
     // aplikasi; mengulang POST berarti checkout kedua untuk satu ketukan.
     retry: false,
-    mutationFn: ({ invoiceIds, kodeKupon, kodeMetode }: PermintaanPembayaran) =>
-      api.post('/api/customer/payments', {
-        invoiceIds,
-        couponCode: kodeKupon,
-        paymentMethod: kodeMetode,
-        notes: 'Payment via Mobile App',
-      }),
-    onSuccess: async (res, { kodeMetode }) => {
-      if (!res.data.success && res.status !== 200) {
-        presentErrorMessage(res.data.error || 'Gagal membuat pembayaran');
-        return;
-      }
-      onDibuat();
+    meta: { skipGlobalErrorToast: true },
+    mutationFn: (permintaan: PermintaanPembayaran) => TagihanPelangganService.buatPembayaran(permintaan),
+    onSuccess: async (checkout, { kodeMetode }) => {
+      await onDibuat();
       // Nomor VA dan QRIS ditampilkan di kartu menunggu pembayaran; hanya
       // metode tanpa instruksi (kartu kredit, e-wallet login) dialihkan.
-      const urlBayar = ambilMuatan<string>(res.data, 'paymentUrl');
-      const adaInstruksi = Boolean(ambilMuatan<string>(res.data, 'vaNumber') || ambilMuatan<string>(res.data, 'qrString'));
-      if (isTransferManual(kodeMetode)) {
+      if (isKodeTransferManual(kodeMetode)) {
         presentInfoMessage('Silakan lanjutkan transfer manual Anda.', 'Menunggu');
-      } else if (urlBayar && !adaInstruksi) {
-        await bukaHalamanBayar(urlBayar);
-        onDibuat();
+      } else if (checkout.paymentUrl && !checkout.vaNumber && !checkout.qrString) {
+        await bukaHalamanBayar(checkout.paymentUrl);
+        await onDibuat();
       }
     },
     onError: (error) => {

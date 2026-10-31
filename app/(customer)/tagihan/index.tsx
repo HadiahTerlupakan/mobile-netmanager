@@ -9,16 +9,15 @@ import { bukaHalamanBayar, useBuatPembayaran } from '@/hooks/tagihan/useBuatPemb
 import { useHitungMundurPembayaran } from '@/hooks/tagihan/useHitungMundurPembayaran';
 import { useCekStatusPembayaran } from '@/hooks/tagihan/useCekStatusPembayaran';
 import { useKuponTagihan } from '@/hooks/tagihan/useKuponTagihan';
+import { useMetodeBayar } from '@/hooks/tagihan/useMetodeBayar';
+import { usePanelBayar } from '@/hooks/tagihan/usePanelBayar';
 import { usePantauStatusPembayaran } from '@/hooks/tagihan/usePantauStatusPembayaran';
 import { useTagihanPelanggan } from '@/hooks/tagihan/useTagihanPelanggan';
 import { useUnggahBuktiTransfer } from '@/hooks/tagihan/useUnggahBuktiTransfer';
-import api from '@/services/api';
-import type { MetodePembayaranPelanggan } from '@/types/portalPelanggan';
 import { presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
 import { formatRupiah } from '@/utils/rupiah';
 import { simpanQrisKeGaleri } from '@/utils/simpanQrisKeGaleri';
-import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft, ChevronRight, Headset, History } from 'lucide-react-native';
@@ -26,11 +25,6 @@ import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-
-const ambilMetode = async () => {
-  const res = await api.get('/api/customer/payment-methods');
-  return res.data.data as MetodePembayaranPelanggan[];
-};
 
 const salin = async (teks: string, label: string) => {
   try {
@@ -57,16 +51,18 @@ const simpanQris = async (base64Png: string) => {
 
 export default function CustomerTagihanScreen() {
   const router = useRouter();
-  const [kodeMetode, setKodeMetode] = useState('');
-  const [isPanelBayarTerbuka, setIsPanelBayarTerbuka] = useState(false);
-  // Checkout yang menunggu sedang diganti metodenya: tampilkan pilihan metode.
-  const [isGantiMetode, setIsGantiMetode] = useState(false);
+  const panel = usePanelBayar();
   // Spinner tarik-segarkan hanya untuk tarikan pelanggan, bukan polling atau cek status.
   const [isMenarikUlang, setIsMenarikUlang] = useState(false);
 
   const { data: dataTagihan, isLoading, refetch, ringkasan } = useTagihanPelanggan();
   const { terutang, totalTerutang, jatuhTempoTerdekat, tagihanMenunggu } = ringkasan;
-  const { data: daftarMetode, refetch: refetchMetode } = useQuery({ queryKey: ['payment-methods'], queryFn: ambilMetode });
+  const kupon = useKuponTagihan(totalTerutang);
+  const totalBayar = totalTerutang - (kupon.diskon?.amount ?? 0);
+  const metodeBayar = useMetodeBayar(totalBayar);
+  const daftarMetode = metodeBayar.data;
+  // Metode terpilih bisa hilang dari daftar setelah nominal berubah (kupon).
+  const kodeTerpilih = daftarMetode?.some((metode) => metode.code === panel.kodeMetode) ? panel.kodeMetode : '';
   const muatUlang = useCallback(() => void refetch(), [refetch]);
   // Tagihan bisa dilunasi lewat portal web atau loket selama tab ini tertutup.
   useFocusEffect(muatUlang);
@@ -83,25 +79,27 @@ export default function CustomerTagihanScreen() {
   const hitungMundur = useHitungMundurPembayaran(pembayaranMenunggu?.expiresAt, muatUlang);
   usePantauStatusPembayaran({ tagihan: tagihanMenunggu, isAktif: !hitungMundur.isKedaluwarsa, muatUlang: refetch });
   const cekStatus = useCekStatusPembayaran({ invoiceId: tagihanMenunggu?.id, muatUlang: refetch });
-  const kupon = useKuponTagihan(totalTerutang);
   const unggahBukti = useUnggahBuktiTransfer(muatUlang);
-  const buatPembayaran = useBuatPembayaran(() => {
-    muatUlang();
-    setIsGantiMetode(false);
+  const buatPembayaran = useBuatPembayaran({
+    onDibuat: () => {
+      panel.tutup();
+      return refetch();
+    },
   });
 
   const tarikUlang = async () => {
     setIsMenarikUlang(true);
     try {
-      await Promise.all([refetch(), refetchMetode()]);
+      await Promise.all([refetch(), metodeBayar.refetch()]);
     } finally {
       setIsMenarikUlang(false);
     }
   };
 
   const bayar = () => {
-    if (!terutang.length || !kodeMetode) return;
-    buatPembayaran.mutate({ invoiceIds: terutang.map((tagihan) => tagihan.id), kodeKupon: kupon.diskon?.code ?? null, kodeMetode });
+    if (!terutang.length || !kodeTerpilih) return;
+    const kodeKupon = kupon.diskon?.code ?? null;
+    buatPembayaran.mutate({ invoiceIds: terutang.map((tagihan) => tagihan.id), kodeKupon, kodeMetode: kodeTerpilih });
   };
 
   const kartuMenunggu = pembayaranMenunggu && tagihanMenunggu && (
@@ -118,10 +116,7 @@ export default function CustomerTagihanScreen() {
         onSimpanQris: simpanQris,
         onCekStatus: () => cekStatus.cek(),
         onBukaHalamanBayar: () => bukaHalamanBayar(pembayaranMenunggu.paymentUrl!),
-        onGantiMetode: () => {
-          setIsGantiMetode(true);
-          setIsPanelBayarTerbuka(true);
-        },
+        onGantiMetode: panel.bukaGantiMetode,
         onUnggahBukti: () => unggahBukti.pilihDanUnggah(tagihanMenunggu.id),
       }}
     />
@@ -133,23 +128,20 @@ export default function CustomerTagihanScreen() {
         jumlahTagihan={terutang.length}
         total={formatRupiah(totalTerutang)}
         jatuhTempoTerdekat={jatuhTempoTerdekat}
-        isTampilkanTombolBayar={totalTerutang > 0 && !isPanelBayarTerbuka}
-        onBayar={() => setIsPanelBayarTerbuka(true)}
+        isTampilkanTombolBayar={totalTerutang > 0 && !panel.isTerbuka && !buatPembayaran.isPending}
+        onBayar={panel.buka}
       />
-      {isPanelBayarTerbuka && totalTerutang > 0 && (
+      {panel.isTerbuka && totalTerutang > 0 && (
         <PanelRincianPembayaran
           kupon={kupon}
-          metode={daftarMetode}
-          kodeTerpilih={kodeMetode}
-          onPilihMetode={setKodeMetode}
-          totalBayar={totalTerutang - (kupon.diskon?.amount ?? 0)}
-          isGantiMetode={isGantiMetode && !hitungMundur.isKedaluwarsa}
+          daftarMetode={{ metode: daftarMetode, isGagal: metodeBayar.isError, onMuatUlang: () => void metodeBayar.refetch() }}
+          kodeTerpilih={kodeTerpilih}
+          onPilihMetode={panel.setKodeMetode}
+          totalBayar={totalBayar}
+          isGantiMetode={panel.isGantiMetode && !hitungMundur.isKedaluwarsa}
           isMembayar={buatPembayaran.isPending}
           onBayar={bayar}
-          onTutup={() => {
-            setIsPanelBayarTerbuka(false);
-            setIsGantiMetode(false);
-          }}
+          onTutup={panel.tutup}
         />
       )}
     </View>
@@ -181,7 +173,7 @@ export default function CustomerTagihanScreen() {
           </View>
         ) : (
           <>
-            {kartuMenunggu && !isGantiMetode ? kartuMenunggu : ringkasanDanPanel}
+            {kartuMenunggu && !panel.isGantiMetode ? kartuMenunggu : ringkasanDanPanel}
             {/* Riwayat punya layar sendiri agar halaman bayar tidak memanjang seiring tagihan bertambah. */}
             <TouchableOpacity
               onPress={() => router.push('/(customer)/riwayat')}

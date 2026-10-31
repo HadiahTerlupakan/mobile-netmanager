@@ -3,8 +3,7 @@ import React from 'react';
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
-import { Skeleton } from '@/components/atoms/Skeleton';
-import { PilihanMetodeBayar, type MetodeBayar } from '@/components/organisms/tagihan/PilihanMetodeBayar';
+import { DaftarMetodeBayar, type StatusDaftarMetode } from '@/components/organisms/tagihan/DaftarMetodeBayar';
 import { formatRupiah } from '@/utils/rupiah';
 
 /** gray-400, amber-700 */
@@ -24,7 +23,7 @@ export interface KuponTagihan {
 
 interface PanelRincianPembayaranProps {
   kupon: KuponTagihan;
-  metode: MetodeBayar[] | undefined;
+  daftarMetode: StatusDaftarMetode;
   kodeTerpilih: string;
   onPilihMetode: (kode: string) => void;
   totalBayar: number;
@@ -96,7 +95,7 @@ function PeringatanGantiMetode() {
 
 /** Kupon, pilihan metode, total, dan tombol Konfirmasi & Bayar. */
 export function PanelRincianPembayaran(props: PanelRincianPembayaranProps) {
-  const { metode, kodeTerpilih, isMembayar } = props;
+  const { kodeTerpilih, isMembayar } = props;
   return (
     <View style={tw`mt-4 bg-white rounded-2xl p-5 border border-gray-200 shadow-sm`}>
       <View style={tw`flex-row justify-between items-center mb-4`}>
@@ -111,14 +110,7 @@ export function PanelRincianPembayaran(props: PanelRincianPembayaranProps) {
       <View style={tw`h-px bg-gray-100 mb-4`} />
 
       <Text style={tw`text-gray-700 text-sm font-medium mb-3`}>Pilih Metode Pembayaran</Text>
-      {metode ? (
-        <PilihanMetodeBayar metode={metode} kodeTerpilih={kodeTerpilih} onPilih={props.onPilihMetode} />
-      ) : (
-        <View style={tw`gap-2 mb-4`}>
-          <Skeleton height={50} borderRadius={12} />
-          <Skeleton height={50} borderRadius={12} />
-        </View>
-      )}
+      <DaftarMetodeBayar daftar={props.daftarMetode} kodeTerpilih={kodeTerpilih} onPilih={props.onPilihMetode} />
 
       <View style={tw`flex-row justify-between items-center mb-4`}>
         <Text style={tw`text-gray-600 font-medium`}>Total Bayar</Text>

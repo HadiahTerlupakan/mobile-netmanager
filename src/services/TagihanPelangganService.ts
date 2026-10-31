@@ -1,10 +1,12 @@
 import { getHttpStatus, getServerErrorMessage, isClientRejection } from '@/lib/queryErrorReporting';
-import type { TagihanPelanggan } from '@/types/portalPelanggan';
+import type { MetodePembayaranPelanggan, TagihanPelanggan } from '@/types/portalPelanggan';
 import { ambilMuatan } from '@/utils/responsPelanggan';
 import type { StatusCekPembayaran } from '@/utils/tagihan/pesanStatusPembayaran';
 import api from './api';
 
-const URL_CEK_STATUS = '/api/customer/payments/check-status';
+const URL_PEMBAYARAN = '/api/customer/payments';
+const URL_METODE_BAYAR = '/api/customer/payment-methods';
+const URL_CEK_STATUS = `${URL_PEMBAYARAN}/check-status`;
 const STATUS_TIDAK_DITEMUKAN = 404;
 
 const URL_TAGIHAN = '/api/customer/invoices';
@@ -27,6 +29,20 @@ export interface DiskonKupon {
 
 /** Kupon sah beserta diskonnya, atau ditolak server beserta alasannya. */
 export type HasilVerifikasiKupon = { isSah: true; diskon: DiskonKupon } | { isSah: false; pesan: string };
+
+/** Checkout untuk semua tagihan terbuka dengan satu metode. */
+export interface PermintaanPembayaran {
+  invoiceIds: string[];
+  kodeKupon: string | null;
+  kodeMetode: string;
+}
+
+/** Instruksi bayar checkout yang baru dibuat. */
+export interface CheckoutBaru {
+  paymentUrl: string | null;
+  vaNumber: string | null;
+  qrString: string | null;
+}
 
 interface MuatanKupon {
   valid?: boolean;
@@ -62,6 +78,31 @@ export const TagihanPelangganService = {
   /** Tagihan terbaru semua status, untuk membaca tagihan yang baru lunas atau dibatalkan. */
   tagihanTerbaru(): Promise<TagihanPelanggan[]> {
     return ambilDaftarTagihan(`limit=${BATAS_TAGIHAN_TERBARU}`);
+  },
+
+  /**
+   * Metode bayar untuk nominal yang akan dibayar: server menyaring channel
+   * gateway yang aktif untuk nominal itu. Tanpa nominal: katalog lengkap.
+   */
+  async metodeBayar(nominal: number): Promise<MetodePembayaranPelanggan[]> {
+    const response = await api.get(nominal > 0 ? `${URL_METODE_BAYAR}?amount=${nominal}` : URL_METODE_BAYAR);
+    const daftar = response.data?.data;
+    return Array.isArray(daftar) ? daftar : [];
+  },
+
+  /** Buat checkout, atau ganti checkout yang menunggu dengan metode lain. */
+  async buatPembayaran({ invoiceIds, kodeKupon, kodeMetode }: PermintaanPembayaran): Promise<CheckoutBaru> {
+    const response = await api.post(URL_PEMBAYARAN, {
+      invoiceIds,
+      couponCode: kodeKupon,
+      paymentMethod: kodeMetode,
+      notes: 'Payment via Mobile App',
+    });
+    return {
+      paymentUrl: ambilMuatan<string>(response.data, 'paymentUrl') ?? null,
+      vaNumber: ambilMuatan<string>(response.data, 'vaNumber') ?? null,
+      qrString: ambilMuatan<string>(response.data, 'qrString') ?? null,
+    };
   },
 
   /**

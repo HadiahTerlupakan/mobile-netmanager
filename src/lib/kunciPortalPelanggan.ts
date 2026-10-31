@@ -16,4 +16,6 @@ export const kunciPortalPelanggan = {
   pengumuman: () => [...AKAR, "pengumuman"] as const,
   /** Tagihan terbuka + tagihan terbaru yang dipantau layar Tagihan. */
   tagihan: () => [...AKAR, "tagihan"] as const,
+  /** Metode bayar yang tersedia untuk nominal tertentu. */
+  metodeBayar: (nominal: number) => [...AKAR, "metode-bayar", nominal] as const,
 };
