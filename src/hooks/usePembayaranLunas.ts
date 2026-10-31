@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 
+import type { PembayaranTerakhir } from '@/types/portalPelanggan';
+import { nominalCheckout, nomorTagihanCheckout } from '@/utils/tagihan/checkoutPelanggan';
+
 export interface TagihanDipantau {
   id: string;
   invoiceNumber: string;
   status: string;
-  lastPayment?: { amount: number; gatewayStatus?: string | null } | null;
+  lastPayment?: Pick<PembayaranTerakhir, 'amount' | 'gatewayStatus' | 'checkoutTotal' | 'checkoutInvoiceNumbers'> | null;
 }
 
 export interface PembayaranLunas {
-  nomorTagihan: string;
+  /** Semua tagihan yang dilunasi checkout ini. */
+  daftarNomorTagihan: string[];
+  /** Yang dibayar untuk seluruh checkout, sudah dipotong kupon. */
   nominal: number;
   /** Pelanggan isolir/nonaktif saat membayar: pelunasan ini yang memulihkan layanannya. */
   isLayananDipulihkan: boolean;
@@ -29,6 +34,26 @@ export function isMenungguPelunasan(tagihan: TagihanDipantau): boolean {
   return status === STATUS_MENUNGGU || (status === STATUS_LUNAS && tagihan.status !== STATUS_LUNAS);
 }
 
+/** Checkout yang tercatat saat menunggu, diperbarui dari pembayaran yang benar-benar lunas. */
+function pelunasanDari(tagihan: TagihanDipantau, tercatat: PembayaranLunas): PembayaranLunas {
+  const pembayaran = tagihan.lastPayment;
+  if (pembayaran?.gatewayStatus !== STATUS_LUNAS) return tercatat;
+  return {
+    ...tercatat,
+    nominal: nominalCheckout(pembayaran),
+    daftarNomorTagihan: nomorTagihanCheckout(pembayaran, tagihan.invoiceNumber),
+  };
+}
+
+function catatMenunggu(tagihan: TagihanDipantau, isDipulihkan: boolean): PembayaranLunas {
+  const pembayaran = tagihan.lastPayment!;
+  return {
+    daftarNomorTagihan: nomorTagihanCheckout(pembayaran, tagihan.invoiceNumber),
+    nominal: nominalCheckout(pembayaran),
+    isLayananDipulihkan: isDipulihkan,
+  };
+}
+
 /**
  * Tagihan yang tadinya menunggu pembayaran lalu terbaca lunas, dari SSE,
  * polling, maupun cek status manual: semuanya berakhir di refetch daftar
@@ -44,18 +69,13 @@ export function usePembayaranLunas(daftar: TagihanDipantau[] | undefined, status
   useEffect(() => {
     if (!daftar) return;
     const baruLunas = daftar.find((tagihan) => tagihan.status === STATUS_LUNAS && menungguRef.current.has(tagihan.id));
-    if (baruLunas) setLunas(menungguRef.current.get(baruLunas.id) ?? null);
+    if (baruLunas) setLunas(pelunasanDari(baruLunas, menungguRef.current.get(baruLunas.id)!));
 
     const isTerputus = STATUS_PELANGGAN_TERPUTUS.has(statusPelanggan ?? '');
     menungguRef.current = new Map(
-      daftar.filter(isMenungguPelunasan).map((tagihan) => [
-        tagihan.id,
-        {
-          nomorTagihan: tagihan.invoiceNumber,
-          nominal: tagihan.lastPayment!.amount,
-          isLayananDipulihkan: isTerputus || Boolean(menungguRef.current.get(tagihan.id)?.isLayananDipulihkan),
-        },
-      ]),
+      daftar
+        .filter(isMenungguPelunasan)
+        .map((tagihan) => [tagihan.id, catatMenunggu(tagihan, isTerputus || Boolean(menungguRef.current.get(tagihan.id)?.isLayananDipulihkan))]),
     );
   }, [daftar, statusPelanggan]);
 

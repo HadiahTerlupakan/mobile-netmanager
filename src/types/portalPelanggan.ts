@@ -155,8 +155,14 @@ export interface PemakaianPelanggan {
   allTime: PemakaianData;
 }
 
-/** Pembayaran terakhir sebuah tagihan, dari `GET /api/customer/invoices`. */
+/**
+ * Pembayaran terakhir sebuah tagihan, dari `GET /api/customer/invoices`.
+ * Field `checkout*`, `isManual`, dan `rejectionReason` baru ada di server
+ * yang sudah memuat kontrak C1; pembacanya harus tahan tanpa field itu.
+ */
 export interface PembayaranTerakhir {
+  id?: string;
+  /** Bagian tagihan INI saja; satu checkout bisa mencakup beberapa tagihan. */
   amount: number;
   date: Date | string;
   method: string;
@@ -167,14 +173,25 @@ export interface PembayaranTerakhir {
   /** Kode channel gateway (mis. "BC"), sama dengan `code` metode pembayaran. */
   gatewayProvider?: string | null;
   receiptUrl?: string | null;
+  /** Batas bayar sebenarnya per channel (QRIS ≤ 60 menit, VA/retail 24 jam). */
   expiresAt?: Date | string | null;
   accountId?: string | null;
+  checkoutId?: string | null;
+  /** Rupiah yang harus dibayar untuk SELURUH checkout (jumlah `amount` sekelompok). */
+  checkoutTotal?: number;
+  /** Nomor tagihan yang dicakup checkout ini, urut jatuh tempo. */
+  checkoutInvoiceNumbers?: string[];
+  /** Transfer bank manual (punya `accountId`). */
+  isManual?: boolean;
+  /** Alasan admin menolak bukti transfer manual. */
+  rejectionReason?: string | null;
 }
 
 export interface TagihanPelanggan {
   id: string;
   invoiceNumber: string;
   totalAmount: number;
+  paidAmount?: number;
   remainingAmount: number;
   status: string;
   dueDate: string;

@@ -70,12 +70,19 @@ export const CHECKOUT_MANUAL: Rekaman = {
   isManual: true,
 };
 
-/** Tagihan yang tersaring oleh `?status=` seperti server. */
+/** Batas bawaan server bila `limit` tidak dikirim. */
+const BATAS_BAWAAN_SERVER = 10;
+
+/**
+ * Tagihan yang tersaring `?status=` lalu dipotong `?limit=` seperti server
+ * (daftar uji ditulis urut terbit terbaru lebih dulu, sama dengan server).
+ */
 function saringStatus(url: string, daftar: Rekaman[]): Rekaman[] {
-  const status = new URL(url, 'https://contoh.test').searchParams.get('status');
-  if (!status) return daftar;
-  const diminta = new Set(status.split(','));
-  return daftar.filter((tagihan) => diminta.has(String(tagihan.status)));
+  const parameter = new URL(url, 'https://contoh.test').searchParams;
+  const status = parameter.get('status');
+  const diminta = status ? new Set(status.split(',')) : null;
+  const tersaring = diminta ? daftar.filter((tagihan) => diminta.has(String(tagihan.status))) : daftar;
+  return tersaring.slice(0, Number(parameter.get('limit') ?? BATAS_BAWAAN_SERVER));
 }
 
 interface OpsiServer {

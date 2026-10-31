@@ -19,7 +19,7 @@ describe('usePembayaranLunas', () => {
 
     rerender({ daftar: [tagihan('PAID', 'PAID')] });
 
-    expect(result.current.lunas).toEqual({ nomorTagihan: 'INV-1', nominal: 11100, isLayananDipulihkan: false });
+    expect(result.current.lunas).toEqual({ daftarNomorTagihan: ['INV-1'], nominal: 11100, isLayananDipulihkan: false });
     act(() => result.current.tutup());
     expect(result.current.lunas).toBeNull();
   });
@@ -46,7 +46,7 @@ describe('usePembayaranLunas', () => {
     expect(result.current.lunas).toBeNull();
     rerender({ daftar: [tagihan('PAID', 'PAID')] });
 
-    expect(result.current.lunas).toEqual({ nomorTagihan: 'INV-1', nominal: 11100, isLayananDipulihkan: false });
+    expect(result.current.lunas).toEqual({ daftarNomorTagihan: ['INV-1'], nominal: 11100, isLayananDipulihkan: false });
   });
 });
 
@@ -102,5 +102,40 @@ describe('isMenungguPelunasan', () => {
     ['belum pernah dibayar', tagihan('OVERDUE', null), false],
   ])('%s', (_kasus, data, harapan) => {
     expect(isMenungguPelunasan(data)).toBe(harapan);
+  });
+});
+
+// Satu checkout bisa melunasi beberapa tagihan; `amount` tiap tagihan hanya
+// bagiannya sendiri (dan sudah dipotong bagian diskon kuponnya).
+describe('usePembayaranLunas — checkout gabungan', () => {
+  const pembayaranGabungan = (gatewayStatus: string, checkoutTotal: number) => ({
+    amount: 11100,
+    gatewayStatus,
+    checkoutTotal,
+    checkoutInvoiceNumbers: ['INV-1', 'INV-2'],
+  });
+  const tagihanGabungan = (status: string, gatewayStatus: string, checkoutTotal = 33300): TagihanDipantau => ({
+    id: 'inv-1',
+    invoiceNumber: 'INV-1',
+    status,
+    lastPayment: pembayaranGabungan(gatewayStatus, checkoutTotal),
+  });
+  const render = (daftar: TagihanDipantau[]) =>
+    renderHook(({ daftar: isi }: { daftar: TagihanDipantau[] }) => usePembayaranLunas(isi), { initialProps: { daftar } });
+
+  it('melaporkan total checkout dan semua nomor tagihannya', () => {
+    const { result, rerender } = render([tagihanGabungan('OVERDUE', 'PENDING')]);
+
+    rerender({ daftar: [tagihanGabungan('PAID', 'PAID')] });
+
+    expect(result.current.lunas).toEqual({ daftarNomorTagihan: ['INV-1', 'INV-2'], nominal: 33300, isLayananDipulihkan: false });
+  });
+
+  it('nominal diambil dari pembayaran yang benar-benar lunas', () => {
+    const { result, rerender } = render([tagihanGabungan('OVERDUE', 'PENDING', 33300)]);
+
+    rerender({ daftar: [tagihanGabungan('PAID', 'PAID', 29970)] });
+
+    expect(result.current.lunas?.nominal).toBe(29970);
   });
 });

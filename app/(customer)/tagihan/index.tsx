@@ -5,20 +5,20 @@ import { KartuRingkasanTagihan } from '@/components/organisms/tagihan/KartuRingk
 import { KartuTransferManual } from '@/components/organisms/tagihan/KartuTransferManual';
 import { PanelRincianPembayaran } from '@/components/organisms/tagihan/PanelRincianPembayaran';
 import { useProfilPelanggan } from '@/hooks/queries/useAkunPelanggan';
-import { isMenungguPelunasan, usePembayaranLunas } from '@/hooks/usePembayaranLunas';
+import { usePembayaranLunas } from '@/hooks/usePembayaranLunas';
 import { bukaHalamanBayar, useBuatPembayaran } from '@/hooks/tagihan/useBuatPembayaran';
 import { useHitungMundurPembayaran } from '@/hooks/tagihan/useHitungMundurPembayaran';
 import { useKuponTagihan } from '@/hooks/tagihan/useKuponTagihan';
 import { useSseStatusPembayaran } from '@/hooks/tagihan/useSseStatusPembayaran';
+import { useTagihanPelanggan } from '@/hooks/tagihan/useTagihanPelanggan';
 import { useUnggahBuktiTransfer } from '@/hooks/tagihan/useUnggahBuktiTransfer';
 import api from '@/services/api';
-import type { MetodePembayaranPelanggan, PembayaranTerakhir, TagihanPelanggan } from '@/types/portalPelanggan';
+import type { MetodePembayaranPelanggan, PembayaranTerakhir } from '@/types/portalPelanggan';
 import { presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
-import { ambilMuatan } from '@/utils/responsPelanggan';
 import { formatRupiah } from '@/utils/rupiah';
 import { simpanQrisKeGaleri } from '@/utils/simpanQrisKeGaleri';
-import { isTagihanTerutang } from '@/utils/statusTagihanPelanggan';
+import { nominalCheckout, nomorTagihanCheckout, tulisNomorTagihan } from '@/utils/tagihan/checkoutPelanggan';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
@@ -31,15 +31,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 
 dayjs.locale('id');
-
-/** SSE status pembayaran bisa putus tanpa tersambung lagi; polling ini cadangannya. */
-const INTERVAL_CEK_PEMBAYARAN_MS = 15_000;
-const STATUS_MENUNGGU = 'PENDING';
-
-const ambilTagihan = async () => {
-  const res = await api.get('/api/customer/invoices?limit=20');
-  return ambilMuatan<TagihanPelanggan[]>(res.data, 'invoices') ?? [];
-};
 
 const ambilMetode = async () => {
   const res = await api.get('/api/customer/payment-methods');
@@ -86,8 +77,12 @@ function KepalaMenunggu({ sisaWaktu, keterangan }: { sisaWaktu: string; keterang
   );
 }
 
-const keteranganMenunggu = (metode: string | undefined, nomorTagihan: string | undefined, pembayaran: PembayaranTerakhir) =>
-  [metode, `#${nomorTagihan}`, pembayaran.expiresAt ? `bayar sebelum ${dayjs(pembayaran.expiresAt).format('D MMM, HH.mm')}` : null]
+const keteranganMenunggu = (metode: string | undefined, nomorTagihan: string, pembayaran: PembayaranTerakhir) =>
+  [
+    metode,
+    tulisNomorTagihan(nomorTagihanCheckout(pembayaran, nomorTagihan)),
+    pembayaran.expiresAt ? `bayar sebelum ${dayjs(pembayaran.expiresAt).format('D MMM, HH.mm')}` : null,
+  ]
     .filter(Boolean)
     .join(' · ');
 
@@ -101,20 +96,13 @@ export default function CustomerTagihanScreen() {
   // Spinner tarik-segarkan hanya untuk tarikan pelanggan, bukan polling atau cek status.
   const [isMenarikUlang, setIsMenarikUlang] = useState(false);
 
-  const { data: daftarTagihan, isLoading, refetch } = useQuery({
-    queryKey: ['customer-invoices'],
-    queryFn: ambilTagihan,
-    refetchInterval: (query) => (query.state.data?.some(isMenungguPelunasan) ? INTERVAL_CEK_PEMBAYARAN_MS : false),
-  });
+  const { data: dataTagihan, isLoading, refetch, ringkasan } = useTagihanPelanggan();
+  const { terutang, totalTerutang, jatuhTempoTerdekat, tagihanMenunggu } = ringkasan;
   const { data: daftarMetode, refetch: refetchMetode } = useQuery({ queryKey: ['payment-methods'], queryFn: ambilMetode });
   const muatUlang = useCallback(() => void refetch(), [refetch]);
   // Tagihan bisa dilunasi lewat portal web atau loket selama tab ini tertutup.
   useFocusEffect(muatUlang);
 
-  const terutang = (daftarTagihan ?? []).filter((tagihan) => isTagihanTerutang(tagihan.status));
-  const totalTerutang = terutang.reduce((sum, tagihan) => sum + tagihan.remainingAmount, 0);
-  const jatuhTempoTerdekat = [...terutang].sort((a, b) => dayjs(a.dueDate).diff(b.dueDate))[0]?.dueDate ?? null;
-  const tagihanMenunggu = terutang.find((tagihan) => tagihan.lastPayment?.gatewayStatus === STATUS_MENUNGGU);
   const pembayaranMenunggu = tagihanMenunggu?.lastPayment;
   const metodeMenunggu = daftarMetode?.find((metode) => metode.code === pembayaranMenunggu?.gatewayProvider);
   const rekeningManual =
@@ -123,7 +111,7 @@ export default function CustomerTagihanScreen() {
       : undefined;
 
   const { data: profil } = useProfilPelanggan();
-  const pembayaranLunas = usePembayaranLunas(daftarTagihan, profil?.status);
+  const pembayaranLunas = usePembayaranLunas(ringkasan.daftarPantauan, profil?.status);
   const sisaWaktu = useHitungMundurPembayaran(pembayaranMenunggu?.expiresAt, muatUlang);
   useSseStatusPembayaran(tagihanMenunggu?.id, muatUlang);
   const kupon = useKuponTagihan(totalTerutang);
@@ -151,7 +139,7 @@ export default function CustomerTagihanScreen() {
     setIsMengecekStatus(true);
     try {
       const hasil = await refetch();
-      if (hasil.data?.some((tagihan) => tagihan.id === tagihanMenunggu?.id && tagihan.status !== 'PAID')) {
+      if (hasil.data?.terbuka.some((tagihan) => tagihan.id === tagihanMenunggu?.id)) {
         presentInfoMessage('Pembayaran belum kami terima. Bila baru saja membayar, tunggu 1–2 menit lalu cek lagi.', 'Belum Diterima');
       }
     } finally {
@@ -166,8 +154,8 @@ export default function CustomerTagihanScreen() {
         {rekeningManual ? (
           <KartuTransferManual
             rekening={rekeningManual}
-            nominal={formatRupiah(pembayaranMenunggu.amount)}
-            nominalMentah={pembayaranMenunggu.amount}
+            nominal={formatRupiah(nominalCheckout(pembayaranMenunggu))}
+            nominalMentah={nominalCheckout(pembayaranMenunggu)}
             isBuktiTerkirim={Boolean(pembayaranMenunggu.receiptUrl)}
             isMengunggah={unggahBukti.isMengunggah}
             onSalin={salin}
@@ -175,7 +163,7 @@ export default function CustomerTagihanScreen() {
           />
         ) : (
           <KartuMenungguGateway
-            nominal={formatRupiah(pembayaranMenunggu.amount)}
+            nominal={formatRupiah(nominalCheckout(pembayaranMenunggu))}
             nomorVa={pembayaranMenunggu.vaNumber}
             stringQris={pembayaranMenunggu.qrString}
             namaMetode={metodeMenunggu?.name}
@@ -242,7 +230,7 @@ export default function CustomerTagihanScreen() {
         contentContainerStyle={tw`pb-24`}
         refreshControl={<RefreshControl refreshing={isMenarikUlang} onRefresh={tarikUlang} tintColor="#0d9488" />}
       >
-        {isLoading && !daftarTagihan ? (
+        {isLoading && !dataTagihan ? (
           <View style={tw`p-4 gap-3`}>
             <Skeleton height={200} borderRadius={16} />
             <Skeleton height={80} borderRadius={12} />
@@ -265,7 +253,7 @@ export default function CustomerTagihanScreen() {
       </ScrollView>
       <LembarPembayaranBerhasil
         nominal={pembayaranLunas.lunas ? formatRupiah(pembayaranLunas.lunas.nominal) : null}
-        nomorTagihan={pembayaranLunas.lunas?.nomorTagihan ?? null}
+        daftarNomorTagihan={pembayaranLunas.lunas?.daftarNomorTagihan ?? []}
         isLayananDipulihkan={pembayaranLunas.lunas?.isLayananDipulihkan ?? false}
         onTutup={pembayaranLunas.tutup}
       />

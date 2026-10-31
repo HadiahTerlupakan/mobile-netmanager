@@ -14,4 +14,6 @@ export const kunciPortalPelanggan = {
   notifikasi: () => [...AKAR, "notifikasi"] as const,
   jumlahBelumDibaca: () => [...AKAR, "notifikasi", "belum-dibaca"] as const,
   pengumuman: () => [...AKAR, "pengumuman"] as const,
+  /** Tagihan terbuka + tagihan terbaru yang dipantau layar Tagihan. */
+  tagihan: () => [...AKAR, "tagihan"] as const,
 };

@@ -3,6 +3,8 @@ import React from 'react';
 import { Modal, Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
+import { tulisNomorTagihan } from '@/utils/tagihan/checkoutPelanggan';
+
 const UKURAN_IKON = 56;
 /** green-600 */
 const WARNA_IKON = '#16a34a';
@@ -13,14 +15,15 @@ const KETERANGAN_LAYANAN_DIPULIHKAN = 'Terima kasih. Layanan internet Anda diakt
 
 interface LembarPembayaranBerhasilProps {
   nominal: string | null;
-  nomorTagihan: string | null;
+  /** Semua tagihan yang dilunasi checkout ini. */
+  daftarNomorTagihan: string[];
   /** Pelanggan isolir/nonaktif saat membayar; pembayaran ini yang memulihkan layanannya. */
   isLayananDipulihkan: boolean;
   onTutup: () => void;
 }
 
 /** Konfirmasi pembayaran yang baru diterima; tampil selama `nominal` terisi. */
-export function LembarPembayaranBerhasil({ nominal, nomorTagihan, isLayananDipulihkan, onTutup }: LembarPembayaranBerhasilProps) {
+export function LembarPembayaranBerhasil({ nominal, daftarNomorTagihan, isLayananDipulihkan, onTutup }: LembarPembayaranBerhasilProps) {
   return (
     <Modal visible={nominal !== null} transparent animationType="slide" onRequestClose={onTutup}>
       <View style={tw`flex-1 justify-end bg-black/40`}>
@@ -28,7 +31,7 @@ export function LembarPembayaranBerhasil({ nominal, nomorTagihan, isLayananDipul
           <CheckCircle size={UKURAN_IKON} color={WARNA_IKON} />
           <Text style={tw`text-xl font-bold text-gray-900 mt-3`}>Pembayaran Berhasil</Text>
           <Text style={tw`text-3xl font-black text-teal-600 mt-2`}>{nominal}</Text>
-          <Text style={tw`text-xs text-gray-500 mt-1`}>#{nomorTagihan}</Text>
+          <Text style={tw`text-xs text-gray-500 mt-1 text-center`}>{tulisNomorTagihan(daftarNomorTagihan)}</Text>
           <Text style={tw`text-sm text-gray-600 text-center mt-3`}>
             {isLayananDipulihkan ? KETERANGAN_LAYANAN_DIPULIHKAN : KETERANGAN_LAYANAN_AKTIF}
           </Text>
