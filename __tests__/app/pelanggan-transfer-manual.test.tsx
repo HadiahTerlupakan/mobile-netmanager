@@ -107,6 +107,17 @@ describe('transfer manual yang menunggu', () => {
     expect(toastTerakhir()?.text2).toBe('Transfer ini sudah diverifikasi admin.');
   });
 
+  it('server lama tanpa endpoint pembatalan memberi tahu pelanggan', async () => {
+    mockPost.mockRejectedValue(galatHttp(404, 'Not Found'));
+    const layar = await renderLayar();
+
+    pilihDiAlert('Batalkan');
+    fireEvent.press(layar.getByText('Batalkan / Ganti Metode'));
+    await selesaikanJanji();
+
+    expect(toastTerakhir()?.text2).toMatch(/^Pembatalan transfer manual belum tersedia/);
+  });
+
   it('bukti yang belum diverifikasi bisa diganti', async () => {
     mockGet.mockImplementation(jawabanServer([buatTagihan({ lastPayment: { ...CHECKOUT_MANUAL, receiptUrl: '/uploads/bukti.jpg' } })]));
     const layar = await renderLayar();

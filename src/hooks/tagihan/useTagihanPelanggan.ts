@@ -24,12 +24,12 @@ export interface DataTagihanPelanggan {
 
 export interface RingkasanTagihan {
   /**
-   * Semua tagihan terbuka; seluruhnya dibayar dalam satu checkout, termasuk
-   * yang bernominal Rp 0 (server melunasinya bersama checkout itu).
+   * Tagihan terbuka yang masih ada sisanya; seluruhnya dibayar dalam satu
+   * checkout. Tagihan Rp 0 tidak ikut: pembayarannya langsung PAID, dan bila
+   * server memakainya sebagai order id gateway, webhook menganggap checkout
+   * sudah diproses sehingga tagihan lain tetap belum lunas.
    */
-  terutang: TagihanPelanggan[];
-  /** Tagihan terbuka yang masih ada sisanya, untuk ditampilkan. */
-  jumlahHarusDibayar: number;
+  tagihanHarusDibayar: TagihanPelanggan[];
   totalTerutang: number;
   jatuhTempoTerdekat: string | null;
   /** Ada tagihan yang lewat jatuh tempo (OVERDUE). */
@@ -80,8 +80,7 @@ export function ringkasTagihan(data: DataTagihanPelanggan | undefined): Ringkasa
   const terutang = (data?.terbuka ?? []).filter((tagihan) => isTagihanTerutang(tagihan.status));
   const harusDibayar = terutang.filter(isTagihanHarusDibayar);
   return {
-    terutang,
-    jumlahHarusDibayar: harusDibayar.length,
+    tagihanHarusDibayar: harusDibayar,
     totalTerutang: terutang.reduce((jumlah, tagihan) => jumlah + tagihan.remainingAmount, 0),
     jatuhTempoTerdekat: [...harusDibayar].sort((a, b) => dayjs(a.dueDate).diff(b.dueDate))[0]?.dueDate ?? null,
     isAdaTerlambat: harusDibayar.some((tagihan) => tagihan.status === STATUS_TERLAMBAT),

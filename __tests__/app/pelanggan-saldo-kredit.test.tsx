@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { fireEvent } from '@testing-library/react-native';
 import React from 'react';
 
 import { renderDenganQuery, selesaikanJanji } from '../fixtures/portalPelanggan';
@@ -12,8 +13,12 @@ import { buatTagihan, jawabanServer } from '../fixtures/tagihanPelanggan';
  */
 
 const mockGet = jest.fn<(url: string) => Promise<{ data: unknown }>>();
+const mockPost = jest.fn<(url: string, body?: unknown) => Promise<{ status: number; data: unknown }>>();
 
-jest.mock('@/services/api', () => ({ __esModule: true, default: { get: (url: string) => mockGet(url), post: jest.fn() } }));
+jest.mock('@/services/api', () => ({
+  __esModule: true,
+  default: { get: (url: string) => mockGet(url), post: (url: string, body?: unknown) => mockPost(url, body) },
+}));
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), back: jest.fn() }), useFocusEffect: jest.fn() }));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native');
@@ -80,6 +85,22 @@ describe('tagihan bernominal Rp 0', () => {
 
     expect(layar.getByText('Tidak ada tagihan tertunggak')).toBeTruthy();
     expect(layar.queryByText('Bayar Sekarang')).toBeNull();
+  });
+
+  // Server mengirim payments[0].reference ke gateway sebagai order id; bila itu
+  // pembayaran Rp 0 (langsung PAID), webhook menganggap checkout sudah diproses
+  // dan tagihan lain di checkout itu tetap belum lunas walau sudah dibayar.
+  it('tidak ikut dikirim dalam checkout', async () => {
+    mockPost.mockResolvedValue({ status: 200, data: { success: true, data: { vaNumber: '7007', paymentUrl: 'https://gw' } } });
+    mockGet.mockImplementation(jawabanServer([TAGIHAN_TERTUTUP_SALDO, buatTagihan()]));
+    const layar = await renderLayar(CustomerTagihanScreen);
+
+    fireEvent.press(layar.getByText('Bayar Sekarang'));
+    fireEvent.press(layar.getByText('BCA Virtual Account'));
+    fireEvent.press(layar.getByText('Konfirmasi & Bayar'));
+    await selesaikanJanji();
+
+    expect(mockPost).toHaveBeenCalledWith('/api/customer/payments', expect.objectContaining({ invoiceIds: ['inv-1'] }));
   });
 
   it('Riwayat tidak menyebutnya "Belum Bayar"', async () => {

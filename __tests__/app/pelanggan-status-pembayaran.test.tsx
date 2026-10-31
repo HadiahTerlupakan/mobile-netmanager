@@ -92,6 +92,18 @@ describe('Saya Sudah Bayar, Cek Status', () => {
     expect(layar.getByText('Pembayaran Berhasil')).toBeTruthy();
   });
 
+  // Server sudah menyatakan lunas, tetapi daftar yang dimuat ulang belum
+  // (pelunasan masih berjalan): pelanggan tidak boleh disebut belum membayar.
+  it('gateway menyatakan lunas walau daftar belum: tidak disebut belum diterima', async () => {
+    jawabCekStatus('PAID');
+    const layar = await renderLayar();
+
+    await tekanCekStatus(layar);
+
+    expect(toastTerakhir()?.text2).toMatch(/sudah kami terima/);
+    expect(toastTerakhir()?.text2).not.toMatch(/belum kami terima/);
+  });
+
   it('checkout yang masih menunggu: pelanggan diminta menunggu sebentar', async () => {
     jawabCekStatus('PENDING');
     const layar = await renderLayar();

@@ -26,6 +26,12 @@ const PESAN_GATEWAY_GAGAL: PesanStatusPembayaran = {
   isGalat: true,
 };
 
+const PESAN_DITERIMA_DIPROSES: PesanStatusPembayaran = {
+  judul: 'Pembayaran Diterima',
+  pesan: 'Pembayaran Anda sudah kami terima dan sedang diproses. Status tagihan diperbarui sebentar lagi.',
+  isGalat: false,
+};
+
 const PESAN_BELUM_DITERIMA: PesanStatusPembayaran = {
   judul: 'Belum Diterima',
   pesan: 'Pembayaran belum kami terima. Bila baru saja membayar, tunggu 1–2 menit lalu cek lagi.',
@@ -55,12 +61,16 @@ export function pesanPembayaranBerakhir(status: StatusAkhirPembayaran, pembayara
 
 /**
  * Pesan setelah "Cek Status". `status` null: server lama tanpa endpoint cek
- * status, jadi hanya daftar tagihan yang dimuat ulang.
+ * status, jadi hanya daftar tagihan yang dimuat ulang. Lunas yang sudah
+ * terbaca di daftar diberitahukan lembar sukses; lunas yang belum terbaca
+ * (pelunasan masih berjalan) tidak boleh disebut "belum diterima".
  */
 export function pesanHasilCekStatus(
   status: StatusCekPembayaran | null,
   hasil: { isMasihTerbuka: boolean; isLaporkanBelumDiterima: boolean },
 ): PesanStatusPembayaran | null {
   if (status === 'EXPIRED' || status === 'FAILED') return pesanPembayaranBerakhir(status);
-  return hasil.isMasihTerbuka && hasil.isLaporkanBelumDiterima ? PESAN_BELUM_DITERIMA : null;
+  if (!hasil.isMasihTerbuka) return null;
+  if (status === 'PAID') return PESAN_DITERIMA_DIPROSES;
+  return hasil.isLaporkanBelumDiterima ? PESAN_BELUM_DITERIMA : null;
 }

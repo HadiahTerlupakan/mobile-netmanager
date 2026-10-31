@@ -1,9 +1,22 @@
 import { useMutation } from '@tanstack/react-query';
 
+import { getHttpStatus } from '@/lib/queryErrorReporting';
 import { TagihanPelangganService } from '@/services/TagihanPelangganService';
 import { AlertService } from '@/utils/alert';
-import { presentAppError, presentInfoMessage } from '@/utils/errorPresenter';
+import { presentAppError, presentErrorMessage, presentInfoMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
+
+/** Server lama belum punya POST /api/customer/payments/cancel. */
+const STATUS_ENDPOINT_TIDAK_ADA = 404;
+
+function tampilkanGalatBatal(error: unknown) {
+  logger.error('[CustomerTagihan] Failed to cancel manual transfer', error);
+  if (getHttpStatus(error) === STATUS_ENDPOINT_TIDAK_ADA) {
+    presentErrorMessage('Pembatalan transfer manual belum tersedia. Hubungi CS bila ingin mengganti metode pembayaran.', 'Belum Tersedia');
+    return;
+  }
+  presentAppError(error, { screen: 'CustomerTagihanScreen', route: '/(customer)/tagihan' });
+}
 
 interface OpsiBatalkanTransfer {
   /** Checkout dibatalkan: buka pilihan metode lalu muat ulang tagihan. */
@@ -27,8 +40,7 @@ export function useBatalkanTransferManual({ onDibatalkan, muatUlang }: OpsiBatal
       presentInfoMessage('Transfer manual dibatalkan. Silakan pilih metode pembayaran lain.', 'Dibatalkan');
     },
     onError: (error) => {
-      logger.error('[CustomerTagihan] Failed to cancel manual transfer', error);
-      presentAppError(error, { screen: 'CustomerTagihanScreen', route: '/(customer)/tagihan' });
+      tampilkanGalatBatal(error);
       muatUlang();
     },
   });

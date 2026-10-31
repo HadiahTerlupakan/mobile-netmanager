@@ -33,7 +33,7 @@ export default function CustomerTagihanScreen() {
   const [isMenarikUlang, setIsMenarikUlang] = useState(false);
 
   const { data: dataTagihan, isLoading, refetch, ringkasan, ambilTagihanMenunggu } = useTagihanPelanggan();
-  const { terutang, jumlahHarusDibayar, totalTerutang, jatuhTempoTerdekat, isAdaTerlambat, tagihanMenunggu, tagihanDitolak } = ringkasan;
+  const { tagihanHarusDibayar, totalTerutang, jatuhTempoTerdekat, isAdaTerlambat, tagihanMenunggu, tagihanDitolak } = ringkasan;
   const kupon = useKuponTagihan(totalTerutang);
   const totalBayar = totalTerutang - (kupon.diskon?.amount ?? 0);
   const metodeBayar = useMetodeBayar(totalBayar);
@@ -87,9 +87,9 @@ export default function CustomerTagihanScreen() {
   };
 
   const bayar = () => {
-    if (!terutang.length || !kodeTerpilih) return;
+    if (!tagihanHarusDibayar.length || !kodeTerpilih) return;
     const kodeKupon = kupon.diskon?.code ?? null;
-    buatPembayaran.mutate({ invoiceIds: terutang.map((tagihan) => tagihan.id), kodeKupon, kodeMetode: kodeTerpilih });
+    buatPembayaran.mutate({ invoiceIds: tagihanHarusDibayar.map((tagihan) => tagihan.id), kodeKupon, kodeMetode: kodeTerpilih });
   };
 
   const kartuMenunggu = pembayaranMenunggu && tagihanMenunggu && (
@@ -118,7 +118,7 @@ export default function CustomerTagihanScreen() {
     <View style={tw`p-4`}>
       {tagihanDitolak && <BannerTransferDitolak alasan={tagihanDitolak.lastPayment?.rejectionReason} />}
       <KartuRingkasanTagihan
-        jumlahTagihan={jumlahHarusDibayar}
+        jumlahTagihan={tagihanHarusDibayar.length}
         total={formatRupiah(totalTerutang)}
         jatuhTempoTerdekat={jatuhTempoTerdekat}
         isTerlambat={isAdaTerlambat}
