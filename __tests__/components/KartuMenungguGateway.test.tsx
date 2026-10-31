@@ -76,6 +76,22 @@ describe('KartuMenungguGateway', () => {
     expect(props.onSalin).toHaveBeenCalledWith('FT123', 'Kode Pembayaran');
   });
 
+  // Channel FT dilayani Alfamart, Pegadaian, dan Pos, bukan Indomaret.
+  it('instruksi minimarket menyebut nama metodenya, bukan jaringan yang tidak melayaninya', () => {
+    const { getByText, queryByText } = render(
+      <KartuMenungguGateway nominal="Rp 11.100" nomorVa="FT123" jenisMetode="RETAIL" namaMetode="Alfamart / Pegadaian / Pos" {...aksi()} />,
+    );
+
+    expect(getByText('Tunjukkan kode pembayaran ini ke kasir Alfamart / Pegadaian / Pos.')).toBeTruthy();
+    expect(queryByText(/Indomaret/)).toBeNull();
+  });
+
+  it('instruksi minimarket tanpa nama metode tidak menebak jaringannya', () => {
+    const { getByText } = render(<KartuMenungguGateway nominal="Rp 11.100" nomorVa="FT123" jenisMetode="RETAIL" {...aksi()} />);
+
+    expect(getByText('Tunjukkan kode pembayaran ini ke kasir.')).toBeTruthy();
+  });
+
   it('tanpa instruksi, pelanggan diarahkan ke halaman bayar gateway', () => {
     const props = aksi();
     const { getByText } = render(<KartuMenungguGateway nominal="Rp 11.100" urlBayar="https://gw/bayar" {...props} />);

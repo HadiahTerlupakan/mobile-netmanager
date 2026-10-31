@@ -68,6 +68,10 @@ interface InstruksiKodeProps {
   onSalin: (teks: string, label: string) => void;
 }
 
+/** Kasir yang dituju disebut dari nama metodenya: channel retail tidak dilayani semua jaringan minimarket. */
+const instruksiKasir = (namaMetode: string | undefined) =>
+  namaMetode ? `Tunjukkan kode pembayaran ini ke kasir ${namaMetode}.` : 'Tunjukkan kode pembayaran ini ke kasir.';
+
 function InstruksiKode({ nominal, nomorVa, namaMetode, jenisMetode, onSalin }: InstruksiKodeProps) {
   const isMinimarket = jenisMetode === JENIS_MINIMARKET;
   const label = isMinimarket ? 'Kode Pembayaran' : 'Nomor Virtual Account';
@@ -90,7 +94,7 @@ function InstruksiKode({ nominal, nomorVa, namaMetode, jenisMetode, onSalin }: I
       </View>
       <Text style={tw`text-xs text-gray-500 mt-3`}>
         {isMinimarket
-          ? 'Tunjukkan kode ini ke kasir Alfamart atau Indomaret.'
+          ? instruksiKasir(namaMetode)
           : 'Bayar lewat m-banking, internet banking, atau ATM: pilih transfer ke Virtual Account, masukkan nomor di atas, lalu periksa nama dan nominalnya sebelum konfirmasi.'}
       </Text>
     </View>
