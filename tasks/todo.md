@@ -1,3 +1,17 @@
+# TODO — Redam notifikasi beruntun (2026-11-01)
+
+> Permintaan pemilik (sama dengan web): saat aplikasi dibuka, kembali ke depan, atau kembali online,
+> notifikasi yang menumpuk tidak boleh menjadi rentetan bunyi/toast. Paling banyak satu bunyi per burst;
+> pembukaan aplikasi senyap, lencana dan daftar diperbarui diam-diam. Tanpa perubahan NATIVE_PATHS → cukup OTA.
+
+- [x] Push FCM foreground (`penerimaPushForeground.ts`, `utils/burstNotifikasi.ts`): masa tenang 5 dtk setelah dibuka, kembali ke depan, atau kembali online; satu bunyi per burst (jeda 3 dtk); push senyap di channel baru `notifikasi-senyap` (LOW) dalam satu grup + ringkasan; satu toast per burst ("3 Notifikasi Baru"); cache disegarkan sekali per burst
+- [x] Realtime Firestore (`pemilahSnapshotRealtime.ts`): riwayat lengkap baru pada snapshot server pertama (includeMetadataChanges), dihidrasi ulang tiap listener termasuk setelah galat; dokumen "added" >60 dtk di bawah event terbaru diabaikan; indikator Live menyala pada snapshot server pertama
+- [x] Antrean offline (`ringkasanPesanSinkron.ts`): pesan per item selama satu drain diringkas jadi satu toast
+- [ ] Di luar jangkauan aplikasi: push saat aplikasi di latar belakang/tertutup ditampilkan Android sendiri (satu bunyi per push, channel `high-priority-bubble`) — butuh perubahan server (mis. `android.notification.tag`/collapse key, atau push data-only yang diredam handler latar belakang)
+- [ ] Belum diubah: toast galat per query/request yang gagal saat aplikasi dibuka offline atau server down (`queryClient.ts`, `api.ts`)
+
+---
+
 # TODO — Perbaikan pembayaran pelanggan (2026-10-31)
 
 > Kontrak bersama server ⇄ portal ⇄ aplikasi: C1 (lastPayment.checkout*, isManual, rejectionReason),
