@@ -12,8 +12,18 @@ service cloud.firestore {
       );
     }
 
+    // Token pelanggan (portal web dan aplikasi) membawa role "CUSTOMER" dan
+    // hanya boleh membaca kanalnya sendiri, users/<uid>/events: di sanalah
+    // pengumuman, balasan, dan pesan tiket pelanggan dikirim. Token pelanggan
+    // lama dari rute token mobile membawa tenantId dan accessEmployeePanel;
+    // syarat ini menutup jalur yang dibuka klaim itu, berapa lama pun token
+    // lama masih beredar.
+    function isCustomer() {
+      return isSignedIn() && request.auth.token.role == "CUSTOMER";
+    }
+
     function canAccessAdminPanel() {
-      return isSignedIn() && (
+      return isSignedIn() && !isCustomer() && (
         isSuperAdmin() ||
         request.auth.token.accessAdminPanel == true ||
         (
@@ -62,8 +72,11 @@ service cloud.firestore {
     // berarti siapa pun yang menebak id work order bisa menyadap tenant lain.
     // `tenantId` null dipakai event worker latar yang memang tidak punya
     // konteks tenant; itu bukan kecocokan, melainkan ketiadaan jawaban.
+    // Pelanggan dikecualikan: tenant yang sama tidak membuat tiket atau work
+    // order pelanggan lain menjadi miliknya.
     function seTenant() {
-      return resource.data.tenantId != null &&
+      return !isCustomer() &&
+        resource.data.tenantId != null &&
         isInTenant(resource.data.tenantId);
     }
 
@@ -80,7 +93,7 @@ service cloud.firestore {
     // Department events — mobile subscribe via subscribeToScope({kind:'department'}).
     // Tanpa rule ini, listener mobile dapat permission-denied dan event silent loss.
     match /departments/{departmentId}/events/{eventId} {
-      allow read: if isSignedIn() && (
+      allow read: if isSignedIn() && !isCustomer() && (
         isSuperAdmin() ||
         request.auth.token.departmentId == departmentId ||
         canAccessAdminPanel()
@@ -93,8 +106,9 @@ service cloud.firestore {
       // User bisa read/write presence mereka sendiri
       allow read, write: if isSignedIn() && request.auth.uid == userId;
 
-      // Semua authenticated user bisa read presence orang lain
-      allow read: if isSignedIn();
+      // Pengguna lain yang masuk bisa read presence orang lain, kecuali
+      // pelanggan: status daring staf bukan urusannya.
+      allow read: if isSignedIn() && !isCustomer();
     }
 
     // Default deny semua collection lain (chat dll harus dideclarasi
