@@ -31,7 +31,7 @@ function nilaiIpv4(ip: string): number | null {
  * Alamat sesi tanpa prefix: radacct.framedipaddress bertipe inet, jadi API
  * mengirim mis. "172.31.251.254/32".
  */
-function tanpaPrefix(ip: string): string {
+export function tanpaPrefix(ip: string): string {
   return ip.split('/')[0] ?? ip;
 }
 

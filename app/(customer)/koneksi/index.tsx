@@ -6,6 +6,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft, RefreshCw, Download, Upload, Activity, Lightbulb } from 'lucide-react-native';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { usePemakaianPelanggan } from '@/hooks/queries/usePemakaianPelanggan';
+import { tanpaPrefix } from '@/utils/alamatIpPelanggan';
 
 export default function CustomerConnectionScreen() {
   const router = useRouter();
@@ -21,7 +22,7 @@ export default function CustomerConnectionScreen() {
   const connection = data?.connection;
   const pemakaian = data?.pemakaianBulanIni;
   const isOnline = connection?.isOnline ?? false;
-  const ipAddress = connection?.ipAddress ?? '-';
+  const ipAddress = connection?.ipAddress ? tanpaPrefix(connection.ipAddress) : '-';
   const uptime = connection?.sessionDurationFormatted ?? '0j 0m';
   const kartuPemakaian = [
     { label: 'Unduh', Ikon: Download, nilai: pemakaian?.download.formatted },

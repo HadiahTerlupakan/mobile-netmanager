@@ -98,4 +98,16 @@ describe('layar koneksi pelanggan', () => {
 
     expect(layar.getByText('Terputus')).toBeTruthy();
   });
+
+  // radacct.framedipaddress bertipe inet, jadi API mengirim prefix "/32".
+  it('menampilkan IP tanpa prefix inet', async () => {
+    mockGet.mockResolvedValue({
+      data: { success: true, data: { connection: { isOnline: true, ipAddress: '10.127.63.254/32', sessionDurationFormatted: '2j 15m' } } },
+    });
+
+    const layar = await renderLayar();
+
+    expect(layar.getByText('10.127.63.254')).toBeTruthy();
+    expect(layar.queryByText('10.127.63.254/32')).toBeNull();
+  });
 });
