@@ -16,7 +16,8 @@ type NotificationBridgePayload = {
 
 type RemoteMessageLike = FirebaseMessagingTypes.RemoteMessage | null | undefined;
 
-function normalizeMessageData(
+/** Data FCM berisi string saja; notifee menolak nilai data selain string. */
+export function normalizeMessageData(
   data: FirebaseMessagingTypes.RemoteMessage['data'] | undefined,
 ): Record<string, string> {
   if (!data) {
