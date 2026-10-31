@@ -1,3 +1,30 @@
+# TODO — Perbaikan pembayaran pelanggan (2026-10-31)
+
+> Kontrak bersama server ⇄ portal ⇄ aplikasi: C1 (lastPayment.checkout*, isManual, rejectionReason),
+> C2 (saldoKredit), C3 (check-status, cancel, upload-receipt ganti, returnTo, payment-methods?amount),
+> C4 (expiresAt asli, nama metode retail), C5 (data.url tagihan). Server belum terpasang: field baru
+> opsional, endpoint baru yang 404 jatuh ke perilaku lama. Tanpa perubahan NATIVE_PATHS → cukup OTA.
+
+- [x] 1. Kupon lewat `/api/customer/coupons/verify` (rute staf 401 → logout); pesan server tampil; kupon bertahan saat ganti metode
+- [x] 2. Nominal checkout gabungan = `checkoutTotal`, nomor tagihan dari `checkoutInvoiceNumbers`
+- [x] 3. Tagihan terbuka `?status=SENT,OVERDUE,PARTIAL_PAID&limit=50`; tagihan terbaru dimuat selama checkout dipantau
+- [x] 4. Pesan 5xx dari server; pesan SSE menurut metode, CANCELLED diabaikan, `rejectionReason` admin
+- [x] 5. "Cek Status" → `POST /payments/check-status` lalu muat ulang; offline diberi tahu
+- [x] 6. Hitung mundur berhenti sekali saat habis; checkout kedaluwarsa → "Pilih Metode Lagi"
+- [x] 7. `returnTo: "app"` + `openAuthSessionAsync(url, "netmanager://tagihan")`, lalu cek status
+- [x] 8. QRIS dibagikan (expo-sharing) bila galeri tidak bisa ditulis (Android < 13)
+- [x] 9. Transfer manual: batalkan/ganti metode, ganti bukti, kamera + galeri, MIME asli, penolakan + alasan
+- [x] 10. Panel tertutup begitu checkout dibuat; metode: galat + coba lagi, kosong, `?amount=`
+- [x] 11. Lembar sukses: total checkout (setelah kupon) + semua nomor tagihan
+- [x] 12. Instruksi retail menyebut nama metode
+- [x] 13. Saldo kredit di Tagihan & Beranda; tagihan Rp 0 tidak "Belum Bayar"
+- [x] 14. Push `data.url "/(customer)/tagihan"` & notifikasi in-app tagihan membuka Tagihan
+- [x] 15. Riwayat: sisa & pembayaran, baris bukan tombol; label aksesibilitas; "MASUKKAN KODE", "Total Tagihan", "Terlambat"
+- [x] Adendum C1 (2026-11-01): rekening dari `lastPayment.bankAccount` bila tak ada di daftar metode; ganti metode yang ditolak → tampilkan lagi checkout lama
+- [x] Halaman HTML (404 rute baru di server lama, 413 proxy) tidak tampil mentah sebagai pesan galat
+
+---
+
 # TODO — Rapikan Codebase Mobile (behavior-preserving)
 
 > Prinsip: codebase LIVE. Tidak ada perubahan behavior. Verifikasi `npx tsc --noEmit` (baseline: 0 error) di tiap langkah.
