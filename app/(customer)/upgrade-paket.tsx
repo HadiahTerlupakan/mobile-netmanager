@@ -1,5 +1,6 @@
 import { isAxiosError } from 'axios';
-import React from 'react';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
@@ -21,6 +22,12 @@ function pesanGalatPaket(error: unknown): string | undefined {
 /** Upgrade paket pelanggan; perubahan berlaku pada siklus tagihan berikutnya. */
 export default function UpgradePaketScreen() {
   const { data: paket, isPending, error, isRefetching, refetch } = usePaketPelanggan();
+  // Pengajuan bisa dibatalkan atau diterapkan dari portal web selama layar ini tertutup.
+  useFocusEffect(
+    useCallback(() => {
+      void refetch();
+    }, [refetch]),
+  );
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
       <KepalaLayar judul="Upgrade Paket" />

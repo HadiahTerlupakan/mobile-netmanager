@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { ArrowLeft, Wifi, Download, Upload, Calendar, Router, MapPin, CheckCircle, Rocket, ChevronRight } from 'lucide-react-native';
@@ -27,6 +27,9 @@ export default function CustomerPaketScreen() {
   const onRefresh = React.useCallback(() => {
     refetch();
   }, [refetch]);
+
+  // Tab tetap terpasang: status yang diubah admin harus terbaca saat tab dibuka lagi.
+  useFocusEffect(onRefresh);
 
   const isBolehUpgrade = isBolehAjukanUpgrade(profile?.status);
   const paket = profile?.paket;

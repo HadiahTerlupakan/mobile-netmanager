@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { ArrowLeft, RefreshCw, Download, Upload, Activity, Lightbulb } from 'lucide-react-native';
@@ -31,6 +31,9 @@ export default function CustomerConnectionScreen() {
   const onRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  // Tab tetap terpasang: sesi yang putus atau tersambung lagi harus terbaca saat tab dibuka.
+  useFocusEffect(onRefresh);
 
   const connection = data?.connection;
   const pemakaian = data?.pemakaianBulanIni;

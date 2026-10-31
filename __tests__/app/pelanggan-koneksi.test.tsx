@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { act } from '@testing-library/react-native';
 import React from 'react';
 
 import { renderDenganQuery, selesaikanJanji } from '../fixtures/portalPelanggan';
@@ -12,7 +13,13 @@ import { renderDenganQuery, selesaikanJanji } from '../fixtures/portalPelanggan'
 const mockGet = jest.fn<(url: string) => Promise<{ data: unknown }>>();
 
 jest.mock('@/services/api', () => ({ __esModule: true, default: { get: (url: string) => mockGet(url) } }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), back: jest.fn() }) }));
+let mockEfekFokus: (() => void) | undefined;
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  useFocusEffect: (efek: () => void) => {
+    mockEfekFokus = efek;
+  },
+}));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native');
   return { SafeAreaView: View };
@@ -77,5 +84,18 @@ describe('layar koneksi pelanggan', () => {
     for (const fitur of ['Detail Perangkat', 'Tes Kecepatan', 'Restart', 'Diagnosa Otomatis', 'Mulai Diagnosa']) {
       expect(layar.queryByText(fitur)).toBeNull();
     }
+  });
+
+  it('memuat ulang status koneksi saat layar kembali difokuskan', async () => {
+    const layar = await renderLayar();
+    expect(layar.getByText('Terhubung')).toBeTruthy();
+
+    mockGet.mockResolvedValue({
+      data: { success: true, data: { connection: { isOnline: false, ipAddress: null, sessionDurationFormatted: null } } },
+    });
+    act(() => mockEfekFokus?.());
+    await selesaikanJanji();
+
+    expect(layar.getByText('Terputus')).toBeTruthy();
   });
 });

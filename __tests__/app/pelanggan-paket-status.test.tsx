@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
 import React from 'react';
 
 import { renderDenganQuery, selesaikanJanji } from '../fixtures/portalPelanggan';
@@ -13,7 +13,13 @@ const mockGet = jest.fn<(url: string) => Promise<{ data: unknown }>>();
 const mockPush = jest.fn();
 
 jest.mock('@/services/api', () => ({ __esModule: true, default: { get: (url: string) => mockGet(url) } }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: jest.fn() }) }));
+let mockEfekFokus: (() => void) | undefined;
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush, back: jest.fn() }),
+  useFocusEffect: (efek: () => void) => {
+    mockEfekFokus = efek;
+  },
+}));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native');
   return { SafeAreaView: View };
@@ -50,6 +56,7 @@ describe('detail layanan pelanggan', () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockPush.mockReset();
+    mockEfekFokus = undefined;
   });
 
   it.each([
@@ -83,5 +90,21 @@ describe('detail layanan pelanggan', () => {
     fireEvent.press(layar.getByText('Upgrade Paket'));
 
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  // Setelah admin mengaktifkan kembali pelanggan, tab Paket dulu tetap
+  // menulis "Perbaikan" dengan upgrade terkunci sampai ditarik untuk segarkan.
+  it('memuat ulang status saat layar kembali difokuskan', async () => {
+    sajikanProfil('MAINTENANCE');
+    const layar = await renderLayar();
+    expect(layar.getByText('Perbaikan')).toBeTruthy();
+
+    sajikanProfil('AKTIF');
+    act(() => mockEfekFokus?.());
+    await selesaikanJanji();
+    fireEvent.press(layar.getByText('Upgrade Paket'));
+
+    expect(layar.getByText('Aktif')).toBeTruthy();
+    expect(mockPush).toHaveBeenCalledWith('/(customer)/upgrade-paket');
   });
 });

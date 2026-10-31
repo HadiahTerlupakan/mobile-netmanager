@@ -23,7 +23,7 @@ import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import * as Clipboard from 'expo-clipboard';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft, ChevronRight, Clock, Headset, History } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
@@ -108,6 +108,8 @@ export default function CustomerTagihanScreen() {
   });
   const { data: daftarMetode, refetch: refetchMetode } = useQuery({ queryKey: ['payment-methods'], queryFn: ambilMetode });
   const muatUlang = useCallback(() => void refetch(), [refetch]);
+  // Tagihan bisa dilunasi lewat portal web atau loket selama tab ini tertutup.
+  useFocusEffect(muatUlang);
 
   const terutang = (daftarTagihan ?? []).filter((tagihan) => isTagihanTerutang(tagihan.status));
   const totalTerutang = terutang.reduce((sum, tagihan) => sum + tagihan.remainingAmount, 0);

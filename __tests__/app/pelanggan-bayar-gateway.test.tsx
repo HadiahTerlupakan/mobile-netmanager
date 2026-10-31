@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
@@ -21,7 +21,13 @@ jest.mock('@/services/api', () => ({
   __esModule: true,
   default: { get: (url: string) => mockGet(url), post: (url: string, body: unknown) => mockPost(url, body) },
 }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: jest.fn() }) }));
+let mockEfekFokus: (() => void) | undefined;
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush, back: jest.fn() }),
+  useFocusEffect: (efek: () => void) => {
+    mockEfekFokus = efek;
+  },
+}));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native');
   return { SafeAreaView: View };
@@ -235,5 +241,22 @@ describe('pembayaran gateway di aplikasi pelanggan', () => {
     fireEvent.press(layar.getByLabelText('Bantuan pembayaran'));
 
     expect(mockPush).toHaveBeenCalledWith('/(customer)/tickets');
+  });
+});
+
+describe('penyegaran tagihan pelanggan', () => {
+  // Tagihan yang dilunasi lewat portal web atau loket dulu tetap tampil
+  // terutang di aplikasi sampai pelanggan menarik layar untuk menyegarkan.
+  it('memuat ulang tagihan saat layar kembali difokuskan', async () => {
+    siapkanTagihan(null);
+    const layar = await renderLayar();
+    expect(layar.getByText('Bayar Sekarang')).toBeTruthy();
+
+    siapkanTagihan(null, 'PAID');
+    act(() => mockEfekFokus?.());
+    await selesaikanJanji();
+
+    expect(layar.getByText('Tidak ada tagihan tertunggak')).toBeTruthy();
+    expect(layar.queryByText('Bayar Sekarang')).toBeNull();
   });
 });

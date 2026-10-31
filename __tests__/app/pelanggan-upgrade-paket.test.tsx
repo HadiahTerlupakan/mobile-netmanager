@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
 import React from 'react';
 
 import type { PaketPelanggan, PilihanUpgrade } from '@/types/portalPelanggan';
@@ -17,7 +17,13 @@ jest.mock('@/services/api', () => ({
     delete: (url: string) => mockDelete(url),
   },
 }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), back: jest.fn() }) }));
+let mockEfekFokus: (() => void) | undefined;
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  useFocusEffect: (efek: () => void) => {
+    mockEfekFokus = efek;
+  },
+}));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native');
   return { SafeAreaView: View, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) };
@@ -61,6 +67,7 @@ describe('upgrade paket pelanggan', () => {
     mockGet.mockReset();
     mockPost.mockReset();
     mockDelete.mockReset();
+    mockEfekFokus = undefined;
   });
 
   it('menampilkan paket aktif dan memilih paket unggulan sejak awal', async () => {
@@ -112,6 +119,21 @@ describe('upgrade paket pelanggan', () => {
 
     expect(mockDelete).toHaveBeenCalledWith(URL_UPGRADE);
     expect(toastTerakhir()?.text2).toBe('Pengajuan upgrade dibatalkan');
+  });
+
+  // Pengajuan yang dibatalkan dari portal web dulu tetap tampil "sedang
+  // diproses" sampai pelanggan menarik layar untuk menyegarkan.
+  it('memuat ulang paket saat layar kembali difokuskan', async () => {
+    sajikanPaket({ pendingUpgrade: { id: 'pk-30', nama: 'Home 30 Mbps', applyAt: '2026-11-20T00:00:00.000Z' } });
+    const layar = await renderLayar();
+    expect(layar.getByText('Pengajuan upgrade sedang diproses')).toBeTruthy();
+
+    sajikanPaket();
+    act(() => mockEfekFokus?.());
+    await selesaikanJanji();
+
+    expect(layar.queryByText('Pengajuan upgrade sedang diproses')).toBeNull();
+    expect(layar.getByText('Ajukan Upgrade')).toBeTruthy();
   });
 
   it('tanpa pilihan upgrade menampilkan keterangan dan tanpa tombol ajukan', async () => {
