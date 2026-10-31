@@ -9,6 +9,8 @@ import { ArrowLeft, Wifi, Download, Upload, Calendar, Router, MapPin, CheckCircl
 import { LencanaStatus } from '@/components/molecules/LencanaStatus';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import { statusPelanggan } from '@/constants/pelanggan';
+import { usePemakaianPelanggan } from '@/hooks/queries/usePemakaianPelanggan';
+import { labelAlamatIp } from '@/utils/alamatIpPelanggan';
 import { ALASAN_UPGRADE_BUTUH_AKTIF, isBolehAjukanUpgrade } from '@/utils/paketPelanggan';
 import { periodeTagihan } from '@/utils/periodeTagihan';
 
@@ -23,10 +25,12 @@ export default function CustomerPaketScreen() {
     queryKey: ['customer-profile-paket'],
     queryFn: fetchProfile
   });
+  const { data: pemakaian, refetch: refetchPemakaian } = usePemakaianPelanggan();
 
   const onRefresh = React.useCallback(() => {
     refetch();
-  }, [refetch]);
+    refetchPemakaian();
+  }, [refetch, refetchPemakaian]);
 
   // Tab tetap terpasang: status yang diubah admin harus terbaca saat tab dibuka lagi.
   useFocusEffect(onRefresh);
@@ -145,7 +149,7 @@ export default function CustomerPaketScreen() {
                 <Router size={20} color="#9ca3af" />
                 <Text style={tw`text-gray-500 text-sm`}>Jenis IP Address</Text>
               </View>
-              <Text style={tw`text-gray-900 text-sm font-medium text-right`}>Dynamic Public</Text>
+              <Text style={tw`text-gray-900 text-sm font-medium text-right`}>{labelAlamatIp(pemakaian?.connection)}</Text>
             </View>
             <View style={tw`w-full h-px bg-gray-50`} />
 

@@ -3,30 +3,13 @@ import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/services/api';
 import { ArrowLeft, RefreshCw, Download, Upload, Activity, Lightbulb } from 'lucide-react-native';
 import { QueryErrorState } from '@/components/molecules/QueryErrorState';
-import type { KoneksiPelanggan, PemakaianPelanggan } from '@/types/portalPelanggan';
-import { ambilMuatan } from '@/utils/responsPelanggan';
-
-/** Status koneksi dan pemakaian bulan ini; keduanya datang dalam satu respons. */
-const fetchUsage = async () => {
-  const res = await api.get('/api/customer/usage');
-  return {
-    connection: ambilMuatan<KoneksiPelanggan>(res.data, 'connection'),
-    pemakaianBulanIni: ambilMuatan<PemakaianPelanggan>(res.data, 'usage')?.monthly,
-  };
-};
+import { usePemakaianPelanggan } from '@/hooks/queries/usePemakaianPelanggan';
 
 export default function CustomerConnectionScreen() {
   const router = useRouter();
-  const { data, isLoading, isError, isFetching, refetch } = useQuery({
-    // Kunci lama ('customer-connection') menyimpan objek koneksi saja dan ikut
-    // dipulihkan dari cache persisten; kunci baru mencegah bentuk lama terbaca.
-    queryKey: ['customer-usage'],
-    queryFn: fetchUsage
-  });
+  const { data, isLoading, isError, isFetching, refetch } = usePemakaianPelanggan();
 
   const onRefresh = useCallback(() => {
     refetch();
