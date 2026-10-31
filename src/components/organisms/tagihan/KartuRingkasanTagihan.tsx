@@ -5,6 +5,8 @@ import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
+import { formatRupiah } from '@/utils/rupiah';
+
 dayjs.locale('id');
 
 /** teal-100 */
@@ -14,12 +16,15 @@ interface KartuRingkasanTagihanProps {
   jumlahTagihan: number;
   total: string;
   jatuhTempoTerdekat: string | null;
+  /** Rupiah yang memotong tagihan berikutnya; 0 tidak ditampilkan. */
+  saldoKredit: number;
   isTampilkanTombolBayar: boolean;
   onBayar: () => void;
 }
 
 /** Total tagihan yang belum dibayar, jatuh tempo terdekat, dan tombol Bayar Sekarang. */
-export function KartuRingkasanTagihan({ jumlahTagihan, total, jatuhTempoTerdekat, isTampilkanTombolBayar, onBayar }: KartuRingkasanTagihanProps) {
+export function KartuRingkasanTagihan(props: KartuRingkasanTagihanProps) {
+  const { jumlahTagihan, total, jatuhTempoTerdekat, saldoKredit, isTampilkanTombolBayar, onBayar } = props;
   return (
     <View style={tw`shadow-md rounded-2xl bg-white`}>
       <View style={tw`bg-teal-600 rounded-2xl p-6 overflow-hidden`}>
@@ -48,6 +53,13 @@ export function KartuRingkasanTagihan({ jumlahTagihan, total, jatuhTempoTerdekat
             <RouterIcon size={24} color="white" />
           </View>
         </View>
+
+        {saldoKredit > 0 && (
+          <View style={tw`bg-white/15 rounded-lg px-3 py-2 mb-3`}>
+            <Text style={tw`text-white text-xs font-bold`}>{`Saldo kredit ${formatRupiah(saldoKredit)}`}</Text>
+            <Text style={tw`text-teal-50 text-xs mt-0.5`}>Dipotong otomatis dari tagihan berikutnya.</Text>
+          </View>
+        )}
 
         <View style={tw`flex-row items-center gap-2 mb-4`}>
           <CheckCircle size={16} color={WARNA_IKON} />

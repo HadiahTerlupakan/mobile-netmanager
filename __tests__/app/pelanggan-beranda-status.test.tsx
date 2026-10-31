@@ -117,3 +117,27 @@ describe('kartu layanan Beranda pelanggan', () => {
     expect(layar.getByText('Gangguan / Offline')).toBeTruthy();
   });
 });
+
+describe('kartu tagihan Beranda', () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+  });
+
+  // Kelebihan bayar dan prorate downgrade menjadi saldo yang memotong tagihan
+  // berikutnya; pelanggan dulu tidak pernah melihat saldonya.
+  it('menampilkan saldo kredit pelanggan', async () => {
+    sajikanRingkasan({ billing: siap({ ...LUNAS.data, saldoKredit: 25000 }) });
+
+    const layar = await renderLayar();
+
+    expect(layar.getByText('Saldo kredit Rp 25.000')).toBeTruthy();
+  });
+
+  it('tanpa saldo kredit tidak menyebut saldo', async () => {
+    sajikanRingkasan({ billing: siap({ ...LUNAS.data, saldoKredit: 0 }) });
+
+    const layar = await renderLayar();
+
+    expect(layar.queryByText(/Saldo kredit/)).toBeNull();
+  });
+});

@@ -35,3 +35,21 @@ export function isTagihanTerutang(status: string): boolean {
 export function isTagihanDibatalkan(status: string): boolean {
   return status === 'CANCELLED';
 }
+
+interface TagihanBernominal {
+  status: string;
+  remainingAmount: number;
+}
+
+/**
+ * Tagihan terbuka yang masih ada sisanya. Saldo kredit dipotong saat tagihan
+ * terbit, jadi tagihan yang habis terpotong bernominal Rp 0 tetapi tetap SENT.
+ */
+export function isTagihanHarusDibayar(tagihan: TagihanBernominal): boolean {
+  return isTagihanTerutang(tagihan.status) && tagihan.remainingAmount > 0;
+}
+
+/** Status untuk ditampilkan: tagihan terbuka bernominal Rp 0 tampil lunas, bukan "Belum Bayar Rp 0". */
+export function statusTampilTagihan(tagihan: TagihanBernominal): string {
+  return isTagihanTerutang(tagihan.status) && tagihan.remainingAmount <= 0 ? 'PAID' : tagihan.status;
+}

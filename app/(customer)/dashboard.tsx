@@ -2,6 +2,7 @@ import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
 import { useAuth } from '@/context/AuthContext';
 import { useRingkasanBerandaPelanggan } from '@/hooks/queries/useBerandaPelanggan';
+import { formatRupiah } from '@/utils/rupiah';
 import { statusLayananPelanggan } from '@/utils/statusLayananPelanggan';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowRight, CheckCircle, FileText, Headset, History, Receipt, Rocket, Router, Zap } from 'lucide-react-native';
@@ -155,6 +156,10 @@ export default function CustomerDashboardScreen() {
                   {keteranganTagihan(tagihan, isLoading)}
                 </Text>
               </View>
+              {/* Kelebihan bayar dan prorate menjadi saldo yang memotong tagihan berikutnya. */}
+              {(tagihan?.saldoKredit ?? 0) > 0 && (
+                <Text style={tw`text-xs font-bold text-white -mt-2 mb-4`}>{`Saldo kredit ${formatRupiah(tagihan?.saldoKredit)}`}</Text>
+              )}
 
               <TouchableOpacity
                 onPress={() => router.push('/(customer)/tagihan')} // Fixed route

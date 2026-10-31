@@ -32,7 +32,7 @@ export default function CustomerTagihanScreen() {
   const [isMenarikUlang, setIsMenarikUlang] = useState(false);
 
   const { data: dataTagihan, isLoading, refetch, ringkasan, ambilTagihanMenunggu } = useTagihanPelanggan();
-  const { terutang, totalTerutang, jatuhTempoTerdekat, tagihanMenunggu, tagihanDitolak } = ringkasan;
+  const { terutang, jumlahHarusDibayar, totalTerutang, jatuhTempoTerdekat, tagihanMenunggu, tagihanDitolak } = ringkasan;
   const kupon = useKuponTagihan(totalTerutang);
   const totalBayar = totalTerutang - (kupon.diskon?.amount ?? 0);
   const metodeBayar = useMetodeBayar(totalBayar);
@@ -114,9 +114,10 @@ export default function CustomerTagihanScreen() {
     <View style={tw`p-4`}>
       {tagihanDitolak && <BannerTransferDitolak alasan={tagihanDitolak.lastPayment?.rejectionReason} />}
       <KartuRingkasanTagihan
-        jumlahTagihan={terutang.length}
+        jumlahTagihan={jumlahHarusDibayar}
         total={formatRupiah(totalTerutang)}
         jatuhTempoTerdekat={jatuhTempoTerdekat}
+        saldoKredit={profil?.saldoKredit ?? 0}
         isTampilkanTombolBayar={totalTerutang > 0 && !panel.isTerbuka && !buatPembayaran.isPending}
         onBayar={panel.buka}
       />

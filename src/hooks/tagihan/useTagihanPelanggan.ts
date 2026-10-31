@@ -6,7 +6,7 @@ import { isMenungguPelunasan } from '@/hooks/usePembayaranLunas';
 import { queryKeys } from '@/lib/queryClient';
 import { TagihanPelangganService } from '@/services/TagihanPelangganService';
 import type { TagihanPelanggan } from '@/types/portalPelanggan';
-import { isTagihanTerutang } from '@/utils/statusTagihanPelanggan';
+import { isTagihanHarusDibayar, isTagihanTerutang } from '@/utils/statusTagihanPelanggan';
 import { isCheckoutKedaluwarsa, isTransferManual } from '@/utils/tagihan/checkoutPelanggan';
 
 /** SSE status pembayaran bisa putus tanpa tersambung lagi; polling ini cadangannya. */
@@ -22,8 +22,13 @@ export interface DataTagihanPelanggan {
 }
 
 export interface RingkasanTagihan {
-  /** Semua tagihan terbuka; seluruhnya dibayar dalam satu checkout. */
+  /**
+   * Semua tagihan terbuka; seluruhnya dibayar dalam satu checkout, termasuk
+   * yang bernominal Rp 0 (server melunasinya bersama checkout itu).
+   */
   terutang: TagihanPelanggan[];
+  /** Tagihan terbuka yang masih ada sisanya, untuk ditampilkan. */
+  jumlahHarusDibayar: number;
   totalTerutang: number;
   jatuhTempoTerdekat: string | null;
   /** Tagihan yang checkout-nya menunggu dibayar. */
@@ -70,10 +75,12 @@ async function ambilDataTagihan(sebelumnya: DataTagihanPelanggan | undefined): P
 /** Total, jatuh tempo terdekat, dan checkout yang menunggu dari data tagihan. */
 export function ringkasTagihan(data: DataTagihanPelanggan | undefined): RingkasanTagihan {
   const terutang = (data?.terbuka ?? []).filter((tagihan) => isTagihanTerutang(tagihan.status));
+  const harusDibayar = terutang.filter(isTagihanHarusDibayar);
   return {
     terutang,
+    jumlahHarusDibayar: harusDibayar.length,
     totalTerutang: terutang.reduce((jumlah, tagihan) => jumlah + tagihan.remainingAmount, 0),
-    jatuhTempoTerdekat: [...terutang].sort((a, b) => dayjs(a.dueDate).diff(b.dueDate))[0]?.dueDate ?? null,
+    jatuhTempoTerdekat: [...harusDibayar].sort((a, b) => dayjs(a.dueDate).diff(b.dueDate))[0]?.dueDate ?? null,
     tagihanMenunggu: terutang.find((tagihan) => tagihan.lastPayment?.gatewayStatus === STATUS_MENUNGGU),
     tagihanDitolak: terutang.find(
       ({ lastPayment }) => lastPayment?.gatewayStatus === STATUS_GAGAL && isTransferManual(lastPayment),

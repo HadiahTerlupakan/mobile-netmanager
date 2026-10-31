@@ -50,6 +50,8 @@ export interface ProfilPelanggan {
   /** AKTIF, ISOLIR, NONAKTIF, atau MAINTENANCE (DISMANTLE tidak bisa masuk). */
   status: string;
   noTelp: string | null;
+  /** Rupiah (≥ 0) yang memotong tagihan berikutnya; server lama tidak mengirimnya. */
+  saldoKredit?: number;
   preferences: {
     isBillNotifEnabled: boolean;
     isPromoEnabled: boolean;
@@ -232,5 +234,12 @@ export interface RingkasanBerandaPelanggan {
     paket: { nama: string; bandwidth: { download: string | number | null } | null } | null;
   }>;
   connection?: BagianRingkasanBeranda<{ isOnline: boolean }>;
-  billing?: BagianRingkasanBeranda<{ outstandingCount: number; outstandingAmount: number; nearestDueDate: string | null }>;
+  billing?: BagianRingkasanBeranda<{
+    outstandingCount: number;
+    outstandingAmount: number;
+    nearestDueDate: string | null;
+    hasOverdue?: boolean;
+    /** Rupiah (≥ 0) yang memotong tagihan berikutnya; server lama tidak mengirimnya. */
+    saldoKredit?: number;
+  }>;
 }

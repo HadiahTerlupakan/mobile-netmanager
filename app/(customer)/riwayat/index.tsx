@@ -10,7 +10,7 @@ import { QueryErrorState } from '@/components/molecules/QueryErrorState';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import { ambilMuatan } from '@/utils/responsPelanggan';
-import { isTagihanDibatalkan, isTagihanTerutang, labelStatusTagihan } from '@/utils/statusTagihanPelanggan';
+import { isTagihanDibatalkan, isTagihanTerutang, labelStatusTagihan, statusTampilTagihan } from '@/utils/statusTagihanPelanggan';
 
 dayjs.locale('id');
 
@@ -18,6 +18,7 @@ interface Invoice {
   id: string;
   invoiceNumber: string;
   totalAmount: number; // or string depending on API
+  remainingAmount: number;
   status: string;
   items: { description: string }[];
   issueDate: string;
@@ -51,10 +52,11 @@ export default function CustomerHistoryScreen() {
     
     if (!matchesSearch) return false;
 
+    const status = statusTampilTagihan(inv);
     if (filter === 'ALL') return true;
-    if (filter === 'SUCCESS') return inv.status === 'PAID';
-    if (filter === 'PENDING') return isTagihanTerutang(inv.status);
-    if (filter === 'CANCELLED') return isTagihanDibatalkan(inv.status);
+    if (filter === 'SUCCESS') return status === 'PAID';
+    if (filter === 'PENDING') return isTagihanTerutang(status);
+    if (filter === 'CANCELLED') return isTagihanDibatalkan(status);
     return true;
   }) || [];
 
@@ -157,7 +159,7 @@ export default function CustomerHistoryScreen() {
                 {month}
               </Text>
               {items.map((invoice) => {
-                const config = getStatusConfig(invoice.status);
+                const config = getStatusConfig(statusTampilTagihan(invoice));
                 const Icon = config.icon;
                 
                 return (

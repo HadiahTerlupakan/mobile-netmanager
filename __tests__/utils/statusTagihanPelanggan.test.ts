@@ -1,6 +1,12 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { isTagihanDibatalkan, isTagihanTerutang, labelStatusTagihan } from '@/utils/statusTagihanPelanggan';
+import {
+  isTagihanDibatalkan,
+  isTagihanHarusDibayar,
+  isTagihanTerutang,
+  labelStatusTagihan,
+  statusTampilTagihan,
+} from '@/utils/statusTagihanPelanggan';
 
 describe('labelStatusTagihan', () => {
   it.each([
@@ -34,5 +40,24 @@ describe('isTagihanDibatalkan', () => {
     expect(isTagihanDibatalkan('CANCELLED')).toBe(true);
     expect(isTagihanDibatalkan('VOID')).toBe(false);
     expect(isTagihanDibatalkan('PAID')).toBe(false);
+  });
+});
+
+// Saldo kredit dipotong saat tagihan terbit; tagihan yang habis terpotong
+// tetap SENT dengan sisa Rp 0.
+describe('tagihan bernominal Rp 0', () => {
+  it.each([
+    [{ status: 'SENT', remainingAmount: 0 }, false],
+    [{ status: 'OVERDUE', remainingAmount: 11100 }, true],
+    [{ status: 'PARTIAL_PAID', remainingAmount: 5000 }, true],
+    [{ status: 'PAID', remainingAmount: 0 }, false],
+  ])('%j harus dibayar: %s', (tagihan, harapan) => {
+    expect(isTagihanHarusDibayar(tagihan)).toBe(harapan);
+  });
+
+  it('tagihan terbuka bernominal Rp 0 tampil lunas', () => {
+    expect(statusTampilTagihan({ status: 'SENT', remainingAmount: 0 })).toBe('PAID');
+    expect(statusTampilTagihan({ status: 'OVERDUE', remainingAmount: 11100 })).toBe('OVERDUE');
+    expect(statusTampilTagihan({ status: 'CANCELLED', remainingAmount: 0 })).toBe('CANCELLED');
   });
 });
