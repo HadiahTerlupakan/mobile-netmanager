@@ -131,7 +131,6 @@ export default function CustomerTagihanScreen() {
   const buatPembayaran = useBuatPembayaran(() => {
     muatUlang();
     setIsGantiMetode(false);
-    kupon.reset();
   });
 
   const tarikUlang = async () => {

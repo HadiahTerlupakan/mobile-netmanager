@@ -2,48 +2,68 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import type { KuponTagihan } from '@/components/organisms/tagihan/PanelRincianPembayaran';
-import api from '@/services/api';
-import { presentAppError, presentErrorMessage, presentSuccessMessage } from '@/utils/errorPresenter';
+import { TagihanPelangganService, type DiskonKupon, type HasilVerifikasiKupon } from '@/services/TagihanPelangganService';
+import { presentAppError, presentSuccessMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
 
-/** Kode kupon yang diketik, diverifikasi ke server untuk total tagihan saat ini. */
-export function useKuponTagihan(totalTagihan: number): KuponTagihan & { reset: () => void } {
+/** Diskon beserta total tagihan saat kupon diverifikasi. */
+type DiskonTerverifikasi = DiskonKupon & { nominalTagihan: number };
+
+/**
+ * Kode kupon yang diketik, diverifikasi ke server untuk total tagihan saat ini.
+ *
+ * Diskon tetap terpasang setelah checkout dibuat, supaya "Ganti Metode"
+ * membuat checkout baru dengan kupon yang sama; diskon gugur sendiri bila
+ * total tagihan berubah (mis. tagihan baru terbit), karena nilainya dihitung
+ * atas total lama.
+ */
+export function useKuponTagihan(totalTagihan: number): KuponTagihan {
   const [kode, setKode] = useState('');
-  const [diskon, setDiskon] = useState<KuponTagihan['diskon']>(null);
+  const [diskon, setDiskon] = useState<DiskonTerverifikasi | null>(null);
+  const [galat, setGalat] = useState<string | null>(null);
+
+  const terapkan = (hasil: HasilVerifikasiKupon, nominalTagihan: number) => {
+    if (!hasil.isSah) {
+      setGalat(hasil.pesan);
+      return;
+    }
+    setDiskon({ ...hasil.diskon, nominalTagihan });
+    presentSuccessMessage('Kupon berhasil digunakan!');
+  };
 
   // Operasi finansial → plain useMutation (tanpa offline-queue).
   const verifikasi = useMutation({
-    mutationFn: () => api.post('/api/coupons/verify', { code: kode, amount: totalTagihan, pelangganId: 'CURRENT_USER' }),
-    onSuccess: (res) => {
-      if (res.data.valid) {
-        setDiskon({ code: res.data.code, amount: res.data.discountAmount });
-        presentSuccessMessage('Kupon berhasil digunakan!');
-      } else {
-        presentErrorMessage(res.data.error || 'Kupon tidak valid');
-      }
-    },
+    retry: false,
+    meta: { skipGlobalErrorToast: true },
+    mutationFn: (kodeDicek: string) => TagihanPelangganService.verifikasiKupon(kodeDicek, totalTagihan),
+    onSuccess: (hasil) => terapkan(hasil, totalTagihan),
     onError: (error) => {
       logger.error('[CustomerTagihan] Failed to verify coupon', error);
       presentAppError(error, { screen: 'CustomerTagihanScreen', route: '/(customer)/tagihan' });
     },
   });
 
-  const reset = () => {
+  const hapus = () => {
     setDiskon(null);
     setKode('');
+    setGalat(null);
   };
 
   return {
     kode,
-    setKode,
-    diskon,
+    setKode: (kodeBaru) => {
+      setKode(kodeBaru);
+      setGalat(null);
+    },
+    diskon: diskon?.nominalTagihan === totalTagihan ? diskon : null,
+    galat,
     isMengecek: verifikasi.isPending,
     onCek: () => {
       if (!kode.trim()) return;
       setDiskon(null);
-      verifikasi.mutate();
+      setGalat(null);
+      verifikasi.mutate(kode.trim());
     },
-    onHapus: reset,
-    reset,
+    onHapus: hapus,
   };
 }

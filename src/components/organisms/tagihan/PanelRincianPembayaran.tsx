@@ -15,6 +15,8 @@ export interface KuponTagihan {
   kode: string;
   setKode: (kode: string) => void;
   diskon: { code: string; amount: number } | null;
+  /** Alasan server menolak kupon, mis. "Kuota kupon habis". */
+  galat: string | null;
   isMengecek: boolean;
   onCek: () => void;
   onHapus: () => void;
@@ -36,11 +38,11 @@ function IsianKupon({ kupon }: { kupon: KuponTagihan }) {
   return (
     <>
       <Text style={tw`text-gray-700 text-sm font-medium mb-2`}>Kode Kupon</Text>
-      <View style={tw`flex-row gap-2 mb-4`}>
+      <View style={tw`flex-row gap-2 ${kupon.galat ? 'mb-1' : 'mb-4'}`}>
         <View style={tw`flex-1 bg-gray-50 rounded-xl flex-row items-center px-3 border border-gray-200`}>
           <Tag size={18} color={WARNA_IKON_REDUP} />
           <TextInput
-            placeholder="MASUKAN KODE"
+            placeholder="MASUKKAN KODE"
             placeholderTextColor={WARNA_IKON_REDUP}
             style={tw`flex-1 text-gray-900 text-sm font-bold ml-2 py-3`}
             value={kupon.kode}
@@ -62,6 +64,11 @@ function IsianKupon({ kupon }: { kupon: KuponTagihan }) {
           </TouchableOpacity>
         )}
       </View>
+      {kupon.galat && (
+        <Text accessibilityLiveRegion="polite" style={tw`text-red-600 text-xs mb-4`}>
+          {kupon.galat}
+        </Text>
+      )}
       {kupon.diskon && (
         <View style={tw`flex-row justify-between items-center mb-4 bg-green-50 p-3 rounded-lg border border-green-200`}>
           <Text style={tw`text-green-800 text-sm`}>Diskon ({kupon.diskon.code})</Text>
