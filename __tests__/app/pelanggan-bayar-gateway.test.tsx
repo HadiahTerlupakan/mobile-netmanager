@@ -77,12 +77,12 @@ const CHECKOUT_QRIS = {
   expiresAt: '2099-01-01T00:00:00.000Z',
 };
 
-function siapkanTagihan(lastPayment: Record<string, unknown> | null, status?: string) {
-  mockGet.mockImplementation(async (url) =>
-    url.startsWith('/api/customer/invoices')
-      ? { data: { success: true, data: { invoices: [tagihan(lastPayment, status)] } } }
-      : { data: { success: true, data: METODE } },
-  );
+function siapkanTagihan(lastPayment: Record<string, unknown> | null, status?: string, statusPelanggan = 'AKTIF') {
+  mockGet.mockImplementation(async (url) => {
+    if (url.startsWith('/api/customer/invoices')) return { data: { success: true, data: { invoices: [tagihan(lastPayment, status)] } } };
+    if (url.startsWith('/api/customer/profile')) return { data: { success: true, data: { profile: { status: statusPelanggan } } } };
+    return { data: { success: true, data: METODE } };
+  });
 }
 
 async function renderLayar() {
@@ -198,6 +198,23 @@ describe('pembayaran gateway di aplikasi pelanggan', () => {
     await selesaikanJanji();
 
     expect(layar.getByText('Pembayaran Berhasil')).toBeTruthy();
+  });
+
+  // Lembar sukses dulu selalu menulis layanan "tetap aktif", juga kepada
+  // pelanggan isolir yang layanannya justru baru dipulihkan pembayaran ini.
+  it.each([
+    ['AKTIF', /tetap aktif/],
+    ['ISOLIR', /diaktifkan kembali/],
+    ['NONAKTIF', /diaktifkan kembali/],
+  ])('lembar sukses pelanggan %s menjelaskan keadaan layanannya', async (statusPelanggan, keterangan) => {
+    siapkanTagihan(CHECKOUT_QRIS, undefined, statusPelanggan);
+    const layar = await renderLayar();
+
+    siapkanTagihan({ ...CHECKOUT_QRIS, gatewayStatus: 'PAID' }, 'PAID', 'AKTIF');
+    fireEvent.press(layar.getByText('Saya Sudah Bayar, Cek Status'));
+    await selesaikanJanji();
+
+    expect(layar.getByText(keterangan)).toBeTruthy();
   });
 
   // Halaman bayar dan riwayat dulu digabung, sehingga halaman Tagihan makin

@@ -47,6 +47,8 @@ export interface ProfilPelanggan {
   id: string;
   idPelanggan: string;
   nama: string;
+  /** AKTIF, ISOLIR, NONAKTIF, atau MAINTENANCE (DISMANTLE tidak bisa masuk). */
+  status: string;
   noTelp: string | null;
   preferences: {
     isBillNotifEnabled: boolean;

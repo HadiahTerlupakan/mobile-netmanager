@@ -19,7 +19,7 @@ describe('usePembayaranLunas', () => {
 
     rerender({ daftar: [tagihan('PAID', 'PAID')] });
 
-    expect(result.current.lunas).toEqual({ nomorTagihan: 'INV-1', nominal: 11100 });
+    expect(result.current.lunas).toEqual({ nomorTagihan: 'INV-1', nominal: 11100, isLayananDipulihkan: false });
     act(() => result.current.tutup());
     expect(result.current.lunas).toBeNull();
   });
@@ -46,7 +46,50 @@ describe('usePembayaranLunas', () => {
     expect(result.current.lunas).toBeNull();
     rerender({ daftar: [tagihan('PAID', 'PAID')] });
 
-    expect(result.current.lunas).toEqual({ nomorTagihan: 'INV-1', nominal: 11100 });
+    expect(result.current.lunas).toEqual({ nomorTagihan: 'INV-1', nominal: 11100, isLayananDipulihkan: false });
+  });
+});
+
+describe('usePembayaranLunas — layanan yang dipulihkan', () => {
+  type Props = { daftar: TagihanDipantau[]; status: string | undefined };
+  const render = (initialProps: Props) =>
+    renderHook(({ daftar, status }: Props) => usePembayaranLunas(daftar, status), { initialProps });
+
+  it.each(['ISOLIR', 'NONAKTIF'])('pelanggan %s yang melunasi tagihan: layanannya dipulihkan', (status) => {
+    const { result, rerender } = render({ daftar: [tagihan('OVERDUE', 'PENDING')], status });
+
+    rerender({ daftar: [tagihan('PAID', 'PAID')], status });
+
+    expect(result.current.lunas?.isLayananDipulihkan).toBe(true);
+  });
+
+  // Server memulihkan status begitu tagihan lunas; profil yang dimuat ulang
+  // sebelum daftar tagihan membaca lunas sudah berstatus AKTIF.
+  it('status yang sudah pulih sebelum tagihan terbaca lunas tetap dihitung dipulihkan', () => {
+    const { result, rerender } = render({ daftar: [tagihan('OVERDUE', 'PENDING')], status: 'ISOLIR' });
+
+    rerender({ daftar: [tagihan('OVERDUE', 'PAID')], status: 'AKTIF' });
+    rerender({ daftar: [tagihan('PAID', 'PAID')], status: 'AKTIF' });
+
+    expect(result.current.lunas?.isLayananDipulihkan).toBe(true);
+  });
+
+  it('status yang baru terbaca setelah checkout dibuat tetap diperhitungkan', () => {
+    const daftarMenunggu = [tagihan('OVERDUE', 'PENDING')];
+    const { result, rerender } = render({ daftar: daftarMenunggu, status: undefined });
+
+    rerender({ daftar: daftarMenunggu, status: 'ISOLIR' });
+    rerender({ daftar: [tagihan('PAID', 'PAID')], status: 'ISOLIR' });
+
+    expect(result.current.lunas?.isLayananDipulihkan).toBe(true);
+  });
+
+  it('pelanggan AKTIF: layanannya tidak disebut dipulihkan', () => {
+    const { result, rerender } = render({ daftar: [tagihan('OVERDUE', 'PENDING')], status: 'AKTIF' });
+
+    rerender({ daftar: [tagihan('PAID', 'PAID')], status: 'AKTIF' });
+
+    expect(result.current.lunas?.isLayananDipulihkan).toBe(false);
   });
 });
 

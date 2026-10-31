@@ -4,6 +4,7 @@ import { KartuMenungguGateway } from '@/components/organisms/tagihan/KartuMenung
 import { KartuRingkasanTagihan } from '@/components/organisms/tagihan/KartuRingkasanTagihan';
 import { KartuTransferManual } from '@/components/organisms/tagihan/KartuTransferManual';
 import { PanelRincianPembayaran } from '@/components/organisms/tagihan/PanelRincianPembayaran';
+import { useProfilPelanggan } from '@/hooks/queries/useAkunPelanggan';
 import { isMenungguPelunasan, usePembayaranLunas } from '@/hooks/usePembayaranLunas';
 import { bukaHalamanBayar, useBuatPembayaran } from '@/hooks/tagihan/useBuatPembayaran';
 import { useHitungMundurPembayaran } from '@/hooks/tagihan/useHitungMundurPembayaran';
@@ -119,7 +120,8 @@ export default function CustomerTagihanScreen() {
       ? daftarMetode?.find((metode) => metode.id === `manual_${pembayaranMenunggu.accountId}`)?.details
       : undefined;
 
-  const pembayaranLunas = usePembayaranLunas(daftarTagihan);
+  const { data: profil } = useProfilPelanggan();
+  const pembayaranLunas = usePembayaranLunas(daftarTagihan, profil?.status);
   const sisaWaktu = useHitungMundurPembayaran(pembayaranMenunggu?.expiresAt, muatUlang);
   useSseStatusPembayaran(tagihanMenunggu?.id, muatUlang);
   const kupon = useKuponTagihan(totalTerutang);
@@ -263,6 +265,7 @@ export default function CustomerTagihanScreen() {
       <LembarPembayaranBerhasil
         nominal={pembayaranLunas.lunas ? formatRupiah(pembayaranLunas.lunas.nominal) : null}
         nomorTagihan={pembayaranLunas.lunas?.nomorTagihan ?? null}
+        isLayananDipulihkan={pembayaranLunas.lunas?.isLayananDipulihkan ?? false}
         onTutup={pembayaranLunas.tutup}
       />
     </SafeAreaView>
