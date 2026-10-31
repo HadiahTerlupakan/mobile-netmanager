@@ -161,6 +161,8 @@ describe('pembayaran gateway di aplikasi pelanggan', () => {
     await bayarDengan(layar, 'BCA Virtual Account');
 
     expect(mockPost).toHaveBeenCalledTimes(1);
+    // Dulu tertutup "Gangguan Server"; pesan 502 justru menyuruh memakai metode lain.
+    expect(toastTerakhir()?.text2).toBe('Gagal menghubungi payment gateway.');
   });
 
   it('penolakan server (mis. nominal di bawah minimum metode) ditampilkan apa adanya', async () => {

@@ -187,18 +187,36 @@ export function extractApiErrorMessage(data: unknown): string | undefined {
   return undefined;
 }
 
+const TECHNICAL_MESSAGE_PATTERN = /(TypeError|SyntaxError|undefined|null|JSON|Network request failed)/i;
+/** Galat mentah yang sebagian route server teruskan apa adanya di `error`. */
+const RAW_SERVER_MESSAGE_PATTERN = /(prisma|invocation|internal server error)/i;
+const MAX_READABLE_MESSAGE_LENGTH = 160;
+
 const getSafeErrorMessage = (message: string): string => {
   const normalized = message.trim();
   if (!normalized) {
     return 'Terjadi kesalahan yang tidak terduga.';
   }
 
-  const looksTechnical = /(TypeError|SyntaxError|undefined|null|JSON|Network request failed)/i.test(normalized);
-  if (looksTechnical || normalized.length > 160) {
+  const looksTechnical = TECHNICAL_MESSAGE_PATTERN.test(normalized);
+  if (looksTechnical || normalized.length > MAX_READABLE_MESSAGE_LENGTH) {
     return 'Terjadi kesalahan yang tidak terduga. Silakan coba lagi.';
   }
 
   return normalized;
+};
+
+/**
+ * Pesan 5xx dari badan JSON server yang layak dibaca pengguna, mis. 502
+ * "…gunakan metode pembayaran lain". Halaman HTML proxy dan galat mentah
+ * (Prisma, "Internal server error") tetap diganti pesan umum.
+ */
+const getReadableServerMessage = (data: unknown): string | undefined => {
+  if (!isRecord(data)) return undefined;
+  const message = extractApiErrorMessage(data)?.trim();
+  if (!message || message.length > MAX_READABLE_MESSAGE_LENGTH) return undefined;
+  const isRaw = TECHNICAL_MESSAGE_PATTERN.test(message) || RAW_SERVER_MESSAGE_PATTERN.test(message);
+  return isRaw ? undefined : message;
 };
 
 /**
@@ -242,7 +260,12 @@ export function getUserFriendlyError(error: unknown): ErrorMessage {
       });
       if (status === 426) return ERROR_MESSAGES['UPDATE_REQUIRED'];
       if (status === 429) return ERROR_MESSAGES['RATE_LIMIT'];
-      if (status >= 500) return ERROR_MESSAGES['SERVER_ERROR'];
+      if (status >= 500) {
+        const serverMessage = getReadableServerMessage(error.response.data);
+        return serverMessage
+          ? withOverrides(ERROR_MESSAGES['SERVER_ERROR'], { message: serverMessage })
+          : ERROR_MESSAGES['SERVER_ERROR'];
+      }
     }
   }
 
