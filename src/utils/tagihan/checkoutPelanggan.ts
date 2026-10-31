@@ -2,6 +2,14 @@ import type { PembayaranTerakhir } from '@/types/portalPelanggan';
 
 type PembayaranCheckout = Pick<PembayaranTerakhir, 'amount' | 'checkoutTotal' | 'checkoutInvoiceNumbers'>;
 
+const STATUS_MENUNGGU = 'PENDING';
+
+/** Checkout yang masih menunggu dibayar tetapi sudah lewat `expiresAt`-nya. */
+export function isCheckoutKedaluwarsa(pembayaran: Pick<PembayaranTerakhir, 'gatewayStatus' | 'expiresAt'>, sekarang: number): boolean {
+  if (pembayaran.gatewayStatus !== STATUS_MENUNGGU || !pembayaran.expiresAt) return false;
+  return new Date(pembayaran.expiresAt).getTime() <= sekarang;
+}
+
 /**
  * Rupiah yang harus dibayar untuk seluruh checkout pembayaran ini. `amount`
  * hanya bagian satu tagihan (dan sudah dipotong bagian diskon kuponnya), jadi

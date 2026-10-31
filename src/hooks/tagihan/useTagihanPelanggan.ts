@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/queryClient';
 import { TagihanPelangganService } from '@/services/TagihanPelangganService';
 import type { TagihanPelanggan } from '@/types/portalPelanggan';
 import { isTagihanTerutang } from '@/utils/statusTagihanPelanggan';
+import { isCheckoutKedaluwarsa } from '@/utils/tagihan/checkoutPelanggan';
 
 /** SSE status pembayaran bisa putus tanpa tersambung lagi; polling ini cadangannya. */
 const INTERVAL_CEK_PEMBAYARAN_MS = 15_000;
@@ -40,6 +41,17 @@ function isAdaYangDipantau(data: DataTagihanPelanggan | undefined): boolean {
 }
 
 /**
+ * Polling cadangan SSE hanya selama checkout yang dipantau masih bisa lunas:
+ * checkout yang lewat batas waktunya tidak bisa dibayar lagi.
+ */
+export function isPerluDipolling(data: DataTagihanPelanggan | undefined, sekarang = Date.now()): boolean {
+  if (!data) return false;
+  return gabungkanTagihan(data).some(
+    (tagihan) => isMenungguPelunasan(tagihan) && !isCheckoutKedaluwarsa(tagihan.lastPayment!, sekarang),
+  );
+}
+
+/**
  * Tagihan yang lunas keluar dari daftar terbuka, jadi selama data sebelumnya
  * memuat checkout yang dipantau, tagihan terbaru ikut dimuat agar pelunasan
  * (atau pembatalan) tagihan itu terbaca.
@@ -69,7 +81,7 @@ export function useTagihanPelanggan() {
   const query = useQuery({
     queryKey: queryKeys.portalPelanggan.tagihan(),
     queryFn: ({ client, queryKey }) => ambilDataTagihan(client.getQueryData<DataTagihanPelanggan>(queryKey)),
-    refetchInterval: (kueri) => (isAdaYangDipantau(kueri.state.data) ? INTERVAL_CEK_PEMBAYARAN_MS : false),
+    refetchInterval: (kueri) => (isPerluDipolling(kueri.state.data) ? INTERVAL_CEK_PEMBAYARAN_MS : false),
   });
   const ringkasan = useMemo(() => ringkasTagihan(query.data), [query.data]);
   return { ...query, ringkasan };

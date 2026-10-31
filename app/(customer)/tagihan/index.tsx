@@ -1,8 +1,7 @@
 import { Skeleton } from '@/components/atoms/Skeleton';
 import { LembarPembayaranBerhasil } from '@/components/molecules/LembarPembayaranBerhasil';
-import { KartuMenungguGateway } from '@/components/organisms/tagihan/KartuMenungguGateway';
+import { KartuPembayaranMenunggu } from '@/components/organisms/tagihan/KartuPembayaranMenunggu';
 import { KartuRingkasanTagihan } from '@/components/organisms/tagihan/KartuRingkasanTagihan';
-import { KartuTransferManual } from '@/components/organisms/tagihan/KartuTransferManual';
 import { PanelRincianPembayaran } from '@/components/organisms/tagihan/PanelRincianPembayaran';
 import { useProfilPelanggan } from '@/hooks/queries/useAkunPelanggan';
 import { usePembayaranLunas } from '@/hooks/usePembayaranLunas';
@@ -13,24 +12,19 @@ import { useSseStatusPembayaran } from '@/hooks/tagihan/useSseStatusPembayaran';
 import { useTagihanPelanggan } from '@/hooks/tagihan/useTagihanPelanggan';
 import { useUnggahBuktiTransfer } from '@/hooks/tagihan/useUnggahBuktiTransfer';
 import api from '@/services/api';
-import type { MetodePembayaranPelanggan, PembayaranTerakhir } from '@/types/portalPelanggan';
+import type { MetodePembayaranPelanggan } from '@/types/portalPelanggan';
 import { presentErrorMessage, presentInfoMessage, presentSuccessMessage } from '@/utils/errorPresenter';
 import { logger } from '@/utils/logger';
 import { formatRupiah } from '@/utils/rupiah';
 import { simpanQrisKeGaleri } from '@/utils/simpanQrisKeGaleri';
-import { nominalCheckout, nomorTagihanCheckout, tulisNomorTagihan } from '@/utils/tagihan/checkoutPelanggan';
 import { useQuery } from '@tanstack/react-query';
-import dayjs from 'dayjs';
-import 'dayjs/locale/id';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ArrowLeft, ChevronRight, Clock, Headset, History } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Headset, History } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-
-dayjs.locale('id');
 
 const ambilMetode = async () => {
   const res = await api.get('/api/customer/payment-methods');
@@ -60,32 +54,6 @@ const simpanQris = async (base64Png: string) => {
   }
 };
 
-function KepalaMenunggu({ sisaWaktu, keterangan }: { sisaWaktu: string; keterangan: string }) {
-  return (
-    <>
-      <View style={tw`flex-row items-center mb-4`}>
-        <Clock size={20} color="#ea580c" />
-        <Text style={tw`text-orange-600 font-bold ml-2 text-sm`}>Selesaikan Pembayaran</Text>
-        {sisaWaktu !== '' && (
-          <View style={tw`ml-auto bg-orange-100 px-3 py-1 rounded-full`}>
-            <Text style={tw`text-orange-600 font-bold text-xs`}>Sisa {sisaWaktu}</Text>
-          </View>
-        )}
-      </View>
-      <Text style={tw`text-xs text-gray-500 -mt-2 mb-4`}>{keterangan}</Text>
-    </>
-  );
-}
-
-const keteranganMenunggu = (metode: string | undefined, nomorTagihan: string, pembayaran: PembayaranTerakhir) =>
-  [
-    metode,
-    tulisNomorTagihan(nomorTagihanCheckout(pembayaran, nomorTagihan)),
-    pembayaran.expiresAt ? `bayar sebelum ${dayjs(pembayaran.expiresAt).format('D MMM, HH.mm')}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
 export default function CustomerTagihanScreen() {
   const router = useRouter();
   const [kodeMetode, setKodeMetode] = useState('');
@@ -112,8 +80,9 @@ export default function CustomerTagihanScreen() {
 
   const { data: profil } = useProfilPelanggan();
   const pembayaranLunas = usePembayaranLunas(ringkasan.daftarPantauan, profil?.status);
-  const sisaWaktu = useHitungMundurPembayaran(pembayaranMenunggu?.expiresAt, muatUlang);
-  useSseStatusPembayaran(tagihanMenunggu?.id, muatUlang);
+  const hitungMundur = useHitungMundurPembayaran(pembayaranMenunggu?.expiresAt, muatUlang);
+  // Checkout yang lewat batas tidak akan berubah lagi; koneksi status tidak perlu dibuka.
+  useSseStatusPembayaran(hitungMundur.isKedaluwarsa ? undefined : tagihanMenunggu?.id, muatUlang);
   const kupon = useKuponTagihan(totalTerutang);
   const unggahBukti = useUnggahBuktiTransfer(muatUlang);
   const buatPembayaran = useBuatPembayaran(() => {
@@ -148,40 +117,26 @@ export default function CustomerTagihanScreen() {
   };
 
   const kartuMenunggu = pembayaranMenunggu && tagihanMenunggu && (
-    <View style={tw`p-4`}>
-      <View style={tw`bg-white rounded-2xl p-5 shadow-lg border border-orange-200 overflow-hidden`}>
-        <KepalaMenunggu sisaWaktu={sisaWaktu} keterangan={keteranganMenunggu(metodeMenunggu?.name, tagihanMenunggu.invoiceNumber, pembayaranMenunggu)} />
-        {rekeningManual ? (
-          <KartuTransferManual
-            rekening={rekeningManual}
-            nominal={formatRupiah(nominalCheckout(pembayaranMenunggu))}
-            nominalMentah={nominalCheckout(pembayaranMenunggu)}
-            isBuktiTerkirim={Boolean(pembayaranMenunggu.receiptUrl)}
-            isMengunggah={unggahBukti.isMengunggah}
-            onSalin={salin}
-            onUnggahBukti={() => unggahBukti.pilihDanUnggah(tagihanMenunggu.id)}
-          />
-        ) : (
-          <KartuMenungguGateway
-            nominal={formatRupiah(nominalCheckout(pembayaranMenunggu))}
-            nomorVa={pembayaranMenunggu.vaNumber}
-            stringQris={pembayaranMenunggu.qrString}
-            namaMetode={metodeMenunggu?.name}
-            jenisMetode={metodeMenunggu?.type}
-            urlBayar={pembayaranMenunggu.paymentUrl}
-            isMengecekStatus={isMengecekStatus}
-            onSalin={salin}
-            onSimpanQris={simpanQris}
-            onCekStatus={cekStatusPembayaran}
-            onBukaHalamanBayar={() => bukaHalamanBayar(pembayaranMenunggu.paymentUrl!)}
-            onGantiMetode={() => {
-              setIsGantiMetode(true);
-              setIsPanelBayarTerbuka(true);
-            }}
-          />
-        )}
-      </View>
-    </View>
+    <KartuPembayaranMenunggu
+      tagihan={tagihanMenunggu}
+      pembayaran={pembayaranMenunggu}
+      metode={metodeMenunggu}
+      rekening={rekeningManual}
+      hitungMundur={hitungMundur}
+      isMengecekStatus={isMengecekStatus}
+      isMengunggah={unggahBukti.isMengunggah}
+      aksi={{
+        onSalin: salin,
+        onSimpanQris: simpanQris,
+        onCekStatus: cekStatusPembayaran,
+        onBukaHalamanBayar: () => bukaHalamanBayar(pembayaranMenunggu.paymentUrl!),
+        onGantiMetode: () => {
+          setIsGantiMetode(true);
+          setIsPanelBayarTerbuka(true);
+        },
+        onUnggahBukti: () => unggahBukti.pilihDanUnggah(tagihanMenunggu.id),
+      }}
+    />
   );
 
   const ringkasanDanPanel = (
@@ -200,7 +155,7 @@ export default function CustomerTagihanScreen() {
           kodeTerpilih={kodeMetode}
           onPilihMetode={setKodeMetode}
           totalBayar={totalTerutang - (kupon.diskon?.amount ?? 0)}
-          isGantiMetode={isGantiMetode}
+          isGantiMetode={isGantiMetode && !hitungMundur.isKedaluwarsa}
           isMembayar={buatPembayaran.isPending}
           onBayar={bayar}
           onTutup={() => {
