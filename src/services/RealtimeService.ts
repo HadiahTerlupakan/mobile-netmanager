@@ -4,6 +4,7 @@ import { DeviceEventEmitter } from 'react-native'
 
 import api from '@/services/api'
 import { getMobileFirebaseApp, getMobileFirebaseAuth } from '@/services/firebaseApp'
+import { buatPemilahSnapshotRealtime } from './pemilahSnapshotRealtime'
 import { setStatusRealtime } from './statusRealtime'
 import { logger } from '@/utils/logger'
 
@@ -182,26 +183,19 @@ class RealtimeService {
     let cancelled = false
     const maxRetries = 5
 
-    // seenDocIds harus hidup di luar `subscribe` closure agar tidak hilang
-    // setiap retry. Tanpa ini, retry akan reset hydration → 20 doc terakhir
-    // di-swallow lagi padahal mungkin sudah dideliver oleh listener
-    // sebelumnya, atau sebaliknya: doc baru yang muncul saat downtime
-    // terlewat karena dianggap bagian dari hydration.
-    //
-    // Di-cap pada SEEN_DOC_IDS_MAX agar tidak grow tanpa batas pada
-    // long-lived listener (chat / WO detail screen yang dibuka berjam-jam).
-    const SEEN_DOC_IDS_MAX = 500
-    const seenDocIds = new Set<string>()
-    const rememberDocId = (id: string) => {
-      if (seenDocIds.size >= SEEN_DOC_IDS_MAX) {
-        // Buang item terlama (FIFO) — Set iterator order = insertion order.
-        const oldest = seenDocIds.values().next().value
-        if (oldest !== undefined) seenDocIds.delete(oldest)
-      }
-      seenDocIds.add(id)
-    }
+    // Satu pemilah untuk semua listener langganan ini: ID yang sudah terlihat
+    // tetap diingat saat listener diganti setelah galat.
+    const pemilah = buatPemilahSnapshotRealtime()
 
-    let isHydrated = false
+    const kirimEvent = (data: Partial<RealtimeStreamEvent>) => {
+      if (!data.type) return
+      onEvent({
+        type: data.type,
+        payload: data.payload,
+        scope: (data.scope as RealtimeScope | undefined) ?? scope,
+        createdAt: data.createdAt,
+      })
+    }
 
     const subscribe = () => {
       const channelQuery = query(
@@ -210,41 +204,20 @@ class RealtimeService {
         limit(20)
       )
 
+      pemilah.mulaiListener()
       unsubscribe = onSnapshot(
         channelQuery,
+        // Snapshot yang hanya mengubah fromCache tetap dikirim: dari situlah
+        // diketahui server sudah menjawab, walau isinya sama dengan cache.
+        { includeMetadataChanges: true },
         (snapshot) => {
           // Reset retry count on successful snapshot
           retryCount = 0
 
-          if (!isHydrated) {
-            snapshot.docs.forEach((doc) => {
-              rememberDocId(doc.id)
-            })
-            isHydrated = true
-            return
-          }
-
-          snapshot.docChanges().forEach((change) => {
-            if (change.type !== 'added' || seenDocIds.has(change.doc.id)) {
-              return
-            }
-
-            rememberDocId(change.doc.id)
-            const data = change.doc.data() as Partial<RealtimeStreamEvent>
-
-            if (!data.type) {
-              return
-            }
-
-            onEvent({
-              type: data.type,
-              payload: data.payload,
-              scope: (data.scope as RealtimeScope | undefined) ?? scope,
-              createdAt: data.createdAt,
-            })
-          })
-          // Snapshot sampai berarti langganan benar-benar hidup.
-          setStatusRealtime('terhubung')
+          pemilah.pilahEventBaru(snapshot).forEach(kirimEvent)
+          // Hanya jawaban server yang membuktikan langganan hidup; snapshot
+          // cache juga datang saat perangkat offline.
+          if (!snapshot.metadata.fromCache) setStatusRealtime('terhubung')
         },
         (error) => {
           logger.warn('[Realtime] Firestore subscription failed', {
@@ -302,7 +275,7 @@ class RealtimeService {
         cancelled = true
         if (retryTimeout) clearTimeout(retryTimeout)
         if (unsubscribe) unsubscribe()
-        seenDocIds.clear()
+        pemilah.lupakan()
       },
     )
 
@@ -316,7 +289,7 @@ class RealtimeService {
         unsubscribe()
       }
       // Bantu GC — listener bisa lifecycle panjang dan akumulasi 500 ID.
-      seenDocIds.clear()
+      pemilah.lupakan()
     }
   }
 
