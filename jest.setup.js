@@ -82,6 +82,13 @@ jest.mock('react-native-toast-message', () => ({
   },
 }));
 
+// Peredam toast kembar di errorPresenter mengingat waktu tampil di tingkat
+// modul. Tanpa diatur ulang, toast yang sama di dua tes berurutan teredam di
+// tes kedua — terlebih bila tes sebelumnya memajukan fake timers.
+beforeEach(() => {
+  jest.requireActual('@/utils/errorPresenter').resetToastDedupe();
+});
+
 // Mock expo-file-system/legacy globally
 jest.mock('expo-file-system/legacy', () => ({
   documentDirectory: 'file:///mock-document-directory/',

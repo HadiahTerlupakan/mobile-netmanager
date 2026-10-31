@@ -32,8 +32,33 @@ type PresentableMessage = Pick<ErrorMessage, 'title' | 'message' | 'severity'>;
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+/**
+ * Toast yang isinya sama persis cukup tampil sekali dalam jeda ini. Saat
+ * aplikasi dibuka offline atau server mati, setiap permintaan yang gagal
+ * memunculkan toast yang sama; toast berbeda tetap tampil semua. Jeda dihitung
+ * dari toast itu terakhir tampil, jadi pengguna yang mengulang aksi setelah
+ * toastnya hilang tetap diberi tahu.
+ */
+const JEDA_TOAST_KEMBAR_MS = 4000;
+const waktuTampilToast = new Map<string, number>();
+
+function isToastKembar(kunci: string, sekarang: number): boolean {
+  for (const [kunciLama, waktu] of waktuTampilToast) {
+    if (sekarang - waktu >= JEDA_TOAST_KEMBAR_MS) waktuTampilToast.delete(kunciLama);
+  }
+  if (waktuTampilToast.has(kunci)) return true;
+  waktuTampilToast.set(kunci, sekarang);
+  return false;
+}
+
+/** Hanya untuk pengujian: lupakan toast yang sudah tampil. */
+export function resetToastDedupe(): void {
+  waktuTampilToast.clear();
+}
+
 /** Single entry point untuk semua toast notification. Position di-set global di _layout.tsx. */
 export const showToast = (type: ToastType, title: string, message?: string, visibilityTime = 4000) => {
+  if (isToastKembar(`${type}\n${title}\n${message ?? ''}`, Date.now())) return;
   Toast.show({ type, text1: title, text2: message, visibilityTime });
 };
 
