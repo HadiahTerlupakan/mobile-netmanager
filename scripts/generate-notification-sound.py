@@ -2,14 +2,19 @@
 """
 Sintesis nada notifikasi `assets/sounds/notif_soft.wav`.
 
-Nada macOS (Tink, Boop, Ping) milik Apple dan tidak bisa dipakai di sini, jadi
-nadanya dibuat sendiri dari sinus murni: satu ketuk tinggi dengan peluruhan ala
-bel, tanpa dentuman. Tidak ada dependensi eksternal dan tidak ada isu lisensi.
+Nada iOS dan macOS milik Apple dan tidak bisa dipakai di sini, jadi nadanya
+dibuat sendiri dari sinus murni: satu "gelembung" pendek yang naik sedikit
+lalu memudar, tanpa harmonik logam. Tidak ada dependensi eksternal dan tidak
+ada isu lisensi.
 
 Skrip ini disimpan supaya asetnya bisa dibuat ulang persis, bukan jadi berkas
 biner tanpa asal-usul. Jalankan dari akar repo:
 
     python3 scripts/generate-notification-sound.py
+
+Mengganti nada di Android juga menuntut id channel baru di
+`src/services/ForegroundNotificationService.ts` dan `firebase.json`: Android
+mengunci suara sebuah channel begitu channel itu dibuat.
 """
 
 import math
@@ -20,41 +25,62 @@ import wave
 RATE = 44100
 OUTPUT = os.path.join("assets", "sounds", "notif_soft.wav")
 
-# (frekuensi Hz, bobot, mulai detik) — nada dasar G6 plus dua harmonik tipis
-# yang memberi warna logam tanpa membuatnya menusuk.
-PARTIALS = [(1568, 1.0, 0.0), (3136, 0.28, 0.0), (4704, 0.10, 0.0)]
+BASE_FREQ = 620.0  # Hz; rendah supaya tidak menusuk
+GLIDE = 0.35  # naik 35% (sekitar 837 Hz) ...
+GLIDE_TIME = 0.12  # ... dalam 120 ms pertama, lalu menetap
 DURATION = 0.45
-GAIN = 0.32
 
-ATTACK = 0.012  # serang lembut supaya tidak ada klik di awal
-DECAY_RATE = 7.5  # peluruhan eksponensial ala bel
-RELEASE = 0.02  # fade-out di ujung agar benar-benar senyap
+ATTACK = 0.010  # serang lembut supaya tidak ada klik di awal
+DECAY_RATE = 11.0  # pudar cepat: terdengar seperti 'pop', bukan dengung
+RELEASE = 0.06  # fade-out di ujung agar benar-benar senyap
+ECHOES = [(0.09, 0.12)]  # (jeda detik, bobot) — satu gema tipis
+
+# Kenyaringan standar: RMS jendela 300 ms terkeras, sedikit di bawah nada lama
+# (-19,6 dBFS). Sisanya diatur volume notifikasi perangkat.
+TARGET_RMS_DB = -21.0
+LOUDNESS_WINDOW = 0.3
 
 
-def render_sample(t: float) -> float:
-    value = 0.0
-    for freq, weight, start in PARTIALS:
-        if t < start:
-            continue
-        dt = t - start
-        attack = min(1.0, dt / ATTACK)
-        decay = math.exp(-dt * DECAY_RATE)
-        value += weight * attack * decay * math.sin(2 * math.pi * freq * dt)
-    return value
+def phase(t: float) -> float:
+    """Fase sinus yang frekuensinya naik linear selama GLIDE_TIME."""
+    glide_part = min(t, GLIDE_TIME) ** 2 / (2 * GLIDE_TIME) + max(0.0, t - GLIDE_TIME)
+    return 2 * math.pi * BASE_FREQ * (t + GLIDE * glide_part)
+
+
+def render_bubble(t: float) -> float:
+    envelope = min(1.0, t / ATTACK) * math.exp(-t * DECAY_RATE)
+    return envelope * math.sin(phase(t))
+
+
+def loudest_window_rms(samples: list[float]) -> float:
+    window = int(LOUDNESS_WINDOW * RATE)
+    energy = sum(value * value for value in samples[:window])
+    loudest = energy
+    for i in range(window, len(samples)):
+        energy += samples[i] ** 2 - samples[i - window] ** 2
+        loudest = max(loudest, energy)
+    return math.sqrt(loudest / window)
 
 
 def main() -> None:
     total = int(RATE * DURATION)
-    frames = bytearray()
+    dry = [render_bubble(i / RATE) for i in range(total)]
+
+    wet = dry[:]
+    for delay, weight in ECHOES:
+        offset = int(delay * RATE)
+        for i in range(offset, total):
+            wet[i] += weight * dry[i - offset]
 
     for i in range(total):
-        value = render_sample(i / RATE)
-
         remaining = (total - i) / RATE
         if remaining < RELEASE:
-            value *= remaining / RELEASE
+            wet[i] *= remaining / RELEASE
 
-        clipped = max(-1.0, min(1.0, value * GAIN))
+    scale = 10 ** (TARGET_RMS_DB / 20) / loudest_window_rms(wet)
+    frames = bytearray()
+    for value in wet:
+        clipped = max(-1.0, min(1.0, value * scale))
         frames += struct.pack("<h", int(clipped * 32767))
 
     os.makedirs(os.path.dirname(OUTPUT), exist_ok=True)

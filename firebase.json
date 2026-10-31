@@ -1,6 +1,6 @@
 {
   "react-native": {
-    "messaging_android_notification_channel_id": "high-priority-soft"
+    "messaging_android_notification_channel_id": "high-priority-bubble"
   },
   "firestore": {
     "rules": "firestore.rules"

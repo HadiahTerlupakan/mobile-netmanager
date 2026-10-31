@@ -7,8 +7,8 @@ import { Platform } from 'react-native';
  * id baru; channel lama dibuang supaya tidak menyisakan entri mati di setelan
  * notifikasi perangkat.
  */
-const LEGACY_CHANNEL_ID = 'high-priority';
-const FOREGROUND_NOTIFICATION_CHANNEL_ID = 'high-priority-soft';
+const LEGACY_CHANNEL_IDS = ['high-priority', 'high-priority-soft'];
+const FOREGROUND_NOTIFICATION_CHANNEL_ID = 'high-priority-bubble';
 const FOREGROUND_NOTIFICATION_CHANNEL_NAME = 'High Priority Notifications';
 
 /**
@@ -33,7 +33,9 @@ export async function ensureForegroundNotificationChannel(): Promise<string | nu
 
   // Dibuang lebih dulu, dan kegagalannya diabaikan: pada pemasangan baru
   // channel lama memang tidak pernah ada.
-  await notifee.deleteChannel(LEGACY_CHANNEL_ID).catch(() => undefined);
+  await Promise.all(
+    LEGACY_CHANNEL_IDS.map((id) => notifee.deleteChannel(id).catch(() => undefined)),
+  );
 
   return notifee.createChannel({
     id: FOREGROUND_NOTIFICATION_CHANNEL_ID,

@@ -28,7 +28,7 @@ describe('ForegroundNotificationService', () => {
     jest.clearAllMocks();
     jest.resetModules();
     mockPlatform.OS = 'android';
-    mockCreateChannel.mockResolvedValue('high-priority-soft');
+    mockCreateChannel.mockResolvedValue('high-priority-bubble');
     mockDeleteChannel.mockResolvedValue(undefined);
     mockDisplayNotification.mockResolvedValue('notification-id');
   });
@@ -36,15 +36,15 @@ describe('ForegroundNotificationService', () => {
   it('creates the managed high-priority Android channel with the custom sound', async () => {
     const { ensureForegroundNotificationChannel } = require('@/services/ForegroundNotificationService');
 
-    await expect(ensureForegroundNotificationChannel()).resolves.toBe('high-priority-soft');
+    await expect(ensureForegroundNotificationChannel()).resolves.toBe('high-priority-bubble');
     expect(mockCreateChannel).toHaveBeenCalledWith(expect.objectContaining({
-      id: 'high-priority-soft',
+      id: 'high-priority-bubble',
       importance: 'high',
       sound: 'notif_soft',
     }));
   });
 
-  it('removes the legacy channel whose sound Android refuses to change', async () => {
+  it('removes the legacy channels whose sound Android refuses to change', async () => {
     // Android mengunci suara channel setelah dibuat — itu hak pengguna. Satu-
     // satunya cara mengganti nada adalah membuat channel baru dan membuang
     // yang lama, kalau tidak pemasangan lama tetap memakai nada bawaan.
@@ -53,6 +53,7 @@ describe('ForegroundNotificationService', () => {
     await ensureForegroundNotificationChannel();
 
     expect(mockDeleteChannel).toHaveBeenCalledWith('high-priority');
+    expect(mockDeleteChannel).toHaveBeenCalledWith('high-priority-soft');
   });
 
   it('uses the custom sound for foreground alerts on iOS', async () => {
@@ -87,7 +88,7 @@ describe('ForegroundNotificationService', () => {
         url: '/(app)/work-order-detail/wo-1',
       },
       android: expect.objectContaining({
-        channelId: 'high-priority-soft',
+        channelId: 'high-priority-bubble',
         importance: 'high',
         pressAction: {
           id: 'default',
