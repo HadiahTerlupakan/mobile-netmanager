@@ -9,7 +9,7 @@ import { isAxiosError } from 'axios';
 import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft, ChevronDown, Plus, Search, Ticket, X } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Modal, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -99,6 +99,9 @@ export default function CustomerTicketsScreen() {
   const onRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  // Balasan staf dan perubahan status datang dari portal tanpa websocket.
+  useFocusEffect(onRefresh);
 
   const filteredTickets = tickets?.filter(t => {
     const matchesSearch = t.ticketNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
 import React from 'react';
 
 import { renderDenganQuery, selesaikanJanji } from '../fixtures/portalPelanggan';
@@ -13,7 +13,13 @@ import { renderDenganQuery, selesaikanJanji } from '../fixtures/portalPelanggan'
 const mockGet = jest.fn<(url: string) => Promise<{ data: unknown }>>();
 
 jest.mock('@/services/api', () => ({ __esModule: true, default: { get: (url: string) => mockGet(url) } }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), back: jest.fn() }) }));
+let mockEfekFokus: (() => void) | undefined;
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  useFocusEffect: (efek: () => void) => {
+    mockEfekFokus = efek;
+  },
+}));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native');
   return { SafeAreaView: View };
@@ -92,4 +98,17 @@ describe.each([['Riwayat', CustomerHistoryScreen, 'Menunggu']])('status tagihan 
     expect(layar.queryByText(/#INV-LUNAS/)).toBeNull();
     expect(layar.queryByText(/#INV-BATAL/)).toBeNull();
   });
+});
+
+// Tagihan yang dilunasi atau terbit selama layar tertutup dulu baru muncul
+// setelah pelanggan menarik layar untuk menyegarkan.
+it('Riwayat memuat ulang tagihan saat layar kembali difokuskan', async () => {
+  const layar = await renderLayar(CustomerHistoryScreen);
+  expect(layar.queryByText(/#INV-BARU/)).toBeNull();
+
+  mockGet.mockResolvedValue({ data: { success: true, data: { invoices: [...DAFTAR_TAGIHAN, tagihan('INV-BARU', 'PAID')] } } });
+  act(() => mockEfekFokus?.());
+  await selesaikanJanji();
+
+  expect(layar.getByText(/#INV-BARU/)).toBeTruthy();
 });

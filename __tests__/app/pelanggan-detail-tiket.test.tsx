@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
 import React from 'react';
 
 import type { DetailTiket } from '@/types/portalPelanggan';
@@ -14,10 +14,13 @@ jest.mock('@/services/api', () => ({
   __esModule: true,
   default: { get: (url: string) => mockGet(url), post: (url: string, body?: unknown) => mockPost(url, body) },
 }));
+let mockEfekFokus: (() => void) | undefined;
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: mockBack }),
   useLocalSearchParams: () => ({ id: 't-1' }),
-  useFocusEffect: jest.fn(),
+  useFocusEffect: (efek: () => void) => {
+    mockEfekFokus = efek;
+  },
 }));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native');
@@ -184,5 +187,23 @@ describe('detail tiket pelanggan', () => {
     fireEvent.press(layar.getByLabelText('Tiket TKT-1'));
 
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/(customer)/tickets/[id]', params: { id: 't-1' } });
+  });
+
+  // Balasan staf dan perubahan status dari portal dulu tidak terlihat di
+  // daftar sampai pelanggan menarik layar untuk menyegarkan.
+  it('daftar tiket dimuat ulang saat layar kembali difokuskan', async () => {
+    const tiketDaftar = (id: string, ticketNumber: string) => ({
+      id, ticketNumber, subject: 'Internet mati', status: 'OPEN', updatedAt: '2026-10-30T01:00:00.000Z', category: 'TECHNICAL', _count: { replies: 0 },
+    });
+    mockGet.mockResolvedValue({ data: { tickets: [tiketDaftar('t-1', 'TKT-1')] } });
+    const layar = renderDenganQuery(<CustomerTicketsScreen />);
+    await selesaikanJanji();
+    expect(layar.queryByLabelText('Tiket TKT-2')).toBeNull();
+
+    mockGet.mockResolvedValue({ data: { tickets: [tiketDaftar('t-2', 'TKT-2'), tiketDaftar('t-1', 'TKT-1')] } });
+    act(() => mockEfekFokus?.());
+    await selesaikanJanji();
+
+    expect(layar.getByLabelText('Tiket TKT-2')).toBeTruthy();
   });
 });

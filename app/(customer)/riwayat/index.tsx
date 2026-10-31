@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { ArrowLeft, Search, Receipt, Router, XCircle, CheckCircle } from 'lucide-react-native';
@@ -42,6 +42,9 @@ export default function CustomerHistoryScreen() {
   const onRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  // Tagihan bisa dilunasi atau terbit selama layar ini tertutup.
+  useFocusEffect(onRefresh);
 
   const filteredInvoices = invoices?.filter(inv => {
     const matchesSearch = inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase());
