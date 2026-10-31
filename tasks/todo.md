@@ -7,8 +7,9 @@
 - [x] Push FCM foreground (`penerimaPushForeground.ts`, `utils/burstNotifikasi.ts`): masa tenang 5 dtk setelah dibuka, kembali ke depan, atau kembali online; satu bunyi per burst (jeda 3 dtk); push senyap di channel baru `notifikasi-senyap` (LOW) dalam satu grup + ringkasan; satu toast per burst ("3 Notifikasi Baru"); cache disegarkan sekali per burst
 - [x] Realtime Firestore (`pemilahSnapshotRealtime.ts`): riwayat lengkap baru pada snapshot server pertama (includeMetadataChanges), dihidrasi ulang tiap listener termasuk setelah galat; dokumen "added" >60 dtk di bawah event terbaru diabaikan; indikator Live menyala pada snapshot server pertama
 - [x] Antrean offline (`ringkasanPesanSinkron.ts`): pesan per item selama satu drain diringkas jadi satu toast
+- [x] Toast galat: isi sama persis dalam 4 dtk tampil sekali (`showToast`); selama offline satu pemberitahuan "Tidak Ada Koneksi Internet" menggantikan toast galat koneksi query/GET (`redamGalatOtomatis.ts`), diredam lagi 5 dtk setelah tersambung; 4xx, mutasi, dan permintaan selain GET tetap diberi tahu
+- [x] Handler FCM latar belakang (`pushLatarBelakang.ts`): push data saja memakai `high-priority-bubble`/`notifikasi-senyap`, tidak lagi membuat ulang channel lama `high-priority`
 - [ ] Di luar jangkauan aplikasi: push saat aplikasi di latar belakang/tertutup ditampilkan Android sendiri (satu bunyi per push, channel `high-priority-bubble`) — butuh perubahan server (mis. `android.notification.tag`/collapse key, atau push data-only yang diredam handler latar belakang)
-- [ ] Belum diubah: toast galat per query/request yang gagal saat aplikasi dibuka offline atau server down (`queryClient.ts`, `api.ts`)
 
 ---
 
