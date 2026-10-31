@@ -4,8 +4,7 @@ import { KartuMenungguGateway } from '@/components/organisms/tagihan/KartuMenung
 import { KartuRingkasanTagihan } from '@/components/organisms/tagihan/KartuRingkasanTagihan';
 import { KartuTransferManual } from '@/components/organisms/tagihan/KartuTransferManual';
 import { PanelRincianPembayaran } from '@/components/organisms/tagihan/PanelRincianPembayaran';
-import { RiwayatTagihan } from '@/components/organisms/tagihan/RiwayatTagihan';
-import { usePembayaranLunas } from '@/hooks/usePembayaranLunas';
+import { isMenungguPelunasan, usePembayaranLunas } from '@/hooks/usePembayaranLunas';
 import { bukaHalamanBayar, useBuatPembayaran } from '@/hooks/tagihan/useBuatPembayaran';
 import { useHitungMundurPembayaran } from '@/hooks/tagihan/useHitungMundurPembayaran';
 import { useKuponTagihan } from '@/hooks/tagihan/useKuponTagihan';
@@ -24,7 +23,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/id';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Clock, Headset } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Clock, Headset, History } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -104,8 +103,7 @@ export default function CustomerTagihanScreen() {
   const { data: daftarTagihan, isLoading, refetch } = useQuery({
     queryKey: ['customer-invoices'],
     queryFn: ambilTagihan,
-    refetchInterval: (query) =>
-      query.state.data?.some((tagihan) => tagihan.lastPayment?.gatewayStatus === STATUS_MENUNGGU) ? INTERVAL_CEK_PEMBAYARAN_MS : false,
+    refetchInterval: (query) => (query.state.data?.some(isMenungguPelunasan) ? INTERVAL_CEK_PEMBAYARAN_MS : false),
   });
   const { data: daftarMetode, refetch: refetchMetode } = useQuery({ queryKey: ['payment-methods'], queryFn: ambilMetode });
   const muatUlang = useCallback(() => void refetch(), [refetch]);
@@ -250,7 +248,15 @@ export default function CustomerTagihanScreen() {
         ) : (
           <>
             {kartuMenunggu && !isGantiMetode ? kartuMenunggu : ringkasanDanPanel}
-            <RiwayatTagihan daftar={daftarTagihan ?? []} />
+            {/* Riwayat punya layar sendiri agar halaman bayar tidak memanjang seiring tagihan bertambah. */}
+            <TouchableOpacity
+              onPress={() => router.push('/(customer)/riwayat')}
+              style={tw`mx-4 mb-4 bg-white rounded-xl border border-gray-100 p-4 flex-row items-center`}
+            >
+              <History size={20} color="#0d9488" />
+              <Text style={tw`flex-1 ml-3 font-bold text-gray-900`}>Riwayat Tagihan & Pembayaran</Text>
+              <ChevronRight size={20} color="#9ca3af" />
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>

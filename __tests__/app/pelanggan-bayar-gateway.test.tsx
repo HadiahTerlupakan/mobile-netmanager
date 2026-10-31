@@ -200,11 +200,15 @@ describe('pembayaran gateway di aplikasi pelanggan', () => {
     expect(layar.getByText('Pembayaran Berhasil')).toBeTruthy();
   });
 
-  it('riwayat memakai tanggal terbit tagihan', async () => {
+  // Halaman bayar dan riwayat dulu digabung, sehingga halaman Tagihan makin
+  // panjang seiring bertambahnya tagihan; riwayat punya layar sendiri.
+  it('riwayat tagihan dibuka di layarnya sendiri, tidak didaftar di halaman bayar', async () => {
     siapkanTagihan(null);
     const layar = await renderLayar();
 
-    expect(layar.getByText('#INV-1 • 27 Okt 2026')).toBeTruthy();
+    expect(layar.queryByText(/#INV-1 •/)).toBeNull();
+    fireEvent.press(layar.getByText('Riwayat Tagihan & Pembayaran'));
+    expect(mockPush).toHaveBeenCalledWith('/(customer)/riwayat');
   });
 
   it('ikon bantuan membuka halaman bantuan', async () => {

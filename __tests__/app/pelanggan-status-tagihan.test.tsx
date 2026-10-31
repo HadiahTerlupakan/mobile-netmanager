@@ -29,7 +29,6 @@ jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }))
 jest.mock('twrnc', () => require('twrnc-kosong'));
 
 import CustomerHistoryScreen from '../../app/(customer)/riwayat';
-import CustomerTagihanScreen from '../../app/(customer)/tagihan';
 
 function tagihan(invoiceNumber: string, status: string) {
   return {
@@ -62,10 +61,7 @@ async function renderLayar(Layar: React.ComponentType) {
   return layar;
 }
 
-describe.each([
-  ['Tagihan', CustomerTagihanScreen, 'Belum Bayar'],
-  ['Riwayat', CustomerHistoryScreen, 'Menunggu'],
-])('status tagihan di layar %s', (_nama, Layar, labelChipTerutang) => {
+describe.each([['Riwayat', CustomerHistoryScreen, 'Menunggu']])('status tagihan di layar %s', (_nama, Layar, labelChipTerutang) => {
   it('menampilkan label Indonesia, bukan kode mentah atau "Gagal"', async () => {
     const layar = await renderLayar(Layar);
 
