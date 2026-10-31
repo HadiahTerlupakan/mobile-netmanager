@@ -48,6 +48,17 @@ const NOTIFIKASI = {
       sender: 'Rina CS',
     },
     { id: 'n-1', type: 'INVOICE', title: 'Tagihan baru', message: 'Tagihan November terbit', preview: 'Tagihan November terbit', createdAt: '2026-10-28T00:00:00.000Z', isRead: true, sender: 'Sistem' },
+    {
+      id: 'n-2',
+      type: 'SYSTEM',
+      title: 'Pembayaran Ditolak',
+      message: 'Bukti transfer Anda ditolak: nominal kurang',
+      preview: 'Bukti transfer Anda ditolak: nominal kurang',
+      link: '/tagihan',
+      createdAt: '2026-10-27T00:00:00.000Z',
+      isRead: false,
+      sender: 'Sistem',
+    },
   ],
   announcements: [{ id: 'a-1' }],
   unreadCount: 2,
@@ -100,6 +111,21 @@ describe('notifikasi & pengumuman pelanggan', () => {
     await selesaikanJanji();
 
     expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  // Dispatcher tagihan menyimpan notifikasi in-app bertautan portal "/tagihan".
+  it('notifikasi tagihan membuka layar Tagihan', async () => {
+    const layar = await renderLayar();
+
+    fireEvent.press(layar.getByLabelText('Bukti transfer Anda ditolak: nominal kurang'));
+
+    expect(mockPush).toHaveBeenCalledWith('/(customer)/tagihan');
+  });
+
+  it('notifikasi tanpa tujuan tidak bisa ditekan', async () => {
+    const layar = await renderLayar();
+
+    expect(layar.getByLabelText('Tagihan November terbit').props.accessibilityRole).toBe('text');
   });
 
   it('notifikasi balasan tiket membuka tiketnya', async () => {

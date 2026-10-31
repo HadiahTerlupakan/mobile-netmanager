@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import { Bell, MessageSquare } from 'lucide-react-native';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
@@ -5,33 +6,34 @@ import tw from 'twrnc';
 
 import type { NotifikasiPelanggan } from '@/types/portalPelanggan';
 import { formatTimeAgo } from '@/utils/date';
+import { tujuanNotifikasiPelanggan } from '@/utils/tujuanNotifikasiPelanggan';
 
 const UKURAN_IKON = 18;
 /** teal-600 / gray-500 */
-const WARNA_IKON_TIKET = '#0d9488';
+const WARNA_IKON_BERTUJUAN = '#0d9488';
 const WARNA_IKON_UMUM = '#6b7280';
 const TIPE_BALASAN_TIKET = 'TICKET_REPLY';
 
 interface KartuNotifikasiProps {
   notifikasi: NotifikasiPelanggan;
-  /** Hanya untuk notifikasi yang punya tujuan, yaitu balasan tiket. */
-  onBukaTiket: (idTiket: string) => void;
+  /** Hanya untuk notifikasi yang punya tujuan: balasan tiket dan kabar tagihan. */
+  onBuka: (tujuan: Href) => void;
 }
 
-/** Satu notifikasi: balasan tiket membuka tiketnya, notifikasi lain hanya dibaca. */
-export function KartuNotifikasi({ notifikasi, onBukaTiket }: KartuNotifikasiProps) {
-  const isBalasanTiket = notifikasi.type === TIPE_BALASAN_TIKET && Boolean(notifikasi.ticketId);
-  const Ikon = isBalasanTiket ? MessageSquare : Bell;
+/** Satu notifikasi: balasan tiket dan kabar tagihan membuka layarnya, notifikasi lain hanya dibaca. */
+export function KartuNotifikasi({ notifikasi, onBuka }: KartuNotifikasiProps) {
+  const tujuan = tujuanNotifikasiPelanggan(notifikasi);
+  const Ikon = notifikasi.type === TIPE_BALASAN_TIKET ? MessageSquare : Bell;
   return (
     <TouchableOpacity
-      accessibilityRole={isBalasanTiket ? 'button' : 'text'}
+      accessibilityRole={tujuan ? 'button' : 'text'}
       accessibilityLabel={notifikasi.message}
-      disabled={!isBalasanTiket}
-      onPress={() => notifikasi.ticketId && onBukaTiket(notifikasi.ticketId)}
+      disabled={!tujuan}
+      onPress={() => tujuan && onBuka(tujuan)}
       style={tw`flex-row bg-white p-4 rounded-xl border border-gray-100 mb-3`}
     >
-      <View style={tw`w-9 h-9 rounded-full items-center justify-center ${isBalasanTiket ? 'bg-teal-50' : 'bg-gray-100'}`}>
-        <Ikon size={UKURAN_IKON} color={isBalasanTiket ? WARNA_IKON_TIKET : WARNA_IKON_UMUM} />
+      <View style={tw`w-9 h-9 rounded-full items-center justify-center ${tujuan ? 'bg-teal-50' : 'bg-gray-100'}`}>
+        <Ikon size={UKURAN_IKON} color={tujuan ? WARNA_IKON_BERTUJUAN : WARNA_IKON_UMUM} />
       </View>
       <View style={tw`flex-1 ml-3`}>
         <View style={tw`flex-row items-center`}>

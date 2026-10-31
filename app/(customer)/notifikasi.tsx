@@ -57,11 +57,7 @@ export default function NotifikasiPelangganScreen() {
           <Text style={tw`text-sm font-bold text-gray-500 uppercase mt-4 mb-2`}>Notifikasi</Text>
           {daftarNotifikasi.length === 0 ? <Text style={tw`text-sm text-gray-500`}>Belum ada notifikasi.</Text> : null}
           {daftarNotifikasi.map((item) => (
-            <KartuNotifikasi
-              key={item.id}
-              notifikasi={item}
-              onBukaTiket={(id) => router.push({ pathname: '/(customer)/tickets/[id]', params: { id } })}
-            />
+            <KartuNotifikasi key={item.id} notifikasi={item} onBuka={(tujuan) => router.push(tujuan)} />
           ))}
         </ScrollView>
       )}

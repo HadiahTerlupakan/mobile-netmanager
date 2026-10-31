@@ -33,3 +33,17 @@ describe('petakanRuteNotifikasi', () => {
     expect(petakanRuteNotifikasi('/work-order-detail/wo-1')).toBe('/work-order-detail/wo-1');
   });
 });
+
+// Push tagihan membawa data.url "/(customer)/tagihan"; notifikasi in-app
+// menyimpan tautan portal "/tagihan". Rute itu dulu tidak dikenal, jadi
+// pelanggan dilempar ke beranda.
+describe('notifikasi tagihan pelanggan', () => {
+  it('push tagihan membuka layar Tagihan', () => {
+    expect(isRuteNotifikasiDikenal('/(customer)/tagihan')).toBe(true);
+  });
+
+  it('tautan portal /tagihan dipetakan ke layar Tagihan aplikasi', () => {
+    expect(petakanRuteNotifikasi('/tagihan')).toBe('/(customer)/tagihan');
+    expect(isRuteNotifikasiDikenal(petakanRuteNotifikasi('/tagihan'))).toBe(true);
+  });
+});

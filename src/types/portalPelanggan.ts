@@ -117,6 +117,8 @@ export interface NotifikasiPelanggan {
   sender: string;
   /** Hanya ada pada notifikasi balasan tiket (`TICKET_REPLY`). */
   ticketId?: string;
+  /** Tautan portal web notifikasi tersimpan, mis. "/tagihan" untuk kabar tagihan. */
+  link?: string;
 }
 
 export interface RingkasanNotifikasi {

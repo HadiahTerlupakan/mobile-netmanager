@@ -1,6 +1,9 @@
 /** Rute grup layar investor; hanya bisa dibuka akun investor (lihat useAuthRedirect). */
 export const AWALAN_RUTE_INVESTOR = '/(investor)/';
 
+/** Layar Tagihan pelanggan: tujuan push tagihan (`data.url`) dan notifikasi in-app tagihan. */
+export const RUTE_TAGIHAN_PELANGGAN = '/(customer)/tagihan';
+
 /** Rute (beserta sub-rutenya) yang boleh dibuka dari tautan push notification. */
 const RUTE_NOTIFIKASI_DIKENAL: readonly string[] = [
   '/dashboard',
@@ -18,6 +21,7 @@ const RUTE_NOTIFIKASI_DIKENAL: readonly string[] = [
   '/presurvei',
   // Surat yang perlu saya tanda tangani: link `/pengesahan/<id>`.
   '/pengesahan',
+  RUTE_TAGIHAN_PELANGGAN,
 ];
 
 /** Awalan tautan lain yang selalu sah. */
@@ -37,6 +41,8 @@ export function isRuteNotifikasiDikenal(url: string): boolean {
  */
 const PADANAN_RUTE_WEB: Readonly<Record<string, string>> = {
   '/karyawan/absensi': '/absensi',
+  // Notifikasi in-app tagihan berbagi tautan dengan portal pelanggan.
+  '/tagihan': RUTE_TAGIHAN_PELANGGAN,
 };
 
 /** Rute aplikasi untuk tautan `data.url` notifikasi. */
