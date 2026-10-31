@@ -38,10 +38,15 @@ interface OpsiBuatPembayaran {
   onDibuat: () => Promise<unknown>;
   /** Pelanggan kembali dari halaman bayar gateway (atau menutupnya sendiri). */
   onKembaliDariHalamanBayar: (hasil: HasilHalamanBayar) => void;
+  /**
+   * Checkout ditolak server. Bila ini ganti metode, server mempertahankan
+   * checkout lama (`lastPayment` tetap menunjuknya), jadi layar memuatnya lagi.
+   */
+  onGagal: () => void;
 }
 
 /** Buat checkout (atau ganti checkout yang menunggu) untuk tagihan terutang. */
-export function useBuatPembayaran({ onDibuat, onKembaliDariHalamanBayar }: OpsiBuatPembayaran) {
+export function useBuatPembayaran({ onDibuat, onKembaliDariHalamanBayar, onGagal }: OpsiBuatPembayaran) {
   return useMutation({
     // Gateway bisa sudah membuat checkout sebelum 5xx atau timeout sampai ke
     // aplikasi; mengulang POST berarti checkout kedua untuk satu ketukan.
@@ -61,6 +66,7 @@ export function useBuatPembayaran({ onDibuat, onKembaliDariHalamanBayar }: OpsiB
     onError: (error) => {
       logger.error('[CustomerTagihan] Failed to create payment', error);
       presentAppError(error, { screen: 'CustomerTagihanScreen', route: '/(customer)/tagihan' });
+      onGagal();
     },
   });
 }

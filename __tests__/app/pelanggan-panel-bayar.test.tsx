@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { act, fireEvent } from '@testing-library/react-native';
 import React from 'react';
 
-import { renderDenganQuery, selesaikanJanji } from '../fixtures/portalPelanggan';
+import { galatHttp, renderDenganQuery, selesaikanJanji, toastTerakhir } from '../fixtures/portalPelanggan';
 import { buatTagihan, CHECKOUT_QRIS, jawabanServer, METODE_BAYAR } from '../fixtures/tagihanPelanggan';
 
 /**
@@ -78,6 +78,39 @@ describe('setelah checkout dibuat', () => {
 
     expect(layar.getByText('7007')).toBeTruthy();
     expect(mockPost).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Server menolak checkout baru dan mempertahankan checkout lama (lastPayment
+// tetap menunjuknya); pelanggan harus tetap melihat instruksi bayar itu.
+describe('ganti metode yang ditolak server', () => {
+  it('kembali menampilkan checkout yang masih terbuka beserta alasan penolakannya', async () => {
+    const PESAN = 'Nominal tagihan di bawah batas minimum metode pembayaran ini. Silakan pilih metode lain, misalnya QRIS.';
+    mockGet.mockImplementation(jawabanServer([buatTagihan({ lastPayment: CHECKOUT_QRIS })]));
+    mockPost.mockRejectedValue(galatHttp(400, PESAN));
+    const layar = renderDenganQuery(<CustomerTagihanScreen />);
+    await selesaikanJanji();
+
+    fireEvent.press(layar.getByText('Ganti Metode Pembayaran'));
+    fireEvent.press(layar.getByText('BCA Virtual Account'));
+    const jumlahMuatSebelum = mockGet.mock.calls.filter(([url]) => url.startsWith('/api/customer/invoices')).length;
+    fireEvent.press(layar.getByText('Konfirmasi & Bayar'));
+    await selesaikanJanji();
+
+    expect(toastTerakhir()?.text2).toBe(PESAN);
+    expect(layar.getByText('QR:000201QRIS')).toBeTruthy();
+    expect(mockGet.mock.calls.filter(([url]) => url.startsWith('/api/customer/invoices')).length).toBeGreaterThan(jumlahMuatSebelum);
+  });
+
+  it('checkout pertama yang ditolak tetap di panel agar bisa memilih metode lain', async () => {
+    mockPost.mockRejectedValue(galatHttp(400, 'Nominal tagihan di bawah batas minimum metode pembayaran ini.'));
+    const layar = await bukaPanel();
+
+    fireEvent.press(layar.getByText('BCA Virtual Account'));
+    fireEvent.press(layar.getByText('Konfirmasi & Bayar'));
+    await selesaikanJanji();
+
+    expect(layar.getByText('Konfirmasi & Bayar')).toBeTruthy();
   });
 });
 

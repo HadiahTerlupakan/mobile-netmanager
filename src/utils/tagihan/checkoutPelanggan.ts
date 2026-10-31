@@ -1,4 +1,4 @@
-import type { PembayaranTerakhir } from '@/types/portalPelanggan';
+import type { MetodePembayaranPelanggan, PembayaranTerakhir, RekeningTransferManual } from '@/types/portalPelanggan';
 
 type PembayaranCheckout = Pick<PembayaranTerakhir, 'amount' | 'checkoutTotal' | 'checkoutInvoiceNumbers'>;
 
@@ -33,4 +33,19 @@ export function nomorTagihanCheckout(pembayaran: PembayaranCheckout, nomorTagiha
 /** "#INV-1, #INV-2" untuk ditampilkan. */
 export function tulisNomorTagihan(daftarNomor: string[]): string {
   return daftarNomor.map((nomor) => `#${nomor}`).join(', ');
+}
+
+/**
+ * Rekening tujuan transfer manual: dari daftar metode bayar, atau dari
+ * `bankAccount` checkout bila rekening itu sudah tidak ada di daftar
+ * (dinonaktifkan setelah checkout dibuat, atau daftar belum termuat).
+ */
+export function rekeningTujuanTransfer(
+  pembayaran: Pick<PembayaranTerakhir, 'accountId' | 'bankAccount'>,
+  daftarMetode: MetodePembayaranPelanggan[] | undefined,
+): RekeningTransferManual | undefined {
+  const dariDaftar = pembayaran.accountId
+    ? daftarMetode?.find((metode) => metode.id === `manual_${pembayaran.accountId}`)?.details
+    : undefined;
+  return dariDaftar ?? pembayaran.bankAccount ?? undefined;
 }

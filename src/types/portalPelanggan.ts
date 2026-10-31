@@ -189,6 +189,8 @@ export interface PembayaranTerakhir {
   isManual?: boolean;
   /** Alasan admin menolak bukti transfer manual. */
   rejectionReason?: string | null;
+  /** Rekening tujuan transfer manual, juga bila rekeningnya sudah dinonaktifkan; null untuk gateway. */
+  bankAccount?: RekeningTransferManual | null;
 }
 
 export interface TagihanPelanggan {

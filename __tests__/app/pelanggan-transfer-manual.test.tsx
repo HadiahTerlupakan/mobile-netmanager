@@ -134,6 +134,31 @@ describe('transfer manual yang menunggu', () => {
   });
 });
 
+// Rekening yang sudah dinonaktifkan tidak ada lagi di daftar metode; server
+// mengirim rekening tujuan checkout itu di lastPayment.bankAccount.
+describe('rekening tujuan yang tidak ada di daftar metode', () => {
+  it('diambil dari lastPayment.bankAccount, tetap sebagai transfer manual', async () => {
+    const rekeningLama = { bankName: 'BRI', accountName: 'CV Radpro Lama', accountNumber: '998877665' };
+    mockGet.mockImplementation(jawabanServer([buatTagihan({ lastPayment: { ...CHECKOUT_MANUAL, accountId: 'acc-lama', bankAccount: rekeningLama } })]));
+
+    const layar = await renderLayar();
+
+    expect(layar.getByText('Transfer Bank Manual (BRI)')).toBeTruthy();
+    expect(layar.getByText('998877665')).toBeTruthy();
+    expect(layar.getByText('Batalkan / Ganti Metode')).toBeTruthy();
+    expect(layar.queryByText('Saya Sudah Bayar, Cek Status')).toBeNull();
+  });
+
+  it('server lama tanpa bankAccount: tetap kartu transfer manual', async () => {
+    mockGet.mockImplementation(jawabanServer([buatTagihan({ lastPayment: { ...CHECKOUT_MANUAL, accountId: 'acc-lama' } })]));
+
+    const layar = await renderLayar();
+
+    expect(layar.getByText(/Rekening tujuan belum termuat/)).toBeTruthy();
+    expect(layar.queryByText('Saya Sudah Bayar, Cek Status')).toBeNull();
+  });
+});
+
 describe('transfer manual yang ditolak', () => {
   it('menampilkan alasan admin dan pelanggan bisa membayar lagi', async () => {
     mockGet.mockImplementation(

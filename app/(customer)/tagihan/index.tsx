@@ -18,6 +18,7 @@ import { useTagihanPelanggan } from '@/hooks/tagihan/useTagihanPelanggan';
 import { useUnggahBuktiTransfer } from '@/hooks/tagihan/useUnggahBuktiTransfer';
 import { formatRupiah } from '@/utils/rupiah';
 import { salinInstruksi, simpanQris } from '@/utils/tagihan/aksiInstruksiBayar';
+import { rekeningTujuanTransfer } from '@/utils/tagihan/checkoutPelanggan';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowLeft, ChevronRight, Headset, History } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
@@ -45,9 +46,7 @@ export default function CustomerTagihanScreen() {
 
   const pembayaranMenunggu = tagihanMenunggu?.lastPayment;
   const metodeMenunggu = daftarMetode?.find((metode) => metode.code === pembayaranMenunggu?.gatewayProvider);
-  const rekeningManual = pembayaranMenunggu?.accountId
-    ? daftarMetode?.find((metode) => metode.id === `manual_${pembayaranMenunggu.accountId}`)?.details
-    : undefined;
+  const rekeningManual = pembayaranMenunggu ? rekeningTujuanTransfer(pembayaranMenunggu, daftarMetode) : undefined;
 
   const { data: profil } = useProfilPelanggan();
   const pembayaranLunas = usePembayaranLunas(ringkasan.daftarPantauan, profil?.status);
@@ -71,6 +70,11 @@ export default function CustomerTagihanScreen() {
       return refetch();
     },
     onKembaliDariHalamanBayar: kembaliDariHalamanBayar,
+    onGagal: () => {
+      // Ganti metode yang ditolak: checkout lama masih berlaku, tampilkan lagi.
+      if (panel.isGantiMetode) panel.tutup();
+      muatUlang();
+    },
   });
 
   const tarikUlang = async () => {
