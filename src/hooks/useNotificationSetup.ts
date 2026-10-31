@@ -1,11 +1,9 @@
-import { queryClient, queryKeys } from '@/lib/queryClient';
 import {
   addNotificationListeners,
   getInitialNotificationData,
 } from '@/services/PushNotificationService';
-import { presentForegroundNotification } from '@/services/ForegroundNotificationService';
 import { errorReportingService } from '@/services/ErrorReportingService';
-import { presentInfoMessage } from '@/utils/errorPresenter';
+import { PenerimaPushForeground } from '@/services/penerimaPushForeground';
 import { logger } from '@/utils/logger';
 import { AWALAN_RUTE_INVESTOR, isRuteNotifikasiDikenal, petakanRuteNotifikasi } from '@/utils/ruteNotifikasi';
 import notifee, { EventType } from '@notifee/react-native';
@@ -21,7 +19,8 @@ function berandaCadangan(url: string | undefined): Href {
 /**
  * Setup push notification handling
  * - Initial notification (app opened from killed state)
- * - Foreground notification presentation
+ * - Foreground notification presentation, at most one sound per burst
+ *   (PenerimaPushForeground)
  * - Notification tap navigation
  * - Query invalidation on new notifications
  */
@@ -77,6 +76,9 @@ export function useNotificationSetup() {
     };
     handleNavRef.current = handleNotificationNavigation;
 
+    // Dibuat bersama listener: masa tenang pertamanya adalah pembukaan aplikasi.
+    const penerimaPush = new PenerimaPushForeground();
+
     const setupNotifications = async () => {
       if (Platform.OS === 'web') return;
 
@@ -92,44 +94,7 @@ export function useNotificationSetup() {
         }
 
         const cleanup = addNotificationListeners(
-          async (notification) => {
-            logger.info('Foreground notification:', notification.title);
-
-            try {
-              if (notification.title || notification.body) {
-                await presentForegroundNotification(notification);
-                presentInfoMessage(
-                  notification.body ?? 'Anda menerima notifikasi baru.',
-                  notification.title ?? 'Notifikasi Baru'
-                );
-              }
-            } catch (error) {
-              logger.error('Failed to render foreground notification:', error);
-              errorReportingService.captureException(
-                error instanceof Error
-                  ? error
-                  : new Error('Failed to render foreground notification'),
-                {
-                  source: 'root.foregroundNotification',
-                }
-              );
-            } finally {
-              queryClient.invalidateQueries({
-                queryKey: queryKeys.notifications.list(),
-              });
-              queryClient.invalidateQueries({
-                queryKey: queryKeys.notifications.unread(),
-              });
-              // Push investor (modal/bagi hasil/uang dikirim) → segarkan angka di layar.
-              queryClient.invalidateQueries({
-                queryKey: queryKeys.investor.all,
-              });
-              // Push surat pengesahan (ditugaskan / sah / dibatalkan) → segarkan menu & daftar.
-              queryClient.invalidateQueries({
-                queryKey: queryKeys.pengesahan.all,
-              });
-            }
-          },
+          penerimaPush.terima,
           (response) => {
             logger.info('Notification tapped, data:', response.data);
             handleNotificationNavigation(response.data ?? {});
@@ -179,6 +144,7 @@ export function useNotificationSetup() {
         logger.warn('[useNotificationSetup] cleanup failed (non-fatal)', cleanupError);
       }
       notificationCleanupRef.current = null;
+      penerimaPush.hentikan();
     };
   }, [router]);
 }

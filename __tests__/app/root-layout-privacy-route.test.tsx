@@ -160,9 +160,15 @@ jest.mock('@/services/ForegroundNotificationService', () => ({
   presentForegroundNotification: mockPresentForegroundNotification,
 }));
 
+// expo-router mengembalikan objek `router` yang sama di setiap render.
+const mockRouter = {
+  replace: (...args: unknown[]) => mockReplace(...args),
+  push: (...args: unknown[]) => mockPush(...args),
+};
+
 jest.mock('expo-router', () => ({
   Slot: () => null,
-  useRouter: () => ({ replace: mockReplace, push: mockPush }),
+  useRouter: () => mockRouter,
   useSegments: () => mockUseSegments(),
 }));
 
@@ -262,8 +268,9 @@ describe('RootLayout privacy route guard', () => {
 
     render(<RootLayout />);
 
+    // Lima detik pertama setelah aplikasi dibuka adalah masa tenang tanpa toast.
     await act(async () => {
-      jest.advanceTimersByTime(150);
+      jest.advanceTimersByTime(5000);
     });
 
     await act(async () => {
@@ -271,6 +278,11 @@ describe('RootLayout privacy route guard', () => {
         title: 'Work Order Baru',
         body: 'WO-20260415-0002',
       });
+    });
+
+    // Toast menunggu sampai push berhenti datang, lalu meringkas burst-nya.
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
     });
 
     expect(mockToastShow).toHaveBeenCalledWith(expect.objectContaining({
@@ -316,6 +328,11 @@ describe('RootLayout privacy route guard', () => {
           url: '/(app)/work-order-detail/wo-1',
         },
       });
+    });
+
+    // Data disegarkan sekali setelah push berhenti datang, juga saat masa tenang.
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
     });
 
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
@@ -369,6 +386,11 @@ describe('RootLayout privacy route guard', () => {
       });
     });
 
+    // Data disegarkan sekali setelah push berhenti datang, juga saat masa tenang.
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
+    });
+
     expect(mockInvalidateQueries).toHaveBeenCalledWith({
       queryKey: ['notifications', 'list'],
     });
@@ -377,14 +399,42 @@ describe('RootLayout privacy route guard', () => {
     });
   });
 
-  it('routes Android foreground notifications through the dedicated native foreground notification service', () => {
-    const rootLayoutSource = readFileSync(
-      join(__dirname, '../../src/hooks/useNotificationSetup.ts'),
-      'utf8'
-    );
+  it('routes Android foreground notifications through the dedicated native foreground notification service', async () => {
+    let onForegroundNotification: ((notification: { title?: string | null; body?: string | null }) => void) | undefined;
 
-    expect(rootLayoutSource).toContain('ForegroundNotificationService');
-    expect(rootLayoutSource).toContain('presentForegroundNotification');
+    mockUseSegments.mockReturnValue(['(app)', 'dashboard']);
+    mockUseAuth.mockReturnValue({
+      user: {
+        id: 'user-1',
+        role: 'SUPER_ADMIN',
+        name: 'Test User',
+        email: 'test@example.com',
+      },
+      token: 'token-123',
+      isLoading: false,
+    });
+
+    mockAddNotificationListeners.mockImplementation((onReceived) => {
+      onForegroundNotification = onReceived;
+      return jest.fn();
+    });
+
+    const RootLayout = require('../../app/_layout').default;
+
+    render(<RootLayout />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+    });
+
+    await act(async () => {
+      onForegroundNotification?.({ title: 'Work Order Baru', body: 'WO-20260415-0002' });
+    });
+
+    expect(mockPresentForegroundNotification).toHaveBeenCalledWith(
+      { title: 'Work Order Baru', body: 'WO-20260415-0002' },
+      { isSenyap: false },
+    );
   });
 
   it('stops sync monitoring when the root layout unmounts after startup', async () => {
