@@ -154,9 +154,13 @@ const isRecord = (value: unknown): value is ErrorPayload => typeof value === 'ob
 const getStringValue = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value : undefined;
 
+/** Halaman HTML (404 Next.js untuk rute yang belum ada, 413 proxy) bukan pesan untuk pengguna. */
+const HTML_BODY_PATTERN = /^\s*<(!doctype|html|head|body)\b/i;
+
 export function extractApiErrorMessage(data: unknown): string | undefined {
   if (!isRecord(data)) {
-    return getStringValue(data);
+    const text = getStringValue(data);
+    return text && !HTML_BODY_PATTERN.test(text) ? text : undefined;
   }
 
   const directMessage = getStringValue(data.message) || getStringValue(data.error);

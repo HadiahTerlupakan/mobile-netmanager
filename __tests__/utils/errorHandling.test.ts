@@ -1,4 +1,4 @@
-import { getUserFriendlyError } from '@/utils/errorHandling';
+import { extractApiErrorMessage, getUserFriendlyError } from '@/utils/errorHandling';
 
 describe('errorHandling taxonomy', () => {
   it('marks server errors as reportable and retryable', () => {
@@ -76,5 +76,23 @@ describe('pesan server untuk 5xx', () => {
     expect(getUserFriendlyError(galatServer(500, data)).message).toBe(
       'Terjadi kesalahan pada server. Silakan coba lagi dalam beberapa saat.',
     );
+  });
+});
+
+// Rute API yang belum ada di server lama (mis. /payments/cancel) dijawab
+// halaman 404 HTML Next.js, dan proxy menjawab 413 dengan HTML; teks itu
+// dulu tampil mentah di toast.
+describe('badan respons HTML', () => {
+  const HALAMAN_404 = '<!DOCTYPE html><html><body>404: This page could not be found.</body></html>';
+
+  it('tidak dipakai sebagai pesan galat', () => {
+    expect(extractApiErrorMessage(HALAMAN_404)).toBeUndefined();
+    expect(
+      getUserFriendlyError({ isAxiosError: true, message: 'x', response: { status: 404, data: HALAMAN_404 } }).message,
+    ).toBe('Data yang Anda cari tidak ditemukan atau telah dihapus.');
+  });
+
+  it('teks biasa dari server tetap dipakai', () => {
+    expect(extractApiErrorMessage('Missing invoiceId')).toBe('Missing invoiceId');
   });
 });
