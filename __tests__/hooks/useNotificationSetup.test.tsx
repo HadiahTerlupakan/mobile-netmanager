@@ -99,9 +99,12 @@ async function pasangHook() {
 }
 
 async function kirimPush(...daftar: PushForeground[]) {
+  const terima = mockTerimaPush;
+  // Tanpa listener, pernyataan "tidak ada toast" akan lolos tanpa menguji apa pun.
+  if (!terima) throw new Error('Listener push FCM belum terpasang');
   for (const push of daftar) {
     await act(async () => {
-      await mockTerimaPush?.(push);
+      await terima(push);
     });
   }
 }

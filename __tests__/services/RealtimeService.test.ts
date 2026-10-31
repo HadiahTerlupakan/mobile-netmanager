@@ -383,7 +383,17 @@ describe('RealtimeService', () => {
     const bentukCreatedAt: [string, (iso: string) => unknown][] = [
       ['string ISO', (iso) => iso],
       ['angka epoch ms', (iso) => ms(iso)],
-      ['Timestamp Firestore', (iso) => ({ seconds: ms(iso) / 1000, nanoseconds: 0, toMillis: () => ms(iso) })],
+      [
+        'Timestamp Firestore',
+        // Seperti Timestamp asli, toMillis membaca field-nya lewat `this`.
+        (iso) => ({
+          seconds: Math.floor(ms(iso) / 1000),
+          nanoseconds: (ms(iso) % 1000) * 1_000_000,
+          toMillis(this: { seconds: number; nanoseconds: number }) {
+            return this.seconds * 1000 + this.nanoseconds / 1_000_000
+          },
+        }),
+      ],
     ]
 
     it.each(bentukCreatedAt)('createdAt berbentuk %s: dokumen lama diabaikan', (_bentuk, ubah) => {

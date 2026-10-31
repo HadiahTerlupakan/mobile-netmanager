@@ -46,8 +46,8 @@ function bacaWaktuCreatedAt(nilai: unknown): number | null {
     const waktu = Date.parse(nilai)
     return Number.isNaN(waktu) ? null : waktu
   }
-  const timestamp = nilai as { toMillis?: unknown } | null
-  return typeof timestamp?.toMillis === 'function' ? (timestamp.toMillis as () => number)() : null
+  const timestamp = nilai as { toMillis?: () => number } | null
+  return typeof timestamp?.toMillis === 'function' ? timestamp.toMillis() : null
 }
 
 /** Pemilah untuk satu langganan kanal; ID yang sudah terlihat bertahan antar-listener. */
