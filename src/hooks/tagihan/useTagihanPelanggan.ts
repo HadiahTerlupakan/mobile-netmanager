@@ -7,11 +7,12 @@ import { queryKeys } from '@/lib/queryClient';
 import { TagihanPelangganService } from '@/services/TagihanPelangganService';
 import type { TagihanPelanggan } from '@/types/portalPelanggan';
 import { isTagihanTerutang } from '@/utils/statusTagihanPelanggan';
-import { isCheckoutKedaluwarsa } from '@/utils/tagihan/checkoutPelanggan';
+import { isCheckoutKedaluwarsa, isTransferManual } from '@/utils/tagihan/checkoutPelanggan';
 
 /** SSE status pembayaran bisa putus tanpa tersambung lagi; polling ini cadangannya. */
 const INTERVAL_CEK_PEMBAYARAN_MS = 15_000;
 const STATUS_MENUNGGU = 'PENDING';
+const STATUS_GAGAL = 'FAILED';
 
 export interface DataTagihanPelanggan {
   /** Semua tagihan yang masih harus dibayar. */
@@ -27,6 +28,8 @@ export interface RingkasanTagihan {
   jatuhTempoTerdekat: string | null;
   /** Tagihan yang checkout-nya menunggu dibayar. */
   tagihanMenunggu: TagihanPelanggan | undefined;
+  /** Tagihan yang bukti transfer manual terakhirnya ditolak admin. */
+  tagihanDitolak: TagihanPelanggan | undefined;
   /** Tagihan terbuka + terbaru, untuk membaca checkout yang lunas (usePembayaranLunas). */
   daftarPantauan: TagihanPelanggan[] | undefined;
 }
@@ -72,6 +75,9 @@ export function ringkasTagihan(data: DataTagihanPelanggan | undefined): Ringkasa
     totalTerutang: terutang.reduce((jumlah, tagihan) => jumlah + tagihan.remainingAmount, 0),
     jatuhTempoTerdekat: [...terutang].sort((a, b) => dayjs(a.dueDate).diff(b.dueDate))[0]?.dueDate ?? null,
     tagihanMenunggu: terutang.find((tagihan) => tagihan.lastPayment?.gatewayStatus === STATUS_MENUNGGU),
+    tagihanDitolak: terutang.find(
+      ({ lastPayment }) => lastPayment?.gatewayStatus === STATUS_GAGAL && isTransferManual(lastPayment),
+    ),
     daftarPantauan: data && gabungkanTagihan(data),
   };
 }

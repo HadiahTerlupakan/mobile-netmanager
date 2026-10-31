@@ -11,7 +11,7 @@ import { KepalaPembayaranMenunggu } from '@/components/organisms/tagihan/KepalaP
 import type { HitungMundur } from '@/hooks/tagihan/useHitungMundurPembayaran';
 import type { MetodePembayaranPelanggan, PembayaranTerakhir, RekeningTransferManual, TagihanPelanggan } from '@/types/portalPelanggan';
 import { formatRupiah } from '@/utils/rupiah';
-import { nominalCheckout, nomorTagihanCheckout, tulisNomorTagihan } from '@/utils/tagihan/checkoutPelanggan';
+import { isTransferManual, nominalCheckout, nomorTagihanCheckout, tulisNomorTagihan } from '@/utils/tagihan/checkoutPelanggan';
 
 dayjs.locale('id');
 
@@ -23,6 +23,7 @@ export interface AksiPembayaranMenunggu {
   onBukaHalamanBayar: () => void;
   onGantiMetode: () => void;
   onUnggahBukti: () => void;
+  onBatalkanTransfer: () => void;
 }
 
 interface KartuPembayaranMenungguProps {
@@ -30,11 +31,12 @@ interface KartuPembayaranMenungguProps {
   pembayaran: PembayaranTerakhir;
   /** Metode checkout ini di daftar metode (nama & jenis), bila termuat. */
   metode: MetodePembayaranPelanggan | undefined;
-  /** Rekening tujuan bila checkout ini transfer manual. */
+  /** Rekening tujuan bila checkout ini transfer manual (belum ada selama daftar metode dimuat). */
   rekening: RekeningTransferManual | undefined;
   hitungMundur: HitungMundur;
   isMengecekStatus: boolean;
   isMengunggah: boolean;
+  isMembatalkan: boolean;
   aksi: AksiPembayaranMenunggu;
 }
 
@@ -47,7 +49,7 @@ function IsiPembayaranMenunggu(props: KartuPembayaranMenungguProps) {
   const { pembayaran, metode, rekening, aksi } = props;
   const nominal = nominalCheckout(pembayaran);
   if (props.hitungMundur.isKedaluwarsa) return <KartuCheckoutKedaluwarsa onPilihMetode={aksi.onGantiMetode} />;
-  if (rekening) {
+  if (isTransferManual(pembayaran)) {
     return (
       <KartuTransferManual
         rekening={rekening}
@@ -55,8 +57,10 @@ function IsiPembayaranMenunggu(props: KartuPembayaranMenungguProps) {
         nominalMentah={nominal}
         isBuktiTerkirim={Boolean(pembayaran.receiptUrl)}
         isMengunggah={props.isMengunggah}
+        isMembatalkan={props.isMembatalkan}
         onSalin={aksi.onSalin}
         onUnggahBukti={aksi.onUnggahBukti}
+        onBatalkan={aksi.onBatalkanTransfer}
       />
     );
   }

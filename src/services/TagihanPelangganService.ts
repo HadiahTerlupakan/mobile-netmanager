@@ -1,12 +1,15 @@
 import { getHttpStatus, getServerErrorMessage, isClientRejection } from '@/lib/queryErrorReporting';
 import type { MetodePembayaranPelanggan, TagihanPelanggan } from '@/types/portalPelanggan';
 import { ambilMuatan } from '@/utils/responsPelanggan';
+import type { FotoBukti } from '@/utils/tagihan/fotoBuktiTransfer';
 import type { StatusCekPembayaran } from '@/utils/tagihan/pesanStatusPembayaran';
 import api from './api';
 
 const URL_PEMBAYARAN = '/api/customer/payments';
 const URL_METODE_BAYAR = '/api/customer/payment-methods';
 const URL_CEK_STATUS = `${URL_PEMBAYARAN}/check-status`;
+const URL_BATAL_TRANSFER_MANUAL = `${URL_PEMBAYARAN}/cancel`;
+const URL_UNGGAH_BUKTI = `${URL_PEMBAYARAN}/upload-receipt`;
 const STATUS_TIDAK_DITEMUKAN = 404;
 
 const URL_TAGIHAN = '/api/customer/invoices';
@@ -108,6 +111,23 @@ export const TagihanPelangganService = {
       vaNumber: ambilMuatan<string>(response.data, 'vaNumber') ?? null,
       qrString: ambilMuatan<string>(response.data, 'qrString') ?? null,
     };
+  },
+
+  /**
+   * Batalkan checkout transfer manual yang menunggu (semua tagihan di
+   * dalamnya) selama belum diverifikasi; kuponnya dilepas server. 409 bila
+   * tidak ada yang bisa dibatalkan, dengan alasan di `error`.
+   */
+  async batalkanTransferManual(invoiceId: string): Promise<void> {
+    await api.post(URL_BATAL_TRANSFER_MANUAL, { invoiceId });
+  },
+
+  /** Unggah (atau ganti) bukti transfer untuk checkout manual tagihan ini. */
+  async unggahBuktiTransfer(invoiceId: string, foto: FotoBukti): Promise<void> {
+    const formData = new FormData();
+    formData.append('invoiceId', invoiceId);
+    formData.append('file', { uri: foto.uri, name: foto.nama, type: foto.mimeType } as never);
+    await api.post(URL_UNGGAH_BUKTI, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
 
   /**

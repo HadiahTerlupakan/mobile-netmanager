@@ -1,10 +1,12 @@
 import { Skeleton } from '@/components/atoms/Skeleton';
 import { LembarPembayaranBerhasil } from '@/components/molecules/LembarPembayaranBerhasil';
+import { BannerTransferDitolak } from '@/components/organisms/tagihan/BannerTransferDitolak';
 import { KartuPembayaranMenunggu } from '@/components/organisms/tagihan/KartuPembayaranMenunggu';
 import { KartuRingkasanTagihan } from '@/components/organisms/tagihan/KartuRingkasanTagihan';
 import { PanelRincianPembayaran } from '@/components/organisms/tagihan/PanelRincianPembayaran';
 import { useProfilPelanggan } from '@/hooks/queries/useAkunPelanggan';
 import { usePembayaranLunas } from '@/hooks/usePembayaranLunas';
+import { useBatalkanTransferManual } from '@/hooks/tagihan/useBatalkanTransferManual';
 import { bukaHalamanBayar, useBuatPembayaran, type HasilHalamanBayar } from '@/hooks/tagihan/useBuatPembayaran';
 import { useHitungMundurPembayaran } from '@/hooks/tagihan/useHitungMundurPembayaran';
 import { useCekStatusPembayaran } from '@/hooks/tagihan/useCekStatusPembayaran';
@@ -30,7 +32,7 @@ export default function CustomerTagihanScreen() {
   const [isMenarikUlang, setIsMenarikUlang] = useState(false);
 
   const { data: dataTagihan, isLoading, refetch, ringkasan, ambilTagihanMenunggu } = useTagihanPelanggan();
-  const { terutang, totalTerutang, jatuhTempoTerdekat, tagihanMenunggu } = ringkasan;
+  const { terutang, totalTerutang, jatuhTempoTerdekat, tagihanMenunggu, tagihanDitolak } = ringkasan;
   const kupon = useKuponTagihan(totalTerutang);
   const totalBayar = totalTerutang - (kupon.diskon?.amount ?? 0);
   const metodeBayar = useMetodeBayar(totalBayar);
@@ -43,10 +45,9 @@ export default function CustomerTagihanScreen() {
 
   const pembayaranMenunggu = tagihanMenunggu?.lastPayment;
   const metodeMenunggu = daftarMetode?.find((metode) => metode.code === pembayaranMenunggu?.gatewayProvider);
-  const rekeningManual =
-    pembayaranMenunggu?.method === 'BANK_TRANSFER' && pembayaranMenunggu.accountId
-      ? daftarMetode?.find((metode) => metode.id === `manual_${pembayaranMenunggu.accountId}`)?.details
-      : undefined;
+  const rekeningManual = pembayaranMenunggu?.accountId
+    ? daftarMetode?.find((metode) => metode.id === `manual_${pembayaranMenunggu.accountId}`)?.details
+    : undefined;
 
   const { data: profil } = useProfilPelanggan();
   const pembayaranLunas = usePembayaranLunas(ringkasan.daftarPantauan, profil?.status);
@@ -54,6 +55,13 @@ export default function CustomerTagihanScreen() {
   usePantauStatusPembayaran({ tagihan: tagihanMenunggu, isAktif: !hitungMundur.isKedaluwarsa, muatUlang: refetch });
   const cekStatus = useCekStatusPembayaran({ ambilTagihanMenunggu, muatUlang: refetch });
   const unggahBukti = useUnggahBuktiTransfer(muatUlang);
+  const batalkanTransfer = useBatalkanTransferManual({
+    onDibatalkan: () => {
+      panel.buka();
+      return refetch();
+    },
+    muatUlang,
+  });
   // Kembali lewat redirect gateway berarti pelanggan mungkin sudah membayar;
   // tab yang ditutup sendiri tidak perlu disebut "belum diterima".
   const kembaliDariHalamanBayar = (hasil: HasilHalamanBayar) => cekStatus.cek(hasil.type === 'success');
@@ -89,6 +97,7 @@ export default function CustomerTagihanScreen() {
       hitungMundur={hitungMundur}
       isMengecekStatus={cekStatus.isMengecek}
       isMengunggah={unggahBukti.isMengunggah}
+      isMembatalkan={batalkanTransfer.isMembatalkan}
       aksi={{
         onSalin: salinInstruksi,
         onSimpanQris: simpanQris,
@@ -96,12 +105,14 @@ export default function CustomerTagihanScreen() {
         onBukaHalamanBayar: () => void bukaHalamanBayar(pembayaranMenunggu.paymentUrl!).then(kembaliDariHalamanBayar),
         onGantiMetode: panel.bukaGantiMetode,
         onUnggahBukti: () => unggahBukti.pilihDanUnggah(tagihanMenunggu.id),
+        onBatalkanTransfer: () => batalkanTransfer.minta(tagihanMenunggu.id),
       }}
     />
   );
 
   const ringkasanDanPanel = (
     <View style={tw`p-4`}>
+      {tagihanDitolak && <BannerTransferDitolak alasan={tagihanDitolak.lastPayment?.rejectionReason} />}
       <KartuRingkasanTagihan
         jumlahTagihan={terutang.length}
         total={formatRupiah(totalTerutang)}
