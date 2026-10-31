@@ -602,4 +602,94 @@ describe('SyncService', () => {
       expect(DatabaseService.markAsRetry).not.toHaveBeenCalled();
     });
   });
+
+  describe('pesan item antrean selama satu drain', () => {
+    // Drain berjalan saat aplikasi dibuka, kembali ke depan, dan kembali
+    // online — tepat saat banyak item lama ikut terkirim sekaligus.
+    const DELAPAN_HARI_MS = 8 * 24 * 60 * 60 * 1000;
+
+    const itemBarangKeluar = (id: number): SyncQueueItem => ({
+      id,
+      url: '/api/mobile/barang/keluar',
+      method: 'POST' as const,
+      body: JSON.stringify({ jumlah: 1 }),
+      status: 'PENDING' as const,
+      meta: '{}',
+      createdAt: new Date().toISOString(),
+    });
+
+    const itemKedaluwarsa = (id: number): SyncQueueItem => ({
+      ...itemBarangKeluar(id),
+      url: '/api/test',
+      createdAt: new Date(Date.now() - DELAPAN_HARI_MS).toISOString(),
+    });
+
+    const itemKegiatan = (id: number): SyncQueueItem => ({
+      id,
+      url: '/api/presurvei/kegiatan',
+      method: 'POST' as const,
+      body: JSON.stringify({ jenis: 'TELEPON', requestId: `kegiatan-${id}` }),
+      status: 'PENDING' as const,
+      meta: JSON.stringify({ requestId: `kegiatan-${id}` }),
+      createdAt: new Date().toISOString(),
+    });
+
+    const galatServer = (status: number, error: string, code?: string) => ({
+      isAxiosError: true,
+      response: { status, data: { success: false, error, code } },
+    });
+
+    beforeEach(() => {
+      jest.spyOn(SyncService, 'isOnline').mockResolvedValue(true);
+      mockSecureStoreGetItemAsync.mockResolvedValue('test-token');
+    });
+
+    it('beberapa item gagal: satu toast menyebut jumlahnya, bukan satu toast per item', async () => {
+      mockApiRequest.mockRejectedValue(galatServer(400, 'Stok tidak cukup'));
+      mockDatabaseGetPendingQueue.mockResolvedValue([itemBarangKeluar(31), itemKedaluwarsa(32), itemBarangKeluar(33)]);
+
+      await SyncService.processQueue();
+
+      expect(mockPresentErrorMessage).toHaveBeenCalledTimes(1);
+      expect(mockPresentErrorMessage).toHaveBeenCalledWith(
+        '3 data offline tidak terkirim. Silakan periksa dan kirim ulang.',
+        'Sinkronisasi Gagal',
+      );
+    });
+
+    it('satu item gagal: pesannya sendiri tetap tampil apa adanya', async () => {
+      mockApiRequest.mockRejectedValue(galatServer(400, 'Stok tidak cukup'));
+      mockDatabaseGetPendingQueue.mockResolvedValue([itemBarangKeluar(34)]);
+
+      await SyncService.processQueue();
+
+      expect(mockPresentErrorMessage).toHaveBeenCalledTimes(1);
+      expect(mockPresentErrorMessage).toHaveBeenCalledWith('Data dibatalkan: Stok tidak cukup', 'Gagal Sync Barang Keluar');
+    });
+
+    it('beberapa item yang ternyata sudah tercatat: satu toast info', async () => {
+      mockApiRequest.mockRejectedValue(galatServer(409, 'Galat idempotensi', 'IDEMPOTENCY_KEY_REUSED'));
+      mockDatabaseGetPendingQueue.mockResolvedValue([itemKegiatan(35), itemKegiatan(36)]);
+
+      await SyncService.processQueue();
+
+      expect(mockPresentInfoMessage).toHaveBeenCalledTimes(1);
+      expect(mockPresentInfoMessage).toHaveBeenCalledWith('Data offline sudah tercatat sebelumnya.');
+    });
+
+    it('galat dan item yang sudah tercatat dalam satu drain: yang tampil hanya galatnya', async () => {
+      mockApiRequest.mockImplementation(async (config) => {
+        throw String(config.url).includes('barang')
+          ? galatServer(400, 'Stok tidak cukup')
+          : galatServer(409, 'Galat idempotensi', 'IDEMPOTENCY_KEY_REUSED');
+      });
+      mockDatabaseGetPendingQueue.mockResolvedValue([itemBarangKeluar(37), itemKegiatan(38)]);
+
+      await SyncService.processQueue();
+
+      expect(mockPresentErrorMessage).toHaveBeenCalledTimes(1);
+      expect(mockPresentErrorMessage).toHaveBeenCalledWith('Data dibatalkan: Stok tidak cukup', 'Gagal Sync Barang Keluar');
+      expect(mockPresentInfoMessage).not.toHaveBeenCalled();
+    });
+  });
 });

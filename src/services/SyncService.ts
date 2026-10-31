@@ -5,6 +5,7 @@ import { AppState, DeviceEventEmitter } from 'react-native';
 import { DatabaseService, SyncQueueItem } from './DatabaseService';
 import * as SecureStore from 'expo-secure-store'; // Ensure SyncQueueItem is exported
 import { presentErrorMessage, presentInfoMessage } from '@/utils/errorPresenter';
+import { laporkanPesanSinkron, ringkasPesanSelama } from './ringkasanPesanSinkron';
 import { logger } from '../utils/logger';
 import { uploadService, UploadType } from './UploadService';
 import { eventManager } from '@/utils/EventManager';
@@ -112,7 +113,7 @@ const tuntaskanItemSudahTercatat = async (item: SyncQueueItem, requestId: string
         payload: { requestId, reason: 'idempotency_key_reused' },
     });
     DeviceEventEmitter.emit('sync:succeeded', { endpoint: item.url, method: item.method, requestId });
-    presentInfoMessage(PESAN_SUDAH_TERCATAT);
+    laporkanPesanSinkron('info', () => presentInfoMessage(PESAN_SUDAH_TERCATAT));
 };
 
 class SyncQueuePhotoUploadError extends Error {}
@@ -285,10 +286,11 @@ export const SyncService = {
 
         const limit = pLimit(concurrency);
 
-        // Process all items with concurrency limit
-        const promises = prioritizedQueue.map(item => limit(() => SyncService.processQueueItem(item, token)));
-
-        await Promise.allSettled(promises);
+        // Process all items with concurrency limit; pesan per item diringkas
+        // jadi satu toast setelah semuanya selesai.
+        await ringkasPesanSelama(() =>
+            Promise.allSettled(prioritizedQueue.map(item => limit(() => SyncService.processQueueItem(item, token)))),
+        );
 
         logger.sync('[SyncService] Queue processing batch complete.');
     } catch (error) {
@@ -324,10 +326,10 @@ export const SyncService = {
           // tidak tahu attendance/work-order mereka hilang setelah lama
           // offline.
           const ageHours = Math.round(itemAge / (60 * 60 * 1000));
-          presentErrorMessage(
+          laporkanPesanSinkron('galat', () => presentErrorMessage(
               `Data offline (${ageHours} jam) sudah kedaluwarsa dan dihapus. Silakan submit ulang.`,
               'Data Antrean Kedaluwarsa',
-          );
+          ));
           return;
       }
 
@@ -348,10 +350,10 @@ export const SyncService = {
             outcome: 'permanent_failed',
             payload: { reason: 'retry_budget_exceeded', retryCount: globalRetry },
           });
-          presentErrorMessage(
+          laporkanPesanSinkron('galat', () => presentErrorMessage(
             'Data offline gagal disinkron setelah beberapa percobaan. Silakan submit ulang.',
             'Sinkronisasi Gagal',
-          );
+          ));
           return;
       }
 
@@ -361,10 +363,10 @@ export const SyncService = {
       } catch (error) {
           logger.error('[SyncService] Invalid queued payload, removing item:', error);
           await DatabaseService.removeFromQueue(item.id);
-          presentErrorMessage(
+          laporkanPesanSinkron('galat', () => presentErrorMessage(
               'Ada data offline yang tidak bisa diproses dan dibatalkan.',
               'Data Antrean Rusak'
-          );
+          ));
           return;
       }
 
@@ -641,10 +643,10 @@ export const SyncService = {
                      else if (urlPart.includes('keluar')) title = 'Gagal Sync Barang Keluar';
                      else if (urlPart.includes('check-in')) title = 'Gagal Sync Absensi';
 
-                     presentErrorMessage(
+                     laporkanPesanSinkron('galat', () => presentErrorMessage(
                          `Data dibatalkan: ${errorMsg}`,
                          title
-                     );
+                     ));
                      return; // Permanent failure, exit
                 }
             }
