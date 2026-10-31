@@ -5,7 +5,10 @@ import { statusLayananPelanggan } from '@/utils/statusLayananPelanggan';
 /**
  * Turunan yang sama dengan `getServiceStatusLabel` di portal web
  * (netmanager `app/(customer)/dashboard/service-status.ts`): status pelanggan
- * lebih dulu, karena pelanggan isolir tetap online di pool isolir.
+ * lebih dulu, karena pelanggan isolir tetap online di pool isolir. Pelanggan
+ * dalam perbaikan atau dibongkar juga bisa masih online (sesi DISMANTLE baru
+ * diputus hingga 15 menit kemudian), jadi sesi saja tidak boleh menyebutnya
+ * "Aktif & Stabil".
  */
 const dasar = { statusPelanggan: 'AKTIF', isKoneksiSiap: true, isOnline: true, isAdaTunggakan: false };
 
@@ -17,7 +20,9 @@ describe('statusLayananPelanggan', () => {
     ['isolir karena tunggakan', { statusPelanggan: 'ISOLIR', isAdaTunggakan: true }, 'Diisolir – bayar tagihan', 'gagal'],
     ['isolir tanpa tunggakan (manual admin)', { statusPelanggan: 'ISOLIR' }, 'Diisolir – hubungi admin/CS', 'gagal'],
     ['nonaktif', { statusPelanggan: 'NONAKTIF' }, 'Layanan nonaktif', 'gagal'],
-    ['maintenance mengikuti koneksi', { statusPelanggan: 'MAINTENANCE' }, 'Aktif & Stabil', 'berhasil'],
+    ['dalam perbaikan walau sesi online', { statusPelanggan: 'MAINTENANCE' }, 'Dalam perbaikan teknisi', 'menunggu'],
+    ['dalam perbaikan dan sesi putus', { statusPelanggan: 'MAINTENANCE', isOnline: false }, 'Dalam perbaikan teknisi', 'menunggu'],
+    ['dibongkar, sesi belum diputus', { statusPelanggan: 'DISMANTLE' }, 'Berhenti berlangganan', 'gagal'],
   ])('%s', (_kasus, ubah, label, nada) => {
     expect(statusLayananPelanggan({ ...dasar, ...ubah })).toEqual({ label, nada });
   });

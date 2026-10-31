@@ -11,8 +11,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
 import { useJumlahKabarBelumDibaca } from '@/hooks/queries/useKabarPelanggan';
 import type { RingkasanBerandaPelanggan } from '@/types/portalPelanggan';
+import type { NadaStatus } from '@/constants/status';
 
 type TagihanBeranda = NonNullable<RingkasanBerandaPelanggan['billing']>['data'];
+
+/** Warna titik & label status layanan; titik berdenyut hanya saat layanan sehat. */
+const GAYA_NADA_LAYANAN: Readonly<Record<NadaStatus, { denyut: string; titik: string; teks: string }>> = {
+  berhasil: { denyut: 'bg-green-400 animate-ping', titik: 'bg-green-500', teks: 'text-green-600' },
+  menunggu: { denyut: 'bg-amber-400', titik: 'bg-amber-500', teks: 'text-amber-600' },
+  gagal: { denyut: 'bg-red-400', titik: 'bg-red-500', teks: 'text-red-600' },
+  netral: { denyut: 'bg-gray-400', titik: 'bg-gray-500', teks: 'text-gray-600' },
+};
 
 /** Keterangan di bawah nominal tagihan; tagihan yang tidak terbaca tidak disebut lunas. */
 function keteranganTagihan(tagihan: TagihanBeranda | null | undefined, isMemuat: boolean): string {
@@ -48,7 +57,7 @@ export default function CustomerDashboardScreen() {
     isOnline: data?.connection?.data?.isOnline ?? false,
     isAdaTunggakan,
   });
-  const isSehat = statusLayanan.nada === 'berhasil';
+  const gayaStatus = GAYA_NADA_LAYANAN[statusLayanan.nada];
   const packageName = profil?.paket?.nama || 'Belum berlangganan';
   const speed = profil?.paket?.bandwidth?.download || '0 Mbps';
 
@@ -91,10 +100,10 @@ export default function CustomerDashboardScreen() {
                     style={tw`w-2.5 h-2.5 mr-2 relative`}
                     accessibilityLabel={`Status layanan: ${statusLayanan.label}`}
                   >
-                    <View style={tw`absolute inset-0 rounded-full opacity-75 ${isSehat ? 'bg-green-400 animate-ping' : 'bg-red-400'}`} />
-                    <View style={tw`absolute inset-0 rounded-full ${isSehat ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <View style={tw`absolute inset-0 rounded-full opacity-75 ${gayaStatus.denyut}`} />
+                    <View style={tw`absolute inset-0 rounded-full ${gayaStatus.titik}`} />
                   </View>
-                  <Text style={tw`text-xs font-bold ${isSehat ? 'text-green-600' : 'text-red-600'}`}>
+                  <Text style={tw`text-xs font-bold ${gayaStatus.teks}`}>
                     {isLoading ? 'Memeriksa status…' : statusLayanan.label}
                   </Text>
                 </View>
