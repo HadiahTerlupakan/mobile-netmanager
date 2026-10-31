@@ -90,13 +90,18 @@ export const TagihanPelangganService = {
     return Array.isArray(daftar) ? daftar : [];
   },
 
-  /** Buat checkout, atau ganti checkout yang menunggu dengan metode lain. */
+  /**
+   * Buat checkout, atau ganti checkout yang menunggu dengan metode lain.
+   * `returnTo: "app"`: halaman kembali gateway mengarahkan browser ke
+   * `netmanager://tagihan`, bukan ke portal web.
+   */
   async buatPembayaran({ invoiceIds, kodeKupon, kodeMetode }: PermintaanPembayaran): Promise<CheckoutBaru> {
     const response = await api.post(URL_PEMBAYARAN, {
       invoiceIds,
       couponCode: kodeKupon,
       paymentMethod: kodeMetode,
       notes: 'Payment via Mobile App',
+      returnTo: 'app',
     });
     return {
       paymentUrl: ambilMuatan<string>(response.data, 'paymentUrl') ?? null,

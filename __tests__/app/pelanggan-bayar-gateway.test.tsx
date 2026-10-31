@@ -41,8 +41,7 @@ jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
 jest.mock('expo-image-picker', () => ({}));
 jest.mock('@/utils/simpanQrisKeGaleri', () => ({ simpanQrisKeGaleri: jest.fn() }));
 jest.mock('expo-web-browser', () => ({
-  openBrowserAsync: (...args: unknown[]) => mockBukaBrowser(...(args as [])),
-  WebBrowserPresentationStyle: { PAGE_SHEET: 'pageSheet' },
+  openAuthSessionAsync: (...args: unknown[]) => mockBukaBrowser(...(args as [])),
 }));
 jest.mock('@/services/TokenService', () => ({ TokenService: { getToken: jest.fn() } }));
 jest.mock('@/services/TenantService', () => ({ TenantService: { getTenantUrl: jest.fn() } }));

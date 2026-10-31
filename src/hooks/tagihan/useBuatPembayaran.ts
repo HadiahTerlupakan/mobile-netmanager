@@ -7,15 +7,25 @@ import { logger } from '@/utils/logger';
 
 /** teal-600 */
 const WARNA_KONTROL_BROWSER = '#0d9488';
+/** Tujuan halaman kembali gateway untuk checkout `returnTo: "app"` (scheme di app.json). */
+const URL_KEMBALI_KE_APLIKASI = 'netmanager://tagihan';
 
 const isKodeTransferManual = (kode: string) => kode.startsWith('MANUAL_') || kode === 'MOOTA_MANUAL';
 
-/** Halaman bayar gateway, untuk metode tanpa nomor VA atau QRIS. */
-export function bukaHalamanBayar(url: string) {
-  return WebBrowser.openBrowserAsync(url, {
-    presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+/** Hasil halaman bayar: `success` berarti gateway mengembalikan pelanggan ke aplikasi. */
+export type HasilHalamanBayar = WebBrowser.WebBrowserAuthSessionResult;
+
+/**
+ * Halaman bayar gateway, untuk metode tanpa nomor VA atau QRIS. Dibuka
+ * sebagai sesi yang selesai saat browser diarahkan ke `netmanager://tagihan`,
+ * jadi tab browser tertutup sendiri. Sesi efemeral: di iOS tanpa itu sistem
+ * menanyakan izin "masuk" seolah halaman bayar adalah halaman login.
+ */
+export function bukaHalamanBayar(url: string): Promise<HasilHalamanBayar> {
+  return WebBrowser.openAuthSessionAsync(url, URL_KEMBALI_KE_APLIKASI, {
     controlsColor: WARNA_KONTROL_BROWSER,
     toolbarColor: '#ffffff',
+    preferEphemeralSession: true,
   });
 }
 
@@ -26,10 +36,12 @@ interface OpsiBuatPembayaran {
    * kedua tidak mengganti checkout yang baru dibuat.
    */
   onDibuat: () => Promise<unknown>;
+  /** Pelanggan kembali dari halaman bayar gateway (atau menutupnya sendiri). */
+  onKembaliDariHalamanBayar: (hasil: HasilHalamanBayar) => void;
 }
 
 /** Buat checkout (atau ganti checkout yang menunggu) untuk tagihan terutang. */
-export function useBuatPembayaran({ onDibuat }: OpsiBuatPembayaran) {
+export function useBuatPembayaran({ onDibuat, onKembaliDariHalamanBayar }: OpsiBuatPembayaran) {
   return useMutation({
     // Gateway bisa sudah membuat checkout sebelum 5xx atau timeout sampai ke
     // aplikasi; mengulang POST berarti checkout kedua untuk satu ketukan.
@@ -43,8 +55,7 @@ export function useBuatPembayaran({ onDibuat }: OpsiBuatPembayaran) {
       if (isKodeTransferManual(kodeMetode)) {
         presentInfoMessage('Silakan lanjutkan transfer manual Anda.', 'Menunggu');
       } else if (checkout.paymentUrl && !checkout.vaNumber && !checkout.qrString) {
-        await bukaHalamanBayar(checkout.paymentUrl);
-        await onDibuat();
+        void bukaHalamanBayar(checkout.paymentUrl).then(onKembaliDariHalamanBayar);
       }
     },
     onError: (error) => {

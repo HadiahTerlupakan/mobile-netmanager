@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { isMenungguPelunasan } from '@/hooks/usePembayaranLunas';
 import { queryKeys } from '@/lib/queryClient';
@@ -81,11 +81,18 @@ export type MuatUlangTagihan = () => Promise<{ data?: DataTagihanPelanggan; erro
 
 /** Tagihan terbuka pelanggan, dipolling selama ada checkout yang dipantau. */
 export function useTagihanPelanggan() {
+  const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: queryKeys.portalPelanggan.tagihan(),
     queryFn: ({ client, queryKey }) => ambilDataTagihan(client.getQueryData<DataTagihanPelanggan>(queryKey)),
     refetchInterval: (kueri) => (isPerluDipolling(kueri.state.data) ? INTERVAL_CEK_PEMBAYARAN_MS : false),
   });
   const ringkasan = useMemo(() => ringkasTagihan(query.data), [query.data]);
-  return { ...query, ringkasan };
+  // Dibaca dari cache saat dipanggil: checkout yang baru dibuat sudah ada di
+  // sana sebelum layar sempat dirender ulang dengan data itu.
+  const ambilTagihanMenunggu = useCallback(
+    () => ringkasTagihan(queryClient.getQueryData<DataTagihanPelanggan>(queryKeys.portalPelanggan.tagihan())).tagihanMenunggu,
+    [queryClient],
+  );
+  return { ...query, ringkasan, ambilTagihanMenunggu };
 }

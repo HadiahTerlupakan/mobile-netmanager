@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query';
 
 import type { MuatUlangTagihan } from '@/hooks/tagihan/useTagihanPelanggan';
 import { TagihanPelangganService } from '@/services/TagihanPelangganService';
+import type { TagihanPelanggan } from '@/types/portalPelanggan';
 import { presentAppError, presentErrorMessage, presentInfoMessage } from '@/utils/errorPresenter';
 import { adalahKegagalanJaringan } from '@/utils/kegagalanJaringan';
 import { logger } from '@/utils/logger';
@@ -26,7 +27,8 @@ function tampilkanGalatCekStatus(error: unknown) {
 }
 
 interface OpsiCekStatus {
-  invoiceId: string | undefined;
+  /** Tagihan yang checkout-nya menunggu, dibaca saat pengecekan berjalan. */
+  ambilTagihanMenunggu: () => TagihanPelanggan | undefined;
   muatUlang: MuatUlangTagihan;
 }
 
@@ -36,11 +38,12 @@ interface OpsiCekStatus {
  * muncul dari daftar yang baru. `cek(false)` dipakai setelah pelanggan menutup
  * halaman bayar sendiri: checkout yang masih menunggu tidak perlu disebut.
  */
-export function useCekStatusPembayaran({ invoiceId, muatUlang }: OpsiCekStatus) {
+export function useCekStatusPembayaran({ ambilTagihanMenunggu, muatUlang }: OpsiCekStatus) {
   const cek = useMutation({
     retry: false,
     meta: { skipGlobalErrorToast: true },
     mutationFn: async (isLaporkanBelumDiterima: boolean) => {
+      const invoiceId = ambilTagihanMenunggu()?.id;
       const status = invoiceId ? await TagihanPelangganService.cekStatusPembayaran(invoiceId) : null;
       const hasil = await muatUlang();
       if (hasil.error) throw hasil.error;

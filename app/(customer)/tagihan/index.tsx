@@ -5,7 +5,7 @@ import { KartuRingkasanTagihan } from '@/components/organisms/tagihan/KartuRingk
 import { PanelRincianPembayaran } from '@/components/organisms/tagihan/PanelRincianPembayaran';
 import { useProfilPelanggan } from '@/hooks/queries/useAkunPelanggan';
 import { usePembayaranLunas } from '@/hooks/usePembayaranLunas';
-import { bukaHalamanBayar, useBuatPembayaran } from '@/hooks/tagihan/useBuatPembayaran';
+import { bukaHalamanBayar, useBuatPembayaran, type HasilHalamanBayar } from '@/hooks/tagihan/useBuatPembayaran';
 import { useHitungMundurPembayaran } from '@/hooks/tagihan/useHitungMundurPembayaran';
 import { useCekStatusPembayaran } from '@/hooks/tagihan/useCekStatusPembayaran';
 import { useKuponTagihan } from '@/hooks/tagihan/useKuponTagihan';
@@ -55,7 +55,7 @@ export default function CustomerTagihanScreen() {
   // Spinner tarik-segarkan hanya untuk tarikan pelanggan, bukan polling atau cek status.
   const [isMenarikUlang, setIsMenarikUlang] = useState(false);
 
-  const { data: dataTagihan, isLoading, refetch, ringkasan } = useTagihanPelanggan();
+  const { data: dataTagihan, isLoading, refetch, ringkasan, ambilTagihanMenunggu } = useTagihanPelanggan();
   const { terutang, totalTerutang, jatuhTempoTerdekat, tagihanMenunggu } = ringkasan;
   const kupon = useKuponTagihan(totalTerutang);
   const totalBayar = totalTerutang - (kupon.diskon?.amount ?? 0);
@@ -78,13 +78,17 @@ export default function CustomerTagihanScreen() {
   const pembayaranLunas = usePembayaranLunas(ringkasan.daftarPantauan, profil?.status);
   const hitungMundur = useHitungMundurPembayaran(pembayaranMenunggu?.expiresAt, muatUlang);
   usePantauStatusPembayaran({ tagihan: tagihanMenunggu, isAktif: !hitungMundur.isKedaluwarsa, muatUlang: refetch });
-  const cekStatus = useCekStatusPembayaran({ invoiceId: tagihanMenunggu?.id, muatUlang: refetch });
+  const cekStatus = useCekStatusPembayaran({ ambilTagihanMenunggu, muatUlang: refetch });
   const unggahBukti = useUnggahBuktiTransfer(muatUlang);
+  // Kembali lewat redirect gateway berarti pelanggan mungkin sudah membayar;
+  // tab yang ditutup sendiri tidak perlu disebut "belum diterima".
+  const kembaliDariHalamanBayar = (hasil: HasilHalamanBayar) => cekStatus.cek(hasil.type === 'success');
   const buatPembayaran = useBuatPembayaran({
     onDibuat: () => {
       panel.tutup();
       return refetch();
     },
+    onKembaliDariHalamanBayar: kembaliDariHalamanBayar,
   });
 
   const tarikUlang = async () => {
@@ -115,7 +119,7 @@ export default function CustomerTagihanScreen() {
         onSalin: salin,
         onSimpanQris: simpanQris,
         onCekStatus: () => cekStatus.cek(),
-        onBukaHalamanBayar: () => bukaHalamanBayar(pembayaranMenunggu.paymentUrl!),
+        onBukaHalamanBayar: () => void bukaHalamanBayar(pembayaranMenunggu.paymentUrl!).then(kembaliDariHalamanBayar),
         onGantiMetode: panel.bukaGantiMetode,
         onUnggahBukti: () => unggahBukti.pilihDanUnggah(tagihanMenunggu.id),
       }}
