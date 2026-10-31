@@ -1,62 +1,31 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { DashboardHeader } from '@/components/organisms/dashboard/DashboardHeader';
 import { useAuth } from '@/context/AuthContext';
-import api from '@/services/api';
-import { useQuery } from '@tanstack/react-query';
+import { useRingkasanBerandaPelanggan } from '@/hooks/queries/useBerandaPelanggan';
+import { statusLayananPelanggan } from '@/utils/statusLayananPelanggan';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ArrowRight, CheckCircle, FileText, Headset, History, Receipt, Rocket, Router, Zap } from 'lucide-react-native';
 import React, { useCallback } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import tw from 'twrnc';
-import { ambilMuatan } from '@/utils/responsPelanggan';
 import { useJumlahKabarBelumDibaca } from '@/hooks/queries/useKabarPelanggan';
+import type { RingkasanBerandaPelanggan } from '@/types/portalPelanggan';
 
-interface Invoice {
-  id: string;
-  status: string;
-  remainingAmount: string;
-  dueDate: string;
+type TagihanBeranda = NonNullable<RingkasanBerandaPelanggan['billing']>['data'];
+
+/** Keterangan di bawah nominal tagihan; tagihan yang tidak terbaca tidak disebut lunas. */
+function keteranganTagihan(tagihan: TagihanBeranda | null | undefined, isMemuat: boolean): string {
+  if (!tagihan) return isMemuat ? 'Memuat tagihan…' : 'Tagihan belum bisa diverifikasi';
+  if (tagihan.outstandingCount === 0 || !tagihan.nearestDueDate) return 'Tagihan Lunas';
+  return `Jatuh tempo: ${new Date(tagihan.nearestDueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 }
-
-const fetchDashboardData = async () => {
-  const [profileRes, usageRes, invoicesRes] = await Promise.all([
-    api.get('/api/customer/profile'),
-    api.get('/api/customer/usage'),
-    api.get('/api/customer/invoices?limit=20'),
-  ]);
-
-  const profile = profileRes.data.data?.profile || profileRes.data.profile;
-  const connection = usageRes.data.data?.connection || usageRes.data.connection;
-  const invoices = ambilMuatan<Invoice[]>(invoicesRes.data, 'invoices') ?? [];
-
-  const pendingInvoices = invoices.filter(
-    (inv: Invoice) => inv.status === 'SENT' || inv.status === 'OVERDUE'
-  );
-
-  const firstDue = pendingInvoices.length > 0 ? pendingInvoices[0].dueDate : null;
-  const totalAmount = pendingInvoices.reduce((sum: number, inv: Invoice) => sum + parseInt(inv.remainingAmount), 0);
-
-  return {
-    profile,
-    connection,
-    pendingInvoice: pendingInvoices.length > 0 ? {
-      count: pendingInvoices.length,
-      totalAmount,
-      dueDate: firstDue
-    } : null,
-  };
-};
 
 export default function CustomerDashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['customer-dashboard-full'],
-    queryFn: fetchDashboardData,
-    enabled: !!user // Only run if user exists
-  });
+  const { data, isLoading, isFetching, refetch } = useRingkasanBerandaPelanggan(!!user);
   const { data: jumlahBelumDibaca = 0, refetch: muatUlangJumlahBelumDibaca } = useJumlahKabarBelumDibaca();
 
   useFocusEffect(
@@ -70,9 +39,18 @@ export default function CustomerDashboardScreen() {
     refetch();
   }, [refetch]);
 
-  const isOnline = data?.connection?.isOnline ?? false;
-  const packageName = data?.profile?.paket?.nama || 'Belum berlangganan';
-  const speed = data?.profile?.paket?.bandwidth?.download || '0 Mbps';
+  const profil = data?.profile?.data;
+  const tagihan = data?.billing?.state === 'ready' ? data.billing.data : null;
+  const isAdaTunggakan = (tagihan?.outstandingCount ?? 0) > 0;
+  const statusLayanan = statusLayananPelanggan({
+    statusPelanggan: profil?.status,
+    isKoneksiSiap: data?.connection?.state === 'ready',
+    isOnline: data?.connection?.data?.isOnline ?? false,
+    isAdaTunggakan,
+  });
+  const isSehat = statusLayanan.nada === 'berhasil';
+  const packageName = profil?.paket?.nama || 'Belum berlangganan';
+  const speed = profil?.paket?.bandwidth?.download || '0 Mbps';
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>
@@ -94,7 +72,7 @@ export default function CustomerDashboardScreen() {
         {/* Greeting Section */}
         <View style={tw`px-6 pt-6 pb-2`}>
           <Text style={tw`text-sm font-medium text-gray-500`}>Selamat datang kembali,</Text>
-          <Text style={tw`text-2xl font-bold text-gray-900`}>{data?.profile?.nama || user?.name}</Text>
+          <Text style={tw`text-2xl font-bold text-gray-900`}>{profil?.nama || user?.name}</Text>
         </View>
 
         {/* Service Status Card */}
@@ -111,13 +89,13 @@ export default function CustomerDashboardScreen() {
                 <View style={tw`flex-row items-center mt-2`}>
                   <View
                     style={tw`w-2.5 h-2.5 mr-2 relative`}
-                    accessibilityLabel={isOnline ? "Status koneksi: aktif" : "Status koneksi: offline"}
+                    accessibilityLabel={`Status layanan: ${statusLayanan.label}`}
                   >
-                    <View style={tw`absolute inset-0 rounded-full opacity-75 ${isOnline ? 'bg-green-400 animate-ping' : 'bg-red-400'}`} />
-                    <View style={tw`absolute inset-0 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <View style={tw`absolute inset-0 rounded-full opacity-75 ${isSehat ? 'bg-green-400 animate-ping' : 'bg-red-400'}`} />
+                    <View style={tw`absolute inset-0 rounded-full ${isSehat ? 'bg-green-500' : 'bg-red-500'}`} />
                   </View>
-                  <Text style={tw`text-xs font-bold ${isOnline ? 'text-green-600' : 'text-red-600'}`}>
-                    {isOnline ? 'Aktif & Stabil' : 'Gangguan / Offline'}
+                  <Text style={tw`text-xs font-bold ${isSehat ? 'text-green-600' : 'text-red-600'}`}>
+                    {isLoading ? 'Memeriksa status…' : statusLayanan.label}
                   </Text>
                 </View>
               </View>
@@ -154,7 +132,7 @@ export default function CustomerDashboardScreen() {
                 <View>
                   <Text style={tw`text-teal-100 text-sm font-medium mb-1`}>Tagihan Bulan Ini</Text>
                   <Text style={tw`text-3xl font-bold text-white`}>
-                    Rp {(data?.pendingInvoice?.totalAmount || 0).toLocaleString('id-ID')}
+                    Rp {(tagihan?.outstandingAmount ?? 0).toLocaleString('id-ID')}
                   </Text>
                 </View>
                 <View style={tw`p-2 bg-white/20 rounded-lg`}>
@@ -163,11 +141,9 @@ export default function CustomerDashboardScreen() {
               </View>
 
               <View style={tw`flex-row items-center mb-4`}>
-                <View style={tw`w-2 h-2 rounded-full mr-2 ${data?.pendingInvoice ? 'bg-orange-400' : 'bg-green-400'}`} />
+                <View style={tw`w-2 h-2 rounded-full mr-2 ${isAdaTunggakan ? 'bg-orange-400' : 'bg-green-400'}`} />
                 <Text style={tw`text-sm font-medium text-teal-50`}>
-                  {data?.pendingInvoice?.dueDate
-                    ? `Jatuh tempo: ${new Date(data.pendingInvoice.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                    : 'Tagihan Lunas'}
+                  {keteranganTagihan(tagihan, isLoading)}
                 </Text>
               </View>
 
@@ -176,7 +152,7 @@ export default function CustomerDashboardScreen() {
                 style={tw`w-full bg-white py-3 px-4 rounded-lg flex-row items-center justify-center`}
               >
                 <Text style={tw`text-teal-700 font-bold text-sm mr-2`}>
-                  {data?.pendingInvoice ? 'Bayar Sekarang' : 'Lihat Riwayat'}
+                  {isAdaTunggakan ? 'Bayar Sekarang' : 'Lihat Riwayat'}
                 </Text>
                 <ArrowRight size={16} color="#0f766e" />
               </TouchableOpacity>

@@ -9,6 +9,7 @@ export const kunciPortalPelanggan = {
   daftarTiket: () => [...AKAR, "tiket", "daftar"] as const,
   tiket: (id: string) => [...AKAR, "tiket", "detail", id] as const,
   profil: () => [...AKAR, "profil"] as const,
+  beranda: () => [...AKAR, "beranda"] as const,
   paket: () => [...AKAR, "paket"] as const,
   notifikasi: () => [...AKAR, "notifikasi"] as const,
   jumlahBelumDibaca: () => [...AKAR, "notifikasi", "belum-dibaca"] as const,

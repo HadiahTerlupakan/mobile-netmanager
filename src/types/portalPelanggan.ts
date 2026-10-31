@@ -199,3 +199,21 @@ export interface MetodePembayaranPelanggan {
   group: string;
   details?: RekeningTransferManual;
 }
+
+/** Satu bagian ringkasan Beranda; bagian yang gagal dimuat server tidak menggagalkan bagian lain. */
+export interface BagianRingkasanBeranda<T> {
+  state: 'ready' | 'error';
+  data: T | null;
+  message?: string;
+}
+
+/** `GET /api/customer/dashboard/summary`: ringkasan yang juga dipakai dashboard portal web. */
+export interface RingkasanBerandaPelanggan {
+  profile?: BagianRingkasanBeranda<{
+    nama: string;
+    status: string;
+    paket: { nama: string; bandwidth: { download: string | number | null } | null } | null;
+  }>;
+  connection?: BagianRingkasanBeranda<{ isOnline: boolean }>;
+  billing?: BagianRingkasanBeranda<{ outstandingCount: number; outstandingAmount: number; nearestDueDate: string | null }>;
+}
