@@ -20,6 +20,20 @@ function maskToken(token: string): string {
     return `${token.slice(0, 4)}***${token.slice(-4)}`;
 }
 
+/**
+ * Opsi permintaan pendaftaran token. Sinkron berjalan di latar belakang: galatnya
+ * tidak tampil sebagai toast, dan 401 yang bertahan setelah refresh tidak
+ * mengakhiri sesi. Endpoint ini pernah menolak token pelanggan dengan 401, dan
+ * penangan 401 global mengeluarkan pelanggan beberapa detik setelah login.
+ */
+function opsiSinkronToken(action: 'add' | 'remove', token: string) {
+    return {
+        headers: { 'Idempotency-Key': `fcm-${action}-${token}` },
+        skipErrorToast: true,
+        skipSignOutOnUnauthorized: true,
+    };
+}
+
 class FirebaseMessagingService {
     private lastSyncedToken: string | null = null
 
@@ -146,10 +160,7 @@ class FirebaseMessagingService {
             logger.info(`[FCM] Sending token to backend: ${maskToken(token)}, action: ${action}`);
             logger.debug('[FCM] Payload:', { action, tokenLength: token.length });
 
-            await api.post(ENDPOINT_TOKEN_PER_AKUN[this.jenisAkun], payload, {
-                headers: { 'Idempotency-Key': `fcm-${action}-${token}` },
-                skipErrorToast: true,
-            });
+            await api.post(ENDPOINT_TOKEN_PER_AKUN[this.jenisAkun], payload, opsiSinkronToken(action, token));
 
             this.lastSyncedToken = token;
             this.lastSyncedAction = action;
@@ -194,10 +205,7 @@ class FirebaseMessagingService {
                 };
 
                 logger.debug('[FCM] Sending refreshed token to backend');
-                await api.post(ENDPOINT_TOKEN_PER_AKUN[this.jenisAkun], payload, {
-                    headers: { 'Idempotency-Key': `fcm-add-${newToken}` },
-                    skipErrorToast: true,
-                });
+                await api.post(ENDPOINT_TOKEN_PER_AKUN[this.jenisAkun], payload, opsiSinkronToken('add', newToken));
                 logger.info('[FCM] Refreshed token synced successfully');
             } catch (error) {
                 logger.error('[FCM] Error syncing refreshed token:', error);

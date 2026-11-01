@@ -38,7 +38,7 @@ Tidak ada `features/`, tidak ada `lib/api-client`, tidak ada route group `(tekni
 
 ## Auth & token flow (baca sebelum menyentuh auth)
 
-- `src/services/api.ts` — Axios interceptor: attach `Authorization`, deteksi 401 → refresh/retry → logout via `DeviceEventEmitter`.
+- `src/services/api.ts` — Axios interceptor: attach `Authorization`, deteksi 401 → refresh/retry → logout lewat `akhiriSesiAtas401` (`DeviceEventEmitter`), kecuali permintaan latar belakang ber-`skipSignOutOnUnauthorized` (sinkron token push).
 - `src/services/TokenService.ts` — token in-memory + decode JWT.
 - `src/services/RefreshTokenService.ts` — refresh token & session di `expo-secure-store`, proactive refresh.
 - Token disimpan di `expo-secure-store`; format auth mobile = JWT Bearer.

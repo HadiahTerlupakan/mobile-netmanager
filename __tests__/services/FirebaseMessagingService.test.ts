@@ -269,6 +269,51 @@ describe('FirebaseMessagingService', () => {
     expect(cleanup).toBe(unsubscribe);
   });
 
+  /**
+   * Endpoint token pernah menolak token pelanggan dengan 401, dan penangan 401
+   * global mengeluarkan pelanggan dari aplikasi tepat setelah login. Sinkron
+   * token berjalan di latar belakang; penolakannya tidak boleh mengakhiri sesi.
+   */
+  describe('sinkron token tidak pernah mengakhiri sesi', () => {
+    const TIDAK_MENGAKHIRI_SESI = expect.objectContaining({
+      skipSignOutOnUnauthorized: true,
+      skipErrorToast: true,
+    });
+
+    it.each(['add', 'remove'] as const)('aksi %s', async (action) => {
+      mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
+      mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(true);
+      mockGetToken.mockResolvedValue('fcm-token-123');
+      mockPost.mockResolvedValue({});
+
+      await loadService().syncFCMTokenToBackend(action);
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/mobile/fcm-token',
+        { fcmToken: 'fcm-token-123', action },
+        TIDAK_MENGAKHIRI_SESI,
+      );
+    });
+
+    it('token yang diperbarui FCM', async () => {
+      let refreshListener: ((token: string) => Promise<void> | void) | undefined;
+      mockOnTokenRefresh.mockImplementation((_messaging, listener) => {
+        refreshListener = listener;
+        return jest.fn();
+      });
+      mockPost.mockResolvedValue({});
+
+      loadService().onTokenRefresh();
+      await refreshListener?.('fcm-token-refreshed');
+
+      expect(mockPost).toHaveBeenCalledWith(
+        '/api/mobile/fcm-token',
+        { fcmToken: 'fcm-token-refreshed', action: 'add' },
+        TIDAK_MENGAKHIRI_SESI,
+      );
+    });
+  });
+
   it('does not write refreshed tokens to logs in clear text', async () => {
     const unsubscribe = jest.fn();
     let refreshListener: ((token: string) => Promise<void> | void) | undefined;

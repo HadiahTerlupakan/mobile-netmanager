@@ -132,6 +132,68 @@ describe('api service interceptors', () => {
     jest.useFakeTimers();
   });
 
+  /**
+   * Pendaftaran token push berjalan di latar belakang. Endpoint-nya pernah
+   * menolak token pelanggan dengan 401, dan penangan 401 mengeluarkan pelanggan
+   * dari aplikasi beberapa detik setelah login. Penolakan seperti itu bukan
+   * bukti sesinya berakhir: refresh dan coba ulang tetap dilakukan, tetapi
+   * permintaan itu tidak pernah menjadi alasan sesi diakhiri.
+   */
+  describe('permintaan latar belakang yang tidak boleh mengakhiri sesi', () => {
+    const configLatarBelakang = () => ({
+      url: '/api/mobile/fcm-token',
+      headers: {} as Record<string, string>,
+      method: 'post',
+      skipErrorToast: true,
+      skipSignOutOnUnauthorized: true,
+    });
+
+    const tolakCobaUlang = (onError: (error: unknown) => Promise<unknown>) =>
+      mockApi.mockImplementation((retryConfig: unknown) =>
+        onError({ config: retryConfig, response: { status: 401 } }),
+      );
+
+    it('401 tetap memicu refresh dan coba ulang, tetapi penolakan sesudahnya tidak mengeluarkan pengguna', async () => {
+      const onError = await loadResponseErrorHandler();
+      mockRefreshAccessToken.mockResolvedValue('token-baru');
+      tolakCobaUlang(onError);
+
+      await expect(
+        onError({ config: configLatarBelakang(), response: { status: 401 } }),
+      ).rejects.toBeDefined();
+
+      expect(mockRefreshAccessToken).toHaveBeenCalledTimes(1);
+      expect(mockApi).toHaveBeenCalledWith(
+        expect.objectContaining({
+          _isRetryAfterRefresh: true,
+          headers: { Authorization: 'Bearer token-baru' },
+        }),
+      );
+      expect(mockEmit).not.toHaveBeenCalledWith('auth:unauthorized');
+    });
+
+    it('refresh yang gagal pun tidak mengeluarkan pengguna dari permintaan latar belakang', async () => {
+      const onError = await loadResponseErrorHandler();
+      mockRefreshAccessToken.mockResolvedValue(null);
+      const error = { config: configLatarBelakang(), response: { status: 401 } };
+
+      await expect(onError(error)).rejects.toBe(error);
+      expect(mockEmit).not.toHaveBeenCalledWith('auth:unauthorized');
+    });
+
+    it('permintaan biasa tetap mengeluarkan pengguna bila 401 bertahan setelah refresh', async () => {
+      const onError = await loadResponseErrorHandler();
+      mockRefreshAccessToken.mockResolvedValue('token-baru');
+      tolakCobaUlang(onError);
+      const { skipSignOutOnUnauthorized: _diabaikan, ...configBiasa } = configLatarBelakang();
+
+      await expect(
+        onError({ config: configBiasa, response: { status: 401 } }),
+      ).rejects.toBeDefined();
+      expect(mockEmit).toHaveBeenCalledWith('auth:unauthorized');
+    });
+  });
+
   it('does not retry non-idempotent POST requests on timeout without an idempotency key', async () => {
     const onError = await loadResponseErrorHandler();
     const error = {

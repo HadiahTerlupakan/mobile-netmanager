@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger';
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import * as Crypto from 'expo-crypto';
 import { DeviceEventEmitter } from 'react-native';
+import { akhiriSesiAtas401 } from '@/services/akhiriSesiAtas401';
 import { networkStateService } from '@/services/NetworkStateService';
 import { tampilkanGalatOtomatis } from '@/services/redamGalatOtomatis';
 import { showToast } from '@/utils/errorPresenter';
@@ -17,6 +18,12 @@ import { showToast } from '@/utils/errorPresenter';
 declare module "axios" {
   export interface AxiosRequestConfig {
     skipGlobalAuthHandler?: boolean;
+    /**
+     * 401 tetap memicu refresh token dan coba ulang, tetapi tidak pernah
+     * mengakhiri sesi. Untuk permintaan latar belakang yang penolakannya bukan
+     * bukti sesi berakhir, seperti pendaftaran token push.
+     */
+    skipSignOutOnUnauthorized?: boolean;
     skipRetry?: boolean;
     _retryCount?: number;
     _isRetryAfterRefresh?: boolean;
@@ -29,24 +36,6 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
 const IDEMPOTENT_METHODS = new Set(['get', 'head', 'options']);
-
-/**
- * Throttle untuk Events.AUTH_UNAUTHORIZED. Tanpa throttle, 5 paralel request
- * yang gagal refresh token akan emit event 5x → AuthContext.signOut dijalankan
- * 5x cepat berturut-turut → race antara setIsLoading, queryClient.clear,
- * router navigation → blank screen / flicker. Throttle 1 detik cukup untuk
- * coalesce burst yang berasal dari 1 sebab (token expired).
- */
-const AUTH_UNAUTHORIZED_THROTTLE_MS = 1000;
-let lastAuthUnauthorizedEmittedAt = 0;
-const emitAuthUnauthorizedThrottled = () => {
-  const now = Date.now();
-  if (now - lastAuthUnauthorizedEmittedAt < AUTH_UNAUTHORIZED_THROTTLE_MS) {
-    return;
-  }
-  lastAuthUnauthorizedEmittedAt = now;
-  DeviceEventEmitter.emit(Events.AUTH_UNAUTHORIZED);
-};
 
 const getHeaderValue = (headers: AxiosRequestConfig['headers'], headerName: string): string | undefined => {
   if (!headers) {
@@ -276,8 +265,8 @@ api.interceptors.response.use(
 
       // Don't retry refresh if this is already a retry after refresh
       if (config._isRetryAfterRefresh) {
-        logger.warn(`[API] 401 after token refresh from ${config.url}. Emitting AUTH_UNAUTHORIZED.`);
-        emitAuthUnauthorizedThrottled();
+        logger.warn(`[API] 401 after token refresh from ${config.url}.`);
+        akhiriSesiAtas401(config);
         return Promise.reject(error);
       }
 
@@ -298,8 +287,8 @@ api.interceptors.response.use(
         logger.error('[API] Token refresh failed:', refreshError);
       }
 
-      logger.warn(`[API] Token refresh failed or no refresh token. Emitting AUTH_UNAUTHORIZED.`);
-      emitAuthUnauthorizedThrottled();
+      logger.warn(`[API] Token refresh failed or no refresh token.`);
+      akhiriSesiAtas401(config);
       return Promise.reject(error);
     }
     return Promise.reject(error);
