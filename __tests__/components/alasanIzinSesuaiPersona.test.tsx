@@ -27,9 +27,12 @@ jest.mock('lucide-react-native', () => ({
   Bell: 'Bell',
   Clock: 'Clock',
   ClipboardList: 'ClipboardList',
+  FileText: 'FileText',
   MessageCircle: 'MessageCircle',
   MapPin: 'MapPin',
   ShieldCheck: 'ShieldCheck',
+  Wallet: 'Wallet',
+  Wifi: 'Wifi',
 }));
 
 const FITUR_STAFF = ['m_dashboard', 'm_absensi', 'm_lembur', 'm_izin', 'm_holidays', 'm_chat'];
@@ -92,5 +95,23 @@ describe('alasan dialog izin mengikuti izin pengguna', () => {
     const { getByText } = renderDialogNotifikasi(['m_dashboard']);
 
     expect(getByText(ALASAN_WORK_ORDER_NOTIFIKASI)).toBeTruthy();
+  });
+
+  // Push yang benar-benar dikirim ke pelanggan: tagihan dan pengingatnya,
+  // perubahan status layanan, dan hasil pembayaran.
+  it('menjanjikan kabar tagihan, layanan, dan pembayaran kepada pelanggan', () => {
+    mockUseAuth.mockReturnValue({ user: { id: 'c1', role: 'CUSTOMER' } });
+    const {
+      PermintaanIzinNotifikasi,
+    } = require('@/components/organisms/notifikasi/PermintaanIzinNotifikasi');
+    const { getByText, queryByText } = render(
+      <PermintaanIzinNotifikasi visible onSetuju={jest.fn()} onTolak={jest.fn()} />,
+    );
+
+    expect(getByText('Tagihan baru dan pengingat jatuh tempo')).toBeTruthy();
+    expect(getByText('Status layanan: isolir, aktif kembali, atau ganti paket')).toBeTruthy();
+    expect(getByText('Pembayaran diterima, ditolak, atau dibatalkan')).toBeTruthy();
+    expect(queryByText(ALASAN_WORK_ORDER_NOTIFIKASI)).toBeNull();
+    expect(queryByText('Pengingat absensi dan persetujuan izin')).toBeNull();
   });
 });

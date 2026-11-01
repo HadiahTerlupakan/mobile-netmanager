@@ -7,13 +7,23 @@
  * order baru dan teknisi yang baru tahu saat membuka aplikasi.
  */
 
-import { Bell, Clock, ClipboardList, MessageCircle } from 'lucide-react-native';
+import {
+  Bell,
+  Clock,
+  ClipboardList,
+  FileText,
+  MessageCircle,
+  Wallet,
+  Wifi,
+  type LucideIcon,
+} from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import { Modal, Text, TouchableOpacity, View } from 'react-native';
 
 import { AppFeature } from '@/constants/features';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, type User } from '@/context/AuthContext';
 import { useTemaPersona } from '@/theme';
+import { isAkunPelanggan } from '@/utils/pelanggan';
 import { punyaFitur } from '@/utils/persona';
 
 interface PermintaanIzinNotifikasiProps {
@@ -30,11 +40,35 @@ interface PermintaanIzinNotifikasiProps {
  * ke Anda" — pemberitahuan yang tidak akan pernah ia terima, dan justru
  * melemahkan alasan sebenarnya ia menyalakan notifikasi.
  */
-const ALASAN = [
+const ALASAN_KARYAWAN = [
   { Ikon: ClipboardList, teks: 'Work order baru yang ditugaskan ke Anda', fitur: AppFeature.WORK_ORDER },
   { Ikon: MessageCircle, teks: 'Balasan diskusi dan keluhan pelanggan', fitur: AppFeature.CHAT },
   { Ikon: Clock, teks: 'Pengingat absensi dan persetujuan izin', fitur: AppFeature.ABSENSI },
 ] as const;
+
+/**
+ * Push yang dikirim server ke pelanggan: tagihan dan pengingatnya, perubahan
+ * status layanan (aktif, isolir, nonaktif, ganti paket), dan hasil pembayaran.
+ */
+const ALASAN_PELANGGAN = [
+  { Ikon: FileText, teks: 'Tagihan baru dan pengingat jatuh tempo' },
+  { Ikon: Wifi, teks: 'Status layanan: isolir, aktif kembali, atau ganti paket' },
+  { Ikon: Wallet, teks: 'Pembayaran diterima, ditolak, atau dibatalkan' },
+] as const;
+
+interface AlasanIzin {
+  Ikon: LucideIcon;
+  teks: string;
+}
+
+/** Alasan yang benar untuk pembacanya: pelanggan, atau karyawan sesuai izinnya. */
+function pilihAlasan(user: User | null): readonly AlasanIzin[] {
+  if (isAkunPelanggan(user)) return ALASAN_PELANGGAN;
+  // Bila tak satu pun izin cocok, daftar kosong akan membuat dialog kehilangan
+  // alasannya; kembalikan seluruhnya daripada menampilkan kotak hampa.
+  const cocok = ALASAN_KARYAWAN.filter(({ fitur }) => punyaFitur(user, fitur));
+  return cocok.length > 0 ? cocok : ALASAN_KARYAWAN;
+}
 
 export function PermintaanIzinNotifikasi({
   visible,
@@ -44,12 +78,7 @@ export function PermintaanIzinNotifikasi({
   const { tw, warna } = useTemaPersona();
   const { user } = useAuth();
 
-  // Bila tak satu pun izin cocok, daftar kosong akan membuat dialog kehilangan
-  // alasannya; kembalikan seluruhnya daripada menampilkan kotak hampa.
-  const alasanTampil = useMemo(() => {
-    const cocok = ALASAN.filter(({ fitur }) => punyaFitur(user, fitur));
-    return cocok.length > 0 ? cocok : ALASAN;
-  }, [user]);
+  const alasanTampil = useMemo(() => pilihAlasan(user), [user]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onTolak}>

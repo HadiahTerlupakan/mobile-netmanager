@@ -10,11 +10,22 @@ import { Fragment } from "react";
 import tw from "twrnc";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { PermintaanIzinNotifikasi } from "@/components/organisms/notifikasi/PermintaanIzinNotifikasi";
+import { useIzinNotifikasi } from "@/hooks/useIzinNotifikasi";
+
 export default function CustomerLayout() {
   const insets = useSafeAreaInsets();
+  // Ditanya sekali, begitu pelanggan masuk. Tanpa izin ini token FCM-nya tidak
+  // pernah terdaftar (Android 13+, iOS), dan push tagihan tidak pernah sampai.
+  const izinNotifikasi = useIzinNotifikasi();
 
   return (
     <Fragment>
+      <PermintaanIzinNotifikasi
+        visible={izinNotifikasi.tampil}
+        onSetuju={izinNotifikasi.setuju}
+        onTolak={izinNotifikasi.tolak}
+      />
       <Tabs
         // Edit Profil, Ganti Password, Riwayat, dll. adalah tab tersembunyi.
         // Dengan bawaan `firstRoute`, router.back() dari sana selalu jatuh ke

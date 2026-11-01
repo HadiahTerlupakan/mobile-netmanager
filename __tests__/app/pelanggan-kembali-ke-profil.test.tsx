@@ -21,6 +21,15 @@ jest.mock('expo', () => ({
 jest.mock('expo-modules-core', () => ({ Platform: { OS: 'android' } }));
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
 jest.mock('twrnc', () => require('twrnc-kosong'));
+// Pre-prompt izin notifikasi punya pengujiannya sendiri
+// (pelanggan-izin-notifikasi.test.tsx) dan butuh AuthProvider, yang tidak
+// dipasang tes navigasi ini.
+jest.mock('@/hooks/useIzinNotifikasi', () => ({
+  useIzinNotifikasi: () => ({ tampil: false, setuju: jest.fn(), tolak: jest.fn() }),
+}));
+jest.mock('@/components/organisms/notifikasi/PermintaanIzinNotifikasi', () => ({
+  PermintaanIzinNotifikasi: () => null,
+}));
 
 import CustomerLayout from '../../app/(customer)/_layout';
 
