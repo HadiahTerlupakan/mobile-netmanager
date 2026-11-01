@@ -1,5 +1,6 @@
 import { ImageWithCache } from '@/components/atoms/ImageWithCache';
 import { FormSkeleton } from '@/components/molecules/FormSkeleton';
+import { SpandukPesanBarang } from '@/components/molecules/SpandukPesanBarang';
 import LoadingModal from "@/components/molecules/LoadingModal";
 import SelectionModal from "@/components/molecules/SelectionModal";
 import { useAuth } from "@/context/AuthContext";
@@ -11,8 +12,15 @@ import {
 import { queryKeys } from '@/lib/queryClient';
 import { SyncService } from "@/services/SyncService";
 import { uploadService } from "@/services/UploadService";
-import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
-import { InventoryMasukSchema, sanitizeInput, validateData } from "@/utils/validation";
+import { presentSuccessMessage } from "@/utils/errorPresenter";
+import {
+  jelaskanGalatBarang,
+  PESAN_IZIN_FOTO,
+  tampilkanAntreBarang,
+  tampilkanGalatBarang,
+  tampilkanIsianSalah,
+} from "@/utils/pesanGalatBarang";
+import { InventoryMasukSchema, sanitizeInput, validateDataPerBaris } from "@/utils/validation";
 import { Ionicons } from "@expo/vector-icons";
 
 import { formatDateRaw } from "@/utils/date";
@@ -87,6 +95,8 @@ export default function BarangMasukScreen() {
   const watermarkRefs = useRef<(View | null)[]>([]);
 
   const masukMutation = useApiMutation({
+    // Layar menampilkan Alert sendiri (toast bawaan hilang cepat & memotong kalimat).
+    showErrorAlert: false,
     endpoint: "/api/mobile/inventory/masuk",
     method: "POST",
     invalidateKeys: [queryKeys.inventory.master('masuk'), queryKeys.inventory.warehouses()],
@@ -108,7 +118,12 @@ export default function BarangMasukScreen() {
   })), [barangs]);
 
   // Api Query: Gudangs
-  const { data: gudangList, isPending: isLoadingGudangs } = useApiQuery<Gudang[]>({
+  const {
+    data: gudangList,
+    isPending: isLoadingGudangs,
+    error: galatGudang,
+    refetch: muatUlangGudang,
+  } = useApiQuery<Gudang[]>({
     queryKey: queryKeys.inventory.warehouses(),
     endpoint: "/api/mobile/inventory/gudang",
     select: (data: any) => data?.gudangList || [],
@@ -120,7 +135,12 @@ export default function BarangMasukScreen() {
   }, [gudangList]);
 
   // Api Query: Barangs (All items for selection)
-  const { data: barangData, isPending: isLoadingBarangs } = useApiQuery<Barang[]>({
+  const {
+    data: barangData,
+    isPending: isLoadingBarangs,
+    error: galatBarang,
+    refetch: muatUlangBarang,
+  } = useApiQuery<Barang[]>({
     queryKey: queryKeys.inventory.master('masuk'),
     endpoint: "/api/mobile/inventory/barang?mode=masuk",
     select: (data: any) => data?.barangList || [],
@@ -157,7 +177,7 @@ export default function BarangMasukScreen() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      presentInfoMessage("Izin akses galeri diperlukan", "Akses Ditolak");
+      tampilkanIsianSalah(PESAN_IZIN_FOTO.galeri.pesan, PESAN_IZIN_FOTO.galeri.judul);
       return;
     }
 
@@ -186,7 +206,7 @@ export default function BarangMasukScreen() {
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      presentInfoMessage("Izin akses kamera diperlukan", "Akses Ditolak");
+      tampilkanIsianSalah(PESAN_IZIN_FOTO.kamera.pesan, PESAN_IZIN_FOTO.kamera.judul);
       return;
     }
 
@@ -268,11 +288,16 @@ export default function BarangMasukScreen() {
     setPhotos([]);
   };
 
+  const selesaiMengirim = () => {
+    setShowLoading(false);
+    isSubmittingRef.current = false;
+    setSubmitting(false);
+  };
+
   const handleSubmit = async () => {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
 
-    // 1. Prepare & Sanitize Data
     const rawData = {
       barangId: selectedBarang,
       gudangId: selectedGudang,
@@ -281,104 +306,65 @@ export default function BarangMasukScreen() {
       keterangan: sanitizeInput(keterangan),
     };
 
-    // 2. Validate
-    const validation = validateData(InventoryMasukSchema, rawData);
-
+    const validation = validateDataPerBaris(InventoryMasukSchema, rawData);
     if (!validation.success) {
-      presentInfoMessage(validation.error, "Data Tidak Valid");
+      tampilkanIsianSalah(validation.error);
       isSubmittingRef.current = false;
       return;
     }
 
-    // 1. Process Photos (Capture Watermark)
     setSubmitting(true);
     setShowLoading(true);
     setLoadingMessage("Memproses foto...");
 
     try {
       const processedPhotos = await processPhotos();
-
-      // 2. Check Connection
       const isOnline = await SyncService.isOnline();
-
-      // 3. Prepare Data from Validation
       const payload = validation.data;
 
+      let variables;
       if (isOnline) {
         try {
-          // Upload photos first
           setLoadingMessage("Mengupload foto...");
-          const uploadedUrls = await uploadPhotos(processedPhotos);
-
-          // Submit via Mutate (Online)
-          setLoadingMessage("Menyimpan data...");
-          masukMutation.mutate(
-            {
-              ...payload,
-              fotoBukti: uploadedUrls,
-            },
-            {
-              onSuccess: () => {
-                setShowLoading(false);
-                resetForm();
-                presentSuccessMessage("Barang masuk berhasil dicatat");
-                router.replace("/(app)/barang");
-              },
-              onError: (err) => {
-                setShowLoading(false);
-                presentAppError(err, {
-                  screen: 'InventoryInScreen',
-                  route: '/(app)/barang/masuk',
-                });
-              },
-            },
-          );
+          variables = { ...payload, fotoBukti: await uploadPhotos(processedPhotos) };
         } catch (error) {
-          setShowLoading(false);
-          presentAppError(error, {
-            screen: 'InventoryInScreen',
-            route: '/(app)/barang/masuk',
-          });
-        } finally {
-          isSubmittingRef.current = false;
-          setSubmitting(false);
+          selesaiMengirim();
+          tampilkanGalatBarang(error, 'foto');
+          return;
         }
+        setLoadingMessage("Menyimpan data...");
       } else {
-        // Offline - Submit to Queue with Local URIs
+        // Offline: foto lokal ikut diantre dan diunggah SyncService nanti.
         setLoadingMessage("Menyimpan ke antrian offline...");
-        masukMutation.mutate(
-          {
-            ...payload,
-            fotoBukti: [], // Placeholder
-            meta: {
-              photos: processedPhotos, // Local URIs for SyncService
-              targetField: "fotoBukti",
-            },
-          },
-          {
-            onSuccess: (data) => {
-              setShowLoading(false);
-              const isOffline = isOfflineMutationQueuedResult(data);
-              if (isOffline) {
-                resetForm();
-                router.back();
-              }
-            },
-            onError: () => {
-              setShowLoading(false);
-            },
-          },
-        );
+        variables = {
+          ...payload,
+          fotoBukti: [],
+          meta: { photos: processedPhotos, targetField: "fotoBukti" },
+        };
       }
-    } catch (error) {
-      setShowLoading(false);
-      isSubmittingRef.current = false;
-      setSubmitting(false);
-      logger.error(error);
-      presentAppError(error, {
-        screen: 'InventoryInScreen',
-        route: '/(app)/barang/masuk',
+
+      masukMutation.mutate(variables, {
+        onSuccess: (data) => {
+          selesaiMengirim();
+          resetForm();
+          // Masuk antrean ≠ tercatat: jangan bilang "berhasil" sebelum terkirim.
+          if (isOfflineMutationQueuedResult(data)) {
+            tampilkanAntreBarang(data.alasan);
+            router.back();
+            return;
+          }
+          presentSuccessMessage("Barang masuk berhasil dicatat");
+          router.replace("/(app)/barang");
+        },
+        onError: (err) => {
+          selesaiMengirim();
+          tampilkanGalatBarang(err, 'simpan');
+        },
       });
+    } catch (error) {
+      selesaiMengirim();
+      logger.error(error);
+      tampilkanGalatBarang(error, 'simpan');
     }
   };
 
@@ -421,6 +407,18 @@ export default function BarangMasukScreen() {
               </Text>
               <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
             </TouchableOpacity>
+            {galatGudang ? (
+              <SpandukPesanBarang
+                {...jelaskanGalatBarang(galatGudang, 'muat')}
+                onCobaLagi={() => void muatUlangGudang()}
+              />
+            ) : gudangList?.length === 0 ? (
+              <SpandukPesanBarang
+                nada="info"
+                judul="Belum Ada Gudang"
+                pesan="Akun Anda belum terhubung ke gudang mana pun. Minta admin menghubungkan akun Anda ke gudang atau site."
+              />
+            ) : null}
           </View>
 
           {/* Barang Selection - Custom Modal */}
@@ -440,6 +438,14 @@ export default function BarangMasukScreen() {
               </Text>
               <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
             </TouchableOpacity>
+            {galatBarang ? (
+              <SpandukPesanBarang
+                {...jelaskanGalatBarang(galatBarang, 'muat')}
+                onCobaLagi={() => void muatUlangBarang()}
+              />
+            ) : barangData?.length === 0 ? (
+              <SpandukPesanBarang nada="info" judul="Belum Ada Barang" pesan="Belum ada barang yang terdaftar. Minta admin menambahkan barangnya dulu." />
+            ) : null}
 
             {selectedBarangData && (
               <View style={tw`mt-2 p-3 bg-utama-sangat-muda rounded-lg`}>

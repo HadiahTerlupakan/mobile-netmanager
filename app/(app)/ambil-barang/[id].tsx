@@ -5,8 +5,10 @@ import {
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
-import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
-import { WorkOrderMaterialBatchSchema, validateData } from "@/utils/validation";
+import { presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
+import { jelaskanGalatBarang, LABEL_KONDISI, tampilkanAntreBarang, tampilkanGalatBarang, tampilkanIsianSalah } from "@/utils/pesanGalatBarang";
+import { SpandukPesanBarang } from "@/components/molecules/SpandukPesanBarang";
+import { WorkOrderMaterialBatchSchema, validateDataPerBaris } from "@/utils/validation";
 import { FlashList } from "@shopify/flash-list";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -175,7 +177,7 @@ export default function AmbilBarangScreen() {
   const [initialQuantities, setInitialQuantities] = useState<Record<string, number>>({});
   const [woDataLoaded, setWoDataLoaded] = useState(false);
 
-  const { data: gudangData } = useApiQuery<{ gudangList: Gudang[] }>({
+  const { data: gudangData, error: galatGudang, refetch: muatUlangGudang } = useApiQuery<{ gudangList: Gudang[] }>({
     queryKey: ['gudang_list', workOrderId],
     endpoint: `/api/mobile/inventory/gudang?workOrderId=${workOrderId}`,
     enabled: !!token && !!workOrderId,
@@ -188,7 +190,7 @@ export default function AmbilBarangScreen() {
     enabled: !!token && !!workOrderId,
   });
 
-  const { data: barangData, isPending: loadingBarangNet, refetch: refetchBarang } = useApiQuery<{ barangList: Barang[] }>({
+  const { data: barangData, isPending: loadingBarangNet, refetch: refetchBarang, error: galatBarang } = useApiQuery<{ barangList: Barang[] }>({
     queryKey: ['barang_list', selectedGudang],
     endpoint: `/api/mobile/inventory/barang?gudangId=${selectedGudang}`,
     enabled: !!token && !!selectedGudang,
@@ -261,10 +263,12 @@ export default function AmbilBarangScreen() {
           newItems[existingIdx].jumlah += 1;
           return newItems;
         }
-        presentInfoMessage(`Maksimal stok tersedia: ${stok}`, "Stok Habis");
+        presentInfoMessage(`"${barang.nama}" tinggal ${stok}. Tidak bisa lebih.`, "Stok Tidak Cukup");
         return prev;
       }
       if (stok > 0) return [...prev, { barangId: barang.id, barang, gudangId: selectedGudang, jumlah: 1, kondisi }];
+      // Dulu diam saja: staf menekan barang berstok 0 dan tidak terjadi apa-apa.
+      presentInfoMessage(`"${barang.nama}" ${LABEL_KONDISI[kondisi]} di gudang ini habis.`, "Stok Habis");
       return prev;
     });
   }, [selectedGudang]);
@@ -280,7 +284,7 @@ export default function AmbilBarangScreen() {
         return newItems;
       }
       if (newQty > stok) {
-        presentInfoMessage(`Maksimal stok tersedia: ${stok}`, "Stok Habis");
+        presentInfoMessage(`"${item.barang.nama}" tinggal ${stok}. Tidak bisa lebih.`, "Stok Tidak Cukup");
         return prev;
       }
       const newItems = [...prev];
@@ -297,14 +301,23 @@ export default function AmbilBarangScreen() {
       const key = `${item.barangId}-${item.kondisi}`;
       const diff = item.jumlah - (initialQuantities[key] || 0);
       if (diff > 0) itemsToSend.push({ barangId: item.barangId, gudangId: item.gudangId, jumlah: diff, kondisi: item.kondisi });
-      else if (diff < 0) warnings.push(`${item.barang.nama} (${diff})`);
+      else if (diff < 0) warnings.push(`• ${item.barang.nama}: dikurangi ${-diff}`);
     }
-    if (warnings.length > 0) { presentInfoMessage(`Pengurangan barang belum didukung.\n${warnings.join("\n")}`, "Tidak Didukung"); return; }
-    if (itemsToSend.length === 0) { presentInfoMessage("Tidak ada penambahan barang baru.", "Info"); return; }
+    if (warnings.length > 0) {
+      tampilkanIsianSalah(
+        `Barang yang sudah diambil tidak bisa dikurangi di layar ini. Kalau ada sisa, pakai menu Kembalikan Barang.\n${warnings.join("\n")}`,
+        "Tidak Bisa Dikurangi",
+      );
+      return;
+    }
+    if (itemsToSend.length === 0) {
+      tampilkanIsianSalah("Belum ada barang baru yang ditambahkan. Tekan barang di daftar untuk menambahkannya.", "Belum Ada Barang");
+      return;
+    }
 
-    const validation = validateData(WorkOrderMaterialBatchSchema, { items: itemsToSend });
+    const validation = validateDataPerBaris(WorkOrderMaterialBatchSchema, { items: itemsToSend });
     if (!validation.success) {
-      presentInfoMessage(validation.error, "Data Tidak Valid");
+      tampilkanIsianSalah(validation.error);
       return;
     }
 
@@ -314,7 +327,7 @@ export default function AmbilBarangScreen() {
         setSubmitting(false);
         const isOffline = isOfflineMutationQueuedResult(data);
         if (isOffline) {
-          presentInfoMessage("Data diantrikan", "Offline");
+          tampilkanAntreBarang(data.alasan);
         } else {
           presentSuccessMessage("Barang diperbarui");
         }
@@ -322,10 +335,7 @@ export default function AmbilBarangScreen() {
       },
       onError: (err) => {
         setSubmitting(false);
-        presentAppError(err, {
-          screen: 'PickupItemScreen',
-          route: '/(app)/ambil-barang/[id]',
-        });
+        tampilkanGalatBarang(err, 'simpan');
       },
     });
   }, [selectedItems, initialQuantities, ambilBarangMutation, workOrderId, router]);
@@ -358,6 +368,12 @@ export default function AmbilBarangScreen() {
           </View>
           <ChevronDown size={20} color="#6b7280" />
         </TouchableOpacity>
+        {galatGudang && (
+          <SpandukPesanBarang {...jelaskanGalatBarang(galatGudang, 'muat')} onCobaLagi={() => void muatUlangGudang()} />
+        )}
+        {galatBarang && (
+          <SpandukPesanBarang {...jelaskanGalatBarang(galatBarang, 'muat')} onCobaLagi={() => void refetchBarang()} />
+        )}
       </View>
 
       <View style={tw`px-4 py-4 gap-3`}>
@@ -379,7 +395,7 @@ export default function AmbilBarangScreen() {
 
       <View style={tw`px-4 mb-2`}><Text style={tw`text-xs font-semibold text-gray-500 uppercase tracking-wide`}>Daftar Barang</Text></View>
     </View>
-  ), [router, selectedItems, selectedGudang, gudangs, search, showAllItems, updateQuantity, tw, warna.utama]);
+  ), [router, selectedItems, selectedGudang, gudangs, search, showAllItems, updateQuantity, tw, warna.utama, galatGudang, galatBarang, muatUlangGudang, refetchBarang]);
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={["top"]}>

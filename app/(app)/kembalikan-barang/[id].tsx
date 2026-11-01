@@ -5,8 +5,10 @@ import {
   useApiMutation,
   useApiQuery,
 } from "@/hooks/queries";
-import { presentAppError, presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
-import { WorkOrderMaterialBatchSchema, validateData } from "@/utils/validation";
+import { presentInfoMessage, presentSuccessMessage } from "@/utils/errorPresenter";
+import { jelaskanGalatBarang, tampilkanAntreBarang, tampilkanGalatBarang, tampilkanIsianSalah } from "@/utils/pesanGalatBarang";
+import { SpandukPesanBarang } from "@/components/molecules/SpandukPesanBarang";
+import { WorkOrderMaterialBatchSchema, validateDataPerBaris } from "@/utils/validation";
 import { FlashList } from "@shopify/flash-list";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -180,13 +182,13 @@ export default function KembalikanBarangScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [modeAsal, setModeAsal] = useState<AsalPengembalian>("SISA_MATERIAL");
 
-  const { data: gudangData } = useApiQuery<{ gudangList: Gudang[] }>({
+  const { data: gudangData, error: galatGudang, refetch: muatUlangGudang } = useApiQuery<{ gudangList: Gudang[] }>({
     queryKey: ['gudang_list', workOrderId],
     endpoint: `/api/mobile/inventory/gudang?workOrderId=${workOrderId}`,
     enabled: !!token && !!workOrderId,
   });
 
-  const { data: barangData, isPending: loadingBarangNet, refetch: refetchBarang } = useApiQuery<{ barangList: Barang[] }>({
+  const { data: barangData, isPending: loadingBarangNet, refetch: refetchBarang, error: galatBarang } = useApiQuery<{ barangList: Barang[] }>({
     queryKey: ['barang_list', 'masuk'],
     endpoint: "/api/mobile/inventory/barang?mode=masuk",
     enabled: !!token,
@@ -280,10 +282,7 @@ export default function KembalikanBarangScreen() {
     setSelectedItems((prev) => {
       const asal = modeAsal;
       if (asal === "SISA_MATERIAL" && sisaTersedia(barang.id, prev) < 1) {
-        presentInfoMessage(
-          "Jumlahnya sudah mencapai yang diambil untuk work order ini.",
-          "Sisa Habis",
-        );
+        presentInfoMessage("Tidak bisa melebihi jumlah yang Anda ambil.", "Sudah Mencapai Batas");
         return prev;
       }
 
@@ -310,10 +309,7 @@ export default function KembalikanBarangScreen() {
         item.asal === "SISA_MATERIAL" &&
         newQty > sisaTersedia(item.barangId, prev, idx)
       ) {
-        presentInfoMessage(
-          "Jumlahnya sudah mencapai yang diambil untuk work order ini.",
-          "Sisa Habis",
-        );
+        presentInfoMessage("Tidak bisa melebihi jumlah yang Anda ambil.", "Sudah Mencapai Batas");
         return prev;
       }
       const newItems = [...prev];
@@ -323,7 +319,15 @@ export default function KembalikanBarangScreen() {
   }, [sisaTersedia]);
 
   const handleSubmit = useCallback(async () => {
-    if (selectedItems.length === 0 || !selectedGudang) return;
+    // Dulu diam saja: tombol ditekan tanpa gudang dan tidak terjadi apa-apa.
+    if (selectedItems.length === 0) {
+      tampilkanIsianSalah("Belum ada barang yang dipilih. Tekan barang di daftar untuk menambahkannya.", "Belum Ada Barang");
+      return;
+    }
+    if (!selectedGudang) {
+      tampilkanIsianSalah("Gudang tujuan belum dipilih. Tekan kotak Gudang Tujuan, lalu pilih gudangnya.", "Pilih Gudang Dulu");
+      return;
+    }
 
     const itemsToSend = selectedItems.map((item) => ({
       barangId: item.barangId,
@@ -333,9 +337,9 @@ export default function KembalikanBarangScreen() {
       asal: item.asal,
     }));
 
-    const validation = validateData(WorkOrderMaterialBatchSchema, { items: itemsToSend });
+    const validation = validateDataPerBaris(WorkOrderMaterialBatchSchema, { items: itemsToSend });
     if (!validation.success) {
-      presentInfoMessage(validation.error, "Data Tidak Valid");
+      tampilkanIsianSalah(validation.error);
       return;
     }
 
@@ -345,7 +349,7 @@ export default function KembalikanBarangScreen() {
         setSubmitting(false);
         const isOffline = isOfflineMutationQueuedResult(data);
         if (isOffline) {
-          presentInfoMessage("Data diantrikan", "Offline");
+          tampilkanAntreBarang(data.alasan);
         } else {
           presentSuccessMessage("Barang berhasil dikembalikan");
         }
@@ -357,10 +361,7 @@ export default function KembalikanBarangScreen() {
       },
       onError: (err) => {
         setSubmitting(false);
-        presentAppError(err, {
-          screen: 'ReturnItemScreen',
-          route: '/(app)/kembalikan-barang/[id]',
-        });
+        tampilkanGalatBarang(err, 'simpan');
       },
     });
   }, [selectedItems, selectedGudang, returnMutation, workOrderId, router]);
@@ -411,6 +412,12 @@ export default function KembalikanBarangScreen() {
           </View>
           <ChevronDown size={20} color="#6b7280" />
         </TouchableOpacity>
+        {galatGudang && (
+          <SpandukPesanBarang {...jelaskanGalatBarang(galatGudang, 'muat')} onCobaLagi={() => void muatUlangGudang()} />
+        )}
+        {galatBarang && (
+          <SpandukPesanBarang {...jelaskanGalatBarang(galatBarang, 'muat')} onCobaLagi={() => void refetchBarang()} />
+        )}
       </View>
 
       <View style={tw`px-4 py-4 gap-3`}>
@@ -464,7 +471,7 @@ export default function KembalikanBarangScreen() {
         </Text>
       </View>
     </View>
-  ), [router, selectedGudang, gudangs, search, showAllItems, selectedItems, updateQuantity, modeAsal, bolehTarikanPelanggan]);
+  ), [router, selectedGudang, gudangs, search, showAllItems, selectedItems, updateQuantity, modeAsal, bolehTarikanPelanggan, galatGudang, galatBarang, muatUlangGudang, refetchBarang]);
 
   return (
     <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={["top"]}>

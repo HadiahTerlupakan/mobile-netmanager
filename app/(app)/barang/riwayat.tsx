@@ -1,4 +1,6 @@
 import { InventorySkeleton } from '@/components/molecules/InventorySkeleton';
+import { SpandukPesanBarang } from '@/components/molecules/SpandukPesanBarang';
+import { jelaskanGalatBarang } from '@/utils/pesanGalatBarang';
 import TransactionItem, { Transaction } from '@/components/molecules/TransactionItem';
 import { queryKeys } from '@/lib/queryClient';
 
@@ -33,6 +35,7 @@ export default function RiwayatBarangScreen() {
         isPending,
         isRefetching,
         refetch,
+        error,
     } = useInfiniteQuery({
         queryKey: queryKeys.inventory.history(filter),
         queryFn: async ({ pageParam = null }) => {
@@ -95,12 +98,25 @@ export default function RiwayatBarangScreen() {
         );
     }, [isFetchingNextPage, tw, warna.utamaTerang]);
 
-    const EmptyComponent = useMemo(() => (
-        <View style={tw`py-12 items-center`}>
-             <Ionicons name="document-text-outline" size={48} color="#9CA3AF" />
-             <Text style={tw`text-gray-500 mt-2`}>Belum ada transaksi</Text>
-        </View>
-    ), [tw]);
+    // Gagal dimuat ≠ belum ada transaksi: dulu keduanya tampil "Belum ada transaksi".
+    const EmptyComponent = useMemo(() => {
+        if (error) {
+            const penjelasan = jelaskanGalatBarang(error, 'muat');
+            return (
+                <SpandukPesanBarang
+                    judul={penjelasan.judul}
+                    pesan={penjelasan.pesan}
+                    onCobaLagi={() => void refetch()}
+                />
+            );
+        }
+        return (
+            <View style={tw`py-12 items-center`}>
+                <Ionicons name="document-text-outline" size={48} color="#9CA3AF" />
+                <Text style={tw`text-gray-500 mt-2 text-center px-6`}>Belum ada barang masuk atau keluar yang Anda catat.</Text>
+            </View>
+        );
+    }, [tw, error, refetch]);
 
     return (
         <SafeAreaView style={tw`flex-1 bg-gray-50`} edges={['top']}>

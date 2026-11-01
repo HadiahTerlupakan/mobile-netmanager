@@ -137,30 +137,56 @@ export const ClaimPointSchema = z.object({
 });
 
 // Inventory Masuk Schema
+// Pesan isian barang dibaca staf lapangan: sebut apa yang kurang dan apa
+// yang harus ditekan. Dipakai layar barang masuk, keluar, ambil, kembalikan.
+const PESAN_ISIAN_BARANG = {
+  gudang: 'Gudang belum dipilih. Tekan kotak Gudang, lalu pilih gudangnya.',
+  barang: 'Barang belum dipilih. Tekan kotak Barang, lalu pilih barangnya.',
+  jumlah: 'Jumlah belum diisi. Ketik berapa banyak barangnya, misalnya 5.',
+  kondisi: 'Kondisi barang belum dipilih. Pilih Baru, Bekas, atau Rusak.',
+} as const;
+
+const isianGudang = z.string({ error: PESAN_ISIAN_BARANG.gudang }).min(1, PESAN_ISIAN_BARANG.gudang);
+const isianBarang = z.string({ error: PESAN_ISIAN_BARANG.barang }).min(1, PESAN_ISIAN_BARANG.barang);
+const isianJumlah = z
+  .number({ error: PESAN_ISIAN_BARANG.jumlah })
+  .int('Jumlah harus angka bulat, tanpa koma. Contoh: 5.')
+  // Layar mengubah isian kosong menjadi 0, jadi "lebih dari 0" juga
+  // mencakup jumlah yang belum diketik.
+  .positive('Jumlah belum diisi atau masih 0. Ketik berapa banyak barangnya, misalnya 5.');
+const isianKondisi = z.enum(['BARU', 'BEKAS', 'RUSAK'], { error: PESAN_ISIAN_BARANG.kondisi });
+const isianKeterangan = z
+  .string()
+  .max(1000, 'Keterangan terlalu panjang. Paling banyak 1000 huruf, coba dipersingkat.')
+  .optional();
+
 export const InventoryMasukSchema = z.object({
-  barangId: z.string().min(1, 'Barang wajib dipilih'),
-  gudangId: z.string().min(1, 'Gudang wajib dipilih'),
-  jumlah: z.number().positive('Jumlah harus lebih dari 0'),
-  kondisi: z.enum(['BARU', 'BEKAS', 'RUSAK']),
-  keterangan: z.string().max(1000, 'Keterangan maksimal 1000 karakter').optional(),
+  barangId: isianBarang,
+  gudangId: isianGudang,
+  jumlah: isianJumlah,
+  kondisi: isianKondisi,
+  keterangan: isianKeterangan,
 });
 
 // Inventory Keluar Schema
 export const InventoryKeluarSchema = z.object({
-  barangId: z.string().min(1, 'Barang wajib dipilih'),
-  gudangId: z.string().min(1, 'Gudang wajib dipilih'),
-  jumlah: z.number().positive('Jumlah harus lebih dari 0'),
-  kondisi: z.enum(['BARU', 'BEKAS', 'RUSAK']),
-  tujuanPenggunaan: z.string().max(500, 'Tujuan penggunaan maksimal 500 karakter').optional(),
-  keterangan: z.string().max(1000, 'Keterangan maksimal 1000 karakter').optional(),
+  barangId: isianBarang,
+  gudangId: isianGudang,
+  jumlah: isianJumlah,
+  kondisi: isianKondisi,
+  tujuanPenggunaan: z
+    .string()
+    .max(500, 'Tujuan penggunaan terlalu panjang. Paling banyak 500 huruf, coba dipersingkat.')
+    .optional(),
+  keterangan: isianKeterangan,
 });
 
 // Work Order Material Item Schema
 export const WorkOrderMaterialItemSchema = z.object({
-  barangId: z.string().min(1, 'Barang ID wajib'),
-  gudangId: z.string().min(1, 'Gudang ID wajib'),
-  jumlah: z.number().positive('Jumlah harus lebih dari 0'),
-  kondisi: z.enum(['BARU', 'BEKAS', 'RUSAK']).optional(), // Optional as per usage in code, defaults usually handled
+  barangId: isianBarang,
+  gudangId: isianGudang,
+  jumlah: isianJumlah,
+  kondisi: isianKondisi.optional(), // Optional as per usage in code, defaults usually handled
   // Wajib terdaftar di sini: `z.object` membuang field yang tidak dikenal tanpa
   // bersuara, jadi `asal` yang tidak didaftarkan akan hilang diam-diam dan
   // server menerima semua pengembalian sebagai sisa material.
@@ -169,13 +195,29 @@ export const WorkOrderMaterialItemSchema = z.object({
 
 // Work Order Material Batch Schema
 export const WorkOrderMaterialBatchSchema = z.object({
-  items: z.array(WorkOrderMaterialItemSchema).min(1, 'Minimal satu barang harus dipilih'),
+  items: z
+    .array(WorkOrderMaterialItemSchema)
+    .min(1, 'Belum ada barang yang dipilih. Tekan barang di daftar untuk menambahkannya.'),
 });
 
 // Create Conversation Schema
 export const CreateConversationSchema = z.object({
   participantIds: z.array(z.string()).min(1, 'Pilih minimal satu user'),
 });
+
+/**
+ * Seperti `validateData`, tetapi tiap masalah ditulis di baris sendiri dan
+ * pesan yang sama tidak diulang — untuk Alert yang dibaca staf lapangan.
+ */
+export function validateDataPerBaris<T>(
+  schema: z.ZodSchema<T>,
+  data: unknown,
+): { success: true; data: T } | { success: false; error: string } {
+  const result = schema.safeParse(data);
+  if (result.success) return { success: true, data: result.data };
+  const pesanUnik = [...new Set(result.error.issues.map((issue) => issue.message))];
+  return { success: false, error: pesanUnik.join('\n') };
+}
 
 /**
  * Helper to validate data against a schema safely
