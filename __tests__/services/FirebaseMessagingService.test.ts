@@ -158,6 +158,27 @@ describe('FirebaseMessagingService', () => {
     expect(mockPost).not.toHaveBeenCalled();
   });
 
+  it('melaporkan getToken yang menggantung, bukan menunggu selamanya', async () => {
+    jest.useFakeTimers();
+    try {
+      mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
+      mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(true);
+      mockGetToken.mockReturnValue(new Promise<string | null>(() => undefined));
+
+      const fcmService = loadService();
+      const hasil = fcmService.syncFCMTokenToBackend('add');
+      await jest.advanceTimersByTimeAsync(30_000);
+
+      await expect(hasil).resolves.toBeNull();
+      expect(mockCaptureException).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringContaining('getToken') }),
+        { source: 'fcm.syncToken', action: 'add' },
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('melaporkan bila FCM tidak memberi token sama sekali', async () => {
     mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
     mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(true);

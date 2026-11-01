@@ -35,6 +35,25 @@ function opsiSinkronToken(action: 'add' | 'remove', token: string) {
     };
 }
 
+/** Batas tunggu satu langkah pendaftaran FCM sebelum dianggap macet. */
+const BATAS_TUNGGU_FCM_MS = 30_000;
+
+/**
+ * Tolak `langkah` bila tidak selesai dalam {@link BATAS_TUNGGU_FCM_MS}.
+ * `getToken` bisa menggantung tanpa pernah gagal; tanpa batas, sinkron token
+ * macet diam-diam dan tidak ada error yang bisa dilaporkan.
+ */
+function denganBatasWaktu<T>(langkah: Promise<T>, nama: string): Promise<T> {
+    let pewaktu: ReturnType<typeof setTimeout> | undefined;
+    const habisWaktu = new Promise<never>((_, tolak) => {
+        pewaktu = setTimeout(
+            () => tolak(new Error(`[FCM] ${nama} tidak selesai dalam ${BATAS_TUNGGU_FCM_MS / 1000} detik`)),
+            BATAS_TUNGGU_FCM_MS,
+        );
+    });
+    return Promise.race([langkah, habisWaktu]).finally(() => clearTimeout(pewaktu));
+}
+
 /**
  * Laporkan kegagalan pendaftaran token push ke server. Logger mati di build
  * production, jadi tanpa ini push yang tidak pernah terdaftar tidak terlihat
@@ -144,10 +163,10 @@ class FirebaseMessagingService {
             const messaging = getMessaging();
 
             if (!isDeviceRegisteredForRemoteMessages(messaging)) {
-                await registerDeviceForRemoteMessages(messaging);
+                await denganBatasWaktu(registerDeviceForRemoteMessages(messaging), 'registerDeviceForRemoteMessages');
             }
 
-            const token = await getToken(messaging);
+            const token = await denganBatasWaktu(getToken(messaging), 'getToken');
             if (!token) {
                 logger.warn('[FCM] No token received');
                 laporkanGagalSinkronToken(new Error('[FCM] getToken tidak memberi token'), action);
