@@ -56,6 +56,24 @@ describe('computeMapBounds', () => {
     expect(bounds?.center[0]).toBeCloseTo(106.8);
     expect(bounds?.center[1]).toBeCloseTo(-6.2);
   });
+
+  it('memusatkan kamera di kumpulan perangkat walau ada satu koordinat nyasar jauh', () => {
+    // Insiden 2026-11-01: titik tengah kotak (Bekasi ↔ Makassar) jatuh di Laut
+    // Jawa. Di zoom 14 foto satelit laut hitam pekat, jadi peta tampak mati.
+    const bekasi = [107.05, 107.051, 107.052, 107.053].map((longitude, index) => ({
+      ...odp,
+      id: `odp-bekasi-${index}`,
+      longitude,
+      latitude: -6.205,
+    }));
+    const nyasarDiMakassar = { ...odp, id: 'odp-nyasar', longitude: 119.42, latitude: -5.14 };
+
+    const bounds = computeMapBounds(createTopologyData({ odps: [...bekasi, nyasarDiMakassar] }));
+
+    expect(bounds?.center[0]).toBeCloseTo(107.05, 1);
+    expect(bounds?.center[1]).toBeCloseTo(-6.205, 2);
+    expect(bounds?.bounds).toEqual({ ne: [119.42, -5.14], sw: [107.05, -6.205] });
+  });
 });
 
 describe('parseEdgeWaypoints', () => {

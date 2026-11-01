@@ -38,7 +38,21 @@ export function isWithinIndonesia(longitude: unknown, latitude: unknown): boolea
   );
 }
 
-/** Pusat & batas seluruh perangkat (inventaris + node) yang berada di Indonesia. */
+/** Nilai tengah (median) sebuah deret angka yang tidak kosong. */
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+}
+
+/**
+ * Pusat & batas seluruh perangkat (inventaris + node) yang berada di Indonesia.
+ *
+ * Pusat adalah median bujur & lintang, bukan titik tengah kotak batas: satu
+ * koordinat yang nyasar jauh menarik titik tengah kotak ke laut, dan di zoom
+ * awal foto satelit laut hitam pekat — peta tampak mati. Median tetap jatuh
+ * di kumpulan perangkat terbanyak.
+ */
 export function computeMapBounds(data: TopologyData | null | undefined): MapBounds | null {
   if (!data) return null;
 
@@ -64,7 +78,7 @@ export function computeMapBounds(data: TopologyData | null | undefined): MapBoun
   const north = Math.max(...latitudes);
 
   return {
-    center: [(west + east) / 2, (south + north) / 2],
+    center: [median(longitudes), median(latitudes)],
     bounds: { ne: [east, north], sw: [west, south] },
   };
 }
