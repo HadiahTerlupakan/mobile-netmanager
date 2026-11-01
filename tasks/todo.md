@@ -1,3 +1,16 @@
+# TODO — Push pelanggan tidak sampai (2026-11-01)
+
+> Sejak 2026-04-16 aplikasi hanya mendaftarkan token FCM, untuk pelanggan juga. Pelanggan tidak pernah
+> diminta izin notifikasi (pre-prompt hanya di layout karyawan), dan server lama menjawab sinkron token
+> pelanggan dengan 401, yang membuat penangan 401 mengeluarkan pelanggan. Tanpa perubahan NATIVE_PATHS
+> → cukup OTA. Server (netmanager `fix/customer-push`) dipasang lebih dulu, baru OTA.
+
+- [x] Pre-prompt izin notifikasi di layout pelanggan dengan alasan khusus pelanggan (tagihan, status layanan, pembayaran); "Aktifkan" meminta izin OS lalu mendaftarkan token
+- [x] Sinkron token push (`add`/`remove`, token yang diperbarui FCM) memakai `skipSignOutOnUnauthorized`: 401 tetap memicu refresh dan coba ulang, tetapi tidak pernah mengakhiri sesi (`akhiriSesiAtas401.ts`)
+- [ ] Server netmanager `fix/customer-push`: `/api/mobile/fcm-token` menerima token portal pelanggan, token disimpan di `Pelanggan.fcmTokens`, push pelanggan dikirim lewat FCM
+
+---
+
 # TODO — Redam notifikasi beruntun (2026-11-01)
 
 > Permintaan pemilik (sama dengan web): saat aplikasi dibuka, kembali ke depan, atau kembali online,
