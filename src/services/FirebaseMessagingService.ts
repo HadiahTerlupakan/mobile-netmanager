@@ -1,6 +1,7 @@
 import { AuthorizationStatus, deleteToken, getMessaging, getToken, isDeviceRegisteredForRemoteMessages, onTokenRefresh, registerDeviceForRemoteMessages, requestPermission } from '@react-native-firebase/messaging';
 
 import api from '@/services/api';
+import { errorReportingService } from '@/services/ErrorReportingService';
 import { logger } from '@/utils/logger';
 import { PermissionsAndroid, Platform } from 'react-native';
 
@@ -32,6 +33,16 @@ function opsiSinkronToken(action: 'add' | 'remove', token: string) {
         skipErrorToast: true,
         skipSignOutOnUnauthorized: true,
     };
+}
+
+/**
+ * Laporkan kegagalan pendaftaran token push ke server. Logger mati di build
+ * production, jadi tanpa ini push yang tidak pernah terdaftar tidak terlihat
+ * siapa pun — seperti API key Firebase yang menolak aplikasi Play (403).
+ */
+function laporkanGagalSinkronToken(error: unknown, action: 'add' | 'remove'): void {
+    const galat = error instanceof Error ? error : new Error(String(error));
+    errorReportingService.captureException(galat, { source: 'fcm.syncToken', action });
 }
 
 class FirebaseMessagingService {
@@ -139,6 +150,7 @@ class FirebaseMessagingService {
             const token = await getToken(messaging);
             if (!token) {
                 logger.warn('[FCM] No token received');
+                laporkanGagalSinkronToken(new Error('[FCM] getToken tidak memberi token'), action);
                 return null;
             }
 
@@ -169,6 +181,7 @@ class FirebaseMessagingService {
             return token;
         } catch (error) {
             logger.error('[FCM] Error syncing FCM token:', error);
+            laporkanGagalSinkronToken(error, action);
 
             // Log detailed error information for debugging
             if (error && typeof error === 'object' && 'response' in error) {

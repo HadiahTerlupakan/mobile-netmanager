@@ -5,6 +5,7 @@ const mockInfo = jest.fn<(message: string, ...args: unknown[]) => void>();
 const mockWarn = jest.fn<(message: string, ...args: unknown[]) => void>();
 const mockError = jest.fn<(message: string, ...args: unknown[]) => void>();
 const mockDebug = jest.fn<(message: string, ...args: unknown[]) => void>();
+const mockCaptureException = jest.fn<(error: Error, context?: Record<string, unknown>) => void>();
 
 const mockPlatform = { OS: 'ios', Version: 17 };
 const mockPermissionsAndroid = {
@@ -57,6 +58,10 @@ jest.mock('@/utils/logger', () => ({
     error: mockError,
     debug: mockDebug,
   },
+}));
+
+jest.mock('@/services/ErrorReportingService', () => ({
+  errorReportingService: { captureException: mockCaptureException },
 }));
 
 jest.mock('@react-native-firebase/messaging', () => ({
@@ -132,6 +137,39 @@ describe('FirebaseMessagingService', () => {
       },
       expect.any(Object)
     );
+  });
+
+  it('melaporkan kegagalan mengambil token ke server, bukan hanya ke logger', async () => {
+    // Insiden 2026-11-01: API key Firebase menolak aplikasi Play Store (403)
+    // berbulan-bulan tanpa ketahuan — logger mati di build production, jadi
+    // push ke semua HP diam-diam tidak pernah terdaftar.
+    mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
+    mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(true);
+    const galat = new Error('java.io.IOException: FIS_AUTH_ERROR');
+    mockGetToken.mockRejectedValue(galat);
+
+    const fcmService = loadService();
+
+    await expect(fcmService.syncFCMTokenToBackend('add')).resolves.toBeNull();
+    expect(mockCaptureException).toHaveBeenCalledWith(galat, {
+      source: 'fcm.syncToken',
+      action: 'add',
+    });
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it('melaporkan bila FCM tidak memberi token sama sekali', async () => {
+    mockRequestPermission.mockResolvedValue(AuthorizationStatus.AUTHORIZED);
+    mockIsDeviceRegisteredForRemoteMessages.mockReturnValue(true);
+    mockGetToken.mockResolvedValue(null);
+
+    const fcmService = loadService();
+
+    await expect(fcmService.syncFCMTokenToBackend('add')).resolves.toBeNull();
+    expect(mockCaptureException).toHaveBeenCalledWith(expect.any(Error), {
+      source: 'fcm.syncToken',
+      action: 'add',
+    });
   });
 
   it('akun investor mendaftarkan token ke endpoint investor', async () => {
