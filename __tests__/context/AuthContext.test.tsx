@@ -348,6 +348,46 @@ describe('AuthContext', () => {
 
       expect(PesanSesiBerakhir.baca()).toBeNull();
     });
+
+    // Server tidak bisa diminta melepas token pada logout paksa, jadi push
+    // pemilik lama terus sampai ke perangkat ini sampai tokennya dihapus.
+    const PELANGGAN = { id: 'c-1', tenantId: 't-1', name: 'Budi', email: 'budi', role: 'CUSTOMER' };
+
+    it('menghapus token FCM perangkat tanpa menahan logout', async () => {
+      const authContext = await renderLoadedAuth(PELANGGAN);
+      mockFcmService.deleteDeviceToken.mockReturnValue(new Promise(() => {}));
+
+      await act(async () => {
+        await authContext.signOut({ skipApi: true });
+      });
+
+      expect(mockFcmService.deleteDeviceToken).toHaveBeenCalledTimes(1);
+      expect(mockFcmService.syncFCMTokenToBackend).not.toHaveBeenCalledWith('remove');
+      expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('session_token');
+    });
+
+    it('penghapusan token yang gagal tidak menggagalkan logout', async () => {
+      const authContext = await renderLoadedAuth(PELANGGAN);
+      const galat = new Error('FCM tidak terjangkau');
+      mockFcmService.deleteDeviceToken.mockRejectedValue(galat);
+
+      await act(async () => {
+        await expect(authContext.signOut({ skipApi: true })).resolves.toBeUndefined();
+      });
+
+      expect(mockSecureStorage.removeItemStrict).toHaveBeenCalledWith('session_token');
+      await waitFor(() => expect(mockLogger.warn).toHaveBeenCalledWith(expect.any(String), galat));
+    });
+
+    it('tanpa sesi yang aktif tidak menyentuh token perangkat', async () => {
+      const authContext = await renderLoadedAuth(null);
+
+      await act(async () => {
+        await authContext.signOut({ skipApi: true });
+      });
+
+      expect(mockFcmService.deleteDeviceToken).not.toHaveBeenCalled();
+    });
   });
 
   describe('useAuth hook', () => {

@@ -22,6 +22,18 @@ function jenisAkunPush(user: Pick<User, 'role'>) {
     return isAkunInvestor(user) ? 'investor' : 'umum';
 }
 
+/**
+ * Logout paksa (sesi berakhir atau dicabut, dismantle) tidak bisa meminta server
+ * melepas token push, jadi token perangkat dihapus: push pemilik lama berhenti
+ * sampai di sini, dan login berikutnya mendaftarkan token baru. Tidak ditunggu
+ * supaya logout tidak tertahan jaringan, dan galatnya tidak menggagalkan logout.
+ */
+function hapusTokenPerangkatTanpaMenunggu(): void {
+    fcmService.deleteDeviceToken().catch((error: unknown) => {
+        logger.warn('[Auth] FCM deleteToken saat logout paksa gagal (non-fatal):', error);
+    });
+}
+
 export type User = {
     id: string;
     tenantId: string;
@@ -160,6 +172,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const signOut = useCallback(async (options?: { skipApi?: boolean }) => {
         try {
+            if (token && options?.skipApi) {
+                stopFcmTokenRefreshListener();
+                hapusTokenPerangkatTanpaMenunggu();
+            }
+
             if (token && !options?.skipApi) {
                 stopFcmTokenRefreshListener();
                 // Tunggu FCM token unregister dengan timeout 3s — sebelumnya
