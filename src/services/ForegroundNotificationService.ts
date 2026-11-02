@@ -37,10 +37,12 @@ const DEFAULT_BODY = 'Anda menerima notifikasi baru.';
 const NOTIFICATION_SOUND_ANDROID = 'notif_soft';
 const NOTIFICATION_SOUND_IOS = 'notif_soft.wav';
 
-// WORKAROUND(OTA): `ic_notification` tidak ada di native build saat ini
-// → notifee throw & heads-up gagal tampil. `ic_launcher` selalu ada.
-// Kembalikan ke 'ic_notification' setelah icon masuk build EAS berikutnya.
-const ANDROID_SMALL_ICON = 'ic_launcher';
+// Siluet putih logo RADPRO dari `expo.notification.icon` (app.json); prebuild
+// membuatnya sebagai @drawable/notification_icon. Ikon berwarna seperti
+// `ic_launcher` dirender Android sebagai kotak putih polos. Aman lewat OTA:
+// mengubah app.json menggeser fingerprint runtime, jadi kode ini hanya sampai
+// ke build yang sudah membawa drawable-nya.
+const ANDROID_SMALL_ICON = 'notification_icon';
 const PRESS_ACTION_DEFAULT = { id: 'default' };
 
 export type ForegroundNotificationPayload = {

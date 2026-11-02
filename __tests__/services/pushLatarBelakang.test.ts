@@ -70,7 +70,7 @@ describe('tanganiPushLatarBelakang', () => {
         title: 'Work Order Baru',
         body: 'WO-2',
         data: { title: 'Work Order Baru', body: 'WO-2', url: '/(app)/work-order-detail/wo-2' },
-        android: expect.objectContaining({ channelId: CHANNEL_BERNADA, smallIcon: 'ic_launcher' }),
+        android: expect.objectContaining({ channelId: CHANNEL_BERNADA, smallIcon: 'notification_icon' }),
       }),
     ]);
   });
