@@ -246,6 +246,21 @@ describe('workflow build Android', () => {
     expect(tanpaKomentar).not.toContain('[skip ci]');
   });
 
+  it('mengembalikan native-build.json sebelum checkout main terbaru', () => {
+    // Dua build native berturut-turut: build kedua selesai setelah build
+    // pertama mencatat dirinya, sehingga native-build.json di main berbeda
+    // dari salinan kerja yang baru ditulis `record`. Tanpa pemulihan, checkout
+    // menolak dan langkah gagal sebelum mengulang (run 41392341334).
+    const perintah = bacaPerintah();
+    const indeksSalin = perintah.indexOf('cp native-build.json /tmp/native-build.json');
+    const indeksPulih = perintah.indexOf('git checkout -q -- native-build.json');
+    const indeksCheckoutMain = perintah.indexOf('git checkout -q -B catat-build FETCH_HEAD');
+
+    expect(indeksSalin).toBeGreaterThan(-1);
+    expect(indeksPulih).toBeGreaterThan(indeksSalin);
+    expect(indeksCheckoutMain).toBeGreaterThan(indeksPulih);
+  });
+
   it('memasang token push hanya di langkah pencatatan dan mencabutnya lagi', () => {
     // Checkout tidak menyimpan token; npm ci dan Gradle menjalankan kode pihak
     // ketiga. Token dipasang tepat sebelum push dan dicabut lewat trap.

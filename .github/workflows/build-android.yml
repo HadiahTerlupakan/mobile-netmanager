@@ -531,6 +531,11 @@ jobs:
           set -euo pipefail
           node scripts/native-state.js record "${RADPRO_FINGERPRINT}" "${RADPRO_VERSION_CODE}"
           cp native-build.json /tmp/native-build.json
+          # Kembalikan berkas di salinan kerja. Bila build lain tercatat di main
+          # selama build ini berjalan, native-build.json di FETCH_HEAD berbeda
+          # dan checkout di bawah menolak menimpa perubahan lokal; dengan
+          # `set -e` langkah ini mati sebelum sempat mengulang (run 41392341334).
+          git checkout -q -- native-build.json
 
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
