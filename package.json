@@ -117,10 +117,13 @@
     "@types/jest": "29.5.14",
     "@types/lodash": "^4.17.23",
     "@types/react": "~19.1.10",
+    "decode-uri-component": "file:./shims/decode-uri-component",
+    "deepmerge": "file:./shims/deepmerge",
     "eas-cli": "20.3.0",
     "eslint": "^9.17.0",
     "eslint-config-expo": "~10.0.0",
     "eslint-import-resolver-typescript": "^4.4.4",
+    "image-size": "file:./shims/image-size",
     "jest": "~29.7.0",
     "patch-package": "^8.0.1",
     "react-refresh": "^0.18.0",
@@ -150,6 +153,9 @@
     "yaml@^2.0.0": "^2.8.3",
     "ajv@^8.0.0": "^8.18.0",
     "@xmldom/xmldom": "$@xmldom/xmldom",
-    "uuid": "^11.1.1"
+    "uuid": "^11.1.1",
+    "image-size": "$image-size",
+    "decode-uri-component": "$decode-uri-component",
+    "deepmerge": "$deepmerge"
   }
 }

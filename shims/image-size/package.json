@@ -1,0 +1,11 @@
+{
+  "name": "@radpro/image-size-metro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "image-size 1.x call shape for metro, backed by the patched image-size 2.x. Drop once metro depends on image-size >= 2.0.3.",
+  "license": "MIT",
+  "main": "index.js",
+  "dependencies": {
+    "image-size-fixed": "npm:image-size@^2.0.3"
+  }
+}
