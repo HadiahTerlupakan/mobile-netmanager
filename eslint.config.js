@@ -24,6 +24,9 @@ module.exports = defineConfig([
       'jest.setup.js',
       'node_modules/**',
       'FORM_COMPONENTS_EXAMPLES.tsx',
+      // Upstream deepmerge 4.3.1 kept verbatim apart from its security patch,
+      // so it stays diffable against the next upstream release.
+      'shims/deepmerge/**',
     ],
   },
   expoConfig,
