@@ -1,15 +1,15 @@
 import { NotificationSkeleton } from "@/components/molecules/NotificationSkeleton";
 import { useAuth } from "@/context/AuthContext";
-import { RUTE_DAFTAR_PENGESAHAN, ruteDetailPengesahan } from "@/constants/rutePengesahan";
 import { useApiMutation } from "@/hooks/queries";
 import { applyNotificationsOptimisticUpdate } from "@/lib/notificationCache";
 import { queryKeys } from "@/lib/queryClient";
 import api from "@/services/api"; // Use centralized API
 import { formatTimeAgo } from "@/utils/date";
 import { getUserFriendlyError } from "@/utils/errorHandling";
+import { tujuanNotifikasiKaryawan } from "@/utils/tujuanNotifikasiKaryawan";
 import { FlashList } from "@shopify/flash-list";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Href, useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useIsFocused } from '@react-navigation/native';
 import {
   AlertTriangle,
@@ -225,33 +225,7 @@ export default function NotificationsScreen() {
       announcementReadMutation.mutate({ id: notification.sourceId });
     }
 
-    switch (notification.sourceType) {
-      case "WORK_ORDER":
-        router.push(notification.sourceId ? `/(app)/work-order-detail/${notification.sourceId}` : "/(app)/work-order");
-        break;
-      case "ATTENDANCE": router.push("/(app)/absensi"); break;
-      case "LEAVE": router.push("/(app)/izin"); break;
-      case "OVERTIME": router.push("/(app)/lembur"); break;
-      case "CANVASING":
-      case "POINT_CLAIM":
-        if (notification.link?.startsWith('/')) {
-          router.push(notification.link as Href);
-        } else {
-          router.push("/(app)/marketing/canvasing");
-        }
-        break;
-      case "INVENTORY": router.push("/(app)/barang"); break;
-      case "PRESURVEI_RENCANA":
-        router.push(notification.sourceId ? `/(app)/presurvei/rencana/${notification.sourceId}` as Href : "/(app)/presurvei");
-        break;
-      case "KELUHAN":
-        router.push(notification.sourceId ? `/(app)/keluhan/${notification.sourceId}` as Href : "/(app)/keluhan");
-        break;
-      case "ENDORSEMENT":
-        router.push(notification.sourceId ? ruteDetailPengesahan(notification.sourceId) : RUTE_DAFTAR_PENGESAHAN);
-        break;
-      default: router.push("/(app)/dashboard"); break;
-    }
+    router.push(tujuanNotifikasiKaryawan(notification));
   }, [markAsRead, announcementReadMutation, router]);
 
   // Memoized renderItem to prevent FlashList re-renders

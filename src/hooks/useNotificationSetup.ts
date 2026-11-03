@@ -6,10 +6,21 @@ import { errorReportingService } from '@/services/ErrorReportingService';
 import { PenerimaPushForeground } from '@/services/penerimaPushForeground';
 import { logger } from '@/utils/logger';
 import { AWALAN_RUTE_INVESTOR, isRuteNotifikasiDikenal, petakanRuteNotifikasi } from '@/utils/ruteNotifikasi';
+import { tujuanNotifikasiKaryawan } from '@/utils/tujuanNotifikasiKaryawan';
 import notifee, { EventType } from '@notifee/react-native';
 import { Href, useRouter, useSegments } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+
+/** Data push yang dipakai untuk navigasi saat notifikasi diketuk (semua string FCM). */
+type DataNavigasiNotifikasi = { url?: string; sourceType?: string; sourceId?: string };
+
+/** Ambil kolom navigasi dari data notifikasi notifee (nilainya bisa bukan string). */
+function dataNavigasiNotifee(data: Record<string, unknown> | undefined): DataNavigasiNotifikasi {
+  const ambil = (kunci: keyof DataNavigasiNotifikasi) =>
+    typeof data?.[kunci] === 'string' ? (data[kunci] as string) : undefined;
+  return { url: ambil('url'), sourceType: ambil('sourceType'), sourceId: ambil('sourceId') };
+}
 
 /** Beranda tujuan bila tautan notifikasi tidak valid, sesuai grup tautannya. */
 function berandaCadangan(url: string | undefined): Href {
@@ -27,8 +38,8 @@ function berandaCadangan(url: string | undefined): Href {
 export function useNotificationSetup() {
   const router = useRouter();
   const segments = useSegments();
-  const pendingDeepLinkRef = useRef<{ url?: string } | null>(null);
-  const handleNavRef = useRef<((data: { url?: string }) => void) | null>(null);
+  const pendingDeepLinkRef = useRef<DataNavigasiNotifikasi | null>(null);
+  const handleNavRef = useRef<((data: DataNavigasiNotifikasi) => void) | null>(null);
   // Cleanup function dari notification listener disimpan per-instance
   // di ref agar tidak share namespace global dengan hook lain. Sebelumnya
   // pakai `eventManager.addListener('root_notifications', ...)` yang
@@ -48,13 +59,18 @@ export function useNotificationSetup() {
   }, [segments]);
 
   useEffect(() => {
-    const handleNotificationNavigation = (data: { url?: string }) => {
-      if (!data?.url) return;
+    const handleNotificationNavigation = (data: DataNavigasiNotifikasi) => {
+      if (!data?.url && !data?.sourceType) return;
 
       try {
-        const url = petakanRuteNotifikasi(data.url);
-        if (isRuteNotifikasiDikenal(url)) {
+        const url = data.url ? petakanRuteNotifikasi(data.url) : undefined;
+        if (url && isRuteNotifikasiDikenal(url)) {
           router.push(url as Href);
+        } else if (data.sourceType) {
+          // Tautan push WO dll. adalah rute web (`/admin/workorders/<id>`);
+          // tujuan aplikasinya ditentukan dari sumber notifikasi, sama dengan
+          // daftar notifikasi in-app.
+          router.push(tujuanNotifikasiKaryawan({ ...data, link: data.url }));
         } else {
           logger.warn(
             'Invalid notification route, redirecting to dashboard:',
@@ -108,11 +124,9 @@ export function useNotificationSetup() {
           ({ type, detail }) => {
             if (type !== EventType.PRESS) return;
 
-            const url = detail.notification?.data?.url;
-            logger.info('Notifee foreground notification tapped, url:', url);
-            handleNotificationNavigation(
-              typeof url === 'string' ? { url } : {}
-            );
+            const dataNavigasi = dataNavigasiNotifee(detail.notification?.data);
+            logger.info('Notifee foreground notification tapped:', dataNavigasi);
+            handleNotificationNavigation(dataNavigasi);
           }
         );
 

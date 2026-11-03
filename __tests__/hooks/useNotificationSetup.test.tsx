@@ -15,6 +15,7 @@ const mockDisplayNotification = jest.fn(async (_notifikasi: NotifikasiTampil) =>
 const mockToastShow = jest.fn();
 const mockInvalidateQueries = jest.fn();
 let mockTerimaPush: ((push: PushForeground) => unknown) | undefined;
+let mockTapPush: ((push: PushForeground) => unknown) | undefined;
 let mockPendengarJaringan: ((status: StatusJaringan) => void) | undefined;
 
 jest.mock('@notifee/react-native', () => ({
@@ -36,8 +37,9 @@ jest.mock('react-native-toast-message', () => ({
 
 jest.mock('@/services/PushNotificationService', () => ({
   getInitialNotificationData: async () => null,
-  addNotificationListeners: (terima: (push: PushForeground) => unknown) => {
+  addNotificationListeners: (terima: (push: PushForeground) => unknown, tap?: (push: PushForeground) => unknown) => {
     mockTerimaPush = terima;
+    mockTapPush = tap;
     return () => undefined;
   },
 }));
@@ -69,7 +71,12 @@ jest.mock('@/services/ErrorReportingService', () => ({
   errorReportingService: { captureException: () => undefined },
 }));
 
-const mockRouter = { push: () => undefined, replace: () => undefined };
+const mockRouterPush = jest.fn();
+const mockRouterReplace = jest.fn();
+const mockRouter = {
+  push: (...args: unknown[]) => mockRouterPush(...args),
+  replace: (...args: unknown[]) => mockRouterReplace(...args),
+};
 jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useSegments: () => ['(app)', 'dashboard'],
@@ -265,5 +272,42 @@ describe('useNotificationSetup — push foreground tidak berbunyi beruntun', () 
     lewati(1000);
 
     expect(mockToastShow).not.toHaveBeenCalled();
+  });
+});
+
+// Regresi 2026-11-03: tap push "Work Order Baru" (data.url = rute web admin)
+// membuka Beranda, bukan detail WO-nya.
+describe('useNotificationSetup — tap push membuka layar tujuannya', () => {
+  beforeEach(() => {
+    mockRouterPush.mockClear();
+    mockRouterReplace.mockClear();
+  });
+
+  async function ketukPush(data: Record<string, string>) {
+    const hasil = renderHook(() => useNotificationSetup());
+    await act(async () => undefined);
+    const tap = mockTapPush;
+    if (!tap) throw new Error('Listener tap push belum terpasang');
+    await act(async () => {
+      await tap({ title: 'x', body: 'y', data });
+    });
+    hasil.unmount();
+  }
+
+  it('push WO bertautan web admin membuka detail WO', async () => {
+    await ketukPush({ url: '/admin/workorders/wo-9', sourceType: 'WORK_ORDER', sourceId: 'wo-9' });
+    expect(mockRouterPush).toHaveBeenCalledWith('/(app)/work-order-detail/wo-9');
+    expect(mockRouterReplace).not.toHaveBeenCalled();
+  });
+
+  it('tautan aplikasi yang dikenal tetap dipakai apa adanya', async () => {
+    await ketukPush({ url: '/(app)/work-order-detail/wo-1' });
+    expect(mockRouterPush).toHaveBeenCalledWith('/(app)/work-order-detail/wo-1');
+  });
+
+  it('tautan tak dikenal tanpa sumber tetap jatuh ke Beranda', async () => {
+    await ketukPush({ url: '/admin/apa-saja' });
+    expect(mockRouterPush).not.toHaveBeenCalled();
+    expect(mockRouterReplace).toHaveBeenCalledWith('/(app)/dashboard');
   });
 });
