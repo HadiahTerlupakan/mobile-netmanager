@@ -19,6 +19,8 @@ interface DiscussionTabProps {
   discussionTimeline: DiscussionTimelineItem[];
   canInteract: boolean;
   isWorkStarted: boolean;
+  /** OBSERVER: catatan mode lihat saja sudah tampil, jadi ajakan "Mulai Kerja" disembunyikan. */
+  isReadOnly?: boolean;
   resolutionNotes: string;
   setResolutionNotes: (s: string) => void;
   photo: string | null;
@@ -34,6 +36,7 @@ interface DiscussionTabProps {
 export const DiscussionTab = React.memo(function DiscussionTab({
   canInteract,
   isWorkStarted,
+  isReadOnly = false,
   resolutionNotes,
   setResolutionNotes,
   photo,
@@ -49,7 +52,7 @@ export const DiscussionTab = React.memo(function DiscussionTab({
   return (
     <View style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}>
       {/* Readonly Banner */}
-      {!canInteract && (
+      {!canInteract && !isReadOnly && (
         <View style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}>
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
             {!isWorkStarted
@@ -68,7 +71,9 @@ export const DiscussionTab = React.memo(function DiscussionTab({
           placeholder={
             canInteract
               ? "Tulis diskusi..."
-              : "Mulai kerja dulu untuk berdiskusi"
+              : isReadOnly
+                ? "Mode lihat saja"
+                : "Mulai kerja dulu untuk berdiskusi"
           }
           value={resolutionNotes}
           onChangeText={setResolutionNotes}

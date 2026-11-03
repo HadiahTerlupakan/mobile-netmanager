@@ -12,6 +12,8 @@ interface TasksTabProps {
   wo: WorkOrder;
   canInteract: boolean;
   isWorkStarted: boolean;
+  /** OBSERVER: catatan mode lihat saja sudah tampil, jadi ajakan "Mulai Kerja" disembunyikan. */
+  isReadOnly?: boolean;
   handleToggleTask: (taskId: string, status: string) => void;
 }
 
@@ -20,12 +22,13 @@ export const TasksTab = React.memo(function TasksTab({
   wo,
   canInteract,
   isWorkStarted,
+  isReadOnly = false,
   handleToggleTask,
 }: TasksTabProps) {
   return (
     <View style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100`}>
       {/* Readonly Banner */}
-      {!canInteract && (
+      {!canInteract && !isReadOnly && (
         <View style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}>
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
             {!isWorkStarted

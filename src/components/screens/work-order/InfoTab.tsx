@@ -23,6 +23,8 @@ interface InfoTabProps {
   handlePartnerResponse: (response: 'APPROVED' | 'REJECTED') => void;
   handleRemovePartner: (assignmentId: string) => void;
   setIsPartnerModalVisible: (visible: boolean) => void;
+  /** Mode lihat saja (OBSERVER): sembunyikan semua tombol aksi tim. */
+  isReadOnly?: boolean;
 }
 
 /** Tab Info: status, deskripsi, jadwal, kontak, tim */
@@ -34,6 +36,7 @@ export const InfoTab = React.memo(function InfoTab({
   handlePartnerResponse,
   handleRemovePartner,
   setIsPartnerModalVisible,
+  isReadOnly = false,
 }: InfoTabProps) {
   const { tw, warna } = useTemaPersona();
   return (
@@ -218,7 +221,7 @@ export const InfoTab = React.memo(function InfoTab({
               <Text style={tw`text-xs text-gray-400 font-bold uppercase`}>
                 Tim Pengerjaan
               </Text>
-              {wo.status !== "COMPLETED" && wo.status !== "CLOSED" && !isMitraTeknisi && (
+              {!isReadOnly && wo.status !== "COMPLETED" && wo.status !== "CLOSED" && !isMitraTeknisi && (
                 <TouchableOpacity onPress={() => setIsPartnerModalVisible(true)}>
                   <Text style={tw`text-xs font-bold text-utama-kuat`}>
                     + Tambah
@@ -296,7 +299,8 @@ export const InfoTab = React.memo(function InfoTab({
                   </View>
 
                   {/* Action Buttons for Pending Partner (Only if it's me) */}
-                  {assignment.status === "PENDING" &&
+                  {!isReadOnly &&
+                    assignment.status === "PENDING" &&
                     assignment.userId === user?.id && (
                       <View style={tw`flex-row gap-2`}>
                         <TouchableOpacity
@@ -317,7 +321,8 @@ export const InfoTab = React.memo(function InfoTab({
                     )}
 
                   {/* Delete Button (Only for Creator/Assigner or if not me) */}
-                  {(!assignment.status ||
+                  {!isReadOnly &&
+                    (!assignment.status ||
                     assignment.status === "APPROVED" ||
                     assignment.status === "PENDING") &&
                     assignment.userId !== user?.id &&

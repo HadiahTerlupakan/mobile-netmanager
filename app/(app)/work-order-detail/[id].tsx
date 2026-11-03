@@ -6,6 +6,7 @@ import {
   DiscussionTab,
   InfoTab,
   ItemsTab,
+  ObserverModeNotice,
   PartnerModal,
   TasksTab,
   TimelineTab,
@@ -36,6 +37,7 @@ import {
   normalizeWorkOrderRouteParam,
   resolveCanonicalWorkOrderId,
 } from "@/utils/workOrderRoute";
+import { isWorkOrderObserver } from "@/utils/workOrderViewerAccess";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -53,7 +55,7 @@ import {
   User,
   X,
 } from "lucide-react-native";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import {
   SafeAreaView,
@@ -92,8 +94,11 @@ export default function WorkOrderDetailScreen() {
   const isApprovedPartner = myAssignment?.role === "PARTNER" && myAssignment?.status === "APPROVED";
   const isPendingPartner = myAssignment?.role === "PARTNER" && myAssignment?.status === "PENDING";
 
+  // Server menandai OBSERVER: boleh melihat, tidak boleh beraksi apa pun.
+  const isObserver = isWorkOrderObserver(wo);
+
   // Can this user interact with WO actions?
-  const canInteract = isWorkStarted && (isAssignedToMe || isApprovedPartner);
+  const canInteract = !isObserver && isWorkStarted && (isAssignedToMe || isApprovedPartner);
 
   // Partner Modal State
   const [isPartnerModalVisible, setIsPartnerModalVisible] = useState(false);
@@ -194,7 +199,16 @@ export default function WorkOrderDetailScreen() {
     if (woData) setWo(woData);
   }, [woData]);
 
+  // Lokasi hanya dipakai untuk aksi pengerjaan. Izin baru diminta setelah
+  // detail termuat, dan tidak pernah untuk OBSERVER yang tidak punya aksi.
+  // Ref menjaga prompt tetap sekali per layar bagi peserta.
+  const hasRequestedLocationRef = useRef(false);
+  const isLocationNeeded = !loading && !isWorkOrderObserver(woData);
+
   useEffect(() => {
+    if (!isLocationNeeded || hasRequestedLocationRef.current) return;
+    hasRequestedLocationRef.current = true;
+
     (async () => {
       try {
         const { status } = await requestForegroundLocationWithDisclosure();
@@ -230,7 +244,7 @@ export default function WorkOrderDetailScreen() {
         logger.warn("Lokasi tidak tersedia untuk detail work order:", error);
       }
     })();
-  }, []);
+  }, [isLocationNeeded]);
 
   // Handle real-time work order updates
   const handleWOUpdate = useCallback(
@@ -568,8 +582,10 @@ export default function WorkOrderDetailScreen() {
         ))}
       </View>
 
+      {isObserver && <ObserverModeNotice />}
+
       {/* Role Indicator Banner */}
-      {(isAssignedToMe || isApprovedPartner) && !isMitraTeknisi && (
+      {!isObserver && (isAssignedToMe || isApprovedPartner) && !isMitraTeknisi && (
         <View
           style={tw`px-4 py-2 ${isAssignedToMe ? 'bg-utama-sangat-muda border-b border-utama-muda' : 'bg-indigo-50 border-b border-indigo-100'}`}
         >
@@ -594,6 +610,7 @@ export default function WorkOrderDetailScreen() {
             handlePartnerResponse={handlePartnerResponse}
             handleRemovePartner={handleRemovePartner}
             setIsPartnerModalVisible={setIsPartnerModalVisible}
+            isReadOnly={isObserver}
           />
         )}
         {activeTab === "TASKS" && (
@@ -601,6 +618,7 @@ export default function WorkOrderDetailScreen() {
             wo={wo}
             canInteract={canInteract}
             isWorkStarted={isWorkStarted}
+            isReadOnly={isObserver}
             handleToggleTask={handleToggleTask}
           />
         )}
@@ -609,6 +627,7 @@ export default function WorkOrderDetailScreen() {
             wo={wo}
             canInteract={canInteract}
             isWorkStarted={isWorkStarted}
+            isReadOnly={isObserver}
             resolvedWorkOrderId={resolvedWorkOrderId}
           />
         )}
@@ -617,6 +636,7 @@ export default function WorkOrderDetailScreen() {
             discussionTimeline={discussionTimeline}
             canInteract={canInteract}
             isWorkStarted={isWorkStarted}
+            isReadOnly={isObserver}
             resolutionNotes={resolutionNotes}
             setResolutionNotes={setResolutionNotes}
             photo={photo}
@@ -634,7 +654,7 @@ export default function WorkOrderDetailScreen() {
       </ScrollView>
 
       <PartnerModal
-        visible={isPartnerModalVisible}
+        visible={!isObserver && isPartnerModalVisible}
         onClose={() => setIsPartnerModalVisible(false)}
         workOrderId={resolvedWorkOrderId}
         onRefresh={fetchDetail}
@@ -642,7 +662,7 @@ export default function WorkOrderDetailScreen() {
 
       {/* Bottom Actions */}
       {(() => {
-        if (!wo) return null;
+        if (!wo || isObserver) return null;
 
         const partnerList =
           wo.assignments?.filter((a: WorkOrderAssignment) => a.role === "PARTNER") || [];

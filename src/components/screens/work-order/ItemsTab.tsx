@@ -13,6 +13,8 @@ interface ItemsTabProps {
   wo: WorkOrder;
   canInteract: boolean;
   isWorkStarted: boolean;
+  /** OBSERVER: catatan mode lihat saja sudah tampil, jadi ajakan "Mulai Kerja" disembunyikan. */
+  isReadOnly?: boolean;
   resolvedWorkOrderId: string | null;
 }
 
@@ -21,6 +23,7 @@ export const ItemsTab = React.memo(function ItemsTab({
   wo,
   canInteract,
   isWorkStarted,
+  isReadOnly = false,
   resolvedWorkOrderId,
 }: ItemsTabProps) {
   const { tw, warna } = useTemaPersona();
@@ -29,7 +32,7 @@ export const ItemsTab = React.memo(function ItemsTab({
   return (
     <View style={tw`bg-white p-4 rounded-xl shadow-sm mb-4 border border-gray-100 min-h-64`}>
       {/* Readonly Banner */}
-      {!isWorkStarted && (
+      {!isWorkStarted && !isReadOnly && (
         <View style={tw`bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 flex-row items-center`}>
           <Text style={tw`text-yellow-700 text-xs flex-1`}>
             {"⚠️ Klik \"Mulai Kerja\" terlebih dahulu untuk mengambil barang"}

@@ -4,3 +4,4 @@ export { ItemsTab } from './ItemsTab';
 export { PartnerModal } from './PartnerModal';
 export { TasksTab } from './TasksTab';
 export { TimelineTab } from './TimelineTab';
+export { ObserverModeNotice } from './ObserverModeNotice';

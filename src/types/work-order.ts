@@ -58,6 +58,12 @@ export interface UsedMaterial {
   kondisi?: 'BARU' | 'BEKAS' | 'RUSAK';
 }
 
+/**
+ * Hak pemirsa atas detail WO, dikirim server di GET /api/mobile/work-orders/[id].
+ * OBSERVER = boleh melihat (seperti di panel web) tetapi bukan peserta: hanya baca.
+ */
+export type WorkOrderViewerAccess = 'PARTICIPANT' | 'CLAIMABLE' | 'OBSERVER';
+
 export interface WorkOrder {
   id: string;
   workOrderNumber: string;
@@ -85,6 +91,8 @@ export interface WorkOrder {
   isWarranty?: boolean;
   warrantyOwnerId?: string | null;
   warrantySla?: string | null;
+  /** Tidak ada pada server lama — perlakukan seperti sebelumnya (bukan read-only). */
+  viewerAccess?: WorkOrderViewerAccess;
   pelanggan?: {
     nama?: string;
     noTelp?: string;
