@@ -16,7 +16,7 @@ jest.mock('@/hooks/queries/usePengesahan', () => ({ useRingkasanPengesahan: () =
 
 import { AppFeature } from '@/constants/features';
 
-const ISOLIR_TILE = 'Isolir';
+const PENGAJUAN_TILE = 'Pengajuan Barang';
 
 describe('QuickMenu', () => {
   beforeEach(() => {
@@ -29,30 +29,41 @@ describe('QuickMenu', () => {
     return render(<QuickMenu {...props} />);
   };
 
-  it('menyembunyikan menu internal Isolir dari mitra eksternal', () => {
+  it('menyembunyikan menu internal Pengajuan Barang dari mitra eksternal', () => {
     const { queryByText } = renderMenu({ isMitra: true, features: [] });
 
-    expect(queryByText(ISOLIR_TILE)).toBeNull();
+    expect(queryByText(PENGAJUAN_TILE)).toBeNull();
     // Menu mitra lain tetap tampil: penanda internalOnly tidak boleh menyapu semuanya.
     expect(queryByText('Request WO')).toBeTruthy();
   });
 
-  it('menampilkan menu Isolir untuk karyawan internal yang punya m_pelanggan', () => {
-    const { getByText } = renderMenu({ isMitra: false, features: [AppFeature.PELANGGAN] });
+  it.each([AppFeature.BARANG, AppFeature.BARANG_MASUK, AppFeature.BARANG_KELUAR])(
+    'karyawan dengan %s membuka layar Pengajuan Barang',
+    (fitur) => {
+      const { getByText } = renderMenu({ isMitra: false, features: [fitur] });
 
-    expect(getByText(ISOLIR_TILE)).toBeTruthy();
+      fireEvent.press(getByText(PENGAJUAN_TILE));
+
+      expect(mockPush).toHaveBeenCalledWith('/(app)/pengajuan-barang');
+    },
+  );
+
+  it('menu Isolir tidak lagi ada di menu cepat (diganti Pengajuan Barang)', () => {
+    const { queryByText } = renderMenu({ isMitra: false, features: [AppFeature.PELANGGAN] });
+
+    expect(queryByText('Isolir')).toBeNull();
   });
 
-  it('tetap menyembunyikan menu Isolir dari mitra walau punya m_pelanggan', () => {
-    const { queryByText } = renderMenu({ isMitra: true, features: [AppFeature.PELANGGAN] });
+  it('tetap menyembunyikan Pengajuan Barang dari mitra walau punya m_barang', () => {
+    const { queryByText } = renderMenu({ isMitra: true, features: [AppFeature.BARANG] });
 
-    expect(queryByText(ISOLIR_TILE)).toBeNull();
+    expect(queryByText(PENGAJUAN_TILE)).toBeNull();
   });
 
-  it('membiarkan SUPER_ADMIN internal melihat menu Isolir', () => {
+  it('membiarkan SUPER_ADMIN internal melihat Pengajuan Barang', () => {
     const { getByText } = renderMenu({ isMitra: false, features: [], role: 'SUPER_ADMIN' });
 
-    expect(getByText(ISOLIR_TILE)).toBeTruthy();
+    expect(getByText(PENGAJUAN_TILE)).toBeTruthy();
   });
 
   it('tidak menampilkan Presurvei bagi teknisi tanpa m_presurvei', () => {

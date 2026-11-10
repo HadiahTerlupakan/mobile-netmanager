@@ -232,6 +232,7 @@ export const queryKeys = {
     warehouses: () => [...queryKeys.inventory.all, "warehouses"] as const,
     stats: () => [...queryKeys.inventory.all, "stats"] as const,
     master: (mode?: string) => mode ? [...queryKeys.inventory.all, "master", mode] as const : [...queryKeys.inventory.all, "master"] as const,
+    pengajuan: () => [...queryKeys.inventory.all, "pengajuan"] as const,
   },
 
   // Attendance

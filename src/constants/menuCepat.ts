@@ -12,9 +12,9 @@ import {
   MessageCircle,
   MessageSquareWarning,
   PackageMinus,
+  PackageSearch,
   ReceiptText,
-  Users,
-  WifiOff
+  Users
 } from "lucide-react-native";
 
 /** Id stabil tiap menu cepat; dipakai `menuIds` dan sebagai `key`. */
@@ -27,7 +27,7 @@ export type IdMenuCepat =
   | 'chat'
   | 'holidays'
   | 'canvasing'
-  | 'isolir'
+  | 'pengajuan-barang'
   | 'presurvei'
   | 'tunggakan'
   | 'pelanggan-saya'
@@ -49,6 +49,9 @@ export interface MenuItem {
   /** Sembunyikan (bukan kunci) bila tidak berizin. */
   hideWhenLocked?: boolean;
 }
+
+/** Izin melihat pengajuan barang: sama dengan menu barang gudang, cukup salah satu. */
+export const FITUR_PENGAJUAN_BARANG = [AppFeature.BARANG, AppFeature.BARANG_MASUK, AppFeature.BARANG_KELUAR];
 
 /** Menu karyawan yang tidak berlaku bagi mitra (mitra tanpa absensi/cuti). */
 export const MENU_BUKAN_UNTUK_MITRA: readonly IdMenuCepat[] = ['izin', 'lembur'];
@@ -148,15 +151,17 @@ export const MENU_ITEMS: MenuItem[] = [
     hideWhenLocked: true,
   },
   {
-    id: 'isolir',
-    title: "Isolir",
-    subtitle: "Pelanggan",
-    icon: WifiOff,
-    color: "bg-red-100",
-    iconColor: "#dc2626",
-    route: "/(app)/pelanggan/isolir",
-    requiredFeatures: [AppFeature.PELANGGAN],
-    // Data billing pelanggan tidak boleh terekspos ke mitra eksternal.
+    // Menggantikan tile "Isolir": site cukup melihat sampai mana pengajuan
+    // barangnya; mengajukan & memproses tetap lewat web admin.
+    id: 'pengajuan-barang',
+    title: "Pengajuan Barang",
+    subtitle: "Lihat status",
+    icon: PackageSearch,
+    color: "bg-amber-50",
+    iconColor: "#b45309",
+    route: "/(app)/pengajuan-barang",
+    requiredFeatures: FITUR_PENGAJUAN_BARANG,
+    // Data pengadaan internal; lingkup site mitra tidak dipakai di sini.
     internalOnly: true,
   },
   {

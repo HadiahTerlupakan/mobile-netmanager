@@ -20,6 +20,8 @@ export const RUTE_LAYAR_TERSEMBUNYI: readonly RuteLayarTersembunyi[] = [
   { nama: 'notifications', isLayarPenuh: false },
   { nama: 'topology-map', isLayarPenuh: false },
   { nama: 'pelanggan/isolir', isLayarPenuh: false },
+  // Status pengajuan barang (hanya lihat) — dibuka dari menu cepat
+  { nama: 'pengajuan-barang', isLayarPenuh: false },
   { nama: 'pelanggan/tunggakan', isLayarPenuh: true },
   { nama: 'pelanggan/saya', isLayarPenuh: true },
   // Keluhan pelanggan lewat sales — dibuka dari menu cepat / notifikasi

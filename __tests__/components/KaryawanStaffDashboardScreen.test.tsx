@@ -5,7 +5,7 @@ import { act, fireEvent, render } from '@testing-library/react-native';
 /**
  * Beranda staff: kartu Hari ini, pengajuan izin/lembur, libur berikutnya, dan
  * menu kepegawaian yang berizin saja. Staff bukan teknisi maupun sales — tidak
- * ada work order, statistik tiket, barang, topologi, isolir, kinerja tim sales.
+ * ada work order, statistik tiket, barang, topologi, pengajuan barang, kinerja tim sales.
  */
 
 const mockUseAuth = jest.fn();
@@ -84,7 +84,7 @@ const SEMUA_FITUR = [
 // di sini: role berpersona STAFF bisa memegang `m_canvasing`, dan dulu izin itu
 // tidak punya pintu sama sekali. Yang dijaga sekarang bukan ketiadaannya,
 // melainkan bahwa ia muncul hanya bila izinnya ada — lihat test di bawah.
-const MENU_BUKAN_STAFF = ['Request WO', 'Topology Map', 'Barang Keluar', 'Isolir', 'Presurvei'];
+const MENU_BUKAN_STAFF = ['Request WO', 'Topology Map', 'Barang Keluar', 'Pengajuan Barang', 'Presurvei'];
 
 const staff = (features: string[], tambahan: Record<string, unknown> = {}) => ({
   user: { id: 'u-1', name: 'Siti', role: 'STAFF', employeeType: 'KARYAWAN', persona: 'STAFF', features, ...tambahan },

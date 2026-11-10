@@ -52,7 +52,7 @@ describe('Menu cepat Beranda sales (QuickMenu asli, ruling I5)', () => {
       expect(getByText(judul)).toBeTruthy();
     }
     // Lembur tetap tersembunyi meski role memegang m_lembur: sales tidak lembur.
-    for (const judul of ['Lembur', 'Request WO', 'Topology Map', 'Barang Keluar', 'Isolir', 'Canvasing', 'Presurvei']) {
+    for (const judul of ['Lembur', 'Request WO', 'Topology Map', 'Barang Keluar', 'Pengajuan Barang', 'Canvasing', 'Presurvei']) {
       expect(queryByText(judul)).toBeNull();
     }
   });
