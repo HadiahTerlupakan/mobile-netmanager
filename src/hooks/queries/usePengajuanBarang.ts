@@ -4,7 +4,7 @@ import { queryKeys } from '@/lib/queryClient';
 import { ambilPengajuanBarang } from '@/services/PengajuanBarangService';
 import type { HalamanPengajuanBarang } from '@/types/pengajuanBarang';
 
-/** Status pengajuan berubah lewat orang lain (admin, pembeli), jadi cepat dianggap basi. */
+/** Status pengajuan berubah lewat orang lain (atasan, admin), jadi cepat dianggap basi. */
 const STALE_TIME_MS = 60 * 1000;
 /** 403 (izin/site belum diatur) sudah dijelaskan layar dengan pesan server; jangan ditoast lagi. */
 const STATUS_DIJELASKAN_LAYAR = 403;

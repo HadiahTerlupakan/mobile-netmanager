@@ -7,51 +7,11 @@ import { LencanaStatus } from '@/components/molecules/LencanaStatus';
 import { DESAIN_PREMIUM } from '@/theme';
 import type { PengajuanBarang } from '@/types/pengajuanBarang';
 import { formatDate } from '@/utils/date';
-import { keadaanTahap, nadaStatusPengajuan, ringkasanBarisPengajuan, type KeadaanTahap } from '@/utils/pengajuanBarang';
+import { nadaStatusPengajuan, ringkasanBarisPengajuan } from '@/utils/pengajuanBarang';
 
 const UKURAN_IKON_RINCIAN = 16;
 
-const GAYA_TAHAP: Readonly<Record<KeadaanTahap, { titik: string; teks: string }>> = {
-  selesai: { titik: 'bg-green-600', teks: 'text-slate-700' },
-  berjalan: { titik: 'bg-amber-500', teks: 'text-slate-900 font-bold' },
-  berhenti: { titik: 'bg-red-600', teks: 'text-red-800 font-bold' },
-  belum: { titik: 'bg-slate-300', teks: 'text-slate-400' },
-};
-
-const LABEL_KEADAAN: Readonly<Record<KeadaanTahap, string>> = {
-  selesai: 'selesai',
-  berjalan: 'sedang berjalan',
-  berhenti: 'berhenti',
-  belum: 'belum',
-};
-
-/** Empat tahap pengajuan: Pengajuan → Persetujuan → Pembelian → Verifikasi. */
-function GarisTahap({ pengajuan }: { pengajuan: PengajuanBarang }) {
-  return (
-    <View style={tw`mt-3`}>
-      {pengajuan.tahap.judul.map((judul, index) => {
-        const nomor = index + 1;
-        const keadaan = keadaanTahap(pengajuan.tahap, nomor, pengajuan.status.kode);
-        const gaya = GAYA_TAHAP[keadaan];
-        return (
-          <View
-            key={judul}
-            style={tw`flex-row items-center py-0.5`}
-            accessible
-            accessibilityLabel={`Tahap ${nomor}, ${judul}: ${LABEL_KEADAAN[keadaan]}`}
-          >
-            <View style={tw`w-2.5 h-2.5 rounded-full mr-2 ${gaya.titik}`} />
-            <Text style={tw`text-[13px] ${gaya.teks}`}>
-              {nomor}. {judul}
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-/** Rincian per barang: diminta, disetujui, dibeli, datang. */
+/** Rincian per barang: diminta, disetujui, dimasukkan, dan catatan atasan. */
 function RincianBarang({ pengajuan }: { pengajuan: PengajuanBarang }) {
   return (
     <View style={tw`mt-3 pt-3 border-t border-slate-100`}>
@@ -74,8 +34,8 @@ function RincianBarang({ pengajuan }: { pengajuan: PengajuanBarang }) {
 }
 
 /**
- * Kartu satu pengajuan barang (hanya lihat): nomor, gudang, status, tahap,
- * dan kalimat keadaannya. Ketuk "Lihat barang" untuk rincian per barang.
+ * Kartu satu pengajuan barang (hanya lihat): nomor, gudang, status, dan
+ * kalimat keadaannya. Ketuk "Lihat barang" untuk rincian per barang.
  */
 export const KartuPengajuanBarang = memo(({ pengajuan }: { pengajuan: PengajuanBarang }) => {
   const [isTerbuka, setIsTerbuka] = useState(false);
@@ -98,8 +58,6 @@ export const KartuPengajuanBarang = memo(({ pengajuan }: { pengajuan: PengajuanB
       {pengajuan.status.kalimat ? (
         <Text style={tw`text-sm text-slate-700 mt-2`}>{pengajuan.status.kalimat}</Text>
       ) : null}
-
-      <GarisTahap pengajuan={pengajuan} />
 
       {jumlahBarang > 0 ? (
         <Pressable

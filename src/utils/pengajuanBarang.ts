@@ -1,42 +1,19 @@
 import type { NadaStatus } from '@/constants/status';
-import type { BarisPengajuanBarang, KodeStatusPengajuan, PengajuanBarang } from '@/types/pengajuanBarang';
-
-/** Keadaan satu tahap di garis tahap kartu pengajuan. */
-export type KeadaanTahap = 'selesai' | 'berjalan' | 'berhenti' | 'belum';
+import type { BarisPengajuanBarang, KodeStatusPengajuan } from '@/types/pengajuanBarang';
 
 const NADA_STATUS: Readonly<Record<KodeStatusPengajuan, NadaStatus>> = {
   AWAITING_APPROVAL: 'menunggu',
+  APPROVED: 'menunggu',
+  RECEIVED: 'berhasil',
   REJECTED: 'gagal',
-  NO_ORDER: 'menunggu',
-  NOT_PURCHASED: 'menunggu',
-  PURCHASING: 'menunggu',
-  PURCHASED: 'menunggu',
-  PARTIAL: 'menunggu',
-  COMPLETE: 'berhasil',
-  COMPLETE_SHORT: 'netral',
-  SERVICE_PENDING: 'menunggu',
   CANCELLED: 'gagal',
 };
 
-/** Warna lencana status; kode yang belum dikenal aplikasi dianggap netral. */
+const PEMISAH_RINGKASAN = ' · ';
+
+/** Warna lencana status; kode yang belum dikenal aplikasi (mis. dari cache lama) dianggap netral. */
 export function nadaStatusPengajuan(kode: string): NadaStatus {
   return NADA_STATUS[kode as KodeStatusPengajuan] ?? 'netral';
-}
-
-/**
- * Keadaan tahap ke-`nomor` (mulai 1). Tahap sebelum tahap berjalan sudah
- * selesai; pengajuan yang ditolak/dibatalkan berhenti di `berhentiDi`.
- * Pengajuan yang selesai tidak punya tahap berjalan: semua tahap selesai.
- */
-export function keadaanTahap(tahap: PengajuanBarang['tahap'], nomor: number, kode: string): KeadaanTahap {
-  if (tahap.berhentiDi !== null) {
-    if (nomor < tahap.berhentiDi) return 'selesai';
-    return nomor === tahap.berhentiDi ? 'berhenti' : 'belum';
-  }
-  if (kode === 'COMPLETE' || kode === 'COMPLETE_SHORT') return 'selesai';
-  if (tahap.sekarang === null) return 'belum';
-  if (nomor < tahap.sekarang) return 'selesai';
-  return nomor === tahap.sekarang ? 'berjalan' : 'belum';
 }
 
 function denganSatuan(jumlah: number, satuan: string): string {
@@ -44,19 +21,15 @@ function denganSatuan(jumlah: number, satuan: string): string {
 }
 
 /**
- * Ringkasan angka satu barang, mis. "Diminta 10 roll · Disetujui 10 ·
- * Dibeli 4 · Datang 2". Barang ditolak cukup "Ditolak".
+ * Ringkasan angka satu barang, mis. "Diminta 10 roll · Disetujui 8 roll ·
+ * Dimasukkan 8 roll". Barang ditolak cukup "Ditolak". Angka yang belum ada
+ * tidak ditampilkan: belum diputuskan atasan berarti tanpa "Disetujui", belum
+ * dimasukkan (termasuk data lama di cache tanpa `dimasukkan`) tanpa "Dimasukkan".
  */
 export function ringkasanBarisPengajuan(baris: BarisPengajuanBarang): string {
-  const diminta = `Diminta ${denganSatuan(baris.diminta, baris.satuanDiminta)}`;
-  if (baris.isDitolak) return `${diminta} · Ditolak`;
-  if (baris.disetujui === null) return `${diminta} · Menunggu keputusan`;
-  const bagian = [
-    diminta,
-    `Disetujui ${denganSatuan(baris.disetujui, baris.satuan)}`,
-    `Dibeli ${baris.dibeli}`,
-    `Datang ${baris.datang}`,
-  ];
-  if (baris.tidakDatang > 0) bagian.push(`Tidak datang ${baris.tidakDatang}`);
-  return bagian.join(' · ');
+  const bagian = [`Diminta ${denganSatuan(baris.diminta, baris.satuanDiminta)}`];
+  if (baris.isDitolak) return [...bagian, 'Ditolak'].join(PEMISAH_RINGKASAN);
+  if (typeof baris.disetujui === 'number') bagian.push(`Disetujui ${denganSatuan(baris.disetujui, baris.satuan)}`);
+  if (typeof baris.dimasukkan === 'number') bagian.push(`Dimasukkan ${denganSatuan(baris.dimasukkan, baris.satuan)}`);
+  return bagian.join(PEMISAH_RINGKASAN);
 }

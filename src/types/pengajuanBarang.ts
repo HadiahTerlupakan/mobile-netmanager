@@ -1,35 +1,33 @@
 /**
  * Bentuk respons GET /api/mobile/inventory/pengajuan (backend:
  * `app/api/mobile/inventory/pengajuan/presentRestockRequest.ts`).
- * Tahap & status dihitung server dengan aturan yang sama dengan halaman admin.
+ * Status dihitung server dengan aturan yang sama dengan halaman admin:
+ * pengajuan menunggu persetujuan atasan, lalu admin memasukkan barangnya ke
+ * gudang. Pengajuan bisa juga ditolak atasan atau dibatalkan admin.
+ *
+ * Server masih mengirim `tahap` dan angka lama per barang (`dibeli`, `datang`,
+ * `tidakDatang`) untuk build lama; aplikasi ini tidak membacanya.
  */
 
 /** Kode status pengajuan dari server. */
-export type KodeStatusPengajuan =
-  | 'AWAITING_APPROVAL'
-  | 'REJECTED'
-  | 'NO_ORDER'
-  | 'NOT_PURCHASED'
-  | 'PURCHASING'
-  | 'PURCHASED'
-  | 'PARTIAL'
-  | 'COMPLETE'
-  | 'COMPLETE_SHORT'
-  | 'SERVICE_PENDING'
-  | 'CANCELLED';
+export type KodeStatusPengajuan = 'AWAITING_APPROVAL' | 'APPROVED' | 'RECEIVED' | 'REJECTED' | 'CANCELLED';
 
 /** Satu barang di pengajuan. */
 export interface BarisPengajuanBarang {
   id: string;
   nama: string;
+  /** Satuan barang yang berlaku (barang pengganti bila diganti). */
   satuan: string;
   diminta: number;
   satuanDiminta: string;
-  /** Null bila belum diputuskan atau ditolak. */
+  /** Jumlah yang disetujui atasan; null bila belum diputuskan atau ditolak. */
   disetujui: number | null;
-  dibeli: number;
-  datang: number;
-  tidakDatang: number;
+  /**
+   * Jumlah yang sudah dimasukkan admin ke gudang; null bila belum ada yang
+   * dimasukkan. Opsional karena data lama di cache dan respons server lama
+   * tidak memilikinya.
+   */
+  dimasukkan?: number | null;
   isDitolak: boolean;
   catatanAtasan: string | null;
 }
@@ -43,14 +41,6 @@ export interface PengajuanBarang {
   gudang: string;
   pemohon: string | null;
   status: { kode: KodeStatusPengajuan; label: string; kalimat: string };
-  tahap: {
-    /** Tahap yang sedang berjalan; null bila pengajuan dibatalkan. */
-    sekarang: number | null;
-    /** Tahap tempat pengajuan berhenti (ditolak/dibatalkan); null bila tidak. */
-    berhentiDi: number | null;
-    total: number;
-    judul: string[];
-  };
   barang: BarisPengajuanBarang[];
   jumlahJasa: number;
 }
