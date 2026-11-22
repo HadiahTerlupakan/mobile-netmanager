@@ -2,7 +2,7 @@
  * Bentuk respons GET /api/mobile/inventory/pengajuan (backend:
  * `app/api/mobile/inventory/pengajuan/presentRestockRequest.ts`).
  * Status dihitung server dengan aturan yang sama dengan halaman admin:
- * pengajuan menunggu persetujuan atasan, lalu admin memasukkan barangnya ke
+ * pengajuan menunggu persetujuan atasan, lalu admin melaporkan barangnya sampai ke
  * gudang. Pengajuan bisa juga ditolak atasan atau dibatalkan admin.
  *
  * Server masih mengirim `tahap` dan angka lama per barang (`dibeli`, `datang`,
@@ -23,7 +23,7 @@ export interface BarisPengajuanBarang {
   /** Jumlah yang disetujui atasan; null bila belum diputuskan atau ditolak. */
   disetujui: number | null;
   /**
-   * Jumlah yang sudah dimasukkan admin ke gudang; null bila belum ada yang
+   * Jumlah yang sudah dilaporkan sampai; null bila belum ada yang
    * dimasukkan. Opsional karena data lama di cache dan respons server lama
    * tidak memilikinya.
    */

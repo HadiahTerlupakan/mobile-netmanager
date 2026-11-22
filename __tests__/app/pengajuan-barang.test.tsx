@@ -62,7 +62,7 @@ function buatPengajuan(overrides: Partial<PengajuanBarang> = {}): PengajuanBaran
     status: {
       kode: 'APPROVED',
       label: 'Sudah Diajukan',
-      kalimat: 'Sudah disetujui. Menunggu admin memasukkan barangnya ke gudang.',
+      kalimat: 'Sudah disetujui. Menunggu barangnya sampai.',
     },
     barang: [
       buatBaris({ disetujui: 8, catatanAtasan: 'Stok gudang masih 2 roll' }),
@@ -160,7 +160,7 @@ describe('layar Pengajuan Barang', () => {
     expect(layar.getByText('PR-001')).toBeTruthy();
     expect(layar.getByText(/Gudang Site A/)).toBeTruthy();
     expect(layar.getByText('Sudah Diajukan')).toBeTruthy();
-    expect(layar.getByText('Sudah disetujui. Menunggu admin memasukkan barangnya ke gudang.')).toBeTruthy();
+    expect(layar.getByText('Sudah disetujui. Menunggu barangnya sampai.')).toBeTruthy();
     expect(layar.queryByLabelText(/Tahap/)).toBeNull();
   });
 
@@ -192,18 +192,18 @@ describe('layar Pengajuan Barang', () => {
     expect(layar.getByText('Diminta 10 roll')).toBeTruthy();
   });
 
-  it('sudah dimasukkan: jumlah yang masuk tampil per barang', () => {
+  it('sudah sampai: jumlah yang sampai tampil per barang', () => {
     const pengajuanMasuk = buatPengajuan({
-      status: { kode: 'RECEIVED', label: 'Sudah Dimasukkan', kalimat: 'Barangnya sudah dimasukkan admin ke gudang.' },
+      status: { kode: 'RECEIVED', label: 'Sudah Sampai', kalimat: 'Barangnya sudah sampai.' },
       barang: [buatBaris({ disetujui: 10, dimasukkan: 8 })],
     });
     mockUsePengajuanBarang.mockReturnValue(hasilKueri(denganPengajuan(pengajuanMasuk)));
 
     const layar = renderLayar();
-    expect(layar.getByText('Sudah Dimasukkan')).toBeTruthy();
+    expect(layar.getByText('Sudah Sampai')).toBeTruthy();
     fireEvent.press(layar.getByText('Lihat barang (1)'));
 
-    expect(layar.getByText('Diminta 10 roll · Disetujui 10 roll · Dimasukkan 8 roll')).toBeTruthy();
+    expect(layar.getByText('Diminta 10 roll · Disetujui 10 roll · Sampai 8 roll')).toBeTruthy();
   });
 
   it('data lama dari cache tetap tampil tanpa garis tahap maupun angka pembelian', () => {

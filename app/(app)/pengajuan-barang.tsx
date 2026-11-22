@@ -24,7 +24,7 @@ function pesanGalat(error: unknown): string {
 
 /**
  * Status pengajuan barang untuk gudang di site pengguna — hanya untuk dilihat.
- * Mengajukan, menyetujui, dan memasukkan barang tetap lewat web admin.
+ * Mengajukan, menyetujui, dan melaporkan barang sampai tetap lewat web admin.
  */
 export default function PengajuanBarangScreen() {
   const { tw, warna } = useTemaPersona();

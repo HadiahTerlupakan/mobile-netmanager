@@ -45,10 +45,10 @@ describe('ringkasanBarisPengajuan', () => {
 
   it('sudah dimasukkan, termasuk 0 untuk barang yang tidak masuk', () => {
     expect(ringkasanBarisPengajuan(buatBaris({ disetujui: 8, dimasukkan: 8 }))).toBe(
-      'Diminta 10 roll · Disetujui 8 roll · Dimasukkan 8 roll',
+      'Diminta 10 roll · Disetujui 8 roll · Sampai 8 roll',
     );
     expect(ringkasanBarisPengajuan(buatBaris({ disetujui: 8, dimasukkan: 0 }))).toBe(
-      'Diminta 10 roll · Disetujui 8 roll · Dimasukkan 0 roll',
+      'Diminta 10 roll · Disetujui 8 roll · Sampai 0 roll',
     );
   });
 
@@ -79,7 +79,7 @@ describe('ringkasanBarisPengajuan', () => {
       dimasukkan: 300,
     });
 
-    expect(ringkasanBarisPengajuan(barisPengganti)).toBe('Diminta 1 roll · Disetujui 300 meter · Dimasukkan 300 meter');
+    expect(ringkasanBarisPengajuan(barisPengganti)).toBe('Diminta 1 roll · Disetujui 300 meter · Sampai 300 meter');
   });
 
   it('barang ditolak cukup ditandai ditolak', () => {
@@ -96,7 +96,7 @@ describe('ringkasanBarisPengajuan', () => {
   it('tanpa satuan: angkanya saja', () => {
     expect(ringkasanBarisPengajuan(buatBaris({ satuan: '', satuanDiminta: '' }))).toBe('Diminta 10');
     expect(ringkasanBarisPengajuan(buatBaris({ satuan: '', satuanDiminta: '', disetujui: 8, dimasukkan: 8 }))).toBe(
-      'Diminta 10 · Disetujui 8 · Dimasukkan 8',
+      'Diminta 10 · Disetujui 8 · Sampai 8',
     );
   });
 });

@@ -22,14 +22,14 @@ function denganSatuan(jumlah: number, satuan: string): string {
 
 /**
  * Ringkasan angka satu barang, mis. "Diminta 10 roll · Disetujui 8 roll ·
- * Dimasukkan 8 roll". Barang ditolak cukup "Ditolak". Angka yang belum ada
+ * Sampai 8 roll". Barang ditolak cukup "Ditolak". Angka yang belum ada
  * tidak ditampilkan: belum diputuskan atasan berarti tanpa "Disetujui", belum
- * dimasukkan (termasuk data lama di cache tanpa `dimasukkan`) tanpa "Dimasukkan".
+ * sampai (termasuk data lama di cache tanpa `dimasukkan`) tanpa "Sampai".
  */
 export function ringkasanBarisPengajuan(baris: BarisPengajuanBarang): string {
   const bagian = [`Diminta ${denganSatuan(baris.diminta, baris.satuanDiminta)}`];
   if (baris.isDitolak) return [...bagian, 'Ditolak'].join(PEMISAH_RINGKASAN);
   if (typeof baris.disetujui === 'number') bagian.push(`Disetujui ${denganSatuan(baris.disetujui, baris.satuan)}`);
-  if (typeof baris.dimasukkan === 'number') bagian.push(`Dimasukkan ${denganSatuan(baris.dimasukkan, baris.satuan)}`);
+  if (typeof baris.dimasukkan === 'number') bagian.push(`Sampai ${denganSatuan(baris.dimasukkan, baris.satuan)}`);
   return bagian.join(PEMISAH_RINGKASAN);
 }

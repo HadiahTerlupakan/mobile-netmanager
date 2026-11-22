@@ -11,7 +11,7 @@ import { nadaStatusPengajuan, ringkasanBarisPengajuan } from '@/utils/pengajuanB
 
 const UKURAN_IKON_RINCIAN = 16;
 
-/** Rincian per barang: diminta, disetujui, dimasukkan, dan catatan atasan. */
+/** Rincian per barang: diminta, disetujui, sampai, dan catatan atasan. */
 function RincianBarang({ pengajuan }: { pengajuan: PengajuanBarang }) {
   return (
     <View style={tw`mt-3 pt-3 border-t border-slate-100`}>
